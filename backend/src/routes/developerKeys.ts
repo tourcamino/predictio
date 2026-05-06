@@ -77,5 +77,27 @@ router.post("/developer/keys", requireAdminKey, async (req, res) => {
   }
 });
 
+// POST /api/developer/keys/revoke
+// Body: { id } (revokes key by id)
+router.post("/developer/keys/revoke", requireAdminKey, async (req, res) => {
+  try {
+    const id = req.body?.id ? String(req.body.id) : null;
+    if (!id) return res.status(400).json({ error: "Missing id" });
+
+    const row = await prisma.apiKey.findUnique({ where: { id } });
+    if (!row) return res.status(404).json({ error: "Key not found" });
+
+    await prisma.apiKey.update({
+      where: { id },
+      data: { revokedAt: new Date(), isActive: false },
+    });
+
+    res.json({ revoked: true, id });
+  } catch (e) {
+    console.error("[developer/keys] revoke failed", e);
+    res.status(500).json({ error: "Failed to revoke API key" });
+  }
+});
+
 export default router;
 

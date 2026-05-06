@@ -183,16 +183,49 @@ router.post('/v1/auth/verify', async (req: Request, res: Response) => {
 router.post('/v1/auth/revoke', authenticateAPIKey, async (req: Request, res: Response) => {
   try {
     const apiKey = (req as any).apiKey;
-    
+
+    const keyId = req.body?.key_id ? String(req.body.key_id) : apiKey.id;
+    const row = await prisma.apiKey.findUnique({ where: { id: keyId } });
+    if (!row || row.walletAddress !== apiKey.walletAddress) {
+      return res.status(404).json({ error: 'Key not found' });
+    }
+
     await prisma.apiKey.update({
-      where: { id: apiKey.id },
-      data: { revokedAt: new Date() },
+      where: { id: row.id },
+      data: { revokedAt: new Date(), isActive: false },
     });
     
     res.json({ revoked: true });
   } catch (error) {
     console.error('Revocation error:', error);
     res.status(500).json({ error: 'Failed to revoke key' });
+  }
+});
+
+// List keys for the authenticated wallet (no plaintext)
+router.get('/v1/auth/keys', authenticateAPIKey, rateLimit, async (req: Request, res: Response) => {
+  try {
+    const apiKey = (req as any).apiKey;
+    const keys = await prisma.apiKey.findMany({
+      where: { walletAddress: apiKey.walletAddress },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        keyPrefix: true,
+        keySuffix: true,
+        label: true,
+        createdAt: true,
+        lastUsedAt: true,
+        revokedAt: true,
+        isActive: true,
+        paperMode: true,
+      },
+      take: 50,
+    });
+    res.json({ wallet: apiKey.walletAddress, keys });
+  } catch (error) {
+    console.error('Keys list error:', error);
+    res.status(500).json({ error: 'Failed to list keys' });
   }
 });
 
