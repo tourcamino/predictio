@@ -1,5 +1,5 @@
 import { Link, useRouterState } from '@tanstack/react-router';
-import { BarChart3, Target, PlusCircle, CheckCircle, Users, TrendingUp, Settings, LogOut, Zap, AlertTriangle, FileText, Briefcase } from 'lucide-react';
+import { BarChart3, Target, PlusCircle, CheckCircle, Users, TrendingUp, Settings, LogOut, Zap, AlertTriangle, FileText, Briefcase, ListChecks } from 'lucide-react';
 import { useAdmin } from '~/store/useAdminStore';
 import { mockAnomalies } from '~/data/mockAdmin';
 
@@ -11,6 +11,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/admin/dashboard', icon: BarChart3 },
+  { label: 'Event Curation', path: '/admin/event-curation', icon: ListChecks },
   { label: 'Markets', path: '/admin/markets', icon: Target },
   { label: 'Create Market', path: '/admin/create', icon: PlusCircle },
   { label: 'Resolve Markets', path: '/admin/resolve', icon: CheckCircle },

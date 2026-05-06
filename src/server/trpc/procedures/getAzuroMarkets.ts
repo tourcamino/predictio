@@ -2,6 +2,7 @@ import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
 import { prismaMarketRowToAzuroMarket } from "~/server/utils/dbMarketToAzuroMarket";
+import { MAX_FOOTBALL_MARKETS } from "~/constants/azuro";
 import {
   type AzuroMarket,
   fetchAzuroGames,
@@ -41,6 +42,21 @@ export const getAzuroMarkets = baseProcedure
       ];
     } catch (err) {
       console.warn("[getAzuroMarkets] Skipping DB merge:", err);
+    }
+
+    try {
+      const activeCurated = await db.curatedEvent.findMany({
+        where: { isActive: true },
+        select: { gameId: true },
+      });
+      if (activeCurated.length > 0) {
+        const allow = new Set(activeCurated.map((c) => c.gameId));
+        markets = markets.filter(
+          (m) => m.azuroGameId != null && allow.has(m.azuroGameId),
+        );
+      }
+    } catch (err) {
+      console.warn("[getAzuroMarkets] Curated filter skipped:", err);
     }
     
     // Enforce football-only filtering when football focus is enabled
@@ -108,18 +124,20 @@ export const getAzuroMarkets = baseProcedure
       }
     }
     
+    const cappedMarkets = filteredMarkets.slice(0, MAX_FOOTBALL_MARKETS);
+
     const source =
       mergedDbCount > 0
         ? "mixed"
-        : filteredMarkets[0]?.azuroGameId
+        : cappedMarkets[0]?.azuroGameId
           ? "azuro"
           : usedEmptyFallback
             ? "fallback"
             : "mock";
 
     return {
-      markets: filteredMarkets,
-      total: filteredMarkets.length,
+      markets: cappedMarkets,
+      total: cappedMarkets.length,
       source,
       footballFocusEnabled: FOOTBALL_FOCUS_ENABLED,
     };

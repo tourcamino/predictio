@@ -16,6 +16,7 @@ import adminUsageRouter from "./routes/adminUsage";
 import adminWalletKeysRouter from "./routes/adminWalletKeys";
 import adminKeysRouter from "./routes/adminKeys";
 import developerKeysRouter from "./routes/developerKeys";
+import { registerAdminCurationRoutes } from "./routes/adminCuration";
 import { referralCookieMiddleware } from "./middleware/referral";
 import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
@@ -65,6 +66,24 @@ function startupEnvCheck() {
     // eslint-disable-next-line no-console
     console.warn("[startup] ADMIN_API_KEY not set");
   }
+  if (!requireEnv("MARKET_MAKER_WALLET")) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[startup] MARKET_MAKER_WALLET not set — POST /api/v1/bot/market-maker/provide-liquidity will return 503",
+    );
+  }
+
+  const feeVault = Number(process.env.FEE_VAULT || 0.5);
+  const feeAnalyst = Number(process.env.FEE_ANALYST || 0.35);
+  const feeReferral = Number(process.env.FEE_REFERRAL || 0.15);
+  const feeSum = feeVault + feeAnalyst + feeReferral;
+  if (isProd && Math.abs(feeSum - 1) > 1e-6) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[startup] FEE_VAULT+FEE_ANALYST+FEE_REFERRAL must sum to 1 (got ${feeSum.toFixed(6)})`,
+    );
+    process.exit(1);
+  }
 
   // eslint-disable-next-line no-console
   console.log(`[startup] env ok NODE_ENV=${nodeEnv}`);
@@ -81,7 +100,7 @@ app.set("trust proxy", 1);
 // Environment variables
 const PORT = process.env.PORT || 3001;
 const WS_PORT = process.env.WS_PORT || 8080;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:8000";
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:5173";
 const BOT_API_KEY = process.env.BOT_API_KEY || "dev_bot_key";
 const TRANSLATION_CACHE_TTL = Number(process.env.TRANSLATION_CACHE_TTL || 2592000); // 30d default
 
@@ -95,7 +114,7 @@ function isAllowedCorsOrigin(origin: string | undefined): boolean {
     .filter(Boolean);
 
   // Always allow localhost for dev tooling
-  allowList.push("http://localhost:8000", "http://127.0.0.1:8000");
+  allowList.push("http://localhost:5173", "http://127.0.0.1:5173");
 
   // Exact matches
   if (allowList.includes(origin)) return true;
@@ -222,6 +241,170 @@ app.use("/api/v1/orders", writeLimiter);
 app.use("/api/admin/", adminLimiter);
 app.use("/api/developer/keys", adminLimiter);
 
+// Bot / admin shared key (mounted before /api sub-routers so MM routes always match here first)
+function authenticateApiKey(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const raw = req.headers["x-predictio-key"];
+  const headerVal = Array.isArray(raw) ? raw[0] : raw;
+  const got = headerVal ? String(headerVal).trim() : "";
+  const expected = String(BOT_API_KEY).trim();
+  if (!got || got !== expected) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+}
+
+const MM_WALLET_RE = /^0x[a-f0-9]{40}$/i;
+
+function parseMarketOutcomesField(outcomes: unknown): unknown {
+  if (typeof outcomes === "string") {
+    try {
+      return JSON.parse(outcomes) as unknown;
+    } catch {
+      return outcomes;
+    }
+  }
+  return outcomes;
+}
+
+function enabledMarketIdsFromJson(raw: unknown): string[] {
+  const parsed = parseMarketOutcomesField(raw);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter((x): x is string => typeof x === "string");
+}
+
+function outcomeLabelsFromJson(outcomes: unknown): string[] {
+  const parsed = parseMarketOutcomesField(outcomes);
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    return ["YES", "NO"];
+  }
+  return parsed.map((o) => {
+    if (typeof o === "string") return o;
+    if (o && typeof o === "object") {
+      const rec = o as Record<string, unknown>;
+      if (typeof rec.label === "string" && rec.label.trim()) return rec.label.trim();
+      if (typeof rec.id === "string" && rec.id.trim()) return rec.id.trim();
+      if (typeof rec.name === "string" && rec.name.trim()) return rec.name.trim();
+    }
+    return String(o);
+  });
+}
+
+// GET /api/v1/bot/market-maker/config (BOT_API_KEY)
+app.get("/api/v1/bot/market-maker/config", authenticateApiKey, async (_req, res) => {
+  try {
+    const config = await prisma.marketMakerConfig.upsert({
+      where: { id: "singleton" },
+      create: {
+        id: "singleton",
+        targetSpread: 0.02,
+        maxExposurePerMarket: 5000,
+        rebalanceIntervalMs: 1_800_000,
+        minLiquidity: 500,
+        enabledMarkets: [],
+      },
+      update: {},
+    });
+
+    const enabledMarkets = enabledMarketIdsFromJson(config.enabledMarkets);
+
+    res.json({
+      targetSpread: config.targetSpread,
+      maxExposurePerMarket: config.maxExposurePerMarket,
+      rebalanceIntervalMs: config.rebalanceIntervalMs,
+      minLiquidity: config.minLiquidity,
+      enabledMarkets,
+      rebalanceIntervalMinutes: Math.round(config.rebalanceIntervalMs / 60_000),
+    });
+  } catch (error) {
+    console.error("[market-maker] config", error);
+    res.status(500).json({ error: "Failed to load market maker config" });
+  }
+});
+
+// POST /api/v1/bot/market-maker/provide-liquidity (BOT_API_KEY)
+app.post("/api/v1/bot/market-maker/provide-liquidity", authenticateApiKey, async (req, res) => {
+  try {
+    const walletRaw = (process.env.MARKET_MAKER_WALLET || "").trim().toLowerCase();
+    if (!MM_WALLET_RE.test(walletRaw)) {
+      return res.status(503).json({
+        error: "MARKET_MAKER_WALLET is not configured (set a 0x-prefixed 40-hex wallet)",
+      });
+    }
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const marketId =
+      (typeof body.marketId === "string" && body.marketId) ||
+      (typeof body.market_id === "string" && body.market_id) ||
+      "";
+    const amountRaw = body.amountPerSide ?? body.amount_per_side;
+    const amountPerSide = typeof amountRaw === "number" ? amountRaw : Number(amountRaw);
+
+    if (!marketId) {
+      return res.status(400).json({ error: "marketId is required" });
+    }
+    if (!Number.isFinite(amountPerSide) || amountPerSide <= 0) {
+      return res.status(400).json({ error: "amountPerSide must be a positive number" });
+    }
+
+    const market = await prisma.market.findUnique({ where: { id: marketId } });
+    if (!market || market.status !== "open") {
+      return res.status(400).json({ error: "Market not available" });
+    }
+
+    const labels = outcomeLabelsFromJson(market.outcomes);
+    const avgPrice = 0.65;
+    const odds = 2.0;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const createdIds: string[] = [];
+      let volumeAdd = 0;
+
+      for (const label of labels) {
+        const amount = amountPerSide;
+        volumeAdd += amount;
+        const shares = amount / avgPrice;
+        const order = await tx.order.create({
+          data: {
+            marketId,
+            wallet: walletRaw,
+            outcome: label,
+            amount,
+            shares,
+            avgPrice,
+            odds,
+            orderType: "MAKER_LP",
+            status: "open",
+          },
+        });
+        createdIds.push(order.id);
+      }
+
+      const mRow = await tx.market.findUnique({ where: { id: marketId } });
+      const prevLp = mRow?.totalLPPool ?? 0;
+
+      await tx.market.update({
+        where: { id: marketId },
+        data: {
+          volume: { increment: volumeAdd },
+          predictions: { increment: labels.length },
+          totalLPPool: prevLp + volumeAdd,
+        },
+      });
+
+      return { orderIds: createdIds, outcomes: labels.length, volumeAdded: volumeAdd };
+    });
+
+    res.json({
+      ok: true,
+      marketId,
+      ...result,
+    });
+  } catch (error) {
+    console.error("[market-maker] provide-liquidity", error);
+    res.status(500).json({ error: "Failed to provide liquidity" });
+  }
+});
+
 // Developer API routes
 if (process.env.DEVELOPER_API_ENABLED !== 'false') {
   app.use('/api', developerApiRouter);
@@ -240,16 +423,7 @@ app.use("/api", adminWalletKeysRouter);
 app.use("/api", adminKeysRouter);
 app.use("/api", developerKeysRouter);
 
-// Auth middleware
-function authenticateApiKey(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const apiKey = req.headers["x-predictio-key"];
-  
-  if (!apiKey || apiKey !== BOT_API_KEY) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  
-  next();
-}
+registerAdminCurationRoutes(app, prisma, publicLimiter);
 
 // Health check
 app.get("/api/v1/health", async (req, res) => {

@@ -1,4 +1,8 @@
-import { SEED_MARKETS, SeedMarket } from '~/data/seedMarkets';
+import { SEED_MARKETS, SeedMarket } from "~/data/seedMarkets";
+import { MAX_FOOTBALL_MARKETS } from "~/constants/azuro";
+import { env } from "~/server/env";
+
+export { MAX_FOOTBALL_MARKETS };
 
 /**
  * Azuro Protocol Integration
@@ -30,8 +34,47 @@ import { SEED_MARKETS, SeedMarket } from '~/data/seedMarkets';
  *    - Update all open positions for that market
  */
 
-// Azuro GraphQL endpoint
-const AZURO_ENDPOINT = 'https://thegraph.azuro.org/subgraphs/name/azuro-protocol/azuro-api-base-v3';
+const DEFAULT_AZURO_GRAPHQL =
+  "https://thegraph.azuro.org/subgraphs/name/azuro-protocol/azuro-api-base-v3";
+
+const AZURO_FETCH_TIMEOUT_MS = 15_000;
+
+function azuroGraphqlEndpoint(): string {
+  const fromEnv = env.AZURO_GRAPHQL_URL?.trim();
+  return fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_AZURO_GRAPHQL;
+}
+
+async function azuroGraphqlFetch(body: object): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AZURO_FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(azuroGraphqlEndpoint(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function readAzuroGraphqlJson(response: Response): Promise<unknown> {
+  const text = await response.text();
+  const start = text.trimStart();
+  if (start.startsWith("<!DOCTYPE") || start.startsWith("<html")) {
+    console.error("[Azuro] GraphQL URL returned HTML:", start.slice(0, 200));
+    throw new Error(
+      "Azuro indexer returned HTML instead of JSON — check AZURO_GRAPHQL_URL",
+    );
+  }
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    console.error("[Azuro] Non-JSON body:", text.slice(0, 240));
+    throw err;
+  }
+}
 
 // Azuro Game interface from GraphQL
 export interface AzuroGame {
@@ -72,6 +115,93 @@ export interface AzuroMarket extends SeedMarket {
   azuroConditionId?: string;
   azuroStatus?: string;
   azuroResult?: string;
+}
+
+const PRIORITY_LEAGUE_MARKERS = [
+  "champions league",
+  "premier league",
+  "serie a",
+  "la liga",
+  "bundesliga",
+  "ligue 1",
+  "europa league",
+  "eredivisie",
+] as const;
+
+function leaguePriorityScore(competition: string): number {
+  const n = competition.toLowerCase();
+  let best = 0;
+  PRIORITY_LEAGUE_MARKERS.forEach((marker, i) => {
+    if (n.includes(marker)) {
+      best = Math.max(best, (PRIORITY_LEAGUE_MARKERS.length - i) * 1_000_000);
+    }
+  });
+  return best;
+}
+
+function interestScore(m: AzuroMarket): number {
+  return leaguePriorityScore(m.competition) + m.volume24h;
+}
+
+/** Hours until kickoff from normalized market payload */
+export function hoursUntilStartMarket(m: AzuroMarket): number {
+  const t = new Date(m.event.startsAt).getTime();
+  return (t - Date.now()) / (1000 * 60 * 60);
+}
+
+/**
+ * Exactly {@link MAX_FOOTBALL_MARKETS}: 3 imminent (≤48h), 3 medium (48h–7d), 3 long (7–14d),
+ * prioritising major leagues + volume; backfills if a bucket is short.
+ */
+export function pickTieredFootballMarkets(markets: AzuroMarket[]): AzuroMarket[] {
+  const valid = markets.filter((m) => {
+    if (m.sport !== "football") return false;
+    const h = hoursUntilStartMarket(m);
+    return h > 0 && h <= 336;
+  });
+
+  const byInterest = (a: AzuroMarket, b: AzuroMarket) =>
+    interestScore(b) - interestScore(a);
+
+  const imminent = valid
+    .filter((m) => {
+      const h = hoursUntilStartMarket(m);
+      return h > 0 && h <= 48;
+    })
+    .sort(byInterest);
+
+  const medium = valid
+    .filter((m) => {
+      const h = hoursUntilStartMarket(m);
+      return h > 48 && h <= 168;
+    })
+    .sort(byInterest);
+
+  const longT = valid
+    .filter((m) => {
+      const h = hoursUntilStartMarket(m);
+      return h > 168 && h <= 336;
+    })
+    .sort(byInterest);
+
+  const picked: AzuroMarket[] = [
+    ...imminent.slice(0, 3),
+    ...medium.slice(0, 3),
+    ...longT.slice(0, 3),
+  ];
+
+  const used = new Set(picked.map((p) => p.id));
+  if (picked.length < MAX_FOOTBALL_MARKETS) {
+    for (const m of [...valid].sort(byInterest)) {
+      if (picked.length >= MAX_FOOTBALL_MARKETS) break;
+      if (!used.has(m.id)) {
+        picked.push(m);
+        used.add(m.id);
+      }
+    }
+  }
+
+  return picked.slice(0, MAX_FOOTBALL_MARKETS);
 }
 
 const ACTIVE_GAMES_QUERY = `
@@ -225,69 +355,50 @@ function getSportEmoji(sportSlug: string): string {
  */
 export async function fetchAzuroGames(): Promise<AzuroMarket[]> {
   try {
-    const response = await fetch(AZURO_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    const response = await azuroGraphqlFetch({
         query: ACTIVE_GAMES_QUERY,
         variables: {
-          first: 100,
+          first: 300,
           where: {
             status_in: ['Created', 'Paused'],
-            startsAt_gt: Math.floor(Date.now() / 1000).toString(),
+            startsAt_gt: nowSec.toString(),
           },
         },
-      }),
     });
 
     if (!response.ok) {
-      console.error('[Azuro] GraphQL request failed:', response.statusText);
+      const errText = await response.text().catch(() => "");
+      console.error(
+        "[Azuro] GraphQL HTTP error:",
+        response.status,
+        response.statusText,
+        errText.slice(0, 400),
+      );
       return mapMockMarketsToAzuroFormat();
     }
 
-    const data = await response.json();
-    
+    const raw = await readAzuroGraphqlJson(response);
+    const data = raw as {
+      errors?: unknown;
+      data?: { games?: AzuroGame[] };
+    };
+
     if (data.errors) {
       console.error('[Azuro] GraphQL errors:', data.errors);
       return mapMockMarketsToAzuroFormat();
     }
 
     const games: AzuroGame[] = data.data?.games || [];
-    
-    // Filter for supported leagues - prioritize Champions League and Serie A
-    const filteredGames = games.filter(game => {
-      const leagueName = game.league.name.toLowerCase();
-      return (
-        leagueName.includes('champions league') ||
-        leagueName.includes('serie a') ||
-        leagueName.includes('europa league') ||
-        leagueName.includes('premier league') ||
-        leagueName.includes('la liga') ||
-        leagueName.includes('bundesliga') ||
-        leagueName.includes('ligue 1') ||
-        leagueName.includes('eredivisie')
-      );
-    });
 
-    // Sort to prioritize Champions League and Serie A
-    filteredGames.sort((a, b) => {
-      const aLeague = a.league.name.toLowerCase();
-      const bLeague = b.league.name.toLowerCase();
-      
-      const aIsPriority = aLeague.includes('champions league') || aLeague.includes('serie a');
-      const bIsPriority = bLeague.includes('champions league') || bLeague.includes('serie a');
-      
-      if (aIsPriority && !bIsPriority) return -1;
-      if (!aIsPriority && bIsPriority) return 1;
-      
-      // Secondary sort by start time (soonest first)
-      return parseInt(a.startsAt) - parseInt(b.startsAt);
-    });
+    /** Football / soccer only — league breadth handled in tier scoring */
+    const footballGames = games.filter(
+      (game) => mapAzuroSportToSlug(game.sport.name) === "football",
+    );
 
-    // Transform Azuro games to our market format
-    const markets: AzuroMarket[] = filteredGames.map(game => {
+    // Transform Azuro games to our market format (football only)
+    const markets: AzuroMarket[] = footballGames.map(game => {
       const sportSlug = mapAzuroSportToSlug(game.sport.name);
       const homeTeam = game.participants[0]?.name || 'Team A';
       const awayTeam = game.participants[1]?.name || 'Team B';
@@ -324,6 +435,7 @@ export async function fetchAzuroGames(): Promise<AzuroMarket[]> {
       const volume24h = Math.floor(baseVolume * volumeMultiplier * (0.8 + Math.random() * 0.4));
       const liquidity = Math.floor(volume24h * 0.6);
       
+      const startsAtIso = startsAt.toISOString();
       return {
         id: `azuro-${game.gameId}`,
         question: `Who will win: ${homeTeam} vs ${awayTeam}?`,
@@ -334,7 +446,8 @@ export async function fetchAzuroGames(): Promise<AzuroMarket[]> {
         event: {
           name: `${homeTeam} vs ${awayTeam}`,
           slug: `${homeTeam.toLowerCase().replace(/\s+/g, '-')}-vs-${awayTeam.toLowerCase().replace(/\s+/g, '-')}`,
-          startsAt: startsAt.toISOString(),
+          startsAt: startsAtIso,
+          lockedAt: startsAtIso,
           teams: [homeTeam, awayTeam],
           location: game.league.country?.name,
         },
@@ -360,14 +473,17 @@ export async function fetchAzuroGames(): Promise<AzuroMarket[]> {
       };
     });
 
-    // If we got no markets from Azuro, fall back to mock
-    if (markets.length === 0) {
-      console.warn('[Azuro] No markets returned, using mock data');
+    const tiered = pickTieredFootballMarkets(markets);
+
+    if (tiered.length === 0) {
+      console.warn("[Azuro] No tiered football markets from indexer, using seed fallback");
       return mapMockMarketsToAzuroFormat();
     }
 
-    console.log(`[Azuro] Fetched ${markets.length} markets from Azuro Protocol`);
-    return markets;
+    console.log(
+      `[Azuro] Fetched ${tiered.length} tiered football markets from Azuro Protocol`,
+    );
+    return tiered;
     
   } catch (error) {
     console.error('[Azuro] Failed to fetch games:', error);
@@ -380,15 +496,9 @@ export async function fetchAzuroGames(): Promise<AzuroMarket[]> {
  */
 export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket | null> {
   try {
-    const response = await fetch(AZURO_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const response = await azuroGraphqlFetch({
         query: GAME_DETAIL_QUERY,
         variables: { gameId },
-      }),
     });
 
     if (!response.ok) {
@@ -396,8 +506,12 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
       return null;
     }
 
-    const data = await response.json();
-    
+    const raw = await readAzuroGraphqlJson(response);
+    const data = raw as {
+      errors?: unknown;
+      data?: { games?: AzuroGame[] };
+    };
+
     if (data.errors || !data.data?.games?.[0]) {
       console.error('[Azuro] Game not found or error:', data.errors);
       return null;
@@ -494,12 +608,17 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
  * Map SEED_MARKETS to AzuroMarket format for fallback
  */
 function mapMockMarketsToAzuroFormat(): AzuroMarket[] {
-  return SEED_MARKETS.map(market => ({
-    ...market,
-    azuroGameId: undefined,
-    azuroConditionId: undefined,
-    azuroStatus: undefined,
-  }));
+  const mapped = SEED_MARKETS.filter((m) => m.sport === "football").map(
+    (market) => ({
+      ...market,
+      azuroGameId: undefined,
+      azuroConditionId: undefined,
+      azuroStatus: undefined,
+    }),
+  );
+  const tiered = pickTieredFootballMarkets(mapped);
+  if (tiered.length > 0) return tiered;
+  return mapped.slice(0, MAX_FOOTBALL_MARKETS);
 }
 
 /** Used when Azuro returns nothing or UI filters would show an empty grid */
@@ -524,12 +643,7 @@ export async function checkResolvedMarkets(
       return [];
     }
 
-    const response = await fetch(AZURO_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const response = await azuroGraphqlFetch({
         query: `
           query CheckResolved($gameIds: [String!]!) {
             games(where: { gameId_in: $gameIds, status: "Resolved" }) {
@@ -546,14 +660,14 @@ export async function checkResolvedMarkets(
           }
         `,
         variables: { gameIds: azuroGameIds },
-      }),
     });
 
     if (!response.ok) {
       return [];
     }
 
-    const data = await response.json();
+    const raw = await readAzuroGraphqlJson(response);
+    const data = raw as { data?: { games?: AzuroGame[] } };
     const games: AzuroGame[] = data.data?.games || [];
     
     const resolved = games

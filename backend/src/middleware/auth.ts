@@ -45,6 +45,13 @@ export const requireAdminKey = requireStaticKey({
   fallbackEnvName: "BOT_API_KEY",
 });
 
+/** Admin panel / founder tooling (`X-Admin-Key`); prefers ADMIN_SECRET, falls back to ADMIN_API_KEY. */
+export const requireXAdminKey = requireStaticKey({
+  headerName: "x-admin-key",
+  envName: "ADMIN_SECRET",
+  fallbackEnvName: "ADMIN_API_KEY",
+});
+
 export const requireBotKey = requireStaticKey({
   headerName: "x-predictio-key",
   envName: "BOT_API_KEY",

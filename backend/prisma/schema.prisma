@@ -621,3 +621,24 @@ model MarketMakerConfig {
   
   @@index([updatedAt])
 }
+
+/// Founder-selected Azuro games surfaced on the platform (max 12 active).
+model CuratedEvent {
+  id          String   @id @default(cuid())
+  gameId      String   @unique
+  title       String
+  leagueName  String
+  country     String
+  startsAt    DateTime
+  homeTeam    String
+  awayTeam    String
+  homeImage   String?
+  awayImage   String?
+  isActive    Boolean  @default(true)
+  selectedAt  DateTime @default(now())
+  selectedBy  String
+
+  @@index([isActive])
+  @@index([startsAt])
+  @@map("curated_events")
+}

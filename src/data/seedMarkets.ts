@@ -13,6 +13,8 @@ export interface SeedMarket {
     name: string;
     slug: string;
     startsAt: string;
+    /** Trading locks at kickoff — defaults to startsAt when synced from Azuro. */
+    lockedAt?: string;
     teams: string[];
     location?: string;
   };

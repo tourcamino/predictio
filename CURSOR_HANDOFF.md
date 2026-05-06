@@ -1,7 +1,7 @@
 # Predictio.live — Cursor Handoff Document
 
-**Generated:** 2025-01-29  
-**Status:** TrySolid Frontend Complete ✅ | Backend Implementation Required ⚠️ | Testing & Monitoring Added ✅
+**Generated:** 2026-05-06  
+**Status:** TrySolid Frontend Complete ✅ | Backend REST in repo ⚠️ | Testing & Monitoring Added ✅
 
 ---
 
@@ -402,3 +402,31 @@ Sono stati inoltre aggiunti:
 - ✅ Rimozione del vecchio Help button
 
 *Nota: Rimangono solo task minori frontend (come i grafici performance richiesti in questo prompt) che TrySolid può implementare prima del passaggio definitivo.*
+
+---
+
+## Event Curation (Azuro) — 2026-05-06
+
+**Fatto**
+- Tabella PostgreSQL `curated_events` (model Prisma `CuratedEvent`), migration `20260506120000_curated_events` (root `Predictio/prisma` + mirror `Predictio/backend/prisma`).
+- Backend Express:
+  - `GET /api/admin/azuro-events` — lista football da subgraph Azuro (14 giorni, kickoff futuri), merge `isSelected` da DB; cache Redis `REDIS_URL` **5 minuti** (chiave `admin:azuro:football:14d:v1`; senza Redis niente cache).
+  - `POST /api/admin/events/select` — body `{ gameId, selected, selectedBy? }`; max **12** righe con `isActive: true`; header **`X-Admin-Key`** (`ADMIN_SECRET`, fallback `ADMIN_API_KEY`).
+  - `GET /api/markets` — lista pubblica solo eventi curati attivi; include `startsAt` e `lockedAt` (= kickoff).
+- Middleware `requireXAdminKey` in `backend/src/middleware/auth.ts`.
+- Servizi: `backend/src/services/redisCache.ts`, `backend/src/services/azuroCuratorGraphql.ts`, wiring `registerAdminCurationRoutes` in `backend/src/index.ts`.
+- tRPC `getAzuroMarkets`: se esiste almeno un `CuratedEvent` attivo, la lista mercati è **filtrata** a quei `gameId` (allineato ad Azuro); se non ci sono curati, comportamento precedente (nessun filtro).
+- Frontend: route `/admin/event-curation` — counter 12, ricerca, checkbox, Save Selection, toast; sidebar link “Event Curation”; `VITE_ADMIN_KEY` + `VITE_FOUNDER_WALLET` (optional gate).
+- `SeedMarket.event.lockedAt` + mapping Azuro `lockedAt` = `startsAt` ISO.
+
+**Env**
+- Backend: `ADMIN_SECRET`, `REDIS_URL` (opzionale), `AZURO_CURATOR_GRAPHQL_URL` opzionale (default stessa catena di `AZURO_GRAPHQL_URL` / Base v3).
+- Frontend: `VITE_API_URL` verso API Express, `VITE_ADMIN_KEY`, `VITE_FOUNDER_WALLET`.
+
+**Migration**
+- Applicare: `npx prisma migrate deploy` (root app) e backend deploy con stesso migration history.
+
+**Prossimi step**
+- Eseguire `migrate deploy` su DB staging/prod.
+- Verificare subgraph Azuro produzione (Base vs Polygon) e allineare `AZURO_GRAPHQL_URL` / `AZURO_CURATOR_GRAPHQL_URL`.
+- Opzionale: invalidare cache Redis dopo POST select; batch API per Save in una singola richiesta.

@@ -32,6 +32,8 @@ export async function apiRequest<T>(
     body?: any;
     developerApiKey?: string;
     adminApiKey?: string;
+    /** Founder/admin REST routes (`X-Admin-Key`, maps to server ADMIN_SECRET). */
+    adminSecretKey?: string;
     signal?: AbortSignal;
     timeoutMs?: number;
   } = {},
@@ -42,6 +44,7 @@ export async function apiRequest<T>(
   if (opts.body !== undefined) headers['content-type'] = 'application/json';
   if (opts.developerApiKey) headers.authorization = `Bearer ${opts.developerApiKey}`;
   if (opts.adminApiKey) headers['x-predictio-key'] = opts.adminApiKey;
+  if (opts.adminSecretKey) headers['x-admin-key'] = opts.adminSecretKey;
 
   const ac = new AbortController();
   const timeoutMs = Number.isFinite(opts.timeoutMs) ? Number(opts.timeoutMs) : 10_000;
