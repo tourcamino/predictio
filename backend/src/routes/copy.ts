@@ -1,15 +1,34 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { z } from "zod";
+import { validate } from "../middleware/validate";
 
 const router = Router();
 const prisma = new PrismaClient();
 
+const walletSchema = z
+  .string()
+  .trim()
+  .transform((s) => s.toLowerCase())
+  .refine((s) => /^0x[a-f0-9]{40}$/i.test(s), "Invalid wallet address");
+
+const copyListQuery = z.object({
+  copierWallet: walletSchema.optional(),
+});
+
+const copyUpsertBody = z.object({
+  action: z.enum(["start", "stop"]),
+  copierWallet: walletSchema,
+  analystWallet: walletSchema,
+  maxPerTradeUsd: z.coerce.number().positive().max(1_000_000).optional(),
+  copyMode: z.string().trim().optional(),
+  selectedMarkets: z.array(z.string().trim().min(1)).optional(),
+});
+
 // GET /api/copy?copierWallet=0x...
-router.get("/copy", async (req, res) => {
+router.get("/copy", validate({ query: copyListQuery }), async (req, res) => {
   try {
-    const copierWallet = req.query.copierWallet
-      ? String(req.query.copierWallet).toLowerCase()
-      : undefined;
+    const copierWallet = (req.query as any).copierWallet as string | undefined;
 
     const relationships = await prisma.copyRelationship.findMany({
       where: copierWallet ? { copierWallet } : undefined,
@@ -25,16 +44,9 @@ router.get("/copy", async (req, res) => {
 
 // POST /api/copy
 // Body: { action: "start"|"stop", copierWallet, analystWallet, maxPerTradeUsd, copyMode, selectedMarkets }
-router.post("/copy", async (req, res) => {
+router.post("/copy", validate({ body: copyUpsertBody }), async (req, res) => {
   try {
-    const { action, copierWallet, analystWallet } = req.body ?? {};
-
-    if (!action || (action !== "start" && action !== "stop")) {
-      return res.status(400).json({ error: "Invalid action" });
-    }
-    if (!copierWallet || !analystWallet) {
-      return res.status(400).json({ error: "Missing copierWallet or analystWallet" });
-    }
+    const { action, copierWallet, analystWallet } = req.body as any;
 
     const copier = String(copierWallet).toLowerCase();
     const analyst = String(analystWallet).toLowerCase();
@@ -47,10 +59,10 @@ router.post("/copy", async (req, res) => {
       return res.json({ relationship: updated });
     }
 
-    const maxPerTradeUsd = Number(req.body.maxPerTradeUsd || 50);
-    const copyMode = String(req.body.copyMode || "all");
-    const selectedMarkets = Array.isArray(req.body.selectedMarkets)
-      ? req.body.selectedMarkets.map((x: any) => String(x))
+    const maxPerTradeUsd = Number((req.body as any).maxPerTradeUsd || 50);
+    const copyMode = String((req.body as any).copyMode || "all");
+    const selectedMarkets = Array.isArray((req.body as any).selectedMarkets)
+      ? (req.body as any).selectedMarkets.map((x: any) => String(x))
       : [];
 
     const relationship = await prisma.copyRelationship.upsert({

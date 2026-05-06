@@ -1,8 +1,22 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { z } from "zod";
+import { validate } from "../middleware/validate";
 
 const router = Router();
 const prisma = new PrismaClient();
+
+const walletSchema = z
+  .string()
+  .trim()
+  .transform((s) => s.toLowerCase())
+  .refine((s) => /^0x[a-f0-9]{40}$/i.test(s), "Invalid wallet address");
+
+const vaultActionBody = z.object({
+  action: z.enum(["deposit", "withdraw"]),
+  walletAddress: walletSchema,
+  amountUsd: z.coerce.number().positive().max(1_000_000_000),
+});
 
 // GET /api/vault
 router.get("/vault", async (_req, res) => {
@@ -23,19 +37,11 @@ router.get("/vault", async (_req, res) => {
 });
 
 // POST /api/vault (deposit/withdraw placeholder for demo)
-router.post("/vault", async (req, res) => {
+router.post("/vault", validate({ body: vaultActionBody }), async (req, res) => {
   try {
-    const action = String(req.body?.action || "");
-    const walletAddress = req.body?.walletAddress
-      ? String(req.body.walletAddress).toLowerCase()
-      : null;
-    const amountUsd = Number(req.body?.amountUsd || 0);
-
-    if (!walletAddress) return res.status(400).json({ error: "Missing walletAddress" });
-    if (!Number.isFinite(amountUsd) || amountUsd <= 0)
-      return res.status(400).json({ error: "Invalid amountUsd" });
-    if (action !== "deposit" && action !== "withdraw")
-      return res.status(400).json({ error: "Invalid action" });
+    const action = (req.body as any).action as string;
+    const walletAddress = (req.body as any).walletAddress as string;
+    const amountUsd = Number((req.body as any).amountUsd || 0);
 
     // TODO C4: replace with on-chain vault contract calls.
     const state = await prisma.vaultState.upsert({

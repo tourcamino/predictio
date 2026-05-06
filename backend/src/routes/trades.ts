@@ -1,10 +1,34 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { z } from "zod";
 import { calculateFeeSplit, persistFeeSplit } from "../services/fees";
 import { getReferralCodeFromRequest } from "../middleware/referral";
+import { validate } from "../middleware/validate";
 
 const router = Router();
 const prisma = new PrismaClient();
+
+const walletSchema = z
+  .string()
+  .trim()
+  .transform((s) => s.toLowerCase())
+  .refine((s) => /^0x[a-f0-9]{40}$/i.test(s), "Invalid wallet address");
+
+const listTradesQuery = z.object({
+  walletAddress: walletSchema.optional(),
+  marketId: z.string().trim().optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+});
+
+const createTradeBody = z.object({
+  marketId: z.string().trim().min(1),
+  outcome: z.string().trim().min(1),
+  amountUsd: z.coerce.number().positive(),
+  walletAddress: walletSchema,
+  analystWallet: walletSchema.optional().nullable(),
+  referralWallet: walletSchema.optional().nullable(),
+});
 
 function getWalletFromReq(req: any): string | null {
   const w =
@@ -16,14 +40,11 @@ function getWalletFromReq(req: any): string | null {
 }
 
 // GET /api/trades?walletAddress=0x...&marketId=...&limit=...&offset=...
-router.get("/trades", async (req, res) => {
+router.get("/trades", validate({ query: listTradesQuery }), async (req, res) => {
   try {
-    const walletAddress = req.query.walletAddress
-      ? String(req.query.walletAddress).toLowerCase()
-      : undefined;
-    const marketId = req.query.marketId ? String(req.query.marketId) : undefined;
-    const limit = Number(req.query.limit || 50);
-    const offset = Number(req.query.offset || 0);
+    const { walletAddress, marketId } = req.query as any;
+    const limit = Number((req.query as any).limit || 50);
+    const offset = Number((req.query as any).offset || 0);
 
     const where: any = {};
     if (walletAddress) where.wallet = walletAddress;
@@ -45,19 +66,11 @@ router.get("/trades", async (req, res) => {
 
 // POST /api/trades
 // Body: { marketId, outcome, amountUsd, walletAddress?, analystWallet?, referralWallet? }
-router.post("/trades", async (req, res) => {
+router.post("/trades", validate({ body: createTradeBody }), async (req, res) => {
   try {
-    const walletAddress = getWalletFromReq(req);
-    const { marketId, outcome, amountUsd, analystWallet, referralWallet } = req.body ?? {};
-
-    if (!walletAddress) return res.status(400).json({ error: "Missing walletAddress" });
-    if (!marketId || typeof marketId !== "string")
-      return res.status(400).json({ error: "Missing marketId" });
-    if (!outcome || typeof outcome !== "string")
-      return res.status(400).json({ error: "Missing outcome" });
+    const walletAddress = (req.body as any).walletAddress as string;
+    const { marketId, outcome, amountUsd, analystWallet, referralWallet } = req.body as any;
     const size = Number(amountUsd);
-    if (!Number.isFinite(size) || size <= 0)
-      return res.status(400).json({ error: "Invalid amountUsd" });
 
     const market = await prisma.market.findUnique({ where: { id: marketId } });
     if (!market || market.status !== "open") {
