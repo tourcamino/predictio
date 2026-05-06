@@ -15,6 +15,7 @@ import developerKeysRouter from "./routes/developerKeys";
 import { referralCookieMiddleware } from "./middleware/referral";
 import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
+import { requestLogger } from "./middleware/requestLogger";
 
 // Ensure DATABASE_URL is present for local dev.
 // Production must provide DATABASE_URL explicitly via environment.
@@ -24,6 +25,9 @@ if (!process.env.DATABASE_URL) {
 
 const app = express();
 const prisma = new PrismaClient();
+
+// Behind nginx reverse proxy: use x-forwarded-for for req.ip
+app.set("trust proxy", 1);
 
 // Environment variables
 const PORT = process.env.PORT || 3001;
@@ -79,6 +83,7 @@ async function ensureFounderAffiliate() {
 
 // Middleware
 app.use(requestContext);
+app.use(requestLogger);
 app.use(
   cors({
     origin(origin, cb) {

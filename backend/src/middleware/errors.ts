@@ -28,6 +28,16 @@ export function notFound(req: Request, res: Response) {
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (res.headersSent) return;
 
+  if (err instanceof Error && err.message === "CORS blocked") {
+    return res.status(403).json({
+      error: {
+        code: "CORS_BLOCKED",
+        message: "CORS origin not allowed",
+        requestId: res.locals.requestId,
+      },
+    });
+  }
+
   // Invalid JSON body (Express body parser)
   if (
     err instanceof SyntaxError &&
@@ -49,6 +59,7 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
         code: "VALIDATION_ERROR",
         message: "Invalid request",
         details: err.flatten(),
+        path: res.req?.path,
         requestId: res.locals.requestId,
       },
     });
@@ -60,6 +71,7 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
         code: err.code,
         message: err.message,
         details: err.details,
+        path: res.req?.path,
         requestId: res.locals.requestId,
       },
     });
@@ -73,6 +85,7 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     error: {
       code: "INTERNAL",
       message,
+      path: res.req?.path,
       requestId: res.locals.requestId,
     },
   });
