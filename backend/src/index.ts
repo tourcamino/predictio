@@ -30,6 +30,27 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:8000";
 const BOT_API_KEY = process.env.BOT_API_KEY || "dev_bot_key";
 const TRANSLATION_CACHE_TTL = Number(process.env.TRANSLATION_CACHE_TTL || 2592000); // 30d default
 
+function isAllowedCorsOrigin(origin: string | undefined): boolean {
+  if (!origin) return true; // non-browser / same-origin
+
+  const raw = (CORS_ORIGIN || "").trim();
+  const allowList = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  // Always allow localhost for dev tooling
+  allowList.push("http://localhost:8000", "http://127.0.0.1:8000");
+
+  // Exact matches
+  if (allowList.includes(origin)) return true;
+
+  // Allow Vercel preview deployments
+  if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) return true;
+
+  return false;
+}
+
 async function ensureFounderAffiliate() {
   const founderWallet = (process.env.FOUNDER_WALLET || "").toLowerCase();
   const founderRefCode = (process.env.FOUNDER_REF_CODE || "PREDICTIO").toUpperCase();
@@ -55,7 +76,14 @@ async function ensureFounderAffiliate() {
 }
 
 // Middleware
-app.use(cors({ origin: CORS_ORIGIN }));
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (isAllowedCorsOrigin(origin)) return cb(null, true);
+      return cb(new Error("CORS blocked"));
+    },
+  }),
+);
 app.use(express.json());
 app.use(referralCookieMiddleware);
 
