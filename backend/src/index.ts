@@ -21,6 +21,7 @@ import {
   verifyDeveloperApiKeyString,
   developerApiKeyForWrite,
   optionalDeveloperApiKey,
+  rateLimitByApiKey,
 } from "./middleware/auth";
 import { ApiError } from "./middleware/errors";
 
@@ -202,7 +203,12 @@ app.get("/api/v1/health", async (req, res) => {
 });
 
 // Debug: "who am I" for bots/UI (developer API key)
-app.get("/api/me", writeLimiter, optionalDeveloperApiKey, (req, res, next) => {
+app.get(
+  "/api/me",
+  writeLimiter,
+  optionalDeveloperApiKey,
+  rateLimitByApiKey({ windowMs: 60_000, max: 600, code: "READ_RATE_LIMITED" }),
+  (req, res, next) => {
   try {
     const walletAddress = (req as any).walletAddress as string | undefined;
     const apiKey = (req as any).apiKey as any | undefined;

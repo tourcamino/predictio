@@ -126,3 +126,32 @@ export async function developerApiKeyForWrite(req: Request, res: Response, next:
   return optionalDeveloperApiKey(req, res, next);
 }
 
+type ApiKeyRateRecord = { count: number; resetAt: number };
+const apiKeyRateLimitMap = new Map<string, ApiKeyRateRecord>();
+
+function getRateKey(req: Request): string {
+  const apiKey = (req as any).apiKey as { id?: string } | undefined;
+  if (apiKey?.id) return `key:${apiKey.id}`;
+  const ip = req.ip || req.socket?.remoteAddress || "unknown";
+  return `ip:${ip}`;
+}
+
+export function rateLimitByApiKey(opts: { windowMs: number; max: number; code?: string }) {
+  const code = opts.code || "RATE_LIMITED";
+  return (req: Request, res: Response, next: NextFunction) => {
+    const now = Date.now();
+    const key = getRateKey(req);
+    const rec = apiKeyRateLimitMap.get(key);
+    if (!rec || now > rec.resetAt) {
+      apiKeyRateLimitMap.set(key, { count: 1, resetAt: now + opts.windowMs });
+      return next();
+    }
+    rec.count += 1;
+    if (rec.count > opts.max) {
+      res.setHeader("retry-after", String(Math.ceil((rec.resetAt - now) / 1000)));
+      return next(new ApiError("Rate limit exceeded", { status: 429, code }));
+    }
+    return next();
+  };
+}
+

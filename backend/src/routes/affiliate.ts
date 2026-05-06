@@ -2,7 +2,7 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
-import { developerApiKeyForWrite, optionalDeveloperApiKey } from "../middleware/auth";
+import { developerApiKeyForWrite, optionalDeveloperApiKey, rateLimitByApiKey } from "../middleware/auth";
 import { ApiError } from "../middleware/errors";
 
 const router = Router();
@@ -59,7 +59,12 @@ router.get("/affiliate/me", optionalDeveloperApiKey, validate({ query: affiliate
 });
 
 // POST /api/affiliate/me (create/update refCode)
-router.post("/affiliate/me", developerApiKeyForWrite, validate({ body: affiliateUpsertBody }), async (req, res, next) => {
+router.post(
+  "/affiliate/me",
+  developerApiKeyForWrite,
+  rateLimitByApiKey({ windowMs: 60_000, max: 120, code: "WRITE_RATE_LIMITED" }),
+  validate({ body: affiliateUpsertBody }),
+  async (req, res, next) => {
   try {
     const authedWallet = (req as any).walletAddress as string | undefined;
     const bodyWallet = (req.body as any).walletAddress as string | undefined;

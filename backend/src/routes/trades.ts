@@ -5,7 +5,7 @@ import { calculateFeeSplit, persistFeeSplit } from "../services/fees";
 import { getReferralCodeFromRequest } from "../middleware/referral";
 import { validate } from "../middleware/validate";
 import { realtimeBus } from "../services/realtimeBus";
-import { developerApiKeyForWrite } from "../middleware/auth";
+import { developerApiKeyForWrite, rateLimitByApiKey } from "../middleware/auth";
 import { ApiError } from "../middleware/errors";
 
 const router = Router();
@@ -71,6 +71,7 @@ router.get("/trades", validate({ query: listTradesQuery }), async (req, res, nex
 router.post(
   "/trades",
   developerApiKeyForWrite,
+  rateLimitByApiKey({ windowMs: 60_000, max: 120, code: "WRITE_RATE_LIMITED" }),
   validate({ body: createTradeBody }),
   async (req, res, next) => {
   try {
