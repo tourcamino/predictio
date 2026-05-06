@@ -22,6 +22,8 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
         status,
         ms,
         ip,
+        walletAddress: (req as any).walletAddress,
+        apiKeyId: (req as any).apiKey?.id,
         ua: req.headers["user-agent"],
       }),
     );

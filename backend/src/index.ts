@@ -578,6 +578,7 @@ type ClientState = {
   channel?: string;
   subscribedMarkets: Set<string>;
   walletAddress?: string;
+  apiKeyId?: string;
 };
 
 const WS_AUTH_REQUIRED = process.env.WS_AUTH_REQUIRED === "1";
@@ -667,9 +668,12 @@ wss.on("connection", (ws: WebSocket, req) => {
         return;
       }
       state.walletAddress = row.walletAddress;
+      state.apiKeyId = row.id;
     }
 
-    console.log(`[WebSocket] connected url=${req.url} ip=${ip} wallet=${state.walletAddress || "-"}`);
+    console.log(
+      `[WebSocket] connected url=${req.url} ip=${ip} wallet=${state.walletAddress || "-"} apiKeyId=${state.apiKeyId || "-"}`,
+    );
     if (state.mode === "trading") {
       sendJson(ws, { type: "ready", timestamp: Date.now() });
     }
