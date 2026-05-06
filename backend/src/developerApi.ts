@@ -1,53 +1,14 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { verifyAPIKeySignature, generateChallengeMessage } from './utils/eip712';
-import { generateAPIKey, hashAPIKey, verifyAPIKey as verifyAPIKeyHash, generateNonce } from './utils/apiKey';
+import { generateAPIKey, hashAPIKey, generateNonce } from './utils/apiKey';
+import { requireDeveloperApiKey } from './middleware/auth';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 async function authenticateAPIKey(req: Request, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or invalid Authorization header' });
-  }
-  
-  const apiKey = authHeader.substring(7); // Remove "Bearer "
-  
-  try {
-    // Find API key by trying to match hash
-    const apiKeys = await prisma.apiKey.findMany({
-      where: { revokedAt: null },
-    });
-    
-    let matchedKey = null;
-    for (const key of apiKeys) {
-      if (await verifyAPIKeyHash(apiKey, key.keyHash)) {
-        matchedKey = key;
-        break;
-      }
-    }
-    
-    if (!matchedKey) {
-      return res.status(401).json({ error: 'Invalid API key' });
-    }
-    
-    // Update last used timestamp
-    await prisma.apiKey.update({
-      where: { id: matchedKey.id },
-      data: { lastUsedAt: new Date() },
-    });
-    
-    // Attach to request
-    (req as any).apiKey = matchedKey;
-    (req as any).walletAddress = matchedKey.walletAddress;
-    
-    next();
-  } catch (error) {
-    console.error('API key authentication error:', error);
-    return res.status(500).json({ error: 'Authentication failed' });
-  }
+  return requireDeveloperApiKey(req, res, next);
 }
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();

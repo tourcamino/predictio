@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { generateAPIKey, hashAPIKey } from "../utils/apiKey";
+import { requireAdminKey } from "../middleware/auth";
 
 const router = Router();
 const prisma = new PrismaClient();
 
 // GET /api/developer/keys?walletAddress=0x...
-router.get("/developer/keys", async (req, res) => {
+router.get("/developer/keys", requireAdminKey, async (req, res) => {
   try {
     const walletAddress = req.query.walletAddress
       ? String(req.query.walletAddress).toLowerCase()
@@ -39,7 +40,7 @@ router.get("/developer/keys", async (req, res) => {
 // POST /api/developer/keys
 // Body: { walletAddress, label?, paperMode? }
 // Returns the plaintext key ONCE.
-router.post("/developer/keys", async (req, res) => {
+router.post("/developer/keys", requireAdminKey, async (req, res) => {
   try {
     const walletAddress = req.body?.walletAddress
       ? String(req.body.walletAddress).toLowerCase()

@@ -1,20 +1,12 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { requireAdminKey } from "../middleware/auth";
 
 const router = Router();
 const prisma = new PrismaClient();
 
-function requireAdmin(req: any, res: any, next: any) {
-  const key = req.headers["x-predictio-key"];
-  const expected = process.env.BOT_API_KEY || "dev_bot_key";
-  if (!key || key !== expected) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  return next();
-}
-
 // GET /api/admin/payouts?status=pending_payment
-router.get("/admin/payouts", requireAdmin, async (req, res) => {
+router.get("/admin/payouts", requireAdminKey, async (req, res) => {
   try {
     const status = req.query.status ? String(req.query.status) : "pending_payment";
     const rewards = await prisma.affiliateReward.findMany({
@@ -31,7 +23,7 @@ router.get("/admin/payouts", requireAdmin, async (req, res) => {
 
 // POST /api/admin/payouts
 // Body: { walletAddress, rewardIds: string[], txHash?, paidBy? }
-router.post("/admin/payouts", requireAdmin, async (req, res) => {
+router.post("/admin/payouts", requireAdminKey, async (req, res) => {
   try {
     const walletAddress = req.body?.walletAddress
       ? String(req.body.walletAddress).toLowerCase()
