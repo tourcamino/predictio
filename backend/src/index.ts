@@ -16,6 +16,7 @@ import { referralCookieMiddleware } from "./middleware/referral";
 import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
 import { requestLogger } from "./middleware/requestLogger";
+import { apiUsageTracker } from "./middleware/apiUsageTracker";
 import { realtimeBus, type TradingWsMessage } from "./services/realtimeBus";
 import {
   verifyDeveloperApiKeyString,
@@ -93,6 +94,7 @@ async function ensureFounderAffiliate() {
 // Middleware
 app.use(requestContext);
 app.use(requestLogger);
+app.use(apiUsageTracker);
 app.use(
   cors({
     origin(origin, cb) {
