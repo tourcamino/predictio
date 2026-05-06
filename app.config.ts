@@ -158,7 +158,7 @@ export default createApp({
           target: "react",
           autoCodeSplitting: true,
           routesDirectory: "./src/routes",
-          generatedRouteTree: "./src/generated/routeTree.gen.ts",
+          generatedRouteTree: "./src/generated/tanstack-router/routeTree.gen.ts",
         }),
         reactRefresh(),
         nodePolyfills(),
