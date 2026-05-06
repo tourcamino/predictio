@@ -129,6 +129,19 @@ export async function developerApiKeyForWrite(req: Request, res: Response, next:
 type ApiKeyRateRecord = { count: number; resetAt: number };
 const apiKeyRateLimitMap = new Map<string, ApiKeyRateRecord>();
 
+// Prevent unbounded growth: periodically drop expired buckets
+let _pruneTimerStarted = false;
+function ensurePruneTimer() {
+  if (_pruneTimerStarted) return;
+  _pruneTimerStarted = true;
+  setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of apiKeyRateLimitMap.entries()) {
+      if (now > v.resetAt) apiKeyRateLimitMap.delete(k);
+    }
+  }, 60_000).unref?.();
+}
+
 function getRateKey(req: Request): string {
   const apiKey = (req as any).apiKey as { id?: string } | undefined;
   if (apiKey?.id) return `key:${apiKey.id}`;
@@ -139,6 +152,7 @@ function getRateKey(req: Request): string {
 export function rateLimitByApiKey(opts: { windowMs: number; max: number; code?: string }) {
   const code = opts.code || "RATE_LIMITED";
   return (req: Request, res: Response, next: NextFunction) => {
+    ensurePruneTimer();
     const now = Date.now();
     const key = getRateKey(req);
     const rec = apiKeyRateLimitMap.get(key);
