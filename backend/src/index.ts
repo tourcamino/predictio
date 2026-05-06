@@ -201,7 +201,7 @@ app.get("/api/v1/health", async (req, res) => {
 });
 
 // Debug: "who am I" for bots/UI (developer API key)
-app.get("/api/me", optionalDeveloperApiKey, (req, res, next) => {
+app.get("/api/me", writeLimiter, optionalDeveloperApiKey, (req, res, next) => {
   try {
     const walletAddress = (req as any).walletAddress as string | undefined;
     const apiKey = (req as any).apiKey as any | undefined;
@@ -559,7 +559,8 @@ app.listen(PORT, () => {
 ensureFounderAffiliate().catch(() => null);
 
 // WebSocket Server
-const wss = new WebSocketServer({ port: Number(WS_PORT) });
+const WS_MAX_MESSAGE_BYTES = Number(process.env.WS_MAX_MESSAGE_BYTES || 32_768);
+const wss = new WebSocketServer({ port: Number(WS_PORT), maxPayload: WS_MAX_MESSAGE_BYTES });
 
 console.log(`🔌 WebSocket server running on port ${WS_PORT}`);
 
