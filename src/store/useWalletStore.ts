@@ -45,7 +45,7 @@ export interface ResolvedMarket {
   claimStatus: 'claimable' | 'claimed' | 'expired';
 }
 
-interface WalletState {
+export interface WalletState {
   isConnected: boolean;
   address: string | null;
   balance: number; // USDC balance (total)
@@ -237,7 +237,7 @@ export const useWalletStore = create<WalletStore>()(
         }
         
         // Step 4: Force reset ALL state to initial values immediately
-        set({
+        const reset: Partial<WalletState> = {
           isConnected: false,
           address: null,
           balance: 0,
@@ -259,7 +259,8 @@ export const useWalletStore = create<WalletStore>()(
           transactions: [],
           recentRecipients: [],
           resolvedMarkets: [],
-        });
+        };
+        set(reset);
         
         console.log('[WALLET] Disconnect complete - all state cleared');
       },

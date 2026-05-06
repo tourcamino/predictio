@@ -200,8 +200,11 @@ export function downloadCSV(
 ): void {
   if (data.length === 0) return;
 
+  const first = data[0];
+  if (!first) return;
+
   // Use provided headers or extract from first object
-  const csvHeaders = headers || Object.keys(data[0]);
+  const csvHeaders = headers || Object.keys(first);
   
   // Convert data to CSV rows
   const rows = data.map(row => 

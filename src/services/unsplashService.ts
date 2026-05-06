@@ -142,6 +142,9 @@ export async function fetchUnsplashImage(
     
     // Get the first high-quality image (1200x630 for OG tags)
     const image = data.results[0];
+    if (!image) {
+      return null;
+    }
     const imageUrl = `${image.urls.raw}&w=1200&h=630&fit=crop`;
     
     console.log(`[Unsplash] Selected image by ${image.user.name}: ${imageUrl}`);
