@@ -537,6 +537,10 @@ function parseWsMode(url: string | undefined): ClientState {
   // Supported:
   // - /ws/<channel> (legacy channel stream used by useWebSocket hook)
   // - /trading (market subscriptions via messages, used by tradingSocket.ts)
+  // - /ws/trading (same as /trading, when reverse-proxied under /ws)
+  if (u === "/ws/trading" || u.startsWith("/ws/trading?")) {
+    return { mode: "trading", subscribedMarkets: new Set() };
+  }
   if (u.startsWith("/ws/")) {
     const channel = u.split("/").filter(Boolean)[1] || "markets";
     return { mode: "channel", channel, subscribedMarkets: new Set() };
