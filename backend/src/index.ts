@@ -27,11 +27,45 @@ import {
 } from "./middleware/auth";
 import { ApiError } from "./middleware/errors";
 
-// Ensure DATABASE_URL is present for local dev.
-// Production must provide DATABASE_URL explicitly via environment.
-if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/predictio";
+function requireEnv(name: string): string | undefined {
+  const v = process.env[name];
+  return v && v.trim().length > 0 ? v : undefined;
 }
+
+function startupEnvCheck() {
+  const nodeEnv = process.env.NODE_ENV || "development";
+  const isProd = nodeEnv === "production";
+
+  // DB URL
+  const db = requireEnv("DATABASE_URL");
+  if (!db) {
+    if (isProd) {
+      // fail fast in prod
+      // eslint-disable-next-line no-console
+      console.error("[startup] DATABASE_URL missing in production");
+      process.exit(1);
+    }
+    // local dev fallback
+    process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/predictio";
+    // eslint-disable-next-line no-console
+    console.warn("[startup] DATABASE_URL missing; using local fallback");
+  }
+
+  // Optional but important: warn if keys not set
+  if (!requireEnv("BOT_API_KEY")) {
+    // eslint-disable-next-line no-console
+    console.warn("[startup] BOT_API_KEY not set (using default dev key)");
+  }
+  if (!requireEnv("ADMIN_API_KEY")) {
+    // eslint-disable-next-line no-console
+    console.warn("[startup] ADMIN_API_KEY not set");
+  }
+
+  // eslint-disable-next-line no-console
+  console.log(`[startup] env ok NODE_ENV=${nodeEnv}`);
+}
+
+startupEnvCheck();
 
 const app = express();
 const prisma = new PrismaClient();
