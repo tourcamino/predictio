@@ -5,6 +5,12 @@ import { requireAdminKey } from "../middleware/auth";
 const router = Router();
 const prisma = new PrismaClient();
 
+function csvEscape(v: unknown): string {
+  const s = v == null ? "" : String(v);
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
 // GET /api/admin/usage?walletAddress=0x...&apiKeyId=...&limit=...&offset=...
 router.get("/admin/usage", requireAdminKey, async (req, res) => {
   try {
@@ -40,6 +46,95 @@ router.get("/admin/usage", requireAdminKey, async (req, res) => {
   } catch (e) {
     console.error("[admin/usage] list failed", e);
     res.status(500).json({ error: "Failed to fetch usage" });
+  }
+});
+
+// GET /api/admin/usage/export.json?days=1&walletAddress=0x...&apiKeyId=...
+router.get("/admin/usage/export.json", requireAdminKey, async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(1, Number(req.query.days || 1)));
+    const walletAddress = req.query.walletAddress
+      ? String(req.query.walletAddress).toLowerCase()
+      : undefined;
+    const apiKeyId = req.query.apiKeyId ? String(req.query.apiKeyId) : undefined;
+    const since = new Date(Date.now() - days * 86400 * 1000);
+
+    let apiKeyIds: string[] | undefined = undefined;
+    if (walletAddress) {
+      const keys = await prisma.apiKey.findMany({
+        where: { walletAddress },
+        select: { id: true },
+        take: 200,
+      });
+      apiKeyIds = keys.map((k) => k.id);
+    }
+
+    const where: any = { timestamp: { gte: since } };
+    if (apiKeyId) where.apiKeyId = apiKeyId;
+    if (apiKeyIds) where.apiKeyId = { in: apiKeyIds };
+
+    const usage = await prisma.apiUsage.findMany({
+      where,
+      take: 5000,
+      orderBy: { timestamp: "desc" },
+    });
+
+    res.json({ since, days, usage });
+  } catch (e) {
+    console.error("[admin/usage] export.json failed", e);
+    res.status(500).json({ error: "Failed to export usage" });
+  }
+});
+
+// GET /api/admin/usage/export.csv?days=1&walletAddress=0x...&apiKeyId=...
+router.get("/admin/usage/export.csv", requireAdminKey, async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(1, Number(req.query.days || 1)));
+    const walletAddress = req.query.walletAddress
+      ? String(req.query.walletAddress).toLowerCase()
+      : undefined;
+    const apiKeyId = req.query.apiKeyId ? String(req.query.apiKeyId) : undefined;
+    const since = new Date(Date.now() - days * 86400 * 1000);
+
+    let apiKeyIds: string[] | undefined = undefined;
+    if (walletAddress) {
+      const keys = await prisma.apiKey.findMany({
+        where: { walletAddress },
+        select: { id: true },
+        take: 200,
+      });
+      apiKeyIds = keys.map((k) => k.id);
+    }
+
+    const where: any = { timestamp: { gte: since } };
+    if (apiKeyId) where.apiKeyId = apiKeyId;
+    if (apiKeyIds) where.apiKeyId = { in: apiKeyIds };
+
+    const usage = await prisma.apiUsage.findMany({
+      where,
+      take: 5000,
+      orderBy: { timestamp: "desc" },
+    });
+
+    res.setHeader("content-type", "text/csv; charset=utf-8");
+    res.setHeader("content-disposition", `attachment; filename="api-usage-${days}d.csv"`);
+    res.write(["timestamp", "apiKeyId", "endpoint", "method", "statusCode", "latencyMs"].join(",") + "\n");
+    for (const row of usage) {
+      res.write(
+        [
+          csvEscape(row.timestamp.toISOString()),
+          csvEscape(row.apiKeyId),
+          csvEscape(row.endpoint),
+          csvEscape(row.method),
+          csvEscape(row.statusCode),
+          csvEscape(row.latencyMs ?? ""),
+        ].join(",") + "\n",
+      );
+    }
+    res.end();
+  } catch (e) {
+    console.error("[admin/usage] export.csv failed", e);
+    res.status(500).json({ error: "Failed to export usage" });
   }
 });
 

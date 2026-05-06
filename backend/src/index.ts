@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import rateLimit from "express-rate-limit";
 import developerApiRouter from './developerApi';
 import { translateText } from "./services/translate";
+import { createClient } from "redis";
 import tradesRouter from "./routes/trades";
 import copyRouter from "./routes/copy";
 import leaderboardRouter from "./routes/leaderboard";
@@ -290,6 +291,61 @@ app.get("/api/admin/ws/stats", requireAdminKey, (req, res) => {
     maxConnectionsPerIp: WS_MAX_CONNECTIONS_PER_IP,
     ips: ips.slice(0, 200),
   });
+});
+
+// Admin: full health snapshot (best-effort)
+app.get("/api/admin/health/full", requireAdminKey, async (_req, res) => {
+  const startedAt = Date.now();
+  const out: any = {
+    at: new Date().toISOString(),
+    version: "1.0.0",
+    flags: {
+      WRITE_AUTH_REQUIRED: process.env.WRITE_AUTH_REQUIRED === "1",
+      WS_AUTH_REQUIRED: process.env.WS_AUTH_REQUIRED === "1",
+      API_USAGE_ENABLED: !(process.env.API_USAGE_ENABLED === "0" || process.env.API_USAGE_ENABLED === "false"),
+    },
+    db: { ok: false },
+    redis: { ok: false },
+    ws: { currentConnections: wsConnCurrent, maxConnectionsPerIp: WS_MAX_CONNECTIONS_PER_IP },
+    counts: {},
+    ms: 0,
+  };
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    out.db.ok = true;
+  } catch (e) {
+    out.db.error = e instanceof Error ? e.message : String(e);
+  }
+
+  const redisUrl = process.env.REDIS_URL;
+  if (redisUrl) {
+    try {
+      const client = createClient({ url: redisUrl });
+      await client.connect();
+      const pong = await client.ping();
+      out.redis.ok = pong === "PONG";
+      await client.quit();
+    } catch (e) {
+      out.redis.error = e instanceof Error ? e.message : String(e);
+    }
+  } else {
+    out.redis.error = "REDIS_URL not set";
+  }
+
+  try {
+    const [keysTotal, usageTotal] = await Promise.all([
+      prisma.apiKey.count(),
+      prisma.apiUsage.count(),
+    ]);
+    out.counts.apiKeys = keysTotal;
+    out.counts.apiUsage = usageTotal;
+  } catch (e) {
+    out.countsError = e instanceof Error ? e.message : String(e);
+  }
+
+  out.ms = Date.now() - startedAt;
+  res.json(out);
 });
 
 // Debug: "who am I" for bots/UI (developer API key)
