@@ -1,0 +1,22 @@
+---
+description: "Predictio — REGOLA FISSA: lavoro solo nell’ambiente Cursor ↔ VPS (mai assumere solo laptop locale)."
+alwaysApply: true
+---
+
+# Predictio — Regola fissa di ambiente
+
+Per questo repository, **l’ambiente di lavoro previsto è sempre la coppia Cursor + VPS**, non una macchina locale come destinazione principale.
+
+## Cosa significa in pratica
+
+- **Target di esecuzione**: build, `npm run dev`, Docker, Postgres, deploy e comandi shell **vanno pensati per il VPS** (es. `/root/predictio` o il path che l’utente usa in Remote-SSH).
+- **Cursor**: editor e agent operano sul codice del progetto Predictio; se il workspace è remoto, i file sono già sul server; se il workspace è locale, le modifiche sono da **allineare al VPS** (git push/pull, deploy) salvo diversa richiesta esplicita dell’utente.
+- **Non assumere** che il laptop sia l’unico ambiente: niente flussi “solo in locale” come default.
+
+## Eccezione
+
+Solo se l’utente **scrive esplicitamente** che vuole lavorare in locale (solo laptop, senza VPS), si può seguire quella richiesta per quel task.
+
+---
+
+Questa regola è **sempre attiva** (`alwaysApply: true`) per il progetto Predictio.

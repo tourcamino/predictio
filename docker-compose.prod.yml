@@ -1,0 +1,87 @@
+version: '3.9'
+
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"
+      - "127.0.0.1:8080:8080"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+      - AZURO_API_KEY=${AZURO_API_KEY}
+      - OPENROUTER_KEY=${OPENROUTER_KEY}
+      - BOT_API_KEY=${BOT_API_KEY}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - CORS_ORIGIN=https://predictio.live
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  market-maker-bot:
+    build: ./bots/marketMaker
+    restart: unless-stopped
+    environment:
+      - API_URL=http://backend:3001
+      - BOT_API_KEY=${BOT_API_KEY}
+      - MARKET_MAKER_MAX_EXPOSURE=${MARKET_MAKER_MAX_EXPOSURE:-5000}
+      - MARKET_MAKER_TARGET_SPREAD=${MARKET_MAKER_TARGET_SPREAD:-0.02}
+    depends_on:
+      - backend
+
+  growth-engine-bot:
+    build: ./bots/growthEngine
+    restart: unless-stopped
+    environment:
+      - API_URL=http://backend:3001
+      - SITE_URL=https://predictio.live
+      - BOT_API_KEY=${BOT_API_KEY}
+      - OPENROUTER_KEY=${OPENROUTER_KEY}
+      - X_API_KEY=${X_API_KEY}
+      - X_API_SECRET=${X_API_SECRET}
+      - X_ACCESS_TOKEN=${X_ACCESS_TOKEN}
+      - X_ACCESS_SECRET=${X_ACCESS_SECRET}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
+      - CYCLE_HOURS=${GROWTH_ENGINE_CYCLE_HOURS:-2}
+      - MAX_DMS_PER_DAY=${GROWTH_ENGINE_MAX_DMS:-5}
+    depends_on:
+      - backend
+
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=predictio
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d predictio"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    expose:
+      - "5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    expose:
+      - "6379"
+
+volumes:
+  postgres_data:
+  redis_data:

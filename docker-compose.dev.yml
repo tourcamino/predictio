@@ -1,0 +1,23 @@
+# Local PostgreSQL only — C1 foundation
+# Usage: docker compose -f docker-compose.dev.yml up -d
+# Then set DATABASE_URL=postgresql://postgres:postgres@localhost:5432/predictio in .env
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: predictio
+    volumes:
+      - predictio_pg_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d predictio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  predictio_pg_dev:

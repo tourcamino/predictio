@@ -1,0 +1,26 @@
+{
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" }
+      ]
+    }
+  ],
+  "env": {
+    "VITE_API_URL": "https://api.predictio.live",
+    "VITE_WS_URL": "wss://api.predictio.live/ws",
+    "VITE_ENVIRONMENT": "production",
+    "VITE_APP_NAME": "Predictio",
+    "VITE_AZURO_CHAIN_ID": "100"
+  }
+}

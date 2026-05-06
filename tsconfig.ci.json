@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noUncheckedIndexedAccess": false
+  },
+  "exclude": [
+    "node_modules",
+    ".vinxi",
+    ".output",
+    "backend",
+    "bots",
+    "dist"
+  ]
+}

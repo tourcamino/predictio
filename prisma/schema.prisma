@@ -1,0 +1,623 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Market {
+  id             String    @id @default(cuid())
+  sport          String
+  league         String
+  event          String
+  marketType     String    @default("moneyline") // moneyline, spread, over/under, props
+  outcomes       Json
+  volume         Float     @default(0)
+  predictions    Int       @default(0)
+  closesAt       DateTime
+  resolvedAt     DateTime?
+  winner         String?
+  status         String    @default("open") // "open", "closed", "under_review", "voided", "resolved"
+  resolutionType String    @default("automatic")
+  description    String?
+  tags           String[]
+  resolutionReason String?
+  disputeReason     String?
+  adminSignatures   Json?      // JSON array of admin signatures for disputed resolutions
+  voidedAt          DateTime?
+  refundAmount      Float?
+  totalLPPool       Float?     // Total liquidity provided by external LPs
+  createdAt      DateTime  @default(now())
+  orders         Order[]
+  transactions   Transaction[]
+  
+  @@index([status, sport])
+  @@index([closesAt])
+  @@index([marketType])
+}
+
+model Order {
+  id         String    @id @default(cuid())
+  marketId   String
+  market     Market    @relation(fields: [marketId], references: [id])
+  wallet     String
+  outcome    String    // "YES" or "NO" for prediction markets
+  amount     Float     // USDC amount invested
+  shares     Float?    // Number of shares purchased (for prediction markets)
+  avgPrice   Float?    // Average price per share (for prediction markets)
+  odds       Float?    // Legacy field for backwards compatibility
+  status     String    @default("open") // "open", "closed", "resolved"
+  pnl        Float?    // Profit/loss after resolution
+  orderType  String    @default("MARKET") // "MARKET" or "LIMIT"
+  limitPrice Float?    // Limit price for limit orders
+  heldSince  DateTime  @default(now()) // When position was opened (for holding rewards)
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+  
+  @@index([wallet, status])
+  @@index([marketId])
+}
+
+model User {
+  id                    String   @id @default(cuid())
+  wallet                String   @unique
+  firstSeen             DateTime @default(now())
+  lastActive            DateTime @default(now())
+  totalVolume           Float    @default(0)
+  predictions           Int      @default(0)
+  wins                  Int      @default(0)
+  losses                Int      @default(0)
+  pendingHoldingRewards Float    @default(0)
+  claimedHoldingRewards Float    @default(0)
+  
+  // Paper trading fields
+  virtualBalance        Float    @default(1000.00)
+  totalPnl              Float    @default(0)
+  tradesCount           Int      @default(0)
+  onboardingCompleted   Boolean  @default(false)
+}
+
+model TrackedUser {
+  id              String   @id @default(cuid())
+  handle          String   @unique
+  sport           String
+  engagementCount Int      @default(1)
+  status          String   @default("new")
+  lastInteraction DateTime @default(now())
+  notes           String?
+  createdAt       DateTime @default(now())
+  
+  @@index([status, sport])
+}
+
+model GrowthLog {
+  id        String   @id @default(cuid())
+  type      String
+  platform  String
+  marketId  String?
+  handle    String?
+  content   String?
+  status    String   @default("sent")
+  createdAt DateTime @default(now())
+  
+  @@index([type, createdAt])
+}
+
+model Transaction {
+  id          String    @id @default(cuid())
+  wallet      String
+  type        String    // 'deposit', 'withdrawal', 'bet_placed', 'bet_won', 'bet_lost', 'bet_refund', 'reward_claim', 'claim', 'refund', 'send'
+  amount      Float
+  balanceBefore Float?
+  balanceAfter  Float?
+  marketId    String?
+  market      Market?   @relation(fields: [marketId], references: [id])
+  orderId     String?
+  txHash      String?   // blockchain transaction hash for deposits/withdrawals
+  status      String    @default("completed") // 'pending', 'completed', 'failed'
+  metadata    Json?     // additional data like outcome, odds, etc.
+  feePaid     Float     @default(0) // Fee paid for this transaction
+  createdAt   DateTime  @default(now())
+  
+  @@index([wallet, createdAt])
+  @@index([type, createdAt])
+}
+
+model Analyst {
+  id                 String   @id @default(cuid())
+  wallet             String   @unique
+  displayName        String
+  avatar             String
+  bio                String
+  twitterUrl     String?
+  telegramUrl    String?
+  websiteUrl     String?
+  sport              String[]
+  roi                Float    @default(0)
+  winRate            Float    @default(0)
+  totalPredictions   Int      @default(0)
+  avgOdds            Float    @default(0)
+  followersCount     Int      @default(0)
+  volumeGenerated    Float    @default(0)
+  pendingRewards     Float    @default(0)
+  totalEarned        Float    @default(0)
+  autoCompound       Boolean  @default(false)
+  activityDays       Int      @default(0)
+  validFollowers     Int      @default(0)
+  onchainRegistered  Boolean  @default(false)
+  referralCode       String   @unique
+  isVerified         Boolean  @default(false)
+  verifiedAt         DateTime?
+  verificationTier   String?  // "trusted" | "elite" | "partner"
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  follows            AnalystFollow[]
+  
+  @@index([totalEarned])
+  @@index([referralCode])
+  @@index([isVerified])
+}
+
+model AnalystFollow {
+  id          String   @id @default(cuid())
+  userWallet  String
+  analystId   String
+  analyst     Analyst  @relation(fields: [analystId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  
+  @@unique([userWallet, analystId])
+  @@index([userWallet])
+  @@index([analystId])
+}
+
+model AffiliateContact {
+  id              String   @id @default(cuid())
+  name            String
+  type            String
+  sport           String[]
+  platform        String
+  followers       String
+  region          String
+  handles         Json
+  stage           String   @default("identified")
+  priority        String   @default("medium")
+  fitScore        Int      @default(0)
+  estimatedValue  String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  interactions    AffiliateInteraction[]
+  
+  @@index([stage, priority])
+}
+
+model AffiliateInteraction {
+  id        String   @id @default(cuid())
+  contactId String
+  contact   AffiliateContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  channel   String
+  goal      String
+  message   String
+  status    String   @default("sent")
+  createdAt DateTime @default(now())
+  
+  @@index([contactId, createdAt])
+}
+
+model AffiliateNetwork {
+  id               String   @id @default(cuid())
+  name             String
+  website          String
+  reach            String
+  affiliatesCount  Int      @default(0)
+  verticals        String[]
+  contact          String
+  proposedRevShare Float
+  stage            String   @default("identified")
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  @@index([stage])
+}
+
+model Appeal {
+  id          String   @id @default(cuid())
+  marketId    String
+  userWallet  String
+  reason      String
+  evidence    String   // URLs, descriptions, etc.
+  status      String   @default("pending") // "pending", "under_review", "approved", "rejected"
+  adminNotes  String?
+  createdAt   DateTime @default(now())
+  reviewedAt  DateTime?
+  
+  @@index([marketId])
+  @@index([userWallet])
+  @@index([status])
+}
+
+model LiquidityPosition {
+  id              String   @id @default(cuid())
+  marketId        String
+  userWallet      String
+  depositedAmount Float    // Original USDC deposited
+  currentValue    Float    // Current value including PnL
+  poolShare       Float    // Percentage of pool owned (0-1)
+  feesEarned      Float    @default(0) // Total fees earned (claimed + unclaimed)
+  feesPending     Float    @default(0) // Unclaimed fees
+  autoCompound    Boolean  @default(false) // Auto-reinvest fees into Protocol Vault
+  status          String   @default("active") // "active", "withdrawn"
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  withdrawnAt     DateTime?
+  
+  feeEarnings     LPFeeEarning[]
+  
+  @@unique([marketId, userWallet, status])
+  @@index([userWallet, status])
+  @@index([marketId, status])
+}
+
+model LPFeeEarning {
+  id         String   @id @default(cuid())
+  positionId String
+  position   LiquidityPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  amount     Float    // Fee amount earned
+  marketVolume Float  // Market volume at time of earning
+  createdAt  DateTime @default(now())
+  
+  @@index([positionId, createdAt])
+}
+
+model BlogPost {
+  id              String   @id @default(cuid())
+  title           String
+  slug            String   @unique
+  content         String   @db.Text // Markdown content
+  excerpt         String   @db.Text
+  featuredImage   String?  // MinIO URL
+  tags            String[]
+  metaTitle       String?
+  metaDescription String?  @db.Text
+  published       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([published, createdAt])
+  @@index([slug])
+}
+
+model JobPosition {
+  id           String   @id @default(cuid())
+  title        String
+  department   String
+  location     String
+  type         String   // "Full-time", "Remote", "Hybrid", etc.
+  description  String   @db.Text // Markdown content
+  requirements String   @db.Text // Markdown content
+  isOpen       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([isOpen, createdAt])
+}
+
+model ApiKey {
+  id            String    @id @default(cuid())
+  walletAddress String    // The wallet that owns this key
+  keyHash       String    @unique // Hashed API key (never store plaintext)
+  keyPrefix     String    // First 12 chars for display (e.g., "pk_live_abc...")
+  keySuffix     String    // Last 4 chars for display
+  label         String    @default("Default")
+  permissions   Json?     // JSON array of permissions
+  nonceUsed     String    // Prevent replay attacks
+  paperMode     Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  lastUsedAt    DateTime?
+  revokedAt     DateTime?
+  isActive      Boolean   @default(true)
+  
+  usage         ApiUsage[]
+  
+  @@index([walletAddress])
+  @@index([keyHash])
+  @@index([walletAddress, isActive])
+}
+
+model AuthChallenge {
+  nonce         String   @id // Random nonce for the challenge
+  walletAddress String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  
+  @@index([walletAddress])
+  @@index([expiresAt])
+}
+
+model ApiUsage {
+  id          String   @id @default(cuid())
+  apiKeyId    String
+  apiKey      ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  endpoint    String
+  method      String   // GET, POST, etc.
+  statusCode  Int
+  latencyMs   Int?
+  timestamp   DateTime @default(now())
+  
+  @@index([apiKeyId, timestamp])
+  @@index([endpoint])
+}
+
+model Watchlist {
+  id             String   @id @default(cuid())
+  walletAddress  String
+  marketId       String
+  addedAt        DateTime @default(now())
+  
+  @@unique([walletAddress, marketId])
+  @@index([walletAddress])
+  @@index([marketId])
+}
+
+model PriceAlert {
+  id             String   @id @default(cuid())
+  walletAddress  String
+  marketId       String
+  outcome        String   // "YES" or "NO"
+  targetPrice    Float    // Price threshold (0-1)
+  direction      String   // "ABOVE" or "BELOW"
+  triggered      Boolean  @default(false)
+  triggeredAt    DateTime?
+  createdAt      DateTime @default(now())
+  
+  @@index([walletAddress, triggered])
+  @@index([marketId, triggered])
+}
+
+model Notification {
+  id             String   @id @default(cuid())
+  walletAddress  String
+  type           String   // MARKET_RESOLVED, POSITION_OPENED, MARKET_CLOSING_SOON, LEADERBOARD_CHANGE, VAULT_TVL_LOW, VAULT_UTILIZATION_HIGH, VAULT_FEES_LOW
+  title          String
+  message        String   @db.Text
+  marketId       String?
+  read           Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  
+  @@index([walletAddress, read])
+  @@index([walletAddress, createdAt])
+  @@index([createdAt])
+}
+
+model PointsLedger {
+  id             String   @id @default(cuid())
+  walletAddress  String
+  actionType     String   // WALLET_CONNECTED, FIRST_TRADE, TRADE_PLACED, DAILY_LOGIN, MARKET_RESOLVED_WIN, LIQUIDITY_ADDED, STREAK_7_DAYS, STREAK_30_DAYS, REFERRAL_CONVERTED
+  points         Int
+  metadata       Json?    // market_id, amount, etc.
+  createdAt      DateTime @default(now())
+  
+  @@index([walletAddress, createdAt])
+  @@index([actionType])
+}
+
+model PointsTotal {
+  id            String   @id @default(cuid())
+  walletAddress String   @unique
+  totalPoints   Int      @default(0)
+  season        Int      @default(1)
+  tier          String   @default("BRONZE") // BRONZE, SILVER, GOLD, DIAMOND
+  updatedAt     DateTime @updatedAt
+  
+  @@index([season, totalPoints])
+  @@index([tier])
+}
+
+model LPWaitlist {
+  id            String   @id @default(cuid())
+  walletAddress String   @unique
+  registeredAt  DateTime @default(now())
+  pointsCredited Boolean @default(false)
+  
+  @@index([registeredAt])
+}
+
+model VaultState {
+  id                  String   @id @default("singleton") // Singleton table - only one row
+  totalTvl            Float    @default(500) // Total vault liquidity (starts at $500 seed)
+  availableLiquidity  Float    @default(500) // TVL minus exposed liquidity
+  exposedLiquidity    Float    @default(0)   // Liquidity in active orders
+  feeCollected        Float    @default(0)   // Accumulated fees from trades
+  lastRebalance       DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@index([updatedAt])
+}
+
+model VaultAllocation {
+  id               String   @id @default(cuid())
+  marketId         String   @unique // One allocation per market
+  allocatedUsdc    Float    // USDC allocated to this market
+  percentage       Float    // Percentage of TVL (0-100)
+  maxCap           Float    // 30% of TVL hardcoded cap
+  currentExposure  Float    @default(0) // Liquidity in active orders
+  updatedAt        DateTime @updatedAt
+  
+  @@index([marketId])
+  @@index([updatedAt])
+}
+
+model VaultAlertThresholds {
+  id                     String   @id @default("singleton") // Singleton table
+  minTvlThreshold        Float?   // Alert if TVL falls below this (e.g., 400)
+  maxUtilizationRate     Float?   // Alert if utilization exceeds this (e.g., 0.85 = 85%)
+  minDailyFeesThreshold  Float?   // Alert if daily fees fall below this (e.g., 5)
+  alertsEnabled          Boolean  @default(true)
+  lastAlertSent          DateTime?
+  updatedAt              DateTime @updatedAt
+  
+  @@index([updatedAt])
+}
+
+model AmmOrder {
+  id              String   @id @default(cuid())
+  marketId        String
+  side            String   // "YES" or "NO"
+  price           Float    // 0-1 range
+  size            Float    // USDC amount
+  type            String   // "BID" or "ASK"
+  status          String   @default("ACTIVE") // "ACTIVE", "FILLED", "CANCELLED"
+  azuroFairValue  Float?   // Reference Azuro fair value at time of order
+  spreadApplied   Float    @default(0.02) // Spread applied (default 2%)
+  createdAt       DateTime @default(now())
+  filledAt        DateTime?
+  
+  @@index([marketId, status])
+  @@index([status, createdAt])
+  @@index([createdAt])
+}
+
+model BotHeartbeat {
+  id               String   @id @default("singleton") // Singleton table
+  status           String   @default("OFFLINE") // "ONLINE", "OFFLINE", "ERROR"
+  lastRun          DateTime @default(now())
+  nextRun          DateTime?
+  marketsProcessed Int      @default(0)
+  ordersPlaced     Int      @default(0)
+  rebalancesDone   Int      @default(0)
+  errorMessage     String?
+  updatedAt        DateTime @updatedAt
+  
+  @@index([status, updatedAt])
+}
+
+model Affiliate {
+  walletAddress       String   @id
+  refCode             String   @unique
+  isFounder           Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  totalReferrals      Int      @default(0)
+  totalVolumeUsd      Float    @default(0)
+  totalRewardsUsd     Float    @default(0)
+  pendingRewardsUsd   Float    @default(0)
+  pendingRewardsEur   Float    @default(0)
+  lastPayoutAt        DateTime?
+  
+  @@index([refCode])
+  @@index([walletAddress])
+}
+
+model ReferralTracking {
+  id              String   @id @default(cuid())
+  refCode         String
+  referredWallet  String   @unique
+  attributedAt    DateTime @default(now())
+  cookieExpires   DateTime
+  isActive        Boolean  @default(true)
+  
+  @@index([refCode])
+  @@index([referredWallet])
+}
+
+model AffiliateReward {
+  id              String   @id @default(cuid())
+  walletAddress   String
+  refCode         String?
+  tradeId         String
+  rewardType      String   // 'analyst' | 'referral' | 'both'
+  volumeUsd       Float
+  feeTotalUsd     Float
+  rewardUsd       Float
+  rewardEur       Float
+  status          String   @default("pending") // 'pending' | 'pending_payment' | 'paid' | 'treasury'
+  createdAt       DateTime @default(now())
+  paidAt          DateTime?
+  txHash          String?
+  notes           String?
+  
+  @@index([walletAddress, status])
+  @@index([status, createdAt])
+  @@index([tradeId])
+}
+
+model PayoutLog {
+  id              String   @id @default(cuid())
+  walletAddress   String
+  amountUsd       Float
+  amountEur       Float
+  txHash          String?
+  paidBy          String   // 'manual_founder' | 'auto_contract'
+  rewardIds       Int[]
+  createdAt       DateTime @default(now())
+  
+  @@index([walletAddress, createdAt])
+  @@index([createdAt])
+}
+
+model TreasuryLog {
+  id              String   @id @default(cuid())
+  reason          String   // 'no_referral' | 'no_analyst' | 'no_both' | 'founder_excluded'
+  tradeId         String
+  amountUsd       Float
+  walletFrom      String?
+  createdAt       DateTime @default(now())
+  
+  @@index([reason, createdAt])
+  @@index([tradeId])
+}
+
+model CopyRelationship {
+  id                String   @id @default(cuid())
+  copierWallet      String
+  analystWallet     String
+  maxPerTradeUsd    Float
+  copyMode          String   @default("all") // 'all' | 'selective'
+  selectedMarkets   String[]
+  startedAt         DateTime @default(now())
+  endedAt           DateTime?
+  isActive          Boolean  @default(true)
+  totalVolumeCopied Float    @default(0)
+  
+  @@unique([copierWallet, analystWallet])
+  @@index([copierWallet, isActive])
+  @@index([analystWallet, isActive])
+}
+
+model Leaderboard {
+  walletAddress       String   @id
+  displayName         String?
+  rank                Int
+  totalVolumeUsd      Float    @default(0)
+  totalTrades         Int      @default(0)
+  winningTrades       Int      @default(0)
+  winRate             Float    @default(0)
+  activeCopiers       Int      @default(0)
+  analystRewardsUsd   Float    @default(0)
+  referralRewardsUsd  Float    @default(0)
+  pointsSeason1       Int      @default(0)
+  lastTradeAt         DateTime?
+  lastUpdated         DateTime @default(now())
+  
+  @@index([rank])
+  @@index([totalVolumeUsd])
+  @@index([activeCopiers])
+  @@index([lastUpdated])
+}
+
+model MarketMakerConfig {
+  id                  String   @id @default("singleton") // Singleton table
+  targetSpread        Float    @default(0.02) // 2% default spread
+  maxExposurePerMarket Float   @default(5000) // $5000 default max exposure
+  rebalanceIntervalMs Int      @default(1800000) // 30 minutes default
+  minLiquidity        Float    @default(500) // Minimum liquidity threshold
+  enabledMarkets      Json     @default("[]") // Array of market IDs to provide liquidity to (empty = all)
+  updatedAt           DateTime @updatedAt
+  
+  @@index([updatedAt])
+}

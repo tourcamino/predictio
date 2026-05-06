@@ -1,0 +1,87 @@
+---
+description: Predictio.live — handoff rules (stack, design, auth, priorities). See docs/CURSOR_HANDOFF.md for full detail.
+globs:
+alwaysApply: true
+---
+
+# Predictio — Project rules for Cursor
+
+Source of truth: `docs/CURSOR_HANDOFF.md` and `CURSOR_HANDOFF.md`. Prefer matching existing code style and patterns in this repo.
+
+## Workflow (team default)
+
+- **Primary environment is the VPS**, not the developer laptop. Edit code in Cursor (this repo); **run commands, Postgres, Docker, and `npm run dev` / deploy on the VPS** unless the user explicitly asks for local setup.
+- Sync changes via **git pull/push** or **scp/rsync** to `/root/predictio` (or the agreed path on the server).
+- **`DATABASE_URL`** and secrets live on the **VPS `.env`**. Ignore laptop Docker/local Postgres unless explicitly requested.
+- Files like `docker-compose.dev.yml` are optional references; production-like orchestration is `docker-compose.prod.yml` on the VPS when used.
+
+## Stack (current)
+
+- React + TypeScript, Vinxi, TanStack Router (file routes under `src/routes/`), Tailwind, Zustand, tRPC, Prisma.
+- Dev: `npm run dev` (port from Vinxi). Use `node --env-file=.env` as in `package.json` scripts when relevant.
+
+## Critical rules
+
+### Design system — do not change tokens
+
+- Background `#080B11` (`bg-brand-bg`), primary `#00FF87` (`text-brand-green`, `bg-brand-green`), accent `#00D4FF` (`brand-cyan`).
+- Fonts: headings `font-syne`, body default / Plus Jakarta Sans, numbers `font-mono` (DM Mono).
+- Do not swap brand colors or typography classes for alternatives without explicit product approval.
+
+### Language
+
+- **All user-facing UI strings and errors in English.** Code comments in English.
+
+### Blockchain
+
+- App chain: **Base (8453)** production, **Base Sepolia (84532)** testing only.
+- Gnosis/Azuro may be used for **data/oracle**, not as user trading chain for our contracts.
+
+### Identity / auth
+
+- **Wallet = identity.** EIP-712 signatures. No email/password flows for end users. Normalize wallet addresses consistently (e.g. `.toLowerCase()` where the codebase already does).
+
+### Economics / protocol rules
+
+- **Vault cap:** max **30%** of vault TVL per single market — do not remove or bypass (see codebase constants).
+- **Fee split 50/35/15:** implemented in `src/server/services/feeCalculation.ts` — do not rewrite logic; ensure call sites use it correctly.
+- **No predatory token launch:** no PRED on testnet / sale before mainnet criteria (see handoff).
+
+### Code style
+
+- TypeScript everywhere.
+- Imports: use alias **`~/...`** for `src/...` — avoid deep `../../` relative imports unless unavoidable.
+- Prefer Tailwind over ad-hoc CSS files for UI.
+- Global client state: Zustand. **Subscribe outside React with the store:** `useWalletStore.subscribe` / `useWalletStore.getState()` — the `useWallet()` hook is only for components; it is **not** the store object.
+
+### Data
+
+- Replace mock data under `src/data/` with real Prisma/backend flows as C1 progresses.
+- DB access via **Prisma**; validate inputs with **Zod** before writes; use transactions for multi-step updates.
+
+### TanStack Router
+
+- Leaf routes: prefer **`index.tsx`** naming (e.g. `routes/markets/$marketId/index.tsx`).
+
+### Git / secrets
+
+- Never commit `.env`, keys, or mnemonics. Only `.env.example` with placeholders.
+
+### Error monitoring
+
+- Use `~/lib/errorMonitoring` (`captureException`, etc.) for recoverable errors and important actions where the codebase already patterns this.
+
+## Work order (high level)
+
+1. **C1** — Backend + PostgreSQL + real tRPC procedures (replace mocks).
+2. **C2** — Market maker bot.
+3. Referral / copy-trading backend completion.
+4. **C4** — Contracts on Base Sepolia; wire execution.
+5. **C3** — Growth/social bots.
+6. **C5** — Mainnet launch path.
+
+## Optional integrations
+
+- Chatbot needs OpenRouter keys (`VITE_OPENROUTER_KEY` / `OPENROUTER_KEY`) per `docs/ENV.md` and handoff.
+
+When uncertain, read `docs/CURSOR_HANDOFF.md` § Critical Rules and § Priority Tasks before large changes.

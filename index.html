@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Primary Meta Tags -->
+    <meta name="title" content="Predictio - Global Sports Prediction Exchange">
+    <meta name="description" content="Trade predictions on global sports events. Real-time odds, deep liquidity, and instant settlements. Join the future of prediction markets.">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://predictio.io/">
+    <meta property="og:title" content="Predictio - Global Sports Prediction Exchange">
+    <meta property="og:description" content="Trade predictions on global sports events. Real-time odds, deep liquidity, and instant settlements.">
+    <meta property="og:site_name" content="Predictio">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://predictio.io/">
+    <meta name="twitter:title" content="Predictio - Global Sports Prediction Exchange">
+    <meta name="twitter:description" content="Trade predictions on global sports events. Real-time odds, deep liquidity, and instant settlements.">
+    <meta name="twitter:site" content="@Predictio">
+    <title>Predictio - Global Sports Prediction Exchange</title>
+    <!-- Critical fallback before Tailwind/JS (avoids blank white screen if CSS bundle is slow or fails) -->
+    <style>
+      html { color-scheme: dark; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #080b11;
+        color: #e5e7eb;
+      }
+      #root:empty::after {
+        content: "Caricamento Predictio…";
+        display: block;
+        padding: 2rem;
+        font-family: system-ui, sans-serif;
+        color: #9ca3af;
+      }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
