@@ -28,7 +28,7 @@ const copyUpsertBody = z.object({
 });
 
 // GET /api/copy?copierWallet=0x...
-router.get("/copy", validate({ query: copyListQuery }), async (req, res) => {
+router.get("/copy", validate({ query: copyListQuery }), async (req, res, next) => {
   try {
     const copierWallet = (req.query as any).copierWallet as string | undefined;
 
@@ -39,14 +39,13 @@ router.get("/copy", validate({ query: copyListQuery }), async (req, res) => {
 
     res.json({ relationships });
   } catch (e) {
-    console.error("[copy] list failed", e);
-    res.status(500).json({ error: "Failed to fetch copy relationships" });
+    return next(e);
   }
 });
 
 // POST /api/copy
 // Body: { action: "start"|"stop", copierWallet, analystWallet, maxPerTradeUsd, copyMode, selectedMarkets }
-router.post("/copy", optionalDeveloperApiKey, validate({ body: copyUpsertBody }), async (req, res) => {
+router.post("/copy", optionalDeveloperApiKey, validate({ body: copyUpsertBody }), async (req, res, next) => {
   try {
     const authedWallet = (req as any).walletAddress as string | undefined;
     const { action, copierWallet, analystWallet } = req.body as any;
@@ -93,8 +92,7 @@ router.post("/copy", optionalDeveloperApiKey, validate({ body: copyUpsertBody })
 
     res.status(201).json({ relationship });
   } catch (e) {
-    console.error("[copy] update failed", e);
-    res.status(500).json({ error: "Failed to update copy settings" });
+    return next(e);
   }
 });
 

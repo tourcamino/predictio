@@ -43,7 +43,7 @@ function getWalletFromReq(req: any): string | null {
 }
 
 // GET /api/trades?walletAddress=0x...&marketId=...&limit=...&offset=...
-router.get("/trades", validate({ query: listTradesQuery }), async (req, res) => {
+router.get("/trades", validate({ query: listTradesQuery }), async (req, res, next) => {
   try {
     const { walletAddress, marketId } = req.query as any;
     const limit = Number((req.query as any).limit || 50);
@@ -62,14 +62,17 @@ router.get("/trades", validate({ query: listTradesQuery }), async (req, res) => 
 
     res.json({ trades: orders, total: orders.length, page: Math.floor(offset / limit) + 1 });
   } catch (e) {
-    console.error("[trades] list failed", e);
-    res.status(500).json({ error: "Failed to fetch trades" });
+    return next(e);
   }
 });
 
 // POST /api/trades
 // Body: { marketId, outcome, amountUsd, walletAddress?, analystWallet?, referralWallet? }
-router.post("/trades", optionalDeveloperApiKey, validate({ body: createTradeBody }), async (req, res) => {
+router.post(
+  "/trades",
+  optionalDeveloperApiKey,
+  validate({ body: createTradeBody }),
+  async (req, res, next) => {
   try {
     const authedWallet = (req as any).walletAddress as string | undefined;
     const bodyWallet = (req.body as any).walletAddress as string | undefined;
@@ -232,8 +235,7 @@ router.post("/trades", optionalDeveloperApiKey, validate({ body: createTradeBody
       },
     });
   } catch (e) {
-    console.error("[trades] create failed", e);
-    res.status(500).json({ error: "Failed to create trade" });
+    return next(e);
   }
 });
 

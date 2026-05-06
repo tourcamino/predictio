@@ -21,7 +21,7 @@ const vaultActionBody = z.object({
 });
 
 // GET /api/vault
-router.get("/vault", async (_req, res) => {
+router.get("/vault", async (_req, res, next) => {
   try {
     const state = await prisma.vaultState.findUnique({
       where: { id: "singleton" },
@@ -33,13 +33,12 @@ router.get("/vault", async (_req, res) => {
 
     res.json({ state, allocations });
   } catch (e) {
-    console.error("[vault] get failed", e);
-    res.status(500).json({ error: "Failed to fetch vault" });
+    return next(e);
   }
 });
 
 // POST /api/vault (deposit/withdraw placeholder for demo)
-router.post("/vault", optionalDeveloperApiKey, validate({ body: vaultActionBody }), async (req, res) => {
+router.post("/vault", optionalDeveloperApiKey, validate({ body: vaultActionBody }), async (req, res, next) => {
   try {
     const authedWallet = (req as any).walletAddress as string | undefined;
     const action = (req.body as any).action as string;
@@ -77,8 +76,7 @@ router.post("/vault", optionalDeveloperApiKey, validate({ body: vaultActionBody 
 
     res.status(201).json({ previous: state, state: updated });
   } catch (e) {
-    console.error("[vault] post failed", e);
-    res.status(500).json({ error: "Failed to update vault" });
+    return next(e);
   }
 });
 
