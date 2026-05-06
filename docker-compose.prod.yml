@@ -25,6 +25,7 @@ services:
       - WS_MAX_MESSAGE_BYTES=${WS_MAX_MESSAGE_BYTES:-32768}
       - HTTP_JSON_BODY_LIMIT=${HTTP_JSON_BODY_LIMIT:-128kb}
       - API_USAGE_RETENTION_DAYS=${API_USAGE_RETENTION_DAYS:-30}
+      - API_USAGE_ENABLED=${API_USAGE_ENABLED:-1}
       - CORS_ORIGIN=https://predictio.live
     depends_on:
       postgres:

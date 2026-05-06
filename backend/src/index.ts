@@ -13,6 +13,7 @@ import vaultRouter from "./routes/vault";
 import adminPayoutsRouter from "./routes/adminPayouts";
 import adminUsageRouter from "./routes/adminUsage";
 import adminWalletKeysRouter from "./routes/adminWalletKeys";
+import adminKeysRouter from "./routes/adminKeys";
 import developerKeysRouter from "./routes/developerKeys";
 import { referralCookieMiddleware } from "./middleware/referral";
 import { requestContext } from "./middleware/requestContext";
@@ -157,7 +158,15 @@ app.use(referralCookieMiddleware);
 const publicLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 300, // 300 req/min per IP
-  message: "Too many requests from this IP",
+  handler(_req, res) {
+    res.status(429).json({
+      error: {
+        code: "RATE_LIMITED",
+        message: "Too many requests from this IP",
+        requestId: (res.locals as any).requestId,
+      },
+    });
+  },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -165,7 +174,15 @@ const publicLimiter = rateLimit({
 const writeLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 60, // 60 writes/min per IP
-  message: "Too many write requests from this IP",
+  handler(_req, res) {
+    res.status(429).json({
+      error: {
+        code: "RATE_LIMITED",
+        message: "Too many write requests from this IP",
+        requestId: (res.locals as any).requestId,
+      },
+    });
+  },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -173,7 +190,15 @@ const writeLimiter = rateLimit({
 const adminLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 30, // 30 admin ops/min per IP
-  message: "Too many admin requests from this IP",
+  handler(_req, res) {
+    res.status(429).json({
+      error: {
+        code: "RATE_LIMITED",
+        message: "Too many admin requests from this IP",
+        requestId: (res.locals as any).requestId,
+      },
+    });
+  },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -210,6 +235,7 @@ app.use("/api", vaultRouter);
 app.use("/api", adminPayoutsRouter);
 app.use("/api", adminUsageRouter);
 app.use("/api", adminWalletKeysRouter);
+app.use("/api", adminKeysRouter);
 app.use("/api", developerKeysRouter);
 
 // Auth middleware
@@ -798,8 +824,11 @@ wss.on("connection", (ws: WebSocket, req) => {
     console.error("[WebSocket] error", e);
   });
 
-  ws.on("close", () => {
-    console.log("[WebSocket] disconnected");
+  ws.on("close", (code, reason) => {
+    const st: ClientState | undefined = (ws as any).__state;
+    console.log(
+      `[WebSocket] disconnected code=${code} reason=${String(reason || "")} wallet=${st?.walletAddress || "-"} apiKeyId=${st?.apiKeyId || "-"}`,
+    );
   });
 });
 

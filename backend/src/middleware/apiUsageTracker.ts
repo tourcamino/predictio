@@ -18,6 +18,9 @@ function startPruneJob() {
 }
 
 export function apiUsageTracker(req: Request, res: Response, next: NextFunction) {
+  if (process.env.API_USAGE_ENABLED === "0" || process.env.API_USAGE_ENABLED === "false") {
+    return next();
+  }
   startPruneJob();
   const start = Date.now();
 
