@@ -13,6 +13,8 @@ import vaultRouter from "./routes/vault";
 import adminPayoutsRouter from "./routes/adminPayouts";
 import developerKeysRouter from "./routes/developerKeys";
 import { referralCookieMiddleware } from "./middleware/referral";
+import { requestContext } from "./middleware/requestContext";
+import { errorHandler, notFound } from "./middleware/errors";
 
 // Ensure DATABASE_URL is present for local dev.
 // Production must provide DATABASE_URL explicitly via environment.
@@ -76,6 +78,7 @@ async function ensureFounderAffiliate() {
 }
 
 // Middleware
+app.use(requestContext);
 app.use(
   cors({
     origin(origin, cb) {
@@ -84,6 +87,16 @@ app.use(
     },
   }),
 );
+app.use((req, res, next) => {
+  // Minimal hardening headers (avoid extra deps in C2)
+  res.setHeader("x-content-type-options", "nosniff");
+  res.setHeader("x-frame-options", "DENY");
+  res.setHeader("referrer-policy", "no-referrer");
+  if (req.secure || req.headers["x-forwarded-proto"] === "https") {
+    res.setHeader("strict-transport-security", "max-age=15552000; includeSubDomains");
+  }
+  next();
+});
 app.use(express.json());
 app.use(referralCookieMiddleware);
 
@@ -438,6 +451,10 @@ async function handleTranslate(req: express.Request, res: express.Response) {
 
 app.post("/api/translate", handleTranslate);
 app.post("/api/v1/translate", handleTranslate);
+
+// 404 + error handler (must be last)
+app.use(notFound);
+app.use(errorHandler);
 
 // Helper functions
 function calculateOrderbook(orders: any[]) {
