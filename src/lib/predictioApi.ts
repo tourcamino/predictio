@@ -10,21 +10,33 @@ type ApiErrorShape = {
 /** Express REST (`/api/v1/*`, `/api/admin/*`, …). In local dev the backend runs on a separate port from Vinxi (see backend `PORT`, default 3001). */
 const DEFAULT_DEV_BACKEND = 'http://127.0.0.1:3001';
 
+/** Vinxi/Vite dev + preview: SPA runs on these ports while Express stays on 3001. Do not rely on `import.meta.env.DEV` — it is often false in Vinxi client bundles. */
+function isLocalFrontendDevOrigin(): boolean {
+  if (typeof window === 'undefined') return false;
+  const { hostname, port } = window.location;
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') return false;
+  const p = port || '';
+  return ['5173', '5174', '3000', '4173', '3050'].includes(p);
+}
+
 export function getApiBaseUrl(): string {
   const envUrl = (import.meta as any)?.env?.VITE_API_URL as string | undefined;
-  const fromEnv = envUrl?.trim();
-  if (fromEnv) return fromEnv.replace(/\/$/, '');
-
-  const isDev = (import.meta as any)?.env?.DEV === true;
+  let fromEnv = envUrl?.trim();
+  if (fromEnv) fromEnv = fromEnv.replace(/\/$/, '');
 
   if (typeof window !== 'undefined') {
-    // Production / preview: API is usually same origin as the SPA (nginx, Vercel rewrites).
-    // Local `vinxi dev`: browser origin is :5173 but REST lives on Express — use backend port unless overridden above.
-    if (isDev) return DEFAULT_DEV_BACKEND;
+    const origin = window.location.origin.replace(/\/$/, '');
+    // Common mistake: VITE_API_URL=http://localhost:5173 — that is the SPA, not Express.
+    if (fromEnv && fromEnv === origin && isLocalFrontendDevOrigin()) {
+      return DEFAULT_DEV_BACKEND;
+    }
+    if (fromEnv) return fromEnv;
+
+    if (isLocalFrontendDevOrigin()) return DEFAULT_DEV_BACKEND;
     return window.location.origin;
   }
 
-  return DEFAULT_DEV_BACKEND;
+  return fromEnv || DEFAULT_DEV_BACKEND;
 }
 
 async function readJsonSafe(res: Response): Promise<any> {
