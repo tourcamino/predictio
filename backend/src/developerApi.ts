@@ -313,7 +313,13 @@ router.get('/v1/markets/:id/trades', rateLimit, async (req: Request, res: Respon
 router.post('/v1/orders', authenticateAPIKey, rateLimit, async (req: Request, res: Response) => {
   try {
     const walletAddress = (req as any).walletAddress;
-    const { market_id, side, size, type = 'market', price } = req.body;
+    const body = (req.body ?? {}) as any;
+    // Support both snake_case (legacy bot docs) and camelCase (backend REST)
+    const market_id = body.market_id ?? body.marketId;
+    const side = body.side ?? body.outcome;
+    const size = body.size ?? body.amount ?? body.amountUsd;
+    const type = body.type ?? 'market';
+    const price = body.price;
     
     if (!market_id || !side || !size) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -336,7 +342,7 @@ router.post('/v1/orders', authenticateAPIKey, rateLimit, async (req: Request, re
         marketId: market_id,
         wallet: walletAddress,
         outcome: side,
-        amount: size,
+        amount: Number(size),
         shares,
         avgPrice,
         orderType: type.toUpperCase(),
