@@ -53,6 +53,17 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     });
   }
 
+  // JSON body too large (body-parser)
+  if (err && typeof err === "object" && (err as any).type === "entity.too.large") {
+    return res.status(413).json({
+      error: {
+        code: "PAYLOAD_TOO_LARGE",
+        message: "Request body too large",
+        requestId: res.locals.requestId,
+      },
+    });
+  }
+
   if (err instanceof ZodError) {
     return res.status(400).json({
       error: {

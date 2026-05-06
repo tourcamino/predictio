@@ -109,7 +109,8 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json());
+const HTTP_JSON_BODY_LIMIT = process.env.HTTP_JSON_BODY_LIMIT || "128kb";
+app.use(express.json({ limit: HTTP_JSON_BODY_LIMIT }));
 app.use(referralCookieMiddleware);
 
 // Rate limiting
