@@ -5,6 +5,8 @@ import { calculateFeeSplit, persistFeeSplit } from "../services/fees";
 import { getReferralCodeFromRequest } from "../middleware/referral";
 import { validate } from "../middleware/validate";
 import { realtimeBus } from "../services/realtimeBus";
+import { optionalDeveloperApiKey } from "../middleware/auth";
+import { ApiError } from "../middleware/errors";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -26,7 +28,7 @@ const createTradeBody = z.object({
   marketId: z.string().trim().min(1),
   outcome: z.string().trim().min(1),
   amountUsd: z.coerce.number().positive(),
-  walletAddress: walletSchema,
+  walletAddress: walletSchema.optional(),
   analystWallet: walletSchema.optional().nullable(),
   referralWallet: walletSchema.optional().nullable(),
 });
@@ -67,9 +69,18 @@ router.get("/trades", validate({ query: listTradesQuery }), async (req, res) => 
 
 // POST /api/trades
 // Body: { marketId, outcome, amountUsd, walletAddress?, analystWallet?, referralWallet? }
-router.post("/trades", validate({ body: createTradeBody }), async (req, res) => {
+router.post("/trades", optionalDeveloperApiKey, validate({ body: createTradeBody }), async (req, res) => {
   try {
-    const walletAddress = (req.body as any).walletAddress as string;
+    const authedWallet = (req as any).walletAddress as string | undefined;
+    const bodyWallet = (req.body as any).walletAddress as string | undefined;
+    const walletAddress = authedWallet || bodyWallet || null;
+    if (!walletAddress) {
+      throw new ApiError("Wallet not authenticated", { status: 401, code: "UNAUTHORIZED" });
+    }
+    if (authedWallet && bodyWallet && authedWallet !== bodyWallet) {
+      throw new ApiError("Wallet mismatch", { status: 403, code: "WALLET_MISMATCH" });
+    }
+
     const { marketId, outcome, amountUsd, analystWallet, referralWallet } = req.body as any;
     const size = Number(amountUsd);
 

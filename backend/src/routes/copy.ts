@@ -2,6 +2,8 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
+import { optionalDeveloperApiKey } from "../middleware/auth";
+import { ApiError } from "../middleware/errors";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -44,12 +46,17 @@ router.get("/copy", validate({ query: copyListQuery }), async (req, res) => {
 
 // POST /api/copy
 // Body: { action: "start"|"stop", copierWallet, analystWallet, maxPerTradeUsd, copyMode, selectedMarkets }
-router.post("/copy", validate({ body: copyUpsertBody }), async (req, res) => {
+router.post("/copy", optionalDeveloperApiKey, validate({ body: copyUpsertBody }), async (req, res) => {
   try {
+    const authedWallet = (req as any).walletAddress as string | undefined;
     const { action, copierWallet, analystWallet } = req.body as any;
 
     const copier = String(copierWallet).toLowerCase();
     const analyst = String(analystWallet).toLowerCase();
+
+    if (authedWallet && authedWallet !== copier) {
+      throw new ApiError("Wallet mismatch", { status: 403, code: "WALLET_MISMATCH" });
+    }
 
     if (action === "stop") {
       const updated = await prisma.copyRelationship.update({

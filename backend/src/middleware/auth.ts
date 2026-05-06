@@ -102,3 +102,16 @@ export async function requireDeveloperApiKey(req: Request, _res: Response, next:
   }
 }
 
+/**
+ * If a Bearer api key is present, authenticate and attach walletAddress.
+ * If no Authorization header, continue without auth (used for demo/manual callers).
+ */
+export async function optionalDeveloperApiKey(req: Request, res: Response, next: NextFunction) {
+  const authHeader = headerString(req, "authorization");
+  if (!authHeader) return next();
+  if (!authHeader.startsWith("Bearer ")) {
+    return next(new ApiError("Invalid Authorization header", { status: 401, code: "UNAUTHORIZED" }));
+  }
+  return requireDeveloperApiKey(req, res, next);
+}
+

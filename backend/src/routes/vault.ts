@@ -2,6 +2,8 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
+import { optionalDeveloperApiKey } from "../middleware/auth";
+import { ApiError } from "../middleware/errors";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -37,11 +39,16 @@ router.get("/vault", async (_req, res) => {
 });
 
 // POST /api/vault (deposit/withdraw placeholder for demo)
-router.post("/vault", validate({ body: vaultActionBody }), async (req, res) => {
+router.post("/vault", optionalDeveloperApiKey, validate({ body: vaultActionBody }), async (req, res) => {
   try {
+    const authedWallet = (req as any).walletAddress as string | undefined;
     const action = (req.body as any).action as string;
     const walletAddress = (req.body as any).walletAddress as string;
     const amountUsd = Number((req.body as any).amountUsd || 0);
+
+    if (authedWallet && authedWallet !== walletAddress) {
+      throw new ApiError("Wallet mismatch", { status: 403, code: "WALLET_MISMATCH" });
+    }
 
     // TODO C4: replace with on-chain vault contract calls.
     const state = await prisma.vaultState.upsert({
