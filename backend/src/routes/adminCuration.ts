@@ -1,7 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import type { PrismaClient } from "@prisma/client";
 import { requireXAdminKey } from "../middleware/auth";
-import { cacheGetJson, cacheSetJson } from "../services/redisCache";
+import { cacheDel, cacheGetJson, cacheSetJson } from "../services/redisCache";
 import {
   fetchFootballGamesNext14Days,
   fetchGameByGameId,
@@ -114,6 +114,8 @@ export function registerAdminCurationRoutes(
           data: { isActive: false },
         });
       }
+
+      await cacheDel(CACHE_KEY);
 
       res.json({ ok: true });
     } catch (e) {

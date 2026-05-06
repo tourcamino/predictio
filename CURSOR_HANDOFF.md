@@ -429,4 +429,5 @@ Sono stati inoltre aggiunti:
 **Prossimi step**
 - Eseguire `migrate deploy` su DB staging/prod.
 - Verificare subgraph Azuro produzione (Base vs Polygon) e allineare `AZURO_GRAPHQL_URL` / `AZURO_CURATOR_GRAPHQL_URL`.
-- Opzionale: invalidare cache Redis dopo POST select; batch API per Save in una singola richiesta.
+- ~~Opzionale: invalidare cache Redis dopo POST select~~ — fatto (`cacheDel` su `POST /api/admin/events/select`).
+- Opzionale: batch API per Save in una singola richiesta.
