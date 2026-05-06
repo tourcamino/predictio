@@ -106,15 +106,45 @@ app.use(express.json());
 app.use(referralCookieMiddleware);
 
 // Rate limiting
-const apiLimiter = rateLimit({
+const publicLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 100, // 100 requests per minute
+  max: 300, // 300 req/min per IP
   message: "Too many requests from this IP",
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-app.use("/api/", apiLimiter);
+const writeLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 60, // 60 writes/min per IP
+  message: "Too many write requests from this IP",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const adminLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 30, // 30 admin ops/min per IP
+  message: "Too many admin requests from this IP",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply limiters by path group
+app.use("/api/v1/", publicLimiter);
+app.use("/api/leaderboard", publicLimiter);
+app.use("/api/vault", publicLimiter);
+app.use("/api/affiliate", publicLimiter);
+app.use("/api/copy", publicLimiter);
+app.use("/api/trades", publicLimiter);
+
+app.use("/api/trades", writeLimiter);
+app.use("/api/vault", writeLimiter);
+app.use("/api/translate", writeLimiter);
+app.use("/api/v1/translate", writeLimiter);
+
+app.use("/api/admin/", adminLimiter);
+app.use("/api/developer/keys", adminLimiter);
 
 // Developer API routes
 if (process.env.DEVELOPER_API_ENABLED !== 'false') {
