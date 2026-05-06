@@ -2,6 +2,8 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
+import { developerApiKeyForWrite, optionalDeveloperApiKey } from "../middleware/auth";
+import { ApiError } from "../middleware/errors";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -13,11 +15,11 @@ const walletSchema = z
   .refine((s) => /^0x[a-f0-9]{40}$/i.test(s), "Invalid wallet address");
 
 const affiliateMeQuery = z.object({
-  walletAddress: walletSchema,
+  walletAddress: walletSchema.optional(),
 });
 
 const affiliateUpsertBody = z.object({
-  walletAddress: walletSchema,
+  walletAddress: walletSchema.optional(),
   refCode: z
     .string()
     .trim()
@@ -29,9 +31,17 @@ const affiliateUpsertBody = z.object({
 });
 
 // GET /api/affiliate/me?walletAddress=0x...
-router.get("/affiliate/me", validate({ query: affiliateMeQuery }), async (req, res) => {
+router.get("/affiliate/me", optionalDeveloperApiKey, validate({ query: affiliateMeQuery }), async (req, res, next) => {
   try {
-    const walletAddress = (req.query as any).walletAddress as string;
+    const authedWallet = (req as any).walletAddress as string | undefined;
+    const queryWallet = (req.query as any).walletAddress as string | undefined;
+    const walletAddress = authedWallet || queryWallet || null;
+    if (!walletAddress) {
+      throw new ApiError("Wallet not authenticated", { status: 401, code: "UNAUTHORIZED" });
+    }
+    if (authedWallet && queryWallet && authedWallet !== queryWallet) {
+      throw new ApiError("Wallet mismatch", { status: 403, code: "WALLET_MISMATCH" });
+    }
 
     const affiliate = await prisma.affiliate.findUnique({
       where: { walletAddress },
@@ -44,15 +54,23 @@ router.get("/affiliate/me", validate({ query: affiliateMeQuery }), async (req, r
 
     res.json({ affiliate, rewards });
   } catch (e) {
-    console.error("[affiliate] me failed", e);
-    res.status(500).json({ error: "Failed to fetch affiliate" });
+    return next(e);
   }
 });
 
 // POST /api/affiliate/me (create/update refCode)
-router.post("/affiliate/me", validate({ body: affiliateUpsertBody }), async (req, res) => {
+router.post("/affiliate/me", developerApiKeyForWrite, validate({ body: affiliateUpsertBody }), async (req, res, next) => {
   try {
-    const walletAddress = (req.body as any).walletAddress as string;
+    const authedWallet = (req as any).walletAddress as string | undefined;
+    const bodyWallet = (req.body as any).walletAddress as string | undefined;
+    const walletAddress = authedWallet || bodyWallet || null;
+    if (!walletAddress) {
+      throw new ApiError("Wallet not authenticated", { status: 401, code: "UNAUTHORIZED" });
+    }
+    if (authedWallet && bodyWallet && authedWallet !== bodyWallet) {
+      throw new ApiError("Wallet mismatch", { status: 403, code: "WALLET_MISMATCH" });
+    }
+
     const refCode = (req.body as any).refCode ? String((req.body as any).refCode).toUpperCase() : null;
     const isFounder = Boolean((req.body as any)?.isFounder);
 
@@ -68,8 +86,7 @@ router.post("/affiliate/me", validate({ body: affiliateUpsertBody }), async (req
 
     res.status(201).json({ affiliate });
   } catch (e) {
-    console.error("[affiliate] upsert failed", e);
-    res.status(500).json({ error: "Failed to update affiliate" });
+    return next(e);
   }
 });
 

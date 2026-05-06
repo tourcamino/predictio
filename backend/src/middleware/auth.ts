@@ -115,3 +115,14 @@ export async function optionalDeveloperApiKey(req: Request, res: Response, next:
   return requireDeveloperApiKey(req, res, next);
 }
 
+/**
+ * For write endpoints: optionally authenticate in demo, but can be forced on via env.
+ * Set WRITE_AUTH_REQUIRED=1 in production to require Bearer pk_... for writes.
+ */
+export async function developerApiKeyForWrite(req: Request, res: Response, next: NextFunction) {
+  if (process.env.WRITE_AUTH_REQUIRED === "1") {
+    return requireDeveloperApiKey(req, res, next);
+  }
+  return optionalDeveloperApiKey(req, res, next);
+}
+

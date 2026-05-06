@@ -2,7 +2,7 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
-import { optionalDeveloperApiKey } from "../middleware/auth";
+import { developerApiKeyForWrite } from "../middleware/auth";
 import { ApiError } from "../middleware/errors";
 
 const router = Router();
@@ -45,7 +45,7 @@ router.get("/copy", validate({ query: copyListQuery }), async (req, res, next) =
 
 // POST /api/copy
 // Body: { action: "start"|"stop", copierWallet, analystWallet, maxPerTradeUsd, copyMode, selectedMarkets }
-router.post("/copy", optionalDeveloperApiKey, validate({ body: copyUpsertBody }), async (req, res, next) => {
+router.post("/copy", developerApiKeyForWrite, validate({ body: copyUpsertBody }), async (req, res, next) => {
   try {
     const authedWallet = (req as any).walletAddress as string | undefined;
     const { action, copierWallet, analystWallet } = req.body as any;

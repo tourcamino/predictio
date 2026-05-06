@@ -5,7 +5,7 @@ import { calculateFeeSplit, persistFeeSplit } from "../services/fees";
 import { getReferralCodeFromRequest } from "../middleware/referral";
 import { validate } from "../middleware/validate";
 import { realtimeBus } from "../services/realtimeBus";
-import { optionalDeveloperApiKey } from "../middleware/auth";
+import { developerApiKeyForWrite } from "../middleware/auth";
 import { ApiError } from "../middleware/errors";
 
 const router = Router();
@@ -70,7 +70,7 @@ router.get("/trades", validate({ query: listTradesQuery }), async (req, res, nex
 // Body: { marketId, outcome, amountUsd, walletAddress?, analystWallet?, referralWallet? }
 router.post(
   "/trades",
-  optionalDeveloperApiKey,
+  developerApiKeyForWrite,
   validate({ body: createTradeBody }),
   async (req, res, next) => {
   try {

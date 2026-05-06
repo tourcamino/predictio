@@ -2,7 +2,7 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
-import { optionalDeveloperApiKey } from "../middleware/auth";
+import { developerApiKeyForWrite } from "../middleware/auth";
 import { ApiError } from "../middleware/errors";
 
 const router = Router();
@@ -38,7 +38,7 @@ router.get("/vault", async (_req, res, next) => {
 });
 
 // POST /api/vault (deposit/withdraw placeholder for demo)
-router.post("/vault", optionalDeveloperApiKey, validate({ body: vaultActionBody }), async (req, res, next) => {
+router.post("/vault", developerApiKeyForWrite, validate({ body: vaultActionBody }), async (req, res, next) => {
   try {
     const authedWallet = (req as any).walletAddress as string | undefined;
     const action = (req.body as any).action as string;
