@@ -51,6 +51,12 @@ router.post("/developer/keys", requireAdminKey, async (req, res) => {
     const keyHash = await hashAPIKey(key);
     const keySuffix = key.slice(-4);
 
+    const permissionsRaw = req.body?.permissions;
+    const permissions =
+      Array.isArray(permissionsRaw) && permissionsRaw.length > 0
+        ? permissionsRaw.map((p: any) => String(p))
+        : ["read", "trade", "stream"];
+
     const apiKey = await prisma.apiKey.create({
       data: {
         walletAddress,
@@ -58,7 +64,7 @@ router.post("/developer/keys", requireAdminKey, async (req, res) => {
         keyPrefix: prefix,
         keySuffix,
         label: String(req.body?.label || "Default"),
-        permissions: ["read", "trade", "stream"],
+        permissions,
         nonceUsed: "manual",
         paperMode: req.body?.paperMode !== false,
       },
@@ -69,6 +75,7 @@ router.post("/developer/keys", requireAdminKey, async (req, res) => {
       id: apiKey.id,
       keyPrefix: apiKey.keyPrefix,
       keySuffix: apiKey.keySuffix,
+      permissions: apiKey.permissions,
       createdAt: apiKey.createdAt,
     });
   } catch (e) {
