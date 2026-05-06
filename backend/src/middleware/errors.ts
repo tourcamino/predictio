@@ -28,6 +28,21 @@ export function notFound(req: Request, res: Response) {
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (res.headersSent) return;
 
+  // Invalid JSON body (Express body parser)
+  if (
+    err instanceof SyntaxError &&
+    // body-parser sets this on JSON parse failures
+    (err as any).type === "entity.parse.failed"
+  ) {
+    return res.status(400).json({
+      error: {
+        code: "INVALID_JSON",
+        message: "Invalid JSON body",
+        requestId: res.locals.requestId,
+      },
+    });
+  }
+
   if (err instanceof ZodError) {
     return res.status(400).json({
       error: {
