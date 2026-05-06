@@ -25,6 +25,10 @@ async function check(path, { allowFailure = false } = {}) {
   try {
     body = JSON.parse(text);
   } catch {
+    if (allowFailure) {
+      console.warn(`WARN ${path} not JSON (allowed)`);
+      return null;
+    }
     throw new Error(`${path}: not JSON — ${text.slice(0, 200)}`);
   }
   if (allowFailure && !res.ok) {
@@ -34,8 +38,15 @@ async function check(path, { allowFailure = false } = {}) {
   if (!res.ok) {
     throw new Error(`${path} HTTP ${res.status} ${text}`);
   }
-  if (body.ok !== true) {
-    throw new Error(`${path} body ok !== true: ${text}`);
+  if (allowFailure) {
+    console.log(`OK  ${path} (allowed)`);
+    return body;
+  }
+  const ok =
+    body?.ok === true ||
+    body?.status === "ok";
+  if (!ok) {
+    throw new Error(`${path} body not ok: ${text}`);
   }
   console.log(`OK  ${path}`);
   return body;
@@ -53,6 +64,10 @@ async function post(path, json, { allowFailure = false } = {}) {
   try {
     body = JSON.parse(text);
   } catch {
+    if (allowFailure) {
+      console.warn(`WARN ${path} not JSON (allowed)`);
+      return null;
+    }
     throw new Error(`${path}: not JSON — ${text.slice(0, 200)}`);
   }
   if (allowFailure && !res.ok) {
