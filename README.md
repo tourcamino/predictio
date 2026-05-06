@@ -76,6 +76,19 @@ See `docs/CURSOR_HANDOFF.md` for complete deployment instructions.
 - `ADMIN_API_KEY` is required for `/api/admin/*` and `/api/developer/keys`
 - Vercel preview origins (`https://*.vercel.app`) are allowed by backend CORS for testing
 
+#### Admin ops endpoints (VPS)
+- `GET /api/admin/keys`: list/search API keys (admin key)
+- `POST /api/developer/keys/revoke`: revoke key by `id` (admin key)
+- `POST /api/developer/keys/revoke-lookup`: revoke key by `keyPrefix` + `keySuffix` (admin key)
+- `GET /api/admin/wallet/:walletAddress/keys`: list wallet keys + usage24h (admin key)
+- `POST /api/admin/wallet/:walletAddress/disable-keys`: revoke+disable all active keys for wallet (admin key)
+- `GET /api/admin/usage`: raw ApiUsage rows (admin key)
+- `GET /api/admin/usage/summary`: aggregated usage by apiKeyId/endpoint (admin key)
+- `GET /api/admin/usage/by-wallet`: aggregated usage by wallet (admin key)
+- `GET /api/admin/usage/by-endpoint`: aggregated usage by endpoint/method/status (admin key)
+- `POST /api/admin/usage/purge`: delete ApiUsage older than N days (admin key)
+- `GET /api/admin/ws/stats`: websocket connection stats (admin key)
+
 ---
 
 ## 📖 For Developers

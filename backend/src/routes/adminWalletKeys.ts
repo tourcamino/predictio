@@ -60,5 +60,26 @@ router.get("/admin/wallet/:walletAddress/keys", requireAdminKey, async (req, res
   }
 });
 
+// POST /api/admin/wallet/:walletAddress/disable-keys
+// Revokes and disables all active keys for the wallet.
+router.post("/admin/wallet/:walletAddress/disable-keys", requireAdminKey, async (req, res) => {
+  try {
+    const walletAddress = String(req.params.walletAddress || "").toLowerCase();
+    if (!/^0x[a-f0-9]{40}$/i.test(walletAddress)) {
+      return res.status(400).json({ error: "Invalid walletAddress" });
+    }
+
+    const result = await prisma.apiKey.updateMany({
+      where: { walletAddress, revokedAt: null, isActive: true },
+      data: { revokedAt: new Date(), isActive: false },
+    });
+
+    res.json({ walletAddress, disabled: result.count });
+  } catch (e) {
+    console.error("[admin/wallet/disable-keys] failed", e);
+    res.status(500).json({ error: "Failed to disable keys" });
+  }
+});
+
 export default router;
 

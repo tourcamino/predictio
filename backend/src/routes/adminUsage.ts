@@ -97,5 +97,88 @@ router.post("/admin/usage/purge", requireAdminKey, async (req, res) => {
   }
 });
 
+// GET /api/admin/usage/by-wallet?days=1&limit=50
+router.get("/admin/usage/by-wallet", requireAdminKey, async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(1, Number(req.query.days || 1)));
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit || 50)));
+    const since = new Date(Date.now() - days * 86400 * 1000);
+
+    const byKey = await prisma.apiUsage.groupBy({
+      by: ["apiKeyId"],
+      where: { timestamp: { gte: since } },
+      _count: { _all: true },
+      _avg: { latencyMs: true },
+    });
+
+    const keyIds = byKey.map((r) => r.apiKeyId);
+    const keys = await prisma.apiKey.findMany({
+      where: { id: { in: keyIds } },
+      select: { id: true, walletAddress: true },
+      take: 500,
+    });
+    const walletByKey = new Map(keys.map((k) => [k.id, k.walletAddress]));
+
+    const agg = new Map<string, { calls: number; weightedLatency: number; keys: Set<string> }>();
+    for (const r of byKey) {
+      const wallet = walletByKey.get(r.apiKeyId) || "unknown";
+      const calls = r._count._all;
+      const avg = r._avg.latencyMs ?? 0;
+      const rec = agg.get(wallet) || { calls: 0, weightedLatency: 0, keys: new Set<string>() };
+      rec.calls += calls;
+      rec.weightedLatency += avg * calls;
+      rec.keys.add(r.apiKeyId);
+      agg.set(wallet, rec);
+    }
+
+    const rows = Array.from(agg.entries())
+      .map(([walletAddress, v]) => ({
+        walletAddress,
+        calls: v.calls,
+        apiKeys: v.keys.size,
+        avgLatencyMs: v.calls > 0 ? v.weightedLatency / v.calls : null,
+      }))
+      .sort((a, b) => b.calls - a.calls)
+      .slice(0, limit);
+
+    res.json({ since, days, rows });
+  } catch (e) {
+    console.error("[admin/usage] by-wallet failed", e);
+    res.status(500).json({ error: "Failed to fetch usage by wallet" });
+  }
+});
+
+// GET /api/admin/usage/by-endpoint?days=1&limit=50
+router.get("/admin/usage/by-endpoint", requireAdminKey, async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(1, Number(req.query.days || 1)));
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit || 50)));
+    const since = new Date(Date.now() - days * 86400 * 1000);
+
+    const rows = await prisma.apiUsage.groupBy({
+      by: ["endpoint", "method", "statusCode"],
+      where: { timestamp: { gte: since } },
+      _count: { _all: true },
+      _avg: { latencyMs: true },
+    });
+
+    const sorted = rows
+      .map((r) => ({
+        endpoint: r.endpoint,
+        method: r.method,
+        statusCode: r.statusCode,
+        calls: r._count._all,
+        avgLatencyMs: r._avg.latencyMs,
+      }))
+      .sort((a, b) => b.calls - a.calls)
+      .slice(0, limit);
+
+    res.json({ since, days, rows: sorted });
+  } catch (e) {
+    console.error("[admin/usage] by-endpoint failed", e);
+    res.status(500).json({ error: "Failed to fetch usage by endpoint" });
+  }
+});
+
 export default router;
 

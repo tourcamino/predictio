@@ -106,5 +106,32 @@ router.post("/developer/keys/revoke", requireAdminKey, async (req, res) => {
   }
 });
 
+// POST /api/developer/keys/revoke-lookup
+// Body: { keyPrefix, keySuffix }
+router.post("/developer/keys/revoke-lookup", requireAdminKey, async (req, res) => {
+  try {
+    const keyPrefix = req.body?.keyPrefix ? String(req.body.keyPrefix) : null;
+    const keySuffix = req.body?.keySuffix ? String(req.body.keySuffix) : null;
+    if (!keyPrefix) return res.status(400).json({ error: "Missing keyPrefix" });
+    if (!keySuffix) return res.status(400).json({ error: "Missing keySuffix" });
+
+    const row = await prisma.apiKey.findFirst({
+      where: { keyPrefix, keySuffix },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!row) return res.status(404).json({ error: "Key not found" });
+
+    await prisma.apiKey.update({
+      where: { id: row.id },
+      data: { revokedAt: new Date(), isActive: false },
+    });
+
+    res.json({ revoked: true, id: row.id, walletAddress: row.walletAddress });
+  } catch (e) {
+    console.error("[developer/keys] revoke-lookup failed", e);
+    res.status(500).json({ error: "Failed to revoke API key" });
+  }
+});
+
 export default router;
 
