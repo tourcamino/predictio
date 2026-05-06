@@ -123,6 +123,22 @@ function graphqlEndpoint(): string {
   return DEFAULT_GRAPHQL;
 }
 
+/** Subgraph URL used for curation (env or default Base v3). */
+export function getAzuroCuratorGraphqlUrl(): string {
+  return graphqlEndpoint();
+}
+
+export type CuratorFetchDiagnostics = {
+  graphqlUrl: string;
+  /** Largest raw `games` array length from the indexer before football / time filters */
+  indexerRawCount: number;
+  /** Games after football + 14d + future-kickoff filters */
+  footballInWindowCount: number;
+  /** True if at least one GraphQL round-trip succeeded without errors */
+  querySucceeded: boolean;
+  lastError?: string;
+};
+
 async function graphqlFetch(body: object): Promise<Response> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -208,9 +224,17 @@ function isSoccerFootball(rawSportName: string): boolean {
 }
 
 /** Football games with kickoff in (now, now+14d]. Same indexer filter as app `fetchAzuroGames`. */
-export async function fetchFootballGamesNext14Days(): Promise<NormalizedCuratorGame[]> {
+export async function fetchFootballGamesNext14Days(): Promise<{
+  games: NormalizedCuratorGame[];
+  diagnostics: CuratorFetchDiagnostics;
+}> {
+  const graphqlUrl = graphqlEndpoint();
   const nowSec = Math.floor(Date.now() / 1000);
   const endSec = nowSec + 14 * 24 * 3600;
+
+  let indexerRawCount = 0;
+  let querySucceeded = false;
+  let lastError: string | undefined;
 
   const whereVariants: Record<string, unknown>[] = [
     {
@@ -233,6 +257,7 @@ export async function fetchFootballGamesNext14Days(): Promise<NormalizedCuratorG
 
       if (!res.ok) {
         console.warn("[azuroCurator] HTTP", res.status, text.slice(0, 200));
+        lastError = `HTTP ${res.status}`;
         continue;
       }
       if (json.errors) {
@@ -248,11 +273,14 @@ export async function fetchFootballGamesNext14Days(): Promise<NormalizedCuratorG
         };
         if (!res.ok || json.errors) {
           console.warn("[azuroCurator] GraphQL errors (lite):", JSON.stringify(json.errors).slice(0, 600));
+          lastError = json.errors ? JSON.stringify(json.errors).slice(0, 200) : `HTTP ${res.status}`;
           continue;
         }
       }
 
+      querySucceeded = true;
       const games = json.data?.games || [];
+      indexerRawCount = Math.max(indexerRawCount, games.length);
       const mapped: NormalizedCuratorGame[] = [];
       for (const g of games) {
         const row = mapGame(g as Record<string, unknown>);
@@ -267,16 +295,37 @@ export async function fetchFootballGamesNext14Days(): Promise<NormalizedCuratorG
       }
 
       mapped.sort((a, b) => a.startsAtUnix - b.startsAtUnix);
-      if (mapped.length > 0) return mapped;
+      if (mapped.length > 0) {
+        return {
+          games: mapped,
+          diagnostics: {
+            graphqlUrl,
+            indexerRawCount,
+            footballInWindowCount: mapped.length,
+            querySucceeded: true,
+          },
+        };
+      }
     } catch (e) {
-      console.warn("[azuroCurator] fetch attempt failed:", e instanceof Error ? e.message : e);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn("[azuroCurator] fetch attempt failed:", msg);
+      lastError = msg;
     }
   }
 
   console.warn(
     "[azuroCurator] No football games in 14d window — check AZURO_GRAPHQL_URL / indexer chain.",
   );
-  return [];
+  return {
+    games: [],
+    diagnostics: {
+      graphqlUrl,
+      indexerRawCount,
+      footballInWindowCount: 0,
+      querySucceeded,
+      lastError,
+    },
+  };
 }
 
 export async function fetchGameByGameId(gameId: string): Promise<NormalizedCuratorGame | null> {

@@ -180,6 +180,16 @@ const HTTP_JSON_BODY_LIMIT = process.env.HTTP_JSON_BODY_LIMIT || "128kb";
 app.use(express.json({ limit: HTTP_JSON_BODY_LIMIT }));
 app.use(referralCookieMiddleware);
 
+/** Root — API only (no SPA). Registered early so it always wins over the 404 handler. */
+app.get("/", (_req, res) => {
+  res.json({
+    service: "predictio-api",
+    ok: true,
+    message: "REST API (no page at /). Use /api/v1/health for liveness.",
+    health: "/api/v1/health",
+  });
+});
+
 // Rate limiting
 const publicLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute

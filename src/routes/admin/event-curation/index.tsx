@@ -29,6 +29,16 @@ type AzuroEventRow = {
   isSelected: boolean;
 };
 
+type AzuroEventsDiagnostics = {
+  graphqlUrl: string;
+  indexerRawCount: number;
+  footballInWindowCount: number;
+  querySucceeded: boolean;
+  lastError?: string;
+  listedCount: number;
+  droppedPastKickoff: number;
+};
+
 const MAX_SELECTED = 12;
 
 function EventCurationPage() {
@@ -43,6 +53,7 @@ function EventCurationPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [events, setEvents] = useState<AzuroEventRow[]>([]);
+  const [diag, setDiag] = useState<AzuroEventsDiagnostics | null>(null);
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [initialSelected, setInitialSelected] = useState<Set<string>>(new Set());
 
@@ -62,17 +73,22 @@ function EventCurationPage() {
       return;
     }
     setLoading(true);
-    const res = await apiRequest<{ events: AzuroEventRow[] }>('/api/admin/azuro-events', {
-      adminSecretKey: adminKey,
-      timeoutMs: 60_000,
-    });
+    const res = await apiRequest<{ events: AzuroEventRow[]; diagnostics?: AzuroEventsDiagnostics }>(
+      '/api/admin/azuro-events',
+      {
+        adminSecretKey: adminKey,
+        timeoutMs: 60_000,
+      },
+    );
     setLoading(false);
     if (!res.ok) {
       const errBody = res.error as { message?: string; error?: string };
       toast.error(errBody?.message || errBody?.error || 'Failed to load Azuro events');
+      setDiag(null);
       return;
     }
     const ev = res.data.events ?? [];
+    setDiag(res.data.diagnostics ?? null);
     setEvents(ev);
     const sel = new Set(ev.filter((e) => e.isSelected).map((e) => e.gameId));
     setPending(new Set(sel));
@@ -317,8 +333,46 @@ function EventCurationPage() {
                 </tbody>
               </table>
               {!loading && filtered.length === 0 && (
-                <div className="py-12 px-4 text-center text-gray-500 text-sm space-y-2 max-w-lg mx-auto">
+                <div className="py-12 px-4 text-center text-gray-500 text-sm space-y-3 max-w-2xl mx-auto">
                   <p>No upcoming football events in this window (next 14 days, kickoff after now).</p>
+                  {diag ? (
+                    <div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-xs font-mono text-gray-400 space-y-1.5">
+                      <div>
+                        <span className="text-gray-500">Indexer </span>
+                        <span className="break-all text-gray-300">{diag.graphqlUrl}</span>
+                      </div>
+                      <div>
+                        Subgraph rows (Created/Paused + future kickoff, before football filter):{' '}
+                        <span className="text-gray-200">{diag.indexerRawCount}</span>
+                        {' · '}
+                        Football in 14d window:{' '}
+                        <span className="text-gray-200">{diag.footballInWindowCount}</span>
+                        {diag.droppedPastKickoff > 0 ? (
+                          <>
+                            {' · '}
+                            Dropped as past kickoff (stale cache):{' '}
+                            <span className="text-amber-300/90">{diag.droppedPastKickoff}</span>
+                          </>
+                        ) : null}
+                      </div>
+                      {!diag.querySucceeded && diag.lastError ? (
+                        <div className="text-red-300/90 pt-1">Query error: {diag.lastError}</div>
+                      ) : null}
+                      {diag.querySucceeded && diag.indexerRawCount === 0 ? (
+                        <p className="text-gray-500 pt-1 normal-case font-sans text-[13px] leading-snug">
+                          The subgraph returned no games for this filter — often the deployment has no upcoming rows
+                          synced yet, or <code className="text-gray-400">AZURO_GRAPHQL_URL</code> points at the wrong
+                          chain.
+                        </p>
+                      ) : null}
+                      {diag.querySucceeded && diag.indexerRawCount > 0 && diag.footballInWindowCount === 0 ? (
+                        <p className="text-gray-500 pt-1 normal-case font-sans text-[13px] leading-snug">
+                          The indexer returned games, but none matched soccer/football within the next 14 days (or all
+                          kickoffs were in the past).
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <p className="text-xs text-gray-600">
                     If this stays empty: run the Express backend on port 3001 (API base above must be{' '}
                     <code className="text-gray-400">http://127.0.0.1:3001</code> in dev), set{' '}

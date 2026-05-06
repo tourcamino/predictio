@@ -5,12 +5,18 @@ import { cacheDel, cacheGetJson, cacheSetJson } from "../services/redisCache";
 import {
   fetchFootballGamesNext14Days,
   fetchGameByGameId,
+  type CuratorFetchDiagnostics,
   type NormalizedCuratorGame,
 } from "../services/azuroCuratorGraphql";
 
-const CACHE_KEY = "admin:azuro:football:14d:v1";
+const CACHE_KEY = "admin:azuro:football:14d:v2";
 const CACHE_TTL_SEC = 300;
 const MAX_ACTIVE = 12;
+
+type CachedAzuroCuration = {
+  games: NormalizedCuratorGame[];
+  diagnostics: CuratorFetchDiagnostics;
+};
 
 export function registerAdminCurationRoutes(
   app: Express,
@@ -19,11 +25,14 @@ export function registerAdminCurationRoutes(
 ) {
   app.get("/api/admin/azuro-events", requireXAdminKey, async (_req, res, next) => {
     try {
-      let games = await cacheGetJson<NormalizedCuratorGame[]>(CACHE_KEY);
-      if (!games) {
-        games = await fetchFootballGamesNext14Days();
-        await cacheSetJson(CACHE_KEY, games, CACHE_TTL_SEC);
+      let cached = await cacheGetJson<CachedAzuroCuration>(CACHE_KEY);
+      if (!cached) {
+        const fetched = await fetchFootballGamesNext14Days();
+        cached = { games: fetched.games, diagnostics: fetched.diagnostics };
+        await cacheSetJson(CACHE_KEY, cached, CACHE_TTL_SEC);
       }
+
+      const { games, diagnostics } = cached;
 
       const nowSec = Math.floor(Date.now() / 1000);
       const upcoming = games.filter((g) => g.startsAtUnix > nowSec);
@@ -47,7 +56,14 @@ export function registerAdminCurationRoutes(
         isSelected: selectedSet.has(g.gameId),
       }));
 
-      res.json({ events });
+      res.json({
+        events,
+        diagnostics: {
+          ...diagnostics,
+          listedCount: events.length,
+          droppedPastKickoff: games.length - upcoming.length,
+        },
+      });
     } catch (e) {
       next(e);
     }
