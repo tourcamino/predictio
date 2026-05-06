@@ -630,38 +630,44 @@ wss.on("connection", (ws: WebSocket, req) => {
     }
 
     console.log(`[WebSocket] connected url=${req.url} ip=${ip} wallet=${state.walletAddress || "-"}`);
+
+    ws.on("message", (raw) => {
+      if (state.mode !== "trading") return;
+      if (WS_AUTH_REQUIRED && !state.walletAddress) {
+        sendJson(ws, { type: "error", error: "Unauthorized", timestamp: Date.now() });
+        try {
+          ws.close(1008, "Unauthorized");
+        } catch {}
+        return;
+      }
+      try {
+        const text = typeof raw === "string" ? raw : raw.toString("utf8");
+        const m = JSON.parse(text);
+        if (m?.action === "subscribe") {
+          const marketId = String(m.marketId || "").trim();
+          if (marketId) state.subscribedMarkets.add(marketId);
+          sendJson(ws, { type: "subscribed", marketId, timestamp: Date.now() });
+          return;
+        }
+        if (m?.action === "unsubscribe") {
+          const marketId = String(m.marketId || "").trim();
+          if (marketId) state.subscribedMarkets.delete(marketId);
+          sendJson(ws, { type: "unsubscribed", marketId, timestamp: Date.now() });
+          return;
+        }
+        if (m?.action === "ping") {
+          sendJson(ws, { type: "pong", timestamp: Date.now() });
+          return;
+        }
+      } catch (e) {
+        sendJson(ws, { type: "error", error: "Invalid message", timestamp: Date.now() });
+      }
+    });
   })().catch((e) => {
     console.error("[WebSocket] auth failed", e);
     try {
       ws.close(1011, "Internal error");
     } catch {}
-  });
-
-  ws.on("message", (raw) => {
-    if (state.mode !== "trading") return;
-    if (WS_AUTH_REQUIRED && !state.walletAddress) return;
-    try {
-      const text = typeof raw === "string" ? raw : raw.toString("utf8");
-      const m = JSON.parse(text);
-      if (m?.action === "subscribe") {
-        const marketId = String(m.marketId || "").trim();
-        if (marketId) state.subscribedMarkets.add(marketId);
-        sendJson(ws, { type: "subscribed", marketId, timestamp: Date.now() });
-        return;
-      }
-      if (m?.action === "unsubscribe") {
-        const marketId = String(m.marketId || "").trim();
-        if (marketId) state.subscribedMarkets.delete(marketId);
-        sendJson(ws, { type: "unsubscribed", marketId, timestamp: Date.now() });
-        return;
-      }
-      if (m?.action === "ping") {
-        sendJson(ws, { type: "pong", timestamp: Date.now() });
-        return;
-      }
-    } catch (e) {
-      sendJson(ws, { type: "error", error: "Invalid message", timestamp: Date.now() });
-    }
   });
 
   ws.on("error", (e) => {
