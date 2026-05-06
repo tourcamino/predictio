@@ -17,6 +17,7 @@ import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
 import { requestLogger } from "./middleware/requestLogger";
 import { realtimeBus, type TradingWsMessage } from "./services/realtimeBus";
+import { verifyDeveloperApiKeyString } from "./middleware/auth";
 
 // Ensure DATABASE_URL is present for local dev.
 // Production must provide DATABASE_URL explicitly via environment.
@@ -530,7 +531,12 @@ type ClientState = {
   mode: WsMode;
   channel?: string;
   subscribedMarkets: Set<string>;
+  walletAddress?: string;
 };
+
+const WS_AUTH_REQUIRED = process.env.WS_AUTH_REQUIRED === "1";
+const WS_MAX_CONNECTIONS_PER_IP = Number(process.env.WS_MAX_CONNECTIONS_PER_IP || 30);
+const wsConnByIp = new Map<string, { count: number; resetAt: number }>();
 
 function parseWsMode(url: string | undefined): ClientState {
   const u = url || "";
@@ -582,10 +588,47 @@ wss.on("connection", (ws: WebSocket, req) => {
   const state = parseWsMode(req.url);
   (ws as any).__state = state;
 
-  console.log(`[WebSocket] connected url=${req.url}`);
+  const ip = req.socket?.remoteAddress || "unknown";
+  const now = Date.now();
+  const windowMs = 60_000;
+  const rec = wsConnByIp.get(ip);
+  if (!rec || now > rec.resetAt) {
+    wsConnByIp.set(ip, { count: 1, resetAt: now + windowMs });
+  } else {
+    rec.count += 1;
+    if (rec.count > WS_MAX_CONNECTIONS_PER_IP) {
+      try {
+        ws.close(1013, "Rate limited");
+      } catch {}
+      return;
+    }
+  }
+
+  const url = new URL(`http://localhost${req.url || "/"}`);
+  const apiKey = url.searchParams.get("apiKey") || "";
+
+  (async () => {
+    if (WS_AUTH_REQUIRED && state.mode === "trading") {
+      const row = await verifyDeveloperApiKeyString(apiKey);
+      if (!row) {
+        sendJson(ws, { type: "error", error: "Unauthorized", timestamp: Date.now() });
+        ws.close(1008, "Unauthorized");
+        return;
+      }
+      state.walletAddress = row.walletAddress;
+    }
+
+    console.log(`[WebSocket] connected url=${req.url} ip=${ip} wallet=${state.walletAddress || "-"}`);
+  })().catch((e) => {
+    console.error("[WebSocket] auth failed", e);
+    try {
+      ws.close(1011, "Internal error");
+    } catch {}
+  });
 
   ws.on("message", (raw) => {
     if (state.mode !== "trading") return;
+    if (WS_AUTH_REQUIRED && !state.walletAddress) return;
     try {
       const text = typeof raw === "string" ? raw : raw.toString("utf8");
       const m = JSON.parse(text);
