@@ -20,9 +20,21 @@ const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>();
 
 export { useTRPC, useTRPCClient };
 
+/**
+ * tRPC HTTP batch URL origin. Prefer `VITE_API_URL` when the UI is hosted separately
+ * from the API (avoids fetching `/trpc` and receiving SPA HTML). In the browser,
+ * default is same-origin. SSR fallback matches Vinxi dev (`VITE_APP_URL` / port 5173).
+ */
 function getBaseUrl() {
-  if (typeof window !== "undefined") return window.location.origin;
-  return `http://localhost:3000`;
+  const viteApi = import.meta.env.VITE_API_URL as string | undefined;
+  const apiTrimmed = viteApi?.trim();
+  if (typeof window !== "undefined") {
+    if (apiTrimmed) return apiTrimmed.replace(/\/$/, "");
+    return window.location.origin;
+  }
+  const appTrimmed = (import.meta.env.VITE_APP_URL as string | undefined)?.trim();
+  if (appTrimmed) return appTrimmed.replace(/\/$/, "");
+  return "http://127.0.0.1:5173";
 }
 
 export function TRPCReactProvider(props: { children: React.ReactNode }) {

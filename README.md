@@ -27,7 +27,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Frontend will be available at: http://localhost:8000
+Frontend dev URL: **http://127.0.0.1:5173** (or http://localhost:5173). On Windows, `HOST=127.0.0.1` is set by default so the browser can reach the server; override `PORT` / `HOST` in `.env` if needed.
 
 ---
 

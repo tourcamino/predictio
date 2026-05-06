@@ -18,6 +18,8 @@ export interface Analyst {
   validFollowers: number;
   onchainRegistered: boolean;
   referralCode: string;
+  /** Short testimonial for marketing blocks (e.g. Affiliates featured cards) */
+  featuredQuote?: string;
   /** Mirrors Prisma `Analyst.verificationTier` */
   verificationTier?: string | null;
   isVerified?: boolean;

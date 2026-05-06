@@ -8,7 +8,6 @@ import { ShareModal } from '~/components/ShareModal';
 import { generatePortfolioShareText } from '~/utils/shareUtils';
 import { useTRPC } from '~/trpc/react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getMarketById } from '~/data/mockMarkets';
 import { PortfolioValueChart } from '~/components/portfolio/PortfolioValueChart';
 import { PnLHistoryChart } from '~/components/portfolio/PnLHistoryChart';
 import { PositionTimeline } from '~/components/portfolio/PositionTimeline';
@@ -18,7 +17,7 @@ import { HoldingRewardsSection } from '~/components/portfolio/HoldingRewardsSect
 import { ManageLPModal } from '~/components/liquidity/ManageLPModal';
 import { formatLPDuration } from '~/utils/lpUtils';
 import type { LPPosition } from '~/data/mockLP';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { DemoSettings } from '~/components/demo/DemoSettings';
@@ -88,6 +87,26 @@ function Portfolio() {
   });
 
   const claimAllLPFeesMutation = useMutation(trpc.claimLPFees.mutationOptions());
+
+  const positionsEarly = positionsQuery.data?.positions ?? [];
+  const positionMarketIds = useMemo(() => {
+    const ids = new Set<string>();
+    positionsEarly.forEach((p) => ids.add(p.marketId));
+    if (isDemoActive) {
+      demoPositions.forEach((p) => ids.add(p.marketId));
+    }
+    return [...ids];
+  }, [positionsEarly, isDemoActive, demoPositions]);
+
+  const marketSummariesQuery = useQuery({
+    ...trpc.getMarketSummaries.queryOptions({
+      marketIds: positionMarketIds,
+    }),
+    enabled: isConnected && positionMarketIds.length > 0,
+    staleTime: 30_000,
+  });
+
+  const marketById = marketSummariesQuery.data ?? {};
 
   const handleCustomRangeChange = (startDate: Date, endDate: Date) => {
     setCustomStartDate(startDate);
@@ -243,7 +262,7 @@ function Portfolio() {
   } else {
     // Use real positions
     openPositions.forEach(position => {
-      const market = getMarketById(position.marketId);
+      const market = marketById[position.marketId];
       if (!market) return;
 
       const currentPrice = position.outcome.toUpperCase() === 'YES' ? market.yesPrice : market.noPrice;
@@ -514,7 +533,7 @@ function Portfolio() {
               </h2>
               <div className="space-y-4">
                 {demoPositions.map((position) => {
-                  const market = getMarketById(position.marketId);
+                  const market = marketById[position.marketId];
                   if (!market) return null;
 
                   const value = position.shares * position.currentPrice;
@@ -625,7 +644,7 @@ function Portfolio() {
               <h2 className="font-syne font-bold text-2xl mb-4">Open Positions</h2>
               <div className="space-y-4">
                 {openPositions.map((position) => {
-                  const market = getMarketById(position.marketId);
+                  const market = marketById[position.marketId];
                   if (!market) return null;
 
                   const currentPrice = position.outcome.toUpperCase() === 'YES' ? market.yesPrice : market.noPrice;
@@ -766,7 +785,7 @@ function Portfolio() {
               <h2 className="font-syne font-bold text-2xl mb-4">Resolved Positions</h2>
               <div className="space-y-4">
                 {resolvedPositions.map((position) => {
-                  const market = getMarketById(position.marketId);
+                  const market = marketById[position.marketId];
                   if (!market) return null;
 
                   const shares = position.shares || 0;

@@ -2,7 +2,7 @@
   "name": "predictio",
   "scripts": {
     "postinstall": "prisma generate && tsr generate",
-    "dev": "node --env-file=.env node_modules/vinxi/bin/cli.mjs dev",
+    "dev": "node --import ./scripts/ensure-dev-port.mjs --env-file=.env node_modules/vinxi/bin/cli.mjs dev",
     "build": "vinxi build",
     "start": "vinxi start",
     "typecheck": "tsc --noEmit -p tsconfig.ci.json",

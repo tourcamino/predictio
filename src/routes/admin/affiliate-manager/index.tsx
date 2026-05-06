@@ -308,7 +308,7 @@ function DashboardTab({
             },
             {
               time: "1d ago",
-              text: "New analyst approved: UFC_DataDriven",
+              text: "New analyst approved: PremierLeague_Pro",
               icon: CheckCircle,
               color: "text-brand-green",
             },
@@ -320,7 +320,7 @@ function DashboardTab({
             },
             {
               time: "3d ago",
-              text: "Payout approved: $890 CricketOracle",
+              text: "Payout approved: $890 SerieA_Tactician",
               icon: TrendingUp,
               color: "text-brand-green",
             },

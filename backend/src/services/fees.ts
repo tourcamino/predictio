@@ -1,4 +1,6 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
+
+export type FeeSplitDb = PrismaClient | Prisma.TransactionClient;
 
 export const TAKER_FEE_RATE = Number(process.env.TAKER_FEE_RATE || 0.01);
 export const FEE_VAULT = Number(process.env.FEE_VAULT || 0.5);
@@ -6,6 +8,11 @@ export const FEE_ANALYST = Number(process.env.FEE_ANALYST || 0.35);
 export const FEE_REFERRAL = Number(process.env.FEE_REFERRAL || 0.15);
 export const PAYOUT_THRESHOLD_EUR = Number(process.env.PAYOUT_THRESHOLD_EUR || 10);
 export const USDC_EUR_RATE = Number(process.env.USDC_EUR_RATE || 0.92);
+
+/** Matches Prisma VaultState.totalTvl default seed when creating the singleton row. */
+export const VAULT_INITIAL_TVL_SEED = Number(
+  process.env.VAULT_INITIAL_TVL_SEED ?? process.env.VAULT_SEED_AMOUNT ?? 500,
+);
 
 export type FeeSplitInput = {
   tradeId: string;
@@ -111,7 +118,7 @@ export function calculateFeeSplit(input: FeeSplitInput): FeeSplitResult {
 }
 
 export async function persistFeeSplit(params: {
-  prisma: PrismaClient;
+  prisma: FeeSplitDb;
   input: FeeSplitInput;
   split: FeeSplitResult;
 }) {
@@ -119,13 +126,22 @@ export async function persistFeeSplit(params: {
 
   const usdcToEur = USDC_EUR_RATE;
 
+  const aw = input.analystWallet?.toLowerCase() || null;
+  const rw = input.referralWallet?.toLowerCase() || null;
+  const analystRewardType: "analyst" | "both" =
+    split.analystUsd > 0 && split.referralUsd > 0
+      ? "analyst"
+      : aw && rw && aw === rw
+        ? "both"
+        : "analyst";
+
   if (split.analystWallet && split.analystUsd > 0) {
     await prisma.affiliateReward.create({
       data: {
         walletAddress: split.analystWallet,
         refCode: null,
         tradeId: input.tradeId,
-        rewardType: split.referralWallet ? "analyst" : "both",
+        rewardType: analystRewardType,
         volumeUsd: input.volumeUsd,
         feeTotalUsd: split.feeTotalUsd,
         rewardUsd: split.analystUsd,
@@ -157,7 +173,7 @@ export async function persistFeeSplit(params: {
         walletAddress: split.referralWallet,
         refCode: null,
         tradeId: input.tradeId,
-        rewardType: split.analystWallet ? "referral" : "both",
+        rewardType: "referral",
         volumeUsd: input.volumeUsd,
         feeTotalUsd: split.feeTotalUsd,
         rewardUsd: split.referralUsd,
@@ -207,8 +223,8 @@ export async function persistFeeSplit(params: {
     where: { id: "singleton" },
     create: {
       id: "singleton",
-      totalTvl: 500 + split.vaultUsd,
-      availableLiquidity: 500 + split.vaultUsd,
+      totalTvl: VAULT_INITIAL_TVL_SEED + split.vaultUsd,
+      availableLiquidity: VAULT_INITIAL_TVL_SEED + split.vaultUsd,
       exposedLiquidity: 0,
       feeCollected: split.vaultUsd,
       lastRebalance: new Date(),
@@ -225,7 +241,7 @@ export async function persistFeeSplit(params: {
 }
 
 async function markPayoutReadyIfThreshold(
-  prisma: PrismaClient,
+  prisma: FeeSplitDb,
   wallet: string | null
 ) {
   if (!wallet) return;

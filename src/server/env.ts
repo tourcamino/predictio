@@ -5,7 +5,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production"]).default("production"),
   BASE_URL: z.string().optional(),
   BASE_URL_OTHER_PORT: z.string().optional(),
-  FRONTEND_URL: z.string().optional().default("http://localhost:8000"),
+  FRONTEND_URL: z.string().optional().default("http://localhost:5173"),
   
   // Database
   DATABASE_URL: z.string().optional(),
@@ -21,7 +21,7 @@ const envSchema = z.object({
   DEVELOPER_API_ENABLED: z.string().optional().default("true"),
   
   // CORS
-  CORS_ORIGIN: z.string().optional().default("http://localhost:8000"),
+  CORS_ORIGIN: z.string().optional().default("http://localhost:5173"),
   
   // Error Monitoring
   VITE_ERROR_MONITORING_DSN: z.string().optional(),

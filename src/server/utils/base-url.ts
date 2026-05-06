@@ -2,9 +2,9 @@ import assert from "assert";
 import { env } from "../env";
 
 export function getBaseUrl({ port }: { port?: number } = {}): string {
-  if (port === undefined || port === 8000) {
+  if (port === undefined || port === 5173) {
     // it's the primary port
-    return env.BASE_URL ?? "http://localhost:8000";
+    return env.BASE_URL ?? "http://localhost:5173";
   }
 
   // it's a secondary port

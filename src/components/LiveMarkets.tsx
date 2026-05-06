@@ -1,26 +1,60 @@
-import { ArrowRight, TrendingUp, Activity, DollarSign, Users, Calendar, Filter, Zap } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowRight, TrendingUp, Activity, DollarSign, Users, Calendar, Zap } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { mockMarkets, getFeaturedMarkets } from '~/data/mockMarkets';
+import { useQuery } from '@tanstack/react-query';
+import { SEED_MARKETS } from '~/data/seedMarkets';
 import { LiveMarketCard } from './markets/LiveMarketCard';
-import { isFootballFocusEnabled, getDefaultSport } from '~/config/footballFocus';
+import { isFootballFocusEnabled } from '~/config/footballFocus';
+import { useTRPC } from '~/trpc/react';
+import { seedMarketToLiveMarket } from '~/utils/seedMarketToLiveMarket';
+import type { Market } from '~/data/mockMarkets';
+
+const HOME_MARKET_CARD_COUNT = 6;
 
 export function LiveMarkets() {
   const navigate = useNavigate();
+  const trpc = useTRPC();
   const [selectedCategory, setSelectedCategory] = useState<string>(
     isFootballFocusEnabled() ? 'football' : 'all'
   );
   const [sortBy, setSortBy] = useState<'volume' | 'trending' | 'ending-soon'>('trending');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | '24h' | 'week'>('all');
-  const [showFilters, setShowFilters] = useState(false);
+  const marketsQuery = useQuery({
+    ...trpc.getAzuroMarkets.queryOptions({
+      sport: isFootballFocusEnabled() ? "football" : "all",
+      competition: "all",
+      status: "all",
+    }),
+    staleTime: 50_000,
+  });
 
-  // Get non-featured markets for this section
-  const allMarkets = mockMarkets.filter((m) => !m.isFeatured);
+  const baseSeeds = useMemo(() => {
+    if (marketsQuery.isPending && !marketsQuery.data) {
+      return [];
+    }
+    const rows = marketsQuery.data?.markets;
+    if (rows && rows.length > 0) {
+      return rows;
+    }
+    return SEED_MARKETS.filter((s) => s.sport === "football").slice(0, HOME_MARKET_CARD_COUNT);
+  }, [marketsQuery.isPending, marketsQuery.data]);
+
+  const allMarketsLive = useMemo(
+    () => baseSeeds.map(seedMarketToLiveMarket),
+    [baseSeeds],
+  );
+
+  // Same IDs as /markets — exclude featured seeds when flagged
+  const allMarkets = useMemo(
+    () => allMarketsLive.filter((m) => !m.isFeatured),
+    [allMarketsLive],
+  );
   
-  // Filter by category
-  let filteredMarkets = selectedCategory === 'all' 
-    ? allMarkets
-    : allMarkets.filter((m) => m.sport === selectedCategory);
+  // Filter by category (copy before sort to avoid mutating memoized arrays)
+  let filteredMarkets =
+    selectedCategory === "all"
+      ? [...allMarkets]
+      : allMarkets.filter((m) => m.sport === selectedCategory);
   
   // Filter by date
   if (dateFilter !== 'all') {
@@ -52,8 +86,7 @@ export function LiveMarkets() {
     filteredMarkets.sort((a, b) => a.closesAt.getTime() - b.closesAt.getTime());
   }
   
-  // Limit to 6-10 markets for focused display (currently set to 6)
-  const displayedMarkets = filteredMarkets.slice(0, 6);
+  const displayedMarkets = filteredMarkets.slice(0, HOME_MARKET_CARD_COUNT);
 
   // Calculate stats
   const totalVolume = allMarkets.reduce((sum, m) => sum + m.volume, 0);
@@ -271,17 +304,24 @@ export function LiveMarkets() {
           )}
         </div>
 
-        {/* Markets Grid */}
+        {/* Markets Grid — Azuro-backed (aligned with /markets); skeleton on first load */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {displayedMarkets.map((market, index) => (
-            <div
-              key={market.id}
-              className="animate-fade-in"
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              <LiveMarketCard market={market} onClick={() => handleMarketClick(market.id)} />
-            </div>
-          ))}
+          {marketsQuery.isPending && !marketsQuery.data
+            ? Array.from({ length: HOME_MARKET_CARD_COUNT }).map((_, index) => (
+                <div
+                  key={`sk-${index}`}
+                  className="h-[280px] rounded-xl bg-white/5 border border-white/10 animate-pulse"
+                />
+              ))
+            : displayedMarkets.map((market: Market, index: number) => (
+                <div
+                  key={market.id}
+                  className="animate-fade-in"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <LiveMarketCard market={market} onClick={() => handleMarketClick(market.id)} />
+                </div>
+              ))}
         </div>
 
         {/* CTA */}

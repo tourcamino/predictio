@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X, TrendingUp, Target, Award, AlertTriangle, Copy, Check } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -6,8 +6,6 @@ import { useTRPC } from '~/trpc/react';
 import { useWalletStore } from '~/store/useWalletStore';
 import toast from 'react-hot-toast';
 import { MarketSelectionUI } from './MarketSelectionUI';
-import { getMarketById } from '~/data/mockMarkets';
-
 interface CopyPortfolioModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -57,15 +55,33 @@ export function CopyPortfolioModal({
     enabled: isOpen && copyMode === 'selective',
   });
 
+  const analystMarketIds = useMemo(() => {
+    const rows = analystPositionsQuery.data?.positions ?? [];
+    return [...new Set(rows.map((p) => p.marketId))];
+  }, [analystPositionsQuery.data?.positions]);
+
+  const analystSummariesQuery = useQuery({
+    ...trpc.getMarketSummaries.queryOptions({
+      marketIds: analystMarketIds,
+    }),
+    enabled:
+      isOpen && copyMode === 'selective' && analystMarketIds.length > 0,
+    staleTime: 30_000,
+  });
+
+  const analystMarketById = analystSummariesQuery.data ?? {};
+
   // Transform analyst positions into markets for selection
   const availableMarkets = (analystPositionsQuery.data?.positions || [])
     .map(position => {
-      const market = getMarketById(position.marketId);
+      const market = analystMarketById[position.marketId];
       if (!market) return null;
       
       return {
         id: market.id,
-        event: position.market.event || `${market.teamA} vs ${market.teamB}`,
+        event:
+          (position as { market?: { event?: string } }).market?.event ??
+          `${market.teamA} vs ${market.teamB}`,
         sport: market.sport,
         sportEmoji: market.sportEmoji,
         yesPrice: market.yesPrice,

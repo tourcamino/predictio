@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '~/trpc/react';
 import { Clock, TrendingUp, TrendingDown, Filter, Download } from 'lucide-react';
-import { getMarketById } from '~/data/mockMarkets';
-
 interface OrderHistoryProps {
   walletAddress: string;
 }
@@ -146,7 +144,6 @@ export function OrderHistory({ walletAddress }: OrderHistoryProps) {
         <div className="space-y-3">
           {filteredTransactions.map((tx) => {
             const metadata = tx.metadata as any;
-            const market = metadata?.marketEvent ? getMarketById(tx.marketId || '') : null;
             const isProfit = tx.type === 'bet_won';
             const isLoss = tx.type === 'bet_lost';
             const isTrade = tx.type === 'bet_placed';

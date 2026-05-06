@@ -4,6 +4,7 @@ import {
   baseProcedure,
 } from "./main";
 import { getMarketDetail } from "./procedures/getMarketDetail";
+import { getMarketSummaries } from "./procedures/getMarketSummaries";
 import { getAzuroMarkets } from "./procedures/getAzuroMarkets";
 import { checkAzuroResolutions } from "./procedures/checkAzuroResolutions";
 import { placePrediction } from "./procedures/placePrediction";
@@ -109,6 +110,7 @@ import {
 
 export const appRouter = createTRPCRouter({
   getMarketDetail,
+  getMarketSummaries,
   getAzuroMarkets,
   checkAzuroResolutions,
   placePrediction,

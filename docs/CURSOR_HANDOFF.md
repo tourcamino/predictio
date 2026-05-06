@@ -862,6 +862,6 @@ Before deploying to production:
 
 ---
 
-**Last Updated:** 2025-01-29  
+**Last Updated:** 2026-05-06  
 **Maintainer:** Predictio Team  
 **Next Steps:** Start with C1 (Backend) — See `docs/FEATURES.md`

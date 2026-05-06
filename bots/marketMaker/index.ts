@@ -11,7 +11,7 @@ const BOT_API_KEY = process.env.BOT_API_KEY || "dev_bot_key";
 
 async function fetchConfig(): Promise<MarketMakerConfig> {
   try {
-    const response = await fetch(`${API_URL}/api/trpc/getMarketMakerConfig`, {
+    const response = await fetch(`${API_URL}/api/v1/bot/market-maker/config`, {
       headers: {
         "X-Predictio-Key": BOT_API_KEY,
       },
@@ -21,11 +21,13 @@ async function fetchConfig(): Promise<MarketMakerConfig> {
       throw new Error(`Failed to fetch config: ${response.status}`);
     }
 
-    const data = await response.json();
-    const config = data.result?.data;
+    const config = await response.json();
 
-    if (!config) {
-      throw new Error('Invalid config response');
+    if (
+      typeof config?.targetSpread !== "number" ||
+      typeof config?.rebalanceIntervalMs !== "number"
+    ) {
+      throw new Error("Invalid config response");
     }
 
     return {
@@ -33,7 +35,7 @@ async function fetchConfig(): Promise<MarketMakerConfig> {
       maxExposurePerMarket: config.maxExposurePerMarket,
       rebalanceInterval: config.rebalanceIntervalMs,
       minLiquidity: config.minLiquidity,
-      enabledMarkets: config.enabledMarkets || [],
+      enabledMarkets: Array.isArray(config.enabledMarkets) ? config.enabledMarkets : [],
     };
   } catch (error) {
     console.error('[Market Maker] Failed to fetch config, using defaults:', error);

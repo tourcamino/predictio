@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
+import { normalizeMarketIdParam } from "~/utils/marketId";
 import { db } from "~/server/db";
 import { azuroDetailToMarket } from "~/server/utils/azuroDetailToMarket";
 import { prismaMarketToUi } from "~/server/utils/prismaMarket";
@@ -30,10 +31,12 @@ function seedStatusToUi(s: SeedMarket["status"], endsAt: Date): Market["status"]
 export const getMarketDetail = baseProcedure
   .input(z.object({ marketId: z.string() }))
   .query(async ({ input }) => {
+    const marketId = normalizeMarketIdParam(input.marketId);
+
     // Check if this is an Azuro market
-    if (input.marketId.startsWith('azuro-')) {
+    if (marketId.startsWith('azuro-')) {
       const syncedAzuro = await db.market.findUnique({
-        where: { id: input.marketId },
+        where: { id: marketId },
       });
       if (syncedAzuro) {
         const market = prismaMarketToUi(syncedAzuro);
@@ -42,7 +45,7 @@ export const getMarketDetail = baseProcedure
           market,
           predictionHistory,
           azuroData: {
-            gameId: input.marketId.replace(/^azuro-/, ''),
+            gameId: marketId.replace(/^azuro-/, ''),
             conditionId: undefined,
             status: undefined,
             result: undefined,
@@ -51,7 +54,7 @@ export const getMarketDetail = baseProcedure
       }
 
       try {
-        const azuroGameId = input.marketId.replace('azuro-', '');
+        const azuroGameId = marketId.replace('azuro-', '');
         const azuroMarket = await fetchAzuroGameDetail(azuroGameId);
         
         if (azuroMarket) {
@@ -74,21 +77,21 @@ export const getMarketDetail = baseProcedure
           };
         }
       } catch (error) {
-        console.warn(`[Azuro] Failed to fetch market ${input.marketId}, falling back to mock data:`, error);
+        console.warn(`[Azuro] Failed to fetch market ${marketId}, falling back to mock data:`, error);
       }
       
       // Azuro fetch failed - fall back to a similar mock market
       const fallbackMarket = mockMarkets[Math.floor(Math.random() * Math.min(5, mockMarkets.length))];
-      console.log(`[Mock Fallback] Using mock market as fallback for ${input.marketId}`);
+      console.log(`[Mock Fallback] Using mock market as fallback for ${marketId}`);
       
       return {
-        market: { ...fallbackMarket, id: input.marketId },
+        market: { ...fallbackMarket, id: marketId },
         predictionHistory: generateMockPredictionHistory(fallbackMarket),
       };
     }
 
     const dbMarket = await db.market.findUnique({
-      where: { id: input.marketId },
+      where: { id: marketId },
     });
     if (dbMarket) {
       const market = prismaMarketToUi(dbMarket);
@@ -97,11 +100,11 @@ export const getMarketDetail = baseProcedure
     }
     
     // Try to find in mock markets
-    let market = getMarketById(input.marketId);
+    let market = getMarketById(marketId);
     
     // If not found in mock markets, try seed markets
     if (!market) {
-      const seedMarket = SEED_MARKETS.find(m => m.id === input.marketId);
+      const seedMarket = SEED_MARKETS.find(m => m.id === marketId);
       if (seedMarket) {
         // Transform seed market to Market format
         const closesAt = new Date(seedMarket.endsAt);
@@ -133,8 +136,8 @@ export const getMarketDetail = baseProcedure
     
     // If still not found, return a random mock market as ultimate fallback
     if (!market) {
-      console.warn(`[Mock Fallback] Market ${input.marketId} not found, using random mock market`);
-      market = { ...mockMarkets[0]!, id: input.marketId } satisfies Market;
+      console.warn(`[Mock Fallback] Market ${marketId} not found, using random mock market`);
+      market = { ...mockMarkets[0]!, id: marketId } satisfies Market;
     }
 
     const predictionHistory = generateMockPredictionHistory(market);

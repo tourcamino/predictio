@@ -1,45 +1,48 @@
-import { useEffect } from 'react';
-import { useTRPCClient } from '~/trpc/react';
-import { getFeaturedMarkets } from '~/data/mockMarkets';
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useTRPCClient, useTRPC } from "~/trpc/react";
 
 /**
- * Component that pre-generates OG images for featured markets in the background.
- * This ensures that when users share links to featured markets, the preview cards
- * are already available and load instantly on social media platforms.
+ * Pre-generates OG images for the top Azuro football markets in the background
+ * so social previews resolve quickly when links are shared.
  */
 export function OGImagePreloader() {
   const client = useTRPCClient();
-  const featuredMarkets = getFeaturedMarkets();
+  const trpc = useTRPC();
 
-  // Pre-generate OG images for all featured markets
+  const marketsQuery = useQuery({
+    ...trpc.getAzuroMarkets.queryOptions({
+      sport: "football",
+      competition: "all",
+      status: "all",
+    }),
+    staleTime: 120_000,
+  });
+
   useEffect(() => {
-    // Only preload if we have valid featured markets
-    if (!featuredMarkets || featuredMarkets.length === 0) {
+    const markets = marketsQuery.data?.markets;
+    if (!markets?.length) {
       return;
     }
 
-    // Stagger the requests to avoid overwhelming the server
-    featuredMarkets.forEach((market, index) => {
-      // Validate market has an ID before attempting to generate
-      if (!market || !market.id) {
-        console.warn('[OGImagePreloader] Skipping market without valid ID:', market);
-        return;
-      }
+    const ids = markets.slice(0, 5).map((m) => m.id);
 
+    ids.forEach((marketId, index) => {
       setTimeout(() => {
         client.generateMarketOGImage
-          .query({ marketId: market.id })
+          .query({ marketId })
           .then(() => {
-            console.log(`[OGImagePreloader] Generated OG image for market ${market.id}`);
+            console.log(`[OGImagePreloader] Generated OG image for market ${marketId}`);
           })
           .catch((error: unknown) => {
-            // Silently fail - this is just a background optimization
-            console.warn(`[OGImagePreloader] Failed to generate OG image for market ${market.id}:`, error);
+            console.warn(
+              `[OGImagePreloader] Failed to generate OG image for market ${marketId}:`,
+              error,
+            );
           });
-      }, index * 1000); // Stagger by 1 second to be more conservative
+      }, index * 1000);
     });
-  }, [client, featuredMarkets]);
+  }, [client, marketsQuery.data?.markets]);
 
-  // This component doesn't render anything
   return null;
 }

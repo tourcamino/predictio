@@ -8,6 +8,25 @@ export function azuroDetailToMarket(azuroMarket: AzuroMarket): Market {
   const yesPrice = azuroMarket.outcomes[0]?.price || 0.5;
   const noPrice = azuroMarket.outcomes[1]?.price || 0.5;
 
+  const kickoff = new Date(azuroMarket.event.startsAt);
+
+  let result: "yes" | "no" | undefined;
+  if (azuroMarket.azuroResult === "home") result = "yes";
+  else if (azuroMarket.azuroResult === "away") result = "no";
+
+  let status: Market["status"];
+  if (azuroMarket.status === "resolved") {
+    status = "resolved";
+  } else if (Date.now() >= kickoff.getTime()) {
+    status = "closed";
+  } else if (azuroMarket.status === "locked") {
+    status = "closed";
+  } else if (azuroMarket.status === "ending-soon") {
+    status = "closing-soon";
+  } else {
+    status = "open";
+  }
+
   return {
     id: azuroMarket.id,
     sport: azuroMarket.sport,
@@ -21,19 +40,15 @@ export function azuroDetailToMarket(azuroMarket: AzuroMarket): Market {
     noPrice,
     volume: azuroMarket.volume24h,
     closesAt: new Date(azuroMarket.endsAt),
-    start_time: new Date(azuroMarket.event.startsAt),
+    start_time: kickoff,
     event: azuroMarket.question,
     traders: azuroMarket.traders,
     isFeatured: azuroMarket.isFeatured || false,
     location: azuroMarket.event.location,
-    status:
-      azuroMarket.status === "resolved"
-        ? "resolved"
-        : azuroMarket.status === "locked"
-          ? "closed"
-          : azuroMarket.status === "ending-soon"
-            ? "closing-soon"
-            : "open",
+    status,
+    result,
+    resolved_at:
+      azuroMarket.status === "resolved" ? new Date() : undefined,
     percentA: Math.round(yesPrice * 100),
     percentB: Math.round(noPrice * 100),
     predictions: azuroMarket.traders,

@@ -48,6 +48,20 @@ export const placePrediction = baseProcedure
       });
     }
 
+    if (market.start_time && new Date() >= market.start_time) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Trading is closed — kickoff has passed.",
+      });
+    }
+
+    if (market.status === "resolved") {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "This market is resolved.",
+      });
+    }
+
     // TODO CURSOR C1: Server-side trading lock validation
     // ====================================================
     // Replace this with real-time check against Azuro GraphQL:

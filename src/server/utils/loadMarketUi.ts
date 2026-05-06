@@ -1,4 +1,5 @@
 import { getMarketById, type Market } from "~/data/mockMarkets";
+import { normalizeMarketIdParam } from "~/utils/marketId";
 import { db } from "~/server/db";
 import { azuroDetailToMarket } from "~/server/utils/azuroDetailToMarket";
 import { prismaMarketToUi } from "~/server/utils/prismaMarket";
@@ -8,7 +9,9 @@ import { fetchAzuroGameDetail } from "~/services/azuro";
  * Resolve order: static mocks → PostgreSQL (includes synced Azuro rows) → Azuro GraphQL live.
  * Matches `getMarketDetail` so trading / OG / notifications work for all list sources.
  */
-export async function loadMarketUiById(marketId: string): Promise<Market | null> {
+export async function loadMarketUiById(rawMarketId: string): Promise<Market | null> {
+  const marketId = normalizeMarketIdParam(rawMarketId);
+
   const mock = getMarketById(marketId);
   if (mock) return mock;
 

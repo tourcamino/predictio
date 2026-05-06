@@ -484,7 +484,8 @@ function HowItWorksSection() {
     {
       number: "03",
       title: "Earn on Every Trade",
-      description: "35% of taker fees from every copied trade goes to you. Refer a friend? Add 15% more. Deposit liquidity? Earn 50% of all platform fees. No caps. No expiration. Lifetime."
+      description:
+        "35% of taker fees from every copied trade goes to you. Refer a friend? Add 15% more. Deposit liquidity? Earn 50% of all platform fees. Lifetime.",
     }
   ];
 
@@ -553,9 +554,7 @@ function FeaturedAnalystsSection() {
               </div>
 
               <p className="text-sm text-gray-400 mb-4 italic">
-                "{analyst.id === 'a001' && 'Made $8,400 last month just from posting what I was already doing.'}
-                {analyst.id === 'a002' && 'The commission structure is the best I\'ve seen. My MMA content finally has a real revenue model.'}
-                {analyst.id === 'a003' && 'My cricket analysis now pays me. The followers trust my calls and I earn from their success.'}"
+                &ldquo;{analyst.featuredQuote ?? analyst.bio}&rdquo;
               </p>
 
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
@@ -613,7 +612,7 @@ function NetworksSection({ onOpenContactModal }: { onOpenContactModal: () => voi
           <div className="mb-6">
             <div className="text-sm text-gray-400 mb-2">Verticals that convert:</div>
             <div className="flex flex-wrap items-center justify-center gap-2">
-              {["⚽ Football", "🥊 MMA", "🏏 Cricket", "🏀 Basketball"].map(
+              {["⚽ Premier League", "⚽ Serie A", "⚽ Champions League", "⚽ European football"].map(
                 (sport, i) => (
                   <div
                     key={i}

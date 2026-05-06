@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Header } from '~/components/Header';
 import { Footer } from '~/components/Footer';
 import { useWallet } from '~/store/useWalletStore';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { User, FileText, Wallet, BarChart3, Settings, Copy, ExternalLink, TrendingUp, Trophy, Calendar, ArrowDownCircle, ArrowUpCircle, TrendingDown, RefreshCw, Users, Hexagon, CheckCircle, Circle, Gift, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ShareButton } from '~/components/ShareButton';
@@ -12,7 +12,6 @@ import { FollowedAnalystsTab } from '~/components/account/FollowedAnalystsTab';
 import { ReferralDashboardTab } from '~/components/account/ReferralDashboardTab';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
-import { getMarketById } from '~/data/mockMarkets';
 
 export const Route = createFileRoute('/account/')({
   component: AccountPage,
@@ -44,6 +43,26 @@ function AccountPage() {
     }),
     enabled: !!address && (activeTab === 'overview' || activeTab === 'predictions'),
   });
+
+  const positionsEarly = positionsQuery.data?.positions ?? [];
+  const positionMarketIds = useMemo(() => {
+    const ids = new Set<string>();
+    positionsEarly.forEach((p) => ids.add(p.marketId));
+    return [...ids];
+  }, [positionsEarly]);
+
+  const marketSummariesQuery = useQuery({
+    ...trpc.getMarketSummaries.queryOptions({
+      marketIds: positionMarketIds,
+    }),
+    enabled:
+      !!address &&
+      (activeTab === 'overview' || activeTab === 'predictions') &&
+      positionMarketIds.length > 0,
+    staleTime: 30_000,
+  });
+
+  const marketById = marketSummariesQuery.data ?? {};
 
   // Fetch portfolio summary
   const summaryQuery = useQuery({
@@ -318,7 +337,7 @@ function AccountPage() {
                       </thead>
                       <tbody className="divide-y divide-white/10">
                         {positionsQuery.data.positions.map((position) => {
-                          const market = getMarketById(position.marketId);
+                          const market = marketById[position.marketId];
                           if (!market) return null;
 
                           const isOpen = position.status === 'open';

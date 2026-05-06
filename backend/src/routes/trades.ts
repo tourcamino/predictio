@@ -1,7 +1,11 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
-import { calculateFeeSplit, persistFeeSplit } from "../services/fees";
+import {
+  calculateFeeSplit,
+  persistFeeSplit,
+  TAKER_FEE_RATE,
+} from "../services/fees";
 import { getReferralCodeFromRequest } from "../middleware/referral";
 import { validate } from "../middleware/validate";
 import { realtimeBus } from "../services/realtimeBus";
@@ -47,6 +51,173 @@ function getWalletFromReq(req: any): string | null {
   return w ? String(w).toLowerCase() : null;
 }
 
+/** Mirror analyst trade to active copiers (REST parity with tRPC placePrediction). */
+async function mirrorTradeToActiveCopiers(params: {
+  prisma: PrismaClient;
+  analystWallet: string;
+  analystDisplayName: string;
+  marketId: string;
+  outcome: string;
+  avgPrice: number;
+}): Promise<string[]> {
+  const { prisma, analystWallet, analystDisplayName, marketId, outcome, avgPrice } =
+    params;
+  const copiers = await prisma.copyRelationship.findMany({
+    where: { analystWallet, isActive: true },
+  });
+  const createdIds: string[] = [];
+
+  for (const rel of copiers) {
+    try {
+      const copierUser = await prisma.user.findUnique({
+        where: { wallet: rel.copierWallet },
+      });
+      if (!copierUser) continue;
+
+      const copyAmount = Math.min(
+        rel.maxPerTradeUsd,
+        copierUser.virtualBalance * 0.95,
+      );
+      if (copyAmount < 1) continue;
+
+      if (
+        rel.copyMode === "selective" &&
+        !rel.selectedMarkets.includes(marketId)
+      ) {
+        continue;
+      }
+
+      const copyFee = copyAmount * TAKER_FEE_RATE;
+      const copyTotalCost = copyAmount + copyFee;
+      if (copyTotalCost > copierUser.virtualBalance) continue;
+
+      const shares = copyAmount / avgPrice;
+
+      const copyOrderId = await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { wallet: rel.copierWallet },
+          data: {
+            virtualBalance: { decrement: copyTotalCost },
+            tradesCount: { increment: 1 },
+            totalVolume: { increment: copyAmount },
+            predictions: { increment: 1 },
+            lastActive: new Date(),
+          },
+        });
+
+        const copyOrder = await tx.order.create({
+          data: {
+            marketId,
+            wallet: rel.copierWallet,
+            outcome: outcome.toUpperCase(),
+            amount: copyAmount,
+            shares,
+            avgPrice,
+            orderType: "MARKET",
+            status: "open",
+          },
+        });
+
+        await tx.market.update({
+          where: { id: marketId },
+          data: {
+            volume: { increment: copyAmount },
+            predictions: { increment: 1 },
+          },
+        });
+
+        const split = calculateFeeSplit({
+          tradeId: copyOrder.id,
+          traderWallet: rel.copierWallet,
+          volumeUsd: copyAmount,
+          analystWallet,
+          referralWallet: null,
+        });
+
+        await tx.transaction.create({
+          data: {
+            wallet: rel.copierWallet,
+            type: "trade",
+            amount: copyAmount,
+            marketId,
+            orderId: copyOrder.id,
+            status: "completed",
+            feePaid: split.feeTotalUsd,
+            metadata: {
+              outcome: outcome.toUpperCase(),
+              copiedFromWallet: analystWallet,
+              copiedFromName: analystDisplayName,
+              feeSplit: {
+                vault: split.vaultUsd,
+                analyst: split.analystUsd,
+                referral: split.referralUsd,
+                treasury: split.treasuryUsd,
+              },
+            },
+          },
+        });
+
+        await persistFeeSplit({
+          prisma: tx,
+          input: {
+            tradeId: copyOrder.id,
+            traderWallet: rel.copierWallet,
+            volumeUsd: copyAmount,
+            analystWallet,
+            referralWallet: null,
+          },
+          split,
+        });
+
+        await tx.copyRelationship.update({
+          where: {
+            copierWallet_analystWallet: {
+              copierWallet: rel.copierWallet,
+              analystWallet: rel.analystWallet,
+            },
+          },
+          data: { totalVolumeCopied: { increment: copyAmount } },
+        });
+
+        return copyOrder.id;
+      });
+
+      createdIds.push(copyOrderId);
+
+      realtimeBus.emitMessage({
+        type: "trade",
+        marketId,
+        data: {
+          id: copyOrderId,
+          marketId,
+          wallet: rel.copierWallet,
+          outcome: outcome.toUpperCase(),
+          amountUsd: copyAmount,
+          copiedFrom: analystWallet,
+        },
+        timestamp: Date.now(),
+      });
+
+      await prisma.notification
+        .create({
+          data: {
+            walletAddress: rel.copierWallet,
+            type: "COPY_TRADE_EXECUTED",
+            title: "Copy trade executed",
+            message: `${analystDisplayName} traded ${outcome.toUpperCase()}. Your copy: $${copyAmount.toFixed(2)}`,
+            marketId,
+          },
+        })
+        .catch(() => null);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`[COPY TRADING] Failed for copier ${rel.copierWallet}`, err);
+    }
+  }
+
+  return createdIds;
+}
+
 // GET /api/trades?walletAddress=0x...&marketId=...&limit=...&offset=...
 router.get("/trades", validate({ query: listTradesQuery }), async (req, res, next) => {
   try {
@@ -58,14 +229,21 @@ router.get("/trades", validate({ query: listTradesQuery }), async (req, res, nex
     if (walletAddress) where.wallet = walletAddress;
     if (marketId) where.marketId = marketId;
 
-    const orders = await prisma.order.findMany({
-      where,
-      take: limit,
-      skip: offset,
-      orderBy: { createdAt: "desc" },
-    });
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        take: limit,
+        skip: offset,
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.order.count({ where }),
+    ]);
 
-    res.json({ trades: orders, total: orders.length, page: Math.floor(offset / limit) + 1 });
+    res.json({
+      trades: orders,
+      total,
+      page: Math.floor(offset / limit) + 1,
+    });
   } catch (e) {
     return next(e);
   }
@@ -104,51 +282,83 @@ router.post(
     const avgPrice = 0.65;
     const shares = size / avgPrice;
 
-    const order = await prisma.order.create({
-      data: {
-        marketId,
-        wallet: walletAddress,
-        outcome: outcome.toUpperCase(),
-        amount: size,
-        shares,
-        avgPrice,
-        orderType: "MARKET",
-        status: "open",
-      },
-    });
-
-    await prisma.market.update({
-      where: { id: marketId },
-      data: {
-        volume: { increment: size },
-        predictions: { increment: 1 },
-      },
-    });
-
     // Resolve referral wallet (cookie/query → refCode → affiliate wallet)
-    let resolvedReferralWallet: string | null =
-      referralWallet ? String(referralWallet).toLowerCase() : null;
+    let resolvedReferralWallet: string | null = referralWallet
+      ? String(referralWallet).toLowerCase()
+      : null;
+    let trackingRefCode: string | null = null;
+
+    if (resolvedReferralWallet) {
+      const affByWallet = await prisma.affiliate.findUnique({
+        where: { walletAddress: resolvedReferralWallet },
+      });
+      trackingRefCode = affByWallet?.refCode ?? null;
+    }
 
     if (!resolvedReferralWallet) {
       const refCode = getReferralCodeFromRequest(req);
       if (refCode) {
         const affiliate = await prisma.affiliate.findUnique({ where: { refCode } });
         resolvedReferralWallet = affiliate?.walletAddress?.toLowerCase() || null;
+        trackingRefCode = refCode;
       }
     }
 
-    // Founder rule: users without referral are attributed to PREDICTIO for tracking,
-    // but founder does not earn referral rewards (handled by fee engine founder exclusion).
-    if (!resolvedReferralWallet) {
-      const founderRefCode = (process.env.FOUNDER_REF_CODE || "PREDICTIO").toUpperCase();
-      await prisma.referralTracking
-        .upsert({
+    const order = await prisma.$transaction(async (tx) => {
+      const userRow = await tx.user.upsert({
+        where: { wallet: walletAddress },
+        create: { wallet: walletAddress },
+        update: {},
+      });
+
+      const splitPreview = calculateFeeSplit({
+        tradeId: "preview",
+        traderWallet: walletAddress,
+        volumeUsd: size,
+        analystWallet: analystWallet || null,
+        referralWallet: resolvedReferralWallet,
+      });
+      const totalCost = size + splitPreview.feeTotalUsd;
+
+      if (totalCost > userRow.virtualBalance) {
+        throw new ApiError(
+          `Insufficient balance. Required: $${totalCost.toFixed(2)}, Available: $${userRow.virtualBalance.toFixed(2)}`,
+          { status: 400, code: "INSUFFICIENT_BALANCE" },
+        );
+      }
+
+      const created = await tx.order.create({
+        data: {
+          marketId,
+          wallet: walletAddress,
+          outcome: outcome.toUpperCase(),
+          amount: size,
+          shares,
+          avgPrice,
+          orderType: "MARKET",
+          status: "open",
+        },
+      });
+
+      await tx.market.update({
+        where: { id: marketId },
+        data: {
+          volume: { increment: size },
+          predictions: { increment: 1 },
+        },
+      });
+
+      // Founder rule: users without referral are attributed to PREDICTIO for tracking,
+      // but founder does not earn referral rewards (handled by fee engine founder exclusion).
+      if (!resolvedReferralWallet) {
+        const founderRefCode = (process.env.FOUNDER_REF_CODE || "PREDICTIO").toUpperCase();
+        await tx.referralTracking.upsert({
           where: { referredWallet: walletAddress },
           create: {
             refCode: founderRefCode,
             referredWallet: walletAddress,
             cookieExpires: new Date(
-              Date.now() + Number(process.env.REFERRAL_COOKIE_DAYS || 120) * 86400 * 1000
+              Date.now() + Number(process.env.REFERRAL_COOKIE_DAYS || 120) * 86400 * 1000,
             ),
             isActive: true,
           },
@@ -156,84 +366,126 @@ router.post(
             refCode: founderRefCode,
             isActive: true,
           },
-        })
-        .catch(() => null);
-    } else {
-      // Track attribution for this wallet as well (refCode can be backfilled later)
-      await prisma.referralTracking
-        .upsert({
+        });
+      } else {
+        const refCodeStored =
+          trackingRefCode ||
+          (resolvedReferralWallet
+            ? `WALLET-${resolvedReferralWallet.slice(2, 14)}`
+            : "UNATTRIBUTED");
+        await tx.referralTracking.upsert({
           where: { referredWallet: walletAddress },
           create: {
-            refCode: "UNKNOWN",
+            refCode: refCodeStored,
             referredWallet: walletAddress,
             cookieExpires: new Date(
-              Date.now() + Number(process.env.REFERRAL_COOKIE_DAYS || 120) * 86400 * 1000
+              Date.now() + Number(process.env.REFERRAL_COOKIE_DAYS || 120) * 86400 * 1000,
             ),
             isActive: true,
           },
-          update: { isActive: true },
-        })
-        .catch(() => null);
-    }
-
-    const split = calculateFeeSplit({
-      tradeId: order.id,
-      traderWallet: walletAddress,
-      volumeUsd: size,
-      analystWallet: analystWallet || null,
-      referralWallet: resolvedReferralWallet,
-    });
-
-    await prisma.transaction.create({
-      data: {
-        wallet: walletAddress,
-        type: "trade",
-        amount: size,
-        marketId,
-        orderId: order.id,
-        status: "completed",
-        feePaid: split.feeTotalUsd,
-        metadata: {
-          outcome: outcome.toUpperCase(),
-          feeSplit: {
-            vault: split.vaultUsd,
-            analyst: split.analystUsd,
-            referral: split.referralUsd,
-            treasury: split.treasuryUsd,
+          update: {
+            isActive: true,
+            refCode: refCodeStored,
           },
-        },
-      },
-    });
+        });
+      }
 
-    await persistFeeSplit({
-      prisma,
-      input: {
-        tradeId: order.id,
+      const split = calculateFeeSplit({
+        tradeId: created.id,
         traderWallet: walletAddress,
         volumeUsd: size,
         analystWallet: analystWallet || null,
         referralWallet: resolvedReferralWallet,
-      },
-      split,
+      });
+
+      await tx.user.update({
+        where: { wallet: walletAddress },
+        data: {
+          virtualBalance: { decrement: totalCost },
+          tradesCount: { increment: 1 },
+          totalVolume: { increment: size },
+          predictions: { increment: 1 },
+          lastActive: new Date(),
+        },
+      });
+
+      await tx.transaction.create({
+        data: {
+          wallet: walletAddress,
+          type: "trade",
+          amount: size,
+          balanceBefore: userRow.virtualBalance,
+          balanceAfter: userRow.virtualBalance - totalCost,
+          marketId,
+          orderId: created.id,
+          status: "completed",
+          feePaid: split.feeTotalUsd,
+          metadata: {
+            outcome: outcome.toUpperCase(),
+            feeSplit: {
+              vault: split.vaultUsd,
+              analyst: split.analystUsd,
+              referral: split.referralUsd,
+              treasury: split.treasuryUsd,
+            },
+          },
+        },
+      });
+
+      await persistFeeSplit({
+        prisma: tx,
+        input: {
+          tradeId: created.id,
+          traderWallet: walletAddress,
+          volumeUsd: size,
+          analystWallet: analystWallet || null,
+          referralWallet: resolvedReferralWallet,
+        },
+        split,
+      });
+
+      return { order: created, split };
     });
+
+    const { order: orderRow, split } = order;
+
+    let copyOrderIds: string[] = [];
+    try {
+      const analyst = await prisma.analyst.findUnique({
+        where: { wallet: walletAddress },
+      });
+      if (analyst) {
+        copyOrderIds = await mirrorTradeToActiveCopiers({
+          prisma,
+          analystWallet: walletAddress,
+          analystDisplayName: analyst.displayName,
+          marketId,
+          outcome: String(outcome),
+          avgPrice,
+        });
+      }
+    } catch (copyErr) {
+      // eslint-disable-next-line no-console
+      console.error("[COPY TRADING] mirror after main trade failed", copyErr);
+    }
 
     realtimeBus.emitMessage({
       type: "trade",
       marketId,
       data: {
-        id: order.id,
+        id: orderRow.id,
         marketId,
         wallet: walletAddress,
         outcome: outcome.toUpperCase(),
         amountUsd: size,
-        createdAt: order.createdAt,
+        createdAt: orderRow.createdAt,
         feeTotalUsd: split.feeTotalUsd,
       },
       timestamp: Date.now(),
     });
 
     res.status(201).json({
-      trade: order,
+      trade: orderRow,
       fee: {
         totalUsd: split.feeTotalUsd,
         vaultUsd: split.vaultUsd,
@@ -241,6 +493,9 @@ router.post(
         referralUsd: split.referralUsd,
         treasuryUsd: split.treasuryUsd,
       },
+      ...(copyOrderIds.length > 0
+        ? { copyTrades: { count: copyOrderIds.length, orderIds: copyOrderIds } }
+        : {}),
     });
   } catch (e) {
     return next(e);

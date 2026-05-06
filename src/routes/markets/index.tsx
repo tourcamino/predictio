@@ -18,6 +18,7 @@ import { SPORT_METADATA } from '~/data/mockMarkets';
 import { MetaTags } from "~/components/MetaTags";
 import { useMarketsUIStore } from '~/store/useMarketsUIStore';
 import { isFootballFocusEnabled, getDefaultSport, isSportAllowed, FOOTBALL_FOCUS_CONFIG } from '~/config/footballFocus';
+import { MAX_FOOTBALL_MARKETS } from '~/constants/azuro';
 
 const marketSearchSchema = z.object({
   sport: fallback(z.string(), isFootballFocusEnabled() ? 'football' : 'all').default(isFootballFocusEnabled() ? 'football' : 'all'),
@@ -206,10 +207,16 @@ function MarketsPage() {
     }),
     refetchInterval: 60000, // Refresh every 60 seconds
     staleTime: 50000, // Consider data stale after 50 seconds
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1500 * 2 ** attempt, 8000),
   });
   
   const allMarkets = marketsQuery.data?.markets || [];
-  const isLoading = marketsQuery.isLoading;
+
+  /** True until the first successful response (includes automatic retry fetches). */
+  const awaitingFirstSuccess =
+    !marketsQuery.isSuccess &&
+    (marketsQuery.isPending || marketsQuery.isFetching);
   
   // Calculate sport categories with stats
   const sportCategories = useMemo(() => {
@@ -359,8 +366,8 @@ function MarketsPage() {
     });
   };
   
-  // Show loading state
-  if (isLoading) {
+  // Loading / retrying until we have a successful payload
+  if (awaitingFirstSuccess) {
     return (
       <div className="min-h-screen bg-brand-bg">
         <MetaTags
@@ -418,6 +425,35 @@ function MarketsPage() {
               ))}
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // TRPC / network failure after retries exhausted (never got a successful response)
+  if (marketsQuery.isError && !marketsQuery.isSuccess) {
+    const msg =
+      marketsQuery.error instanceof Error
+        ? marketsQuery.error.message
+        : "Unable to load markets.";
+    return (
+      <div className="min-h-screen bg-brand-bg">
+        <MetaTags
+          title="Sports Markets — Predictio.live"
+          description="Browse all open prediction markets. Champions League, Serie A, NBA, MMA and more."
+          url={typeof window !== "undefined" ? window.location.href : undefined}
+        />
+        <Header />
+        <div className="pt-24 lg:pt-28 px-4 max-w-lg mx-auto text-center">
+          <p className="text-red-400 font-semibold mb-2">Could not load markets</p>
+          <p className="text-gray-400 text-sm mb-6">{msg}</p>
+          <button
+            type="button"
+            onClick={() => marketsQuery.refetch()}
+            className="px-6 py-3 bg-brand-green text-brand-bg font-semibold rounded-lg hover:bg-brand-green/90 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -613,7 +649,7 @@ function MarketsPage() {
                     />
                   )}
                   
-                  {/* All Markets - Show max 9 by default */}
+                  {/* All Markets — grid shows up to MAX_FOOTBALL_MARKETS (Azuro football cap) */}
                   <div className="mt-12">
                     <div className="flex items-center justify-between mb-6">
                       <div>
@@ -669,13 +705,13 @@ function MarketsPage() {
                     ) : (
                       <>
                         <MarketsGrid
-                          markets={displayedMarkets.slice(0, 9)}
+                          markets={displayedMarkets.slice(0, MAX_FOOTBALL_MARKETS)}
                           viewMode={viewMode}
                           onMarketClick={handleMarketClick}
                         />
                         
                         {/* Load More */}
-                        {displayedMarkets.length > 9 && sortedMarkets.length > 9 && (
+                        {displayedMarkets.length > MAX_FOOTBALL_MARKETS && sortedMarkets.length > MAX_FOOTBALL_MARKETS && (
                           <div className="col-span-full mt-8 text-center">
                             <button
                               onClick={handleLoadMore}
@@ -684,7 +720,7 @@ function MarketsPage() {
                               Load More Markets
                             </button>
                             <p className="font-mono text-sm text-gray-500 mt-4">
-                              Showing {Math.min(9, displayedMarkets.length)} of {sortedMarkets.length} markets
+                              Showing {Math.min(MAX_FOOTBALL_MARKETS, displayedMarkets.length)} of {sortedMarkets.length} markets
                             </p>
                           </div>
                         )}

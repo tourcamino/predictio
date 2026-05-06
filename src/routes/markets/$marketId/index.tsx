@@ -222,10 +222,16 @@ function MarketDetailPage() {
                     })}
                   </div>
                 )}
-                <div className="mt-4 pt-4 border-t border-white/20">
+                <div className="mt-4 pt-4 border-t border-white/20 space-y-3">
                   <p className="text-sm text-gray-300">
-                    Winning positions have been paid out automatically
+                    Winning positions settle automatically; visit your portfolio to review balances and history.
                   </p>
+                  <Link
+                    to="/portfolio"
+                    className="inline-flex text-sm font-semibold text-brand-green hover:text-brand-cyan transition-colors"
+                  >
+                    Open portfolio →
+                  </Link>
                 </div>
               </div>
             )}

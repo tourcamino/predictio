@@ -187,10 +187,10 @@ export function WalletModal() {
                 {step === 'choose' && (
                   <div className="p-6 md:p-8">
                     <Dialog.Title className="font-syne text-2xl md:text-3xl font-bold mb-2">
-                      Connect Wallet (Optional)
+                      Connect wallet
                     </Dialog.Title>
                     <p className="text-gray-400 mb-6">
-                      You're already trading in demo mode. Connect to trade with real funds.
+                      You can try simulated trading without a wallet; activity stays on this device and is not tied to an account. Connect a wallet to save your progress and persist trading data on your account.
                     </p>
 
                     <div className="space-y-3 mb-6 max-h-[400px] overflow-y-auto pr-2">
@@ -252,7 +252,7 @@ export function WalletModal() {
                         <span>Non-custodial · We never hold your funds · No KYC required</span>
                       </div>
                       <p className="text-xs text-center text-purple-400">
-                        💡 Already trading in demo mode with $1,000 virtual USDC
+                        💡 Demo balance ($1,000 virtual USDC) is local until you connect a wallet
                       </p>
                     </div>
                   </div>
