@@ -630,6 +630,9 @@ wss.on("connection", (ws: WebSocket, req) => {
     }
 
     console.log(`[WebSocket] connected url=${req.url} ip=${ip} wallet=${state.walletAddress || "-"}`);
+    if (state.mode === "trading") {
+      sendJson(ws, { type: "ready", timestamp: Date.now() });
+    }
 
     ws.on("message", (raw) => {
       if (state.mode !== "trading") return;
