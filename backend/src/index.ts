@@ -17,7 +17,11 @@ import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
 import { requestLogger } from "./middleware/requestLogger";
 import { realtimeBus, type TradingWsMessage } from "./services/realtimeBus";
-import { verifyDeveloperApiKeyString, developerApiKeyForWrite } from "./middleware/auth";
+import {
+  verifyDeveloperApiKeyString,
+  developerApiKeyForWrite,
+  optionalDeveloperApiKey,
+} from "./middleware/auth";
 import { ApiError } from "./middleware/errors";
 
 // Ensure DATABASE_URL is present for local dev.
@@ -193,6 +197,29 @@ app.get("/api/v1/health", async (req, res) => {
       db: "disconnected",
       error: error instanceof Error ? error.message : "Unknown error",
     });
+  }
+});
+
+// Debug: "who am I" for bots/UI (developer API key)
+app.get("/api/me", optionalDeveloperApiKey, (req, res, next) => {
+  try {
+    const walletAddress = (req as any).walletAddress as string | undefined;
+    const apiKey = (req as any).apiKey as any | undefined;
+    if (!walletAddress || !apiKey) {
+      throw new ApiError("Unauthorized", { status: 401, code: "UNAUTHORIZED" });
+    }
+    return res.json({
+      walletAddress,
+      apiKey: {
+        id: apiKey.id,
+        label: apiKey.label ?? null,
+        createdAt: apiKey.createdAt ?? null,
+        lastUsedAt: apiKey.lastUsedAt ?? null,
+      },
+      requestId: res.locals.requestId,
+    });
+  } catch (e) {
+    return next(e);
   }
 });
 
@@ -547,6 +574,7 @@ type ClientState = {
 
 const WS_AUTH_REQUIRED = process.env.WS_AUTH_REQUIRED === "1";
 const WS_MAX_CONNECTIONS_PER_IP = Number(process.env.WS_MAX_CONNECTIONS_PER_IP || 30);
+const WS_REQUIRE_SUBSCRIBE_SECONDS = Number(process.env.WS_REQUIRE_SUBSCRIBE_SECONDS || 0);
 const wsConnByIp = new Map<string, { count: number; resetAt: number }>();
 
 function parseWsMode(url: string | undefined): ClientState {
@@ -634,6 +662,18 @@ wss.on("connection", (ws: WebSocket, req) => {
       sendJson(ws, { type: "ready", timestamp: Date.now() });
     }
 
+    let subscribeTimer: NodeJS.Timeout | null = null;
+    if (state.mode === "trading" && WS_REQUIRE_SUBSCRIBE_SECONDS > 0) {
+      subscribeTimer = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) return;
+        if (state.subscribedMarkets.size > 0) return;
+        sendJson(ws, { type: "error", error: "No subscriptions", timestamp: Date.now() });
+        try {
+          ws.close(1008, "No subscriptions");
+        } catch {}
+      }, WS_REQUIRE_SUBSCRIBE_SECONDS * 1000);
+    }
+
     ws.on("message", (raw) => {
       if (state.mode !== "trading") return;
       if (WS_AUTH_REQUIRED && !state.walletAddress) {
@@ -649,6 +689,10 @@ wss.on("connection", (ws: WebSocket, req) => {
         if (m?.action === "subscribe") {
           const marketId = String(m.marketId || "").trim();
           if (marketId) state.subscribedMarkets.add(marketId);
+          if (subscribeTimer) {
+            clearTimeout(subscribeTimer);
+            subscribeTimer = null;
+          }
           sendJson(ws, { type: "subscribed", marketId, timestamp: Date.now() });
           return;
         }
@@ -678,6 +722,10 @@ wss.on("connection", (ws: WebSocket, req) => {
   });
 
   ws.on("close", () => {
+    // clear any timers
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const st: any = (ws as any).__state;
+    void st;
     console.log("[WebSocket] disconnected");
   });
 });
