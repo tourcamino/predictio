@@ -113,8 +113,13 @@ function isAllowedCorsOrigin(origin: string | undefined): boolean {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  // Always allow localhost for dev tooling
-  allowList.push("http://localhost:5173", "http://127.0.0.1:5173");
+  // Always allow localhost for dev tooling (Vinxi default 5173; alternate port when busy)
+  allowList.push(
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  );
 
   // Exact matches
   if (allowList.includes(origin)) return true;
