@@ -16,6 +16,7 @@ import { referralCookieMiddleware } from "./middleware/referral";
 import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
 import { requestLogger } from "./middleware/requestLogger";
+import { realtimeBus, type TradingWsMessage } from "./services/realtimeBus";
 
 // Ensure DATABASE_URL is present for local dev.
 // Production must provide DATABASE_URL explicitly via environment.
@@ -523,81 +524,112 @@ const wss = new WebSocketServer({ port: Number(WS_PORT) });
 
 console.log(`🔌 WebSocket server running on port ${WS_PORT}`);
 
-wss.on("connection", (ws: WebSocket, req) => {
-  const channel = req.url?.split("/").pop() || "markets";
-  console.log(`[WebSocket] New connection to channel: ${channel}`);
+type WsMode = "channel" | "trading";
 
-  ws.on("error", console.error);
+type ClientState = {
+  mode: WsMode;
+  channel?: string;
+  subscribedMarkets: Set<string>;
+};
+
+function parseWsMode(url: string | undefined): ClientState {
+  const u = url || "";
+  // Supported:
+  // - /ws/<channel> (legacy channel stream used by useWebSocket hook)
+  // - /trading (market subscriptions via messages, used by tradingSocket.ts)
+  if (u.startsWith("/ws/")) {
+    const channel = u.split("/").filter(Boolean)[1] || "markets";
+    return { mode: "channel", channel, subscribedMarkets: new Set() };
+  }
+  if (u.startsWith("/trading")) {
+    return { mode: "trading", subscribedMarkets: new Set() };
+  }
+  // default to channel markets
+  return { mode: "channel", channel: "markets", subscribedMarkets: new Set() };
+}
+
+function sendJson(ws: WebSocket, obj: unknown) {
+  if (ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify(obj));
+}
+
+function routeTradingMessage(state: ClientState, msg: TradingWsMessage): boolean {
+  // trading mode: send only if subscribed to this market (or subscribed to wildcard "*")
+  if (state.mode !== "trading") return false;
+  if (state.subscribedMarkets.has("*") || state.subscribedMarkets.has(msg.marketId)) return true;
+  return false;
+}
+
+function routeChannelMessage(state: ClientState, msg: TradingWsMessage): unknown | null {
+  if (state.mode !== "channel") return null;
+  // map into legacy message shape used by useWebSocket hook
+  if (state.channel === "markets" && msg.type === "trade") {
+    return {
+      channel: "markets",
+      event: "trade",
+      data: msg.data,
+      timestamp: msg.timestamp,
+    };
+  }
+  return null;
+}
+
+wss.on("connection", (ws: WebSocket, req) => {
+  const state = parseWsMode(req.url);
+  (ws as any).__state = state;
+
+  console.log(`[WebSocket] connected url=${req.url}`);
+
+  ws.on("message", (raw) => {
+    if (state.mode !== "trading") return;
+    try {
+      const text = typeof raw === "string" ? raw : raw.toString("utf8");
+      const m = JSON.parse(text);
+      if (m?.action === "subscribe") {
+        const marketId = String(m.marketId || "").trim();
+        if (marketId) state.subscribedMarkets.add(marketId);
+        sendJson(ws, { type: "subscribed", marketId, timestamp: Date.now() });
+        return;
+      }
+      if (m?.action === "unsubscribe") {
+        const marketId = String(m.marketId || "").trim();
+        if (marketId) state.subscribedMarkets.delete(marketId);
+        sendJson(ws, { type: "unsubscribed", marketId, timestamp: Date.now() });
+        return;
+      }
+      if (m?.action === "ping") {
+        sendJson(ws, { type: "pong", timestamp: Date.now() });
+        return;
+      }
+    } catch (e) {
+      sendJson(ws, { type: "error", error: "Invalid message", timestamp: Date.now() });
+    }
+  });
+
+  ws.on("error", (e) => {
+    console.error("[WebSocket] error", e);
+  });
 
   ws.on("close", () => {
-    console.log(`[WebSocket] Client disconnected from ${channel}`);
+    console.log("[WebSocket] disconnected");
   });
 });
 
-// Mock event emitter for demo
-function startMockEventEmitter(wss: WebSocketServer) {
-  // New trade every 8s
-  setInterval(() => {
-    const message = JSON.stringify({
-      channel: "markets",
-      event: "trade",
-      data: {
-        marketId: `market-${Math.floor(Math.random() * 20) + 1}`,
-        outcome: Math.random() > 0.5 ? "teamA" : "teamB",
-        amount: Math.floor(Math.random() * 2000) + 50,
-        wallet: `0x${Math.random().toString(16).slice(2, 10)}`,
-        timestamp: Date.now(),
-      },
-    });
+realtimeBus.on("message", (msg: TradingWsMessage) => {
+  wss.clients.forEach((client) => {
+    if (client.readyState !== WebSocket.OPEN) return;
+    const state: ClientState | undefined = (client as any).__state;
+    if (!state) return;
 
-    wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(message);
-      }
-    });
-  }, 8000);
+    if (routeTradingMessage(state, msg)) {
+      sendJson(client, msg);
+      return;
+    }
 
-  // Price update every 15s
-  setInterval(() => {
-    const message = JSON.stringify({
-      channel: "markets",
-      event: "price_update",
-      data: {
-        marketId: `market-${Math.floor(Math.random() * 20) + 1}`,
-        outcome: Math.random() > 0.5 ? "teamA" : "teamB",
-        newOdds: (1.5 + Math.random() * 2).toFixed(2),
-        newPercentage: (30 + Math.random() * 40).toFixed(1),
-      },
-    });
-
-    wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(message);
-      }
-    });
-  }, 15000);
-
-  // Platform update every 30s
-  setInterval(() => {
-    const message = JSON.stringify({
-      channel: "platform",
-      event: "volume_update",
-      data: {
-        total24h: Math.floor(Math.random() * 100000) + 500000,
-        lastHour: Math.floor(Math.random() * 10000) + 20000,
-        delta: (Math.random() * 20 - 10).toFixed(1),
-      },
-    });
-
-    wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(message);
-      }
-    });
-  }, 30000);
-}
-
-startMockEventEmitter(wss);
+    const mapped = routeChannelMessage(state, msg);
+    if (mapped) sendJson(client, mapped);
+  });
+});
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {

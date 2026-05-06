@@ -4,6 +4,7 @@ import { z } from "zod";
 import { calculateFeeSplit, persistFeeSplit } from "../services/fees";
 import { getReferralCodeFromRequest } from "../middleware/referral";
 import { validate } from "../middleware/validate";
+import { realtimeBus } from "../services/realtimeBus";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -192,6 +193,21 @@ router.post("/trades", validate({ body: createTradeBody }), async (req, res) => 
         referralWallet: resolvedReferralWallet,
       },
       split,
+    });
+
+    realtimeBus.emitMessage({
+      type: "trade",
+      marketId,
+      data: {
+        id: order.id,
+        marketId,
+        wallet: walletAddress,
+        outcome: outcome.toUpperCase(),
+        amountUsd: size,
+        createdAt: order.createdAt,
+        feeTotalUsd: split.feeTotalUsd,
+      },
+      timestamp: Date.now(),
     });
 
     res.status(201).json({
