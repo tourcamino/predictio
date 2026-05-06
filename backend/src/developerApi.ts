@@ -1,7 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { verifyAPIKeySignature, generateChallengeMessage } from '../src/server/utils/eip712';
-import { generateAPIKey, hashAPIKey, verifyAPIKey as verifyAPIKeyHash, generateNonce } from '../src/server/utils/apiKey';
+import { verifyAPIKeySignature, generateChallengeMessage } from './utils/eip712';
+import { generateAPIKey, hashAPIKey, verifyAPIKey as verifyAPIKeyHash, generateNonce } from './utils/apiKey';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -191,12 +191,14 @@ router.post('/v1/auth/verify', async (req: Request, res: Response) => {
     // Generate new API key
     const { key, prefix } = generateAPIKey();
     const keyHash = await hashAPIKey(key);
+    const keySuffix = key.slice(-4);
     
     const apiKey = await prisma.apiKey.create({
       data: {
         walletAddress,
         keyHash,
         keyPrefix: prefix,
+        keySuffix,
         nonceUsed: nonce,
         permissions: ['read', 'trade', 'stream'],
       },

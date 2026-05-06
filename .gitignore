@@ -27,3 +27,6 @@ yarn.lock
 src/generated
 
 app.config.timestamp_*.js
+
+# Backend build output
+backend/dist

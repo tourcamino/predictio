@@ -4,6 +4,21 @@ import { WebSocketServer, WebSocket } from "ws";
 import { PrismaClient } from "@prisma/client";
 import rateLimit from "express-rate-limit";
 import developerApiRouter from './developerApi';
+import { translateText } from "./services/translate";
+import tradesRouter from "./routes/trades";
+import copyRouter from "./routes/copy";
+import leaderboardRouter from "./routes/leaderboard";
+import affiliateRouter from "./routes/affiliate";
+import vaultRouter from "./routes/vault";
+import adminPayoutsRouter from "./routes/adminPayouts";
+import developerKeysRouter from "./routes/developerKeys";
+import { referralCookieMiddleware } from "./middleware/referral";
+
+// Ensure DATABASE_URL is present for local dev.
+// Production must provide DATABASE_URL explicitly via environment.
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/predictio";
+}
 
 const app = express();
 const prisma = new PrismaClient();
@@ -13,10 +28,36 @@ const PORT = process.env.PORT || 3001;
 const WS_PORT = process.env.WS_PORT || 8080;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:8000";
 const BOT_API_KEY = process.env.BOT_API_KEY || "dev_bot_key";
+const TRANSLATION_CACHE_TTL = Number(process.env.TRANSLATION_CACHE_TTL || 2592000); // 30d default
+
+async function ensureFounderAffiliate() {
+  const founderWallet = (process.env.FOUNDER_WALLET || "").toLowerCase();
+  const founderRefCode = (process.env.FOUNDER_REF_CODE || "PREDICTIO").toUpperCase();
+  if (!founderWallet) return;
+
+  try {
+    await prisma.affiliate.upsert({
+      where: { refCode: founderRefCode },
+      create: {
+        walletAddress: founderWallet,
+        refCode: founderRefCode,
+        isFounder: true,
+      },
+      update: {
+        walletAddress: founderWallet,
+        isFounder: true,
+      },
+    });
+  } catch (e) {
+    // DB may be offline during local dev; don't crash server.
+    console.warn("[startup] founder affiliate upsert failed");
+  }
+}
 
 // Middleware
 app.use(cors({ origin: CORS_ORIGIN }));
 app.use(express.json());
+app.use(referralCookieMiddleware);
 
 // Rate limiting
 const apiLimiter = rateLimit({
@@ -34,6 +75,15 @@ if (process.env.DEVELOPER_API_ENABLED !== 'false') {
   app.use('/api', developerApiRouter);
   console.log('📡 Developer API enabled');
 }
+
+// C1 REST routes (master-context paths; backend-only)
+app.use("/api", tradesRouter);
+app.use("/api", copyRouter);
+app.use("/api", leaderboardRouter);
+app.use("/api", affiliateRouter);
+app.use("/api", vaultRouter);
+app.use("/api", adminPayoutsRouter);
+app.use("/api", developerKeysRouter);
 
 // Auth middleware
 function authenticateApiKey(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -111,7 +161,8 @@ app.get("/api/v1/markets/hot", async (req, res) => {
     });
 
     // Calculate score for each market
-    const scoredMarkets = markets.map((market) => {
+    type MarketRow = (typeof markets)[number];
+    const scoredMarkets = (markets as MarketRow[]).map((market) => {
       const timeToClose = (new Date(market.closesAt).getTime() - Date.now()) / 1000;
       const volumeScore = (market.volume / 200000) * 50;
       const timeScore = timeToClose < 3600 ? 50 : timeToClose < 21600 ? 30 : 10;
@@ -122,7 +173,7 @@ app.get("/api/v1/markets/hot", async (req, res) => {
 
     // Sort by score and take top 5
     const topMarkets = scoredMarkets
-      .sort((a, b) => b.score - a.score)
+      .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
       .slice(0, 5);
 
     res.json({ markets: topMarkets });
@@ -213,7 +264,11 @@ app.put("/api/v1/markets/:id/resolve", authenticateApiKey, async (req, res) => {
       },
     });
 
-    const totalDistributed = winners.reduce((sum, order) => sum + order.amount * order.odds, 0);
+    type WinnerRow = (typeof winners)[number];
+    const totalDistributed = (winners as WinnerRow[]).reduce(
+      (sum: number, order) => sum + order.amount * (order.odds ?? 0),
+      0
+    );
 
     // Update winning orders
     await prisma.order.updateMany({
@@ -316,12 +371,45 @@ app.get("/api/v1/stats/platform", async (req, res) => {
       totalVolume: totalVolume._sum.amount || 0,
       activeMarkets,
       totalUsers,
-      revenue24h: (totalVolume._sum.amount || 0) * 0.01, // 0.8-1.2% dynamic fee (avg ~1%)
+      revenue24h: (totalVolume._sum.amount || 0) * 0.01, // Fixed 1% taker fee
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch stats" });
   }
 });
+
+// POST /api/translate (and /api/v1/translate)
+async function handleTranslate(req: express.Request, res: express.Response) {
+  try {
+    const { text, targetLang } = req.body ?? {};
+
+    if (!text || typeof text !== "string") {
+      return res.status(400).json({ error: "Missing text" });
+    }
+    if (!targetLang || typeof targetLang !== "string") {
+      return res.status(400).json({ error: "Missing targetLang" });
+    }
+
+    // If already English, return as-is (frontend rule: UI is EN)
+    if (targetLang.toLowerCase().startsWith("en")) {
+      return res.json({ translatedText: text, cached: true });
+    }
+
+    const { translatedText, fromCache } = await translateText({
+      text,
+      targetLang,
+      ttlSeconds: TRANSLATION_CACHE_TTL,
+    });
+
+    return res.json({ translatedText, cached: fromCache });
+  } catch (error) {
+    console.error("[translate] failed", error);
+    return res.status(500).json({ error: "Translation failed" });
+  }
+}
+
+app.post("/api/translate", handleTranslate);
+app.post("/api/v1/translate", handleTranslate);
 
 // Helper functions
 function calculateOrderbook(orders: any[]) {
@@ -347,6 +435,8 @@ app.listen(PORT, () => {
   console.log(`🚀 API server running on port ${PORT}`);
   console.log(`📡 CORS origin: ${CORS_ORIGIN}`);
 });
+
+ensureFounderAffiliate().catch(() => null);
 
 // WebSocket Server
 const wss = new WebSocketServer({ port: Number(WS_PORT) });
