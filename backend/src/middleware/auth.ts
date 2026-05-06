@@ -45,12 +45,37 @@ export const requireAdminKey = requireStaticKey({
   fallbackEnvName: "BOT_API_KEY",
 });
 
-/** Admin panel / founder tooling (`X-Admin-Key`); prefers ADMIN_SECRET, falls back to ADMIN_API_KEY. */
-export const requireXAdminKey = requireStaticKey({
-  headerName: "x-admin-key",
-  envName: "ADMIN_SECRET",
-  fallbackEnvName: "ADMIN_API_KEY",
-});
+/**
+ * Admin panel / founder tooling (`X-Admin-Key`).
+ * Order: `ADMIN_SECRET` → `ADMIN_API_KEY` → in non-production, `BOT_API_KEY` (default `dev_bot_key` matches backend boot).
+ */
+export function requireXAdminKey(req: Request, _res: Response, next: NextFunction) {
+  const presented = headerString(req, "x-admin-key");
+  if (!presented) {
+    return next(new ApiError("Unauthorized", { status: 401, code: "UNAUTHORIZED" }));
+  }
+
+  const secret = process.env.ADMIN_SECRET?.trim();
+  const adminApi = process.env.ADMIN_API_KEY?.trim();
+  const bot = (process.env.BOT_API_KEY || "dev_bot_key").trim();
+  const isProd = process.env.NODE_ENV === "production";
+
+  const ok =
+    (secret && presented === secret) ||
+    (!secret && adminApi && presented === adminApi) ||
+    (!secret && !adminApi && !isProd && presented === bot);
+
+  if (!ok) {
+    return next(new ApiError("Unauthorized", { status: 401, code: "UNAUTHORIZED" }));
+  }
+
+  if (!secret && !adminApi && !isProd && presented === bot) {
+    // eslint-disable-next-line no-console
+    console.warn("[auth] ADMIN_SECRET / ADMIN_API_KEY unset — accepting BOT_API_KEY for X-Admin-Key (dev only)");
+  }
+
+  return next();
+}
 
 export const requireBotKey = requireStaticKey({
   headerName: "x-predictio-key",
