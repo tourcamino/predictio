@@ -298,7 +298,15 @@ function EventCurationPage() {
                 </tbody>
               </table>
               {!loading && filtered.length === 0 && (
-                <div className="py-12 text-center text-gray-500 text-sm">No upcoming football events in this window.</div>
+                <div className="py-12 px-4 text-center text-gray-500 text-sm space-y-2 max-w-lg mx-auto">
+                  <p>No upcoming football events in this window (next 14 days, kickoff after now).</p>
+                  <p className="text-xs text-gray-600">
+                    If this stays empty: run the Express backend on port 3001 (API base above must be{' '}
+                    <code className="text-gray-400">http://127.0.0.1:3001</code> in dev), set{' '}
+                    <code className="text-gray-400">ADMIN_SECRET</code> / <code className="text-gray-400">VITE_ADMIN_KEY</code>, and
+                    align <code className="text-gray-400">AZURO_GRAPHQL_URL</code> on the backend with your indexer chain.
+                  </p>
+                </div>
               )}
             </div>
           )}

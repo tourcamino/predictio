@@ -7,12 +7,24 @@ type ApiErrorShape = {
   };
 };
 
+/** Express REST (`/api/v1/*`, `/api/admin/*`, …). In local dev the backend runs on a separate port from Vinxi (see backend `PORT`, default 3001). */
+const DEFAULT_DEV_BACKEND = 'http://127.0.0.1:3001';
+
 export function getApiBaseUrl(): string {
   const envUrl = (import.meta as any)?.env?.VITE_API_URL as string | undefined;
   const fromEnv = envUrl?.trim();
   if (fromEnv) return fromEnv.replace(/\/$/, '');
-  if (typeof window !== 'undefined') return window.location.origin;
-  return 'http://127.0.0.1:3001';
+
+  const isDev = (import.meta as any)?.env?.DEV === true;
+
+  if (typeof window !== 'undefined') {
+    // Production / preview: API is usually same origin as the SPA (nginx, Vercel rewrites).
+    // Local `vinxi dev`: browser origin is :5173 but REST lives on Express — use backend port unless overridden above.
+    if (isDev) return DEFAULT_DEV_BACKEND;
+    return window.location.origin;
+  }
+
+  return DEFAULT_DEV_BACKEND;
 }
 
 async function readJsonSafe(res: Response): Promise<any> {
