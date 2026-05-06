@@ -1,10 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Key, Copy, Eye, EyeOff, RotateCw, Trash2, Activity, AlertTriangle } from 'lucide-react';
 import { Header } from '~/components/Header';
 import { Footer } from '~/components/Footer';
 import { useWalletStore } from '~/store/useWalletStore';
 import toast from 'react-hot-toast';
+import { useApiAuthStore } from '~/store/useApiAuthStore';
+import { apiRequest } from '~/lib/predictioApi';
 
 export const Route = createFileRoute('/developers/keys/')({
   component: APIKeysPage,
@@ -12,69 +14,15 @@ export const Route = createFileRoute('/developers/keys/')({
 
 interface APIKey {
   id: string;
-  prefix: string;
+  keyPrefix: string;
+  keySuffix: string;
   fullKey?: string;
   createdAt: Date;
-  lastUsedAt: Date;
-  requests24h: number;
+  lastUsedAt: Date | null;
+  paperMode: boolean;
+  isActive: boolean;
   permissions: string[];
-}
-
-function GenerateKeyModal({ isOpen, onClose, onGenerate }: {
-  isOpen: boolean;
-  onClose: () => void;
-  onGenerate: (key: string) => void;
-}) {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const { address } = useWalletStore();
-
-  const handleGenerate = async () => {
-    setIsGenerating(true);
-    
-    // Simulate EIP-712 signing and key generation
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const mockKey = `pk_live_${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`;
-    onGenerate(mockKey);
-    
-    setIsGenerating(false);
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#111111] border border-[#00D97E]/30 rounded-lg max-w-lg w-full p-6">
-        <h3 className="text-xl font-bold mb-4">Generate API Key</h3>
-        
-        <div className="bg-[#0A0A0A] border border-[#00D97E]/20 rounded p-4 mb-6">
-          <p className="text-sm text-[#999999] mb-2">You will sign a message with your wallet:</p>
-          <pre className="text-xs font-mono text-[#E5E5E5] overflow-x-auto">
-{`Generate Predictio API key for ${address?.slice(0, 6)}...${address?.slice(-4)}
-nonce: 8f3a...
-expires: 2026-05-01T00:00:00Z`}
-          </pre>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating}
-            className="flex-1 px-4 py-2 bg-[#00D97E] text-black font-semibold rounded hover:bg-[#00D97E]/90 transition-all disabled:opacity-50"
-          >
-            {isGenerating ? 'Waiting for signature...' : 'Sign & Generate'}
-          </button>
-          <button
-            onClick={onClose}
-            disabled={isGenerating}
-            className="px-4 py-2 border border-[#00D97E]/30 rounded hover:bg-[#00D97E]/10 transition-all disabled:opacity-50"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  usage24h: { count24h: number; avgLatencyMs24h: number | null };
 }
 
 function ShowKeyModal({ apiKey, onClose }: {
@@ -129,50 +77,143 @@ function ShowKeyModal({ apiKey, onClose }: {
 
 function APIKeysPage() {
   const { isConnected, address, openWalletModal } = useWalletStore();
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const { adminApiKey, setAdminApiKey, clearAdminApiKey, developerApiKey, setDeveloperApiKey, clearDeveloperApiKey } =
+    useApiAuthStore();
+  const [adminKeyInput, setAdminKeyInput] = useState(adminApiKey);
+  const [developerKeyInput, setDeveloperKeyInput] = useState(developerApiKey);
+
+  const walletAddress = useMemo(() => (address ? address.toLowerCase() : ''), [address]);
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [newKey, setNewKey] = useState('');
   const [showFullKey, setShowFullKey] = useState(false);
-  
-  // Mock API key data
-  const [apiKey, setApiKey] = useState<APIKey | null>({
-    id: '1',
-    prefix: 'pk_live_abc',
-    createdAt: new Date('2024-04-12'),
-    lastUsedAt: new Date(Date.now() - 2 * 60 * 1000),
-    requests24h: 14203,
-    permissions: ['read', 'trade', 'stream'],
-  });
+
+  const [keys, setKeys] = useState<APIKey[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const activeKey = keys.find((k) => k.isActive) || null;
+
+  async function refreshKeys() {
+    if (!adminApiKey) return;
+    if (!walletAddress) return;
+    setLoading(true);
+    const r = await apiRequest<{ keys: any[] }>(`/api/admin/wallet/${walletAddress}/keys`, { adminApiKey });
+    setLoading(false);
+    if (!r.ok) {
+      toast.error(`List keys failed: ${r.error?.error?.code || `HTTP_${r.status}`}`);
+      return;
+    }
+    const normalized: APIKey[] = (r.data.keys || []).map((k: any) => ({
+      id: String(k.id),
+      keyPrefix: String(k.keyPrefix),
+      keySuffix: String(k.keySuffix),
+      createdAt: new Date(k.createdAt),
+      lastUsedAt: k.lastUsedAt ? new Date(k.lastUsedAt) : null,
+      paperMode: Boolean(k.paperMode),
+      isActive: Boolean(k.isActive),
+      permissions: Array.isArray(k.permissions) ? k.permissions.map((p: any) => String(p)) : [],
+      usage24h: {
+        count24h: Number(k.usage24h?.count24h || 0),
+        avgLatencyMs24h: k.usage24h?.avgLatencyMs24h == null ? null : Number(k.usage24h.avgLatencyMs24h),
+      },
+    }));
+    setKeys(normalized);
+  }
+
+  useEffect(() => {
+    refreshKeys().catch(() => null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminApiKey, walletAddress]);
 
   const handleGenerate = (key: string) => {
     setNewKey(key);
-    setShowGenerateModal(false);
     setShowKeyModal(true);
-    
-    // Update state with new key
-    setApiKey({
-      id: Math.random().toString(),
-      prefix: key.slice(0, 12),
-      fullKey: key,
-      createdAt: new Date(),
-      lastUsedAt: new Date(),
-      requests24h: 0,
-      permissions: ['read', 'trade', 'stream'],
+
+    // Also store as developer key for "always logged in"
+    setDeveloperApiKey(key);
+    setDeveloperKeyInput(key);
+    toast.success('Saved as Developer API key');
+
+    refreshKeys().catch(() => null);
+  };
+
+  const handleCopy = (prefix: string, suffix: string) => {
+    navigator.clipboard.writeText(`${prefix}****...${suffix}`);
+    toast.success('Key copied');
+  };
+
+  const handleCreateKey = async () => {
+    if (!walletAddress) return;
+    if (!adminApiKey) {
+      toast.error('Set ADMIN key first');
+      return;
+    }
+    setLoading(true);
+    const r = await apiRequest<{
+      apiKey: string;
+      id: string;
+      keyPrefix: string;
+      keySuffix: string;
+      permissions: string[];
+      createdAt: string;
+    }>('/api/developer/keys', {
+      method: 'POST',
+      adminApiKey,
+      body: { walletAddress, label: 'UI', permissions: ['read', 'trade', 'stream'] },
     });
+    setLoading(false);
+    if (!r.ok) {
+      toast.error(`Create failed: ${r.error?.error?.code || `HTTP_${r.status}`}`);
+      return;
+    }
+    handleGenerate(r.data.apiKey);
   };
 
-  const handleRevoke = () => {
-    if (confirm('Revoke API key? This cannot be undone.')) {
-      setApiKey(null);
-      toast.success('API key revoked');
+  const handleRevokeById = async (id: string) => {
+    if (!adminApiKey) {
+      toast.error('Set ADMIN key first');
+      return;
     }
+    if (!confirm('Revoke API key? This cannot be undone.')) return;
+    setLoading(true);
+    const r = await apiRequest('/api/developer/keys/revoke', {
+      method: 'POST',
+      adminApiKey,
+      body: { id },
+    });
+    setLoading(false);
+    if (!r.ok) {
+      toast.error(`Revoke failed: ${r.error?.error?.code || `HTTP_${r.status}`}`);
+      return;
+    }
+    toast.success('API key revoked');
+    refreshKeys().catch(() => null);
   };
 
-  const handleCopy = () => {
-    if (apiKey?.prefix) {
-      navigator.clipboard.writeText(apiKey.prefix + '****');
-      toast.success('Key prefix copied');
+  const handleRotateKeys = async () => {
+    if (!walletAddress) return;
+    if (!adminApiKey) {
+      toast.error('Set ADMIN key first');
+      return;
     }
+    if (!confirm('Rotate keys for this wallet? All active keys will be revoked and a new one will be created.')) return;
+    setLoading(true);
+    const r = await apiRequest<{
+      created: boolean;
+      apiKey?: string;
+      revoked: number;
+    }>(`/api/admin/wallet/${walletAddress}/rotate-keys?confirm=true`, {
+      method: 'POST',
+      adminApiKey,
+      body: { createNew: true, label: 'Rotated (UI)', permissions: ['read', 'trade', 'stream'] },
+    });
+    setLoading(false);
+    if (!r.ok) {
+      toast.error(`Rotate failed: ${r.error?.error?.code || `HTTP_${r.status}`}`);
+      return;
+    }
+    toast.success(`Rotated (revoked ${r.data.revoked})`);
+    if (r.data.apiKey) handleGenerate(r.data.apiKey);
+    refreshKeys().catch(() => null);
   };
 
   const formatDate = (date: Date) => {
@@ -228,25 +269,105 @@ function APIKeysPage() {
           </div>
         </div>
 
+        {/* Local auth storage (always logged in) */}
+        <div className="bg-[#111111] border border-[#00D97E]/20 rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-bold mb-4">Local keys (browser)</h2>
+          <div className="grid gap-4">
+            <div>
+              <label className="block text-sm text-[#999999] mb-2">Admin key (x-predictio-key)</label>
+              <div className="flex gap-2">
+                <input
+                  value={adminKeyInput}
+                  onChange={(e) => setAdminKeyInput(e.target.value)}
+                  placeholder="ADMIN_API_KEY ..."
+                  className="flex-1 px-3 py-2 rounded bg-[#0A0A0A] border border-white/10 font-mono text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminApiKey(adminKeyInput);
+                    toast.success('Admin key saved');
+                  }}
+                  className="px-4 py-2 bg-[#00D97E] text-black font-semibold rounded hover:bg-[#00D97E]/90 transition-all"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearAdminApiKey();
+                    setAdminKeyInput('');
+                    toast.success('Admin key cleared');
+                  }}
+                  className="px-4 py-2 border border-white/10 rounded hover:bg-white/5 transition-all"
+                >
+                  Clear
+                </button>
+              </div>
+              <p className="text-xs text-[#999999] mt-2">
+                Needed for listing/creating/revoking keys (admin-only endpoints).
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm text-[#999999] mb-2">Developer API key (Authorization Bearer)</label>
+              <div className="flex gap-2">
+                <input
+                  value={developerKeyInput}
+                  onChange={(e) => setDeveloperKeyInput(e.target.value)}
+                  placeholder="pk_live_..."
+                  className="flex-1 px-3 py-2 rounded bg-[#0A0A0A] border border-white/10 font-mono text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeveloperApiKey(developerKeyInput);
+                    toast.success('Developer key saved');
+                  }}
+                  className="px-4 py-2 border border-[#00D97E]/30 rounded hover:bg-[#00D97E]/10 transition-all"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearDeveloperApiKey();
+                    setDeveloperKeyInput('');
+                    toast.success('Developer key cleared');
+                  }}
+                  className="px-4 py-2 border border-white/10 rounded hover:bg-white/5 transition-all"
+                >
+                  Clear
+                </button>
+              </div>
+              <p className="text-xs text-[#999999] mt-2">
+                Used for bot requests and for `GET /api/me` (see <span className="font-mono">/me</span> page).
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Active Key Panel */}
-        {apiKey ? (
+        {activeKey ? (
           <div className="bg-[#111111] border border-[#00D97E]/20 rounded-lg p-6 mb-6">
             <h2 className="text-xl font-bold mb-4">Active API Key</h2>
             
             <div className="bg-[#0A0A0A] border border-[#00D97E]/20 rounded p-4 mb-4">
               <div className="flex items-center justify-between mb-4">
                 <code className="text-lg font-mono text-[#E5E5E5]">
-                  {showFullKey && apiKey.fullKey ? apiKey.fullKey : `${apiKey.prefix}****...****`}
+                  {showFullKey && activeKey.fullKey
+                    ? activeKey.fullKey
+                    : `${activeKey.keyPrefix}****...${activeKey.keySuffix}`}
                 </code>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleCopy}
+                    onClick={() => handleCopy(activeKey.keyPrefix, activeKey.keySuffix)}
                     className="p-2 hover:bg-[#00D97E]/10 rounded transition-all"
                     title="Copy"
                   >
                     <Copy className="w-4 h-4" />
                   </button>
-                  {apiKey.fullKey && (
+                  {activeKey.fullKey && (
                     <button
                       onClick={() => setShowFullKey(!showFullKey)}
                       className="p-2 hover:bg-[#00D97E]/10 rounded transition-all"
@@ -261,37 +382,48 @@ function APIKeysPage() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-[#999999]">Created:</span>
-                  <span className="ml-2 text-[#E5E5E5]">{formatDate(apiKey.createdAt)}</span>
+                  <span className="ml-2 text-[#E5E5E5]">{formatDate(activeKey.createdAt)}</span>
                 </div>
                 <div>
                   <span className="text-[#999999]">Last used:</span>
-                  <span className="ml-2 text-[#E5E5E5]">{formatTimeAgo(apiKey.lastUsedAt)}</span>
+                  <span className="ml-2 text-[#E5E5E5]">
+                    {activeKey.lastUsedAt ? formatTimeAgo(activeKey.lastUsedAt) : 'never'}
+                  </span>
                 </div>
                 <div>
                   <span className="text-[#999999]">Requests (24h):</span>
-                  <span className="ml-2 text-[#E5E5E5]">{apiKey.requests24h.toLocaleString()}</span>
+                  <span className="ml-2 text-[#E5E5E5]">{activeKey.usage24h.count24h.toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-[#999999]">Permissions:</span>
-                  <span className="ml-2 text-[#E5E5E5]">{apiKey.permissions.join(', ')}</span>
+                  <span className="ml-2 text-[#E5E5E5]">{activeKey.permissions.join(', ') || '-'}</span>
                 </div>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setShowGenerateModal(true)}
+                onClick={handleRotateKeys}
+                disabled={loading}
                 className="flex items-center gap-2 px-4 py-2 border border-[#00D97E]/30 rounded hover:bg-[#00D97E]/10 transition-all"
               >
                 <RotateCw className="w-4 h-4" />
                 Rotate Key
               </button>
               <button
-                onClick={handleRevoke}
+                onClick={() => handleRevokeById(activeKey.id)}
+                disabled={loading}
                 className="flex items-center gap-2 px-4 py-2 border border-red-500/30 text-red-500 rounded hover:bg-red-500/10 transition-all"
               >
                 <Trash2 className="w-4 h-4" />
                 Revoke
+              </button>
+              <button
+                onClick={() => refreshKeys()}
+                disabled={!adminApiKey || loading}
+                className="ml-auto px-4 py-2 border border-white/10 rounded hover:bg-white/5 transition-all disabled:opacity-50"
+              >
+                {loading ? 'Loading…' : 'Refresh'}
               </button>
             </div>
           </div>
@@ -303,16 +435,17 @@ function APIKeysPage() {
               Generate an API key by signing a message with your wallet. You'll see the key once — save it securely.
             </p>
             <button
-              onClick={() => setShowGenerateModal(true)}
+              onClick={handleCreateKey}
+              disabled={loading}
               className="px-6 py-3 bg-[#00D97E] text-black font-semibold rounded-lg hover:bg-[#00D97E]/90 transition-all"
             >
-              Generate API Key
+              {loading ? 'Generating…' : 'Generate API Key'}
             </button>
           </div>
         )}
 
         {/* Usage Stats */}
-        {apiKey && (
+        {activeKey && (
           <div className="bg-[#111111] border border-[#00D97E]/20 rounded-lg p-6">
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
               <Activity className="w-5 h-5" />
@@ -321,37 +454,41 @@ function APIKeysPage() {
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-[#0A0A0A] border border-[#00D97E]/20 rounded p-4">
-                <div className="text-2xl font-bold text-[#00D97E] mb-1">14,203</div>
-                <div className="text-sm text-[#999999]">Requests today</div>
+                  <div className="text-2xl font-bold text-[#00D97E] mb-1">
+                    {activeKey.usage24h.count24h.toLocaleString()}
+                  </div>
+                  <div className="text-sm text-[#999999]">Requests (24h)</div>
               </div>
               <div className="bg-[#0A0A0A] border border-[#00D97E]/20 rounded p-4">
-                <div className="text-2xl font-bold text-[#00D97E] mb-1">387k</div>
-                <div className="text-sm text-[#999999]">This month</div>
+                  <div className="text-2xl font-bold text-[#00D97E] mb-1">
+                    {activeKey.usage24h.avgLatencyMs24h == null
+                      ? '—'
+                      : Math.round(activeKey.usage24h.avgLatencyMs24h)}
+                  </div>
+                  <div className="text-sm text-[#999999]">Avg latency ms (24h)</div>
               </div>
               <div className="bg-[#0A0A0A] border border-[#00D97E]/20 rounded p-4">
-                <div className="text-2xl font-bold text-[#00D97E] mb-1">12</div>
-                <div className="text-sm text-[#999999]">Errors (24h)</div>
+                  <div className="text-2xl font-bold text-[#00D97E] mb-1">
+                    {activeKey.paperMode ? 'PAPER' : 'LIVE'}
+                  </div>
+                  <div className="text-sm text-[#999999]">Mode</div>
               </div>
               <div className="bg-[#0A0A0A] border border-[#00D97E]/20 rounded p-4">
-                <div className="text-2xl font-bold text-[#00D97E] mb-1">847/1000</div>
-                <div className="text-sm text-[#999999]">Rate limit</div>
+                  <div className="text-2xl font-bold text-[#00D97E] mb-1">
+                    {activeKey.keyPrefix.slice(0, 10)}…
+                  </div>
+                  <div className="text-sm text-[#999999]">Key prefix</div>
               </div>
             </div>
 
             <div className="text-xs text-[#999999] text-center">
-              Detailed analytics coming soon
+              Tip: use admin usage endpoints for deeper analytics.
             </div>
           </div>
         )}
       </div>
 
       <Footer />
-
-      <GenerateKeyModal
-        isOpen={showGenerateModal}
-        onClose={() => setShowGenerateModal(false)}
-        onGenerate={handleGenerate}
-      />
 
       {showKeyModal && (
         <ShowKeyModal

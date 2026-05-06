@@ -8,6 +8,7 @@ import {
   requireDeveloperPermission,
 } from "../middleware/auth";
 import { ApiError } from "../middleware/errors";
+import { idempotency } from "../middleware/idempotency";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -54,6 +55,7 @@ router.post(
   developerApiKeyForWrite,
   requireDeveloperPermission("trade"),
   rateLimitByApiKey({ windowMs: 60_000, max: 120, code: "WRITE_RATE_LIMITED" }),
+  idempotency(),
   validate({ body: copyUpsertBody }),
   async (req, res, next) => {
   try {

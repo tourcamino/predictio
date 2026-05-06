@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { Menu, Transition } from '@headlessui/react';
-import { Copy, ExternalLink, User, BarChart3, Trophy, Settings, LogOut, TrendingUp } from 'lucide-react';
+import { Copy, ExternalLink, User, BarChart3, Trophy, Settings, LogOut, TrendingUp, KeyRound, Fingerprint } from 'lucide-react';
 import { useWallet } from '~/store/useWalletStore';
 import { Link, useNavigate } from '@tanstack/react-router';
 import toast from 'react-hot-toast';
@@ -209,6 +209,38 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
                 >
                   <Settings className="w-4 h-4" />
                   <span className="flex-1 text-sm font-medium">Settings</span>
+                  <span className="text-gray-500">→</span>
+                </Link>
+              )}
+            </Menu.Item>
+
+            <div className="my-2 border-t border-white/10" />
+
+            <Menu.Item>
+              {({ active }) => (
+                <Link
+                  to="/me"
+                  className={`flex items-center gap-3 px-3 py-2 rounded transition-colors ${
+                    active ? 'bg-white/10' : ''
+                  }`}
+                >
+                  <Fingerprint className="w-4 h-4" />
+                  <span className="flex-1 text-sm font-medium">API /me</span>
+                  <span className="text-gray-500">→</span>
+                </Link>
+              )}
+            </Menu.Item>
+
+            <Menu.Item>
+              {({ active }) => (
+                <Link
+                  to="/developers/keys"
+                  className={`flex items-center gap-3 px-3 py-2 rounded transition-colors ${
+                    active ? 'bg-white/10' : ''
+                  }`}
+                >
+                  <KeyRound className="w-4 h-4" />
+                  <span className="flex-1 text-sm font-medium">Developer API Keys</span>
                   <span className="text-gray-500">→</span>
                 </Link>
               )}

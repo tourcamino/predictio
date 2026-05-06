@@ -77,6 +77,71 @@ async function main() {
     assert(res.ok, `/api/me auth failed HTTP ${res.status} ${text}`);
     assert(json && (json.walletAddress || json.apiKeyId || json.apiKey), `/api/me unexpected body: ${text}`);
     console.log("OK  /api/me (auth)");
+
+    const authedWallet = String(json.walletAddress || "").toLowerCase();
+    if (/^0x[a-f0-9]{40}$/.test(authedWallet)) {
+      const mismatchWallet =
+        authedWallet.slice(0, 41) + (authedWallet.slice(41) === "0" ? "1" : "0");
+
+      // Wallet mismatch: /api/vault
+      {
+        const r2 = await req("/api/vault", {
+          method: "POST",
+          headers: { authorization: `Bearer ${botKey}`, "content-type": "application/json" },
+          body: { action: "deposit", walletAddress: mismatchWallet, amountUsd: 1 },
+        });
+        assert(r2.res.status === 403, `/api/vault mismatch expected 403 got ${r2.res.status} ${r2.text}`);
+        assert(r2.json?.error?.code === "WALLET_MISMATCH", `/api/vault mismatch expected WALLET_MISMATCH got ${r2.text}`);
+        console.log("OK  /api/vault wallet mismatch");
+      }
+
+      // Wallet mismatch: /api/copy
+      {
+        const r3 = await req("/api/copy", {
+          method: "POST",
+          headers: { authorization: `Bearer ${botKey}`, "content-type": "application/json" },
+          body: {
+            action: "start",
+            copierWallet: mismatchWallet,
+            analystWallet: "0x1111111111111111111111111111111111111111",
+            maxPerTradeUsd: 5,
+            copyMode: "all",
+            selectedMarkets: [],
+          },
+        });
+        assert(r3.res.status === 403, `/api/copy mismatch expected 403 got ${r3.res.status} ${r3.text}`);
+        assert(r3.json?.error?.code === "WALLET_MISMATCH", `/api/copy mismatch expected WALLET_MISMATCH got ${r3.text}`);
+        console.log("OK  /api/copy wallet mismatch");
+      }
+
+      // Wallet mismatch: /api/trades (requires an open market)
+      {
+        const m = await req("/api/v1/markets");
+        if (m.res.ok && Array.isArray(m.json?.markets) && m.json.markets.length > 0) {
+          const open = m.json.markets.find((x) => x?.status === "open") || m.json.markets[0];
+          const marketId = open?.id;
+          if (marketId) {
+            const r4 = await req("/api/trades", {
+              method: "POST",
+              headers: { authorization: `Bearer ${botKey}`, "content-type": "application/json" },
+              body: { marketId, outcome: "YES", amountUsd: 1, walletAddress: mismatchWallet },
+            });
+            assert(r4.res.status === 403, `/api/trades mismatch expected 403 got ${r4.res.status} ${r4.text}`);
+            assert(
+              r4.json?.error?.code === "WALLET_MISMATCH" || r4.json?.error?.code === "FORBIDDEN",
+              `/api/trades mismatch expected WALLET_MISMATCH got ${r4.text}`,
+            );
+            console.log("OK  /api/trades wallet mismatch");
+          } else {
+            console.warn("WARN /api/trades mismatch skipped (no marketId)");
+          }
+        } else {
+          console.warn("WARN /api/trades mismatch skipped (/api/v1/markets unavailable)");
+        }
+      }
+    } else {
+      console.warn("WARN mismatch tests skipped (walletAddress missing from /api/me)");
+    }
   } else {
     console.log("SKIP /api/me (auth) — BOT_API_KEY not set");
   }
