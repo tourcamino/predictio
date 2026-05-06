@@ -91,6 +91,35 @@ See `docs/CURSOR_HANDOFF.md` for complete deployment instructions.
 
 ---
 
+## ✅ Smoke tests (C4)
+
+These scripts help validate the backend is **online + stable** after deploys.
+
+- **HTTP E2E smoke (recommended)**:
+
+```bash
+# Prod
+SMOKE_BASE_URL=https://api.predictio.live npm run smoke:e2e
+
+# With auth checks enabled
+SMOKE_BASE_URL=https://api.predictio.live BOT_API_KEY=... npm run smoke:e2e
+SMOKE_BASE_URL=https://api.predictio.live ADMIN_API_KEY=... npm run smoke:e2e
+```
+
+- **WebSocket smoke (optional)**:
+
+```bash
+WS_URL=wss://api.predictio.live/ws BOT_API_KEY=... npm run smoke:ws
+```
+
+- **Remote VPS verify over SSH**:
+
+```bash
+VPS_HOST=72.62.114.251 ADMIN_API_KEY=... npm run vps:verify
+```
+
+---
+
 ## 📖 For Developers
 
 **New to this project?** Start here:

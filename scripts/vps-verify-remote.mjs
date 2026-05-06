@@ -5,6 +5,7 @@
  * Checks:
  * - backend direct (127.0.0.1:${BACKEND_PORT}/api/v1/health) -> 200
  * - nginx proxy (127.0.0.1/api/v1/health) -> 200
+ * - (optional) nginx proxy /api/admin/health/full -> 200 (when ADMIN_API_KEY/BOT_API_KEY is set)
  *
  * Usage:
  *   VPS_HOST=1.2.3.4 npm run vps:verify
@@ -39,6 +40,9 @@ if [ -n "${adminKey}" ]; then
   A=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: api.predictio.live' -H 'x-predictio-key: ${adminKey}' http://127.0.0.1/api/admin/usage?limit=1)
   echo "nginx :80 /api/admin/usage (admin, Host api.predictio.live) -> HTTP $A"
   test "$A" = "200" -o "$A" = "301" -o "$A" = "308"
+  H=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: api.predictio.live' -H 'x-predictio-key: ${adminKey}' http://127.0.0.1/api/admin/health/full)
+  echo "nginx :80 /api/admin/health/full (admin, Host api.predictio.live) -> HTTP $H"
+  test "$H" = "200" -o "$H" = "301" -o "$H" = "308"
 else
   echo "SKIP admin usage check (ADMIN_API_KEY/BOT_API_KEY not set)"
 fi

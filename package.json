@@ -16,6 +16,8 @@
     "format": "prettier --write .",
     "smoke": "prisma validate && npm run typecheck",
     "smoke:endpoints": "node ./scripts/smoke-endpoints.mjs",
+    "smoke:e2e": "node ./scripts/smoke-e2e.mjs",
+    "smoke:ws": "node ./scripts/smoke-ws.mjs",
     "vps:verify": "node ./scripts/vps-verify-remote.mjs",
     "env:validate": "node ./scripts/validate-env.mjs .env"
   },
