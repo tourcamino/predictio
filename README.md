@@ -54,7 +54,7 @@ All comprehensive documentation is in the `/docs` folder:
 ## 🎯 Current Status
 
 ✅ **Frontend Complete** — Full UI/UX with mock data  
-⚠️ **Backend Needed** — See `docs/FEATURES.md` section C1  
+✅ **Backend C1+C2 Complete** — REST API + hardening deployed on VPS (`https://api.predictio.live`)  
 ⚠️ **Smart Contracts Needed** — See `docs/FEATURES.md` section C4  
 
 The app currently runs in **demo mode** with mock data. No API keys or backend required for development.
@@ -71,6 +71,10 @@ The app currently runs in **demo mode** with mock data. No API keys or backend r
 
 ### Backend (VPS)
 See `docs/CURSOR_HANDOFF.md` for complete deployment instructions.
+
+#### C2 notes
+- `ADMIN_API_KEY` is required for `/api/admin/*` and `/api/developer/keys`
+- Vercel preview origins (`https://*.vercel.app`) are allowed by backend CORS for testing
 
 ---
 
