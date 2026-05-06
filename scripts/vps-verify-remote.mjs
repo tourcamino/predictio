@@ -25,14 +25,14 @@ const remote = `
 set -euo pipefail
 B=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:${port}/)
 N=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/)
-L=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:${port}/api/live)
+L=$(curl -s -L -o /dev/null -w '%{http_code}' http://127.0.0.1/api/live/)
 echo "backend :${port} -> HTTP $B"
 echo "nginx :80 -> HTTP $N"
-echo "/api/live -> HTTP $L"
+echo "/api/live/ -> HTTP $L"
 test "$B" = "200"
 test "$N" = "200"
 test "$L" = "200"
-echo "OK: backend + nginx + /api/live"
+echo "OK: backend + nginx + /api/live/"
 `.trim();
 
 const sshArgs = [
