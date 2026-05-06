@@ -5,6 +5,7 @@ interface Market {
   event: string;
   volume: number;
   timeToClose: number;
+  score?: number;
   percentSplit: Record<string, number>;
   odds: Record<string, number>;
 }

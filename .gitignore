@@ -30,3 +30,6 @@ app.config.timestamp_*.js
 
 # Backend build output
 backend/dist
+
+# Bot build output
+bots/**/dist
