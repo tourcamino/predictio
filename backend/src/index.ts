@@ -575,6 +575,9 @@ type ClientState = {
 const WS_AUTH_REQUIRED = process.env.WS_AUTH_REQUIRED === "1";
 const WS_MAX_CONNECTIONS_PER_IP = Number(process.env.WS_MAX_CONNECTIONS_PER_IP || 30);
 const WS_REQUIRE_SUBSCRIBE_SECONDS = Number(process.env.WS_REQUIRE_SUBSCRIBE_SECONDS || 0);
+const WS_MAX_SUBSCRIPTIONS = Number(process.env.WS_MAX_SUBSCRIPTIONS || 200);
+const WS_SERVER_PING_INTERVAL_SECONDS = Number(process.env.WS_SERVER_PING_INTERVAL_SECONDS || 30);
+const WS_SERVER_PONG_TIMEOUT_SECONDS = Number(process.env.WS_SERVER_PONG_TIMEOUT_SECONDS || 15);
 const wsConnByIp = new Map<string, { count: number; resetAt: number }>();
 
 function parseWsMode(url: string | undefined): ClientState {
@@ -626,6 +629,7 @@ function routeChannelMessage(state: ClientState, msg: TradingWsMessage): unknown
 wss.on("connection", (ws: WebSocket, req) => {
   const state = parseWsMode(req.url);
   (ws as any).__state = state;
+  (ws as any).__lastPongAt = Date.now();
 
   const ip = req.socket?.remoteAddress || "unknown";
   const now = Date.now();
@@ -686,9 +690,21 @@ wss.on("connection", (ws: WebSocket, req) => {
       try {
         const text = typeof raw === "string" ? raw : raw.toString("utf8");
         const m = JSON.parse(text);
+        if (m?.type === "pong") {
+          (ws as any).__lastPongAt = Date.now();
+          return;
+        }
         if (m?.action === "subscribe") {
           const marketId = String(m.marketId || "").trim();
-          if (marketId) state.subscribedMarkets.add(marketId);
+          if (!marketId) {
+            sendJson(ws, { type: "error", error: "Missing marketId", timestamp: Date.now() });
+            return;
+          }
+          if (state.subscribedMarkets.size >= WS_MAX_SUBSCRIPTIONS) {
+            sendJson(ws, { type: "error", error: "Too many subscriptions", timestamp: Date.now() });
+            return;
+          }
+          state.subscribedMarkets.add(marketId);
           if (subscribeTimer) {
             clearTimeout(subscribeTimer);
             subscribeTimer = null;
@@ -722,10 +738,6 @@ wss.on("connection", (ws: WebSocket, req) => {
   });
 
   ws.on("close", () => {
-    // clear any timers
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const st: any = (ws as any).__state;
-    void st;
     console.log("[WebSocket] disconnected");
   });
 });
@@ -745,6 +757,39 @@ realtimeBus.on("message", (msg: TradingWsMessage) => {
     if (mapped) sendJson(client, mapped);
   });
 });
+
+// Server-driven heartbeat for trading sockets
+if (WS_SERVER_PING_INTERVAL_SECONDS > 0) {
+  setInterval(() => {
+    const now = Date.now();
+    wss.clients.forEach((client) => {
+      if (client.readyState !== WebSocket.OPEN) return;
+      const state: ClientState | undefined = (client as any).__state;
+      if (!state || state.mode !== "trading") return;
+      if (WS_AUTH_REQUIRED && !(state as any).walletAddress) return;
+
+      const lastPongAt = Number((client as any).__lastPongAt || 0);
+      const ageMs = now - lastPongAt;
+      if (lastPongAt && ageMs > WS_SERVER_PONG_TIMEOUT_SECONDS * 1000) {
+        try {
+          sendJson(client as any, { type: "error", error: "Heartbeat timeout", timestamp: Date.now() });
+        } catch {}
+        try {
+          client.close(1008, "Heartbeat timeout");
+        } catch {}
+        return;
+      }
+
+      try {
+        // ws library supports ping frames; we also send JSON ping for clients that only handle messages
+        (client as any).ping?.();
+      } catch {}
+      try {
+        sendJson(client as any, { type: "ping", timestamp: Date.now() });
+      } catch {}
+    });
+  }, WS_SERVER_PING_INTERVAL_SECONDS * 1000).unref?.();
+}
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
