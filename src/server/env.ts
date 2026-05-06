@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const envSchema = z.object({
   // Core
-  NODE_ENV: z.enum(["development", "production"]),
+  NODE_ENV: z.enum(["development", "production"]).default("production"),
   BASE_URL: z.string().optional(),
   BASE_URL_OTHER_PORT: z.string().optional(),
   FRONTEND_URL: z.string().optional().default("http://localhost:8000"),
@@ -11,7 +11,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().optional(),
   
   // Auth
-  ADMIN_PASSWORD: z.string(),
+  // In Vercel builds we don't run admin routes; don't fail build on missing secret.
+  ADMIN_PASSWORD: z.string().optional(),
   JWT_SECRET: z.string().optional(),
   BOT_API_KEY: z.string().optional(),
   
