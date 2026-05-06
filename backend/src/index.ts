@@ -29,6 +29,7 @@ import {
   requireDeveloperPermission,
 } from "./middleware/auth";
 import { ApiError } from "./middleware/errors";
+import { requireAdminKey } from "./middleware/auth";
 
 function requireEnv(name: string): string | undefined {
   const v = process.env[name];
@@ -258,6 +259,11 @@ app.get("/api/v1/health", async (req, res) => {
       uptime: process.uptime(),
       version: "1.0.0",
       db: "connected",
+      flags: {
+        WRITE_AUTH_REQUIRED: process.env.WRITE_AUTH_REQUIRED === "1",
+        WS_AUTH_REQUIRED: process.env.WS_AUTH_REQUIRED === "1",
+        API_USAGE_ENABLED: !(process.env.API_USAGE_ENABLED === "0" || process.env.API_USAGE_ENABLED === "false"),
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -267,6 +273,23 @@ app.get("/api/v1/health", async (req, res) => {
       error: error instanceof Error ? error.message : "Unknown error",
     });
   }
+});
+
+// Admin: websocket stats (in-memory)
+app.get("/api/admin/ws/stats", requireAdminKey, (req, res) => {
+  const now = Date.now();
+  const ips = Array.from(wsConnByIp.entries()).map(([ip, v]) => ({
+    ip,
+    count: v.count,
+    resetInMs: Math.max(0, v.resetAt - now),
+  }));
+  ips.sort((a, b) => b.count - a.count);
+  res.json({
+    currentConnections: wsConnCurrent,
+    windowMs: 60_000,
+    maxConnectionsPerIp: WS_MAX_CONNECTIONS_PER_IP,
+    ips: ips.slice(0, 200),
+  });
 });
 
 // Debug: "who am I" for bots/UI (developer API key)
@@ -656,6 +679,7 @@ const WS_MAX_SUBSCRIPTIONS = Number(process.env.WS_MAX_SUBSCRIPTIONS || 200);
 const WS_SERVER_PING_INTERVAL_SECONDS = Number(process.env.WS_SERVER_PING_INTERVAL_SECONDS || 30);
 const WS_SERVER_PONG_TIMEOUT_SECONDS = Number(process.env.WS_SERVER_PONG_TIMEOUT_SECONDS || 15);
 const wsConnByIp = new Map<string, { count: number; resetAt: number }>();
+let wsConnCurrent = 0;
 
 function parseWsMode(url: string | undefined): ClientState {
   const u = url || "";
@@ -704,6 +728,7 @@ function routeChannelMessage(state: ClientState, msg: TradingWsMessage): unknown
 }
 
 wss.on("connection", (ws: WebSocket, req) => {
+  wsConnCurrent += 1;
   const state = parseWsMode(req.url);
   (ws as any).__state = state;
   (ws as any).__lastPongAt = Date.now();
@@ -825,6 +850,7 @@ wss.on("connection", (ws: WebSocket, req) => {
   });
 
   ws.on("close", (code, reason) => {
+    wsConnCurrent = Math.max(0, wsConnCurrent - 1);
     const st: ClientState | undefined = (ws as any).__state;
     console.log(
       `[WebSocket] disconnected code=${code} reason=${String(reason || "")} wallet=${st?.walletAddress || "-"} apiKeyId=${st?.apiKeyId || "-"}`,

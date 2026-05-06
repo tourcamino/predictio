@@ -81,5 +81,21 @@ router.get("/admin/usage/summary", requireAdminKey, async (req, res) => {
   }
 });
 
+// POST /api/admin/usage/purge
+// Body: { olderThanDays?: number } (default: 30)
+router.post("/admin/usage/purge", requireAdminKey, async (req, res) => {
+  try {
+    const days = Math.min(365, Math.max(1, Number(req.body?.olderThanDays || 30)));
+    const cutoff = new Date(Date.now() - days * 86400 * 1000);
+    const result = await prisma.apiUsage.deleteMany({
+      where: { timestamp: { lt: cutoff } },
+    });
+    res.json({ deleted: result.count, olderThanDays: days, cutoff });
+  } catch (e) {
+    console.error("[admin/usage] purge failed", e);
+    res.status(500).json({ error: "Failed to purge usage" });
+  }
+});
+
 export default router;
 

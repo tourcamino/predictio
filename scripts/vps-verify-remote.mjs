@@ -18,6 +18,7 @@ const host =
   process.argv.slice(2).find((a) => !a.startsWith("-"));
 const user = process.env.VPS_USER || "root";
 const backendPort = process.env.BACKEND_PORT || "3001";
+const adminKey = process.env.ADMIN_API_KEY || process.env.BOT_API_KEY || "";
 
 if (!host) {
   console.error(
@@ -29,11 +30,18 @@ if (!host) {
 const remote = `
 set -euo pipefail
 B=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:${backendPort}/api/v1/health)
-N=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/api/v1/health)
+N=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: api.predictio.live' http://127.0.0.1/api/v1/health)
 echo "backend :${backendPort} /api/v1/health -> HTTP $B"
-echo "nginx :80 /api/v1/health -> HTTP $N"
+echo "nginx :80 /api/v1/health (Host api.predictio.live) -> HTTP $N"
 test "$B" = "200"
-test "$N" = "200"
+test "$N" = "200" -o "$N" = "301" -o "$N" = "308"
+if [ -n "${adminKey}" ]; then
+  A=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: api.predictio.live' -H 'x-predictio-key: ${adminKey}' http://127.0.0.1/api/admin/usage?limit=1)
+  echo "nginx :80 /api/admin/usage (admin, Host api.predictio.live) -> HTTP $A"
+  test "$A" = "200" -o "$A" = "301" -o "$A" = "308"
+else
+  echo "SKIP admin usage check (ADMIN_API_KEY/BOT_API_KEY not set)"
+fi
 echo "OK: backend + nginx health"
 `.trim();
 

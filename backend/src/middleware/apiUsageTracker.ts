@@ -28,9 +28,7 @@ export function apiUsageTracker(req: Request, res: Response, next: NextFunction)
     const apiKeyId = (req as any).apiKey?.id as string | undefined;
     if (!apiKeyId) return;
 
-    const endpoint = req.baseUrl
-      ? `${req.baseUrl}${req.path || ""}`
-      : (req.originalUrl || req.url || "").split("?")[0];
+    const endpoint = (req.originalUrl || req.url || "").split("?")[0];
 
     const latencyMs = Date.now() - start;
     const statusCode = res.statusCode;
