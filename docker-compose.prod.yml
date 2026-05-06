@@ -16,6 +16,8 @@ services:
       - BOT_API_KEY=${BOT_API_KEY}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - WRITE_AUTH_REQUIRED=${WRITE_AUTH_REQUIRED:-0}
+      - WS_AUTH_REQUIRED=${WS_AUTH_REQUIRED:-0}
+      - WS_MAX_CONNECTIONS_PER_IP=${WS_MAX_CONNECTIONS_PER_IP:-30}
       - CORS_ORIGIN=https://predictio.live
     depends_on:
       postgres:
