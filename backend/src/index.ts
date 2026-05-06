@@ -17,7 +17,8 @@ import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
 import { requestLogger } from "./middleware/requestLogger";
 import { realtimeBus, type TradingWsMessage } from "./services/realtimeBus";
-import { verifyDeveloperApiKeyString } from "./middleware/auth";
+import { verifyDeveloperApiKeyString, developerApiKeyForWrite } from "./middleware/auth";
+import { ApiError } from "./middleware/errors";
 
 // Ensure DATABASE_URL is present for local dev.
 // Production must provide DATABASE_URL explicitly via environment.
@@ -144,6 +145,7 @@ app.use("/api/trades", writeLimiter);
 app.use("/api/vault", writeLimiter);
 app.use("/api/translate", writeLimiter);
 app.use("/api/v1/translate", writeLimiter);
+app.use("/api/v1/orders", writeLimiter);
 
 app.use("/api/admin/", adminLimiter);
 app.use("/api/developer/keys", adminLimiter);
@@ -385,9 +387,18 @@ app.put("/api/v1/markets/:id/resolve", authenticateApiKey, async (req, res) => {
 });
 
 // POST /api/v1/orders
-app.post("/api/v1/orders", async (req, res) => {
+app.post("/api/v1/orders", developerApiKeyForWrite, async (req, res, next) => {
   try {
-    const { marketId, outcome, amount, walletAddress } = req.body;
+    const authedWallet = (req as any).walletAddress as string | undefined;
+    const { marketId, outcome, amount } = req.body;
+    const bodyWallet = req.body?.walletAddress ? String(req.body.walletAddress).toLowerCase() : undefined;
+    const walletAddress = authedWallet || bodyWallet || null;
+    if (!walletAddress) {
+      throw new ApiError("Wallet not authenticated", { status: 401, code: "UNAUTHORIZED" });
+    }
+    if (authedWallet && bodyWallet && authedWallet !== bodyWallet) {
+      throw new ApiError("Wallet mismatch", { status: 403, code: "WALLET_MISMATCH" });
+    }
 
     const market = await prisma.market.findUnique({
       where: { id: marketId },
@@ -428,7 +439,7 @@ app.post("/api/v1/orders", async (req, res) => {
       fee: amount * 0.01, // 0.8-1.2% dynamic fee (avg ~1%)
     });
   } catch (error) {
-    res.status(500).json({ error: "Failed to place order" });
+    return next(error);
   }
 });
 
