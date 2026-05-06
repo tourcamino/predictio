@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * SSH → VPS: curl root URL (:APP_PORT), Nginx (:80), /api/live. Exit 0 only if all HTTP 200.
+ * SSH → VPS: curl backend (:APP_PORT), Nginx (:80), /api/live/, /api/health/. Exit 0 only if all HTTP 200.
  *
  *   VPS_HOST=1.2.3.4 npm run vps:verify
  *   npm run vps:verify -- 1.2.3.4
@@ -26,13 +26,16 @@ set -euo pipefail
 B=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:${port}/)
 N=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/)
 L=$(curl -s -L -o /dev/null -w '%{http_code}' http://127.0.0.1/api/live/)
+H=$(curl -s -L -o /dev/null -w '%{http_code}' http://127.0.0.1/api/health/)
 echo "backend :${port} -> HTTP $B"
 echo "nginx :80 -> HTTP $N"
 echo "/api/live/ -> HTTP $L"
+echo "/api/health/ -> HTTP $H"
 test "$B" = "200"
 test "$N" = "200"
 test "$L" = "200"
-echo "OK: backend + nginx + /api/live/"
+test "$H" = "200"
+echo "OK: backend + nginx + /api/live/ + /api/health/"
 `.trim();
 
 const sshArgs = [
