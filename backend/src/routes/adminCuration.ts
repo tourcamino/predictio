@@ -28,11 +28,19 @@ export function registerAdminCurationRoutes(
       const nowSec = Math.floor(Date.now() / 1000);
       const upcoming = games.filter((g) => g.startsAtUnix > nowSec);
 
-      const selectedRows = await prisma.curatedEvent.findMany({
-        where: { isActive: true },
-        select: { gameId: true },
-      });
-      const selectedSet = new Set(selectedRows.map((r) => r.gameId));
+      let selectedSet = new Set<string>();
+      try {
+        const selectedRows = await prisma.curatedEvent.findMany({
+          where: { isActive: true },
+          select: { gameId: true },
+        });
+        selectedSet = new Set(selectedRows.map((r) => r.gameId));
+      } catch (dbErr) {
+        console.warn(
+          "[adminCuration] curated selection lookup skipped (database unavailable):",
+          dbErr instanceof Error ? dbErr.message : dbErr,
+        );
+      }
 
       const events = upcoming.map((g) => ({
         ...g,
@@ -126,10 +134,19 @@ export function registerAdminCurationRoutes(
   /** Public list of founder-curated Azuro games (same chain as indexer). */
   app.get("/api/markets", publicLimiter, async (_req, res, next) => {
     try {
-      const rows = await prisma.curatedEvent.findMany({
-        where: { isActive: true },
-        orderBy: { startsAt: "asc" },
-      });
+      let rows: Awaited<ReturnType<typeof prisma.curatedEvent.findMany>>;
+      try {
+        rows = await prisma.curatedEvent.findMany({
+          where: { isActive: true },
+          orderBy: { startsAt: "asc" },
+        });
+      } catch (dbErr) {
+        console.warn(
+          "[adminCuration] GET /api/markets — database unavailable, returning empty list:",
+          dbErr instanceof Error ? dbErr.message : dbErr,
+        );
+        return res.json({ markets: [], total: 0 });
+      }
 
       const markets = rows.map((r) => ({
         id: `azuro-${r.gameId}`,
