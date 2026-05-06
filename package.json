@@ -16,7 +16,8 @@
     "format": "prettier --write .",
     "smoke": "prisma validate && npm run typecheck",
     "smoke:endpoints": "node ./scripts/smoke-endpoints.mjs",
-    "vps:verify": "node ./scripts/vps-verify-remote.mjs"
+    "vps:verify": "node ./scripts/vps-verify-remote.mjs",
+    "env:validate": "node ./scripts/validate-env.mjs .env"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",

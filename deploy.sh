@@ -14,6 +14,11 @@ command -v docker >/dev/null || {
   echo -e "${RED}Docker not found${NC}"; exit 1; }
 [ -f .env ] || { 
   echo -e "${RED}.env missing${NC}"; exit 1; }
+command -v node >/dev/null || {
+  echo -e "${RED}Node not found (required for env validation)${NC}"; exit 1; }
+
+echo -e "${YELLOW}Validating .env...${NC}"
+node ./scripts/validate-env.mjs .env
 
 # 2. Pull code
 echo -e "${YELLOW}[2/8] Pulling latest code...${NC}"
