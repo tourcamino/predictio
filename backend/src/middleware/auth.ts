@@ -102,6 +102,37 @@ export async function requireDeveloperApiKey(req: Request, _res: Response, next:
   }
 }
 
+function permissionsList(perm: unknown): string[] {
+  if (!perm) return [];
+  if (Array.isArray(perm)) return perm.map((x) => String(x));
+  // tolerate JSON stored as string
+  if (typeof perm === "string") {
+    try {
+      const parsed = JSON.parse(perm);
+      if (Array.isArray(parsed)) return parsed.map((x) => String(x));
+    } catch {}
+  }
+  return [];
+}
+
+/**
+ * Require a specific permission on the authenticated developer api key.
+ * Back-compat: if permissions is missing/empty, allow.
+ */
+export function requireDeveloperPermission(permission: string) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    const apiKey = (req as any).apiKey as { permissions?: unknown } | undefined;
+    if (!apiKey) return next(new ApiError("Unauthorized", { status: 401, code: "UNAUTHORIZED" }));
+
+    const perms = permissionsList(apiKey.permissions);
+    if (perms.length === 0) return next(); // back-compat allow
+    if (!perms.includes(permission)) {
+      return next(new ApiError("Forbidden", { status: 403, code: "FORBIDDEN" }));
+    }
+    return next();
+  };
+}
+
 /**
  * If a Bearer api key is present, authenticate and attach walletAddress.
  * If no Authorization header, continue without auth (used for demo/manual callers).

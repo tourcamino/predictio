@@ -2,7 +2,12 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
-import { developerApiKeyForWrite, optionalDeveloperApiKey, rateLimitByApiKey } from "../middleware/auth";
+import {
+  developerApiKeyForWrite,
+  optionalDeveloperApiKey,
+  rateLimitByApiKey,
+  requireDeveloperPermission,
+} from "../middleware/auth";
 import { ApiError } from "../middleware/errors";
 
 const router = Router();
@@ -62,6 +67,7 @@ router.get("/affiliate/me", optionalDeveloperApiKey, validate({ query: affiliate
 router.post(
   "/affiliate/me",
   developerApiKeyForWrite,
+  requireDeveloperPermission("trade"),
   rateLimitByApiKey({ windowMs: 60_000, max: 120, code: "WRITE_RATE_LIMITED" }),
   validate({ body: affiliateUpsertBody }),
   async (req, res, next) => {

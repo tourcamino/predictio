@@ -2,7 +2,11 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
-import { developerApiKeyForWrite, rateLimitByApiKey } from "../middleware/auth";
+import {
+  developerApiKeyForWrite,
+  rateLimitByApiKey,
+  requireDeveloperPermission,
+} from "../middleware/auth";
 import { ApiError } from "../middleware/errors";
 
 const router = Router();
@@ -48,6 +52,7 @@ router.get("/copy", validate({ query: copyListQuery }), async (req, res, next) =
 router.post(
   "/copy",
   developerApiKeyForWrite,
+  requireDeveloperPermission("trade"),
   rateLimitByApiKey({ windowMs: 60_000, max: 120, code: "WRITE_RATE_LIMITED" }),
   validate({ body: copyUpsertBody }),
   async (req, res, next) => {

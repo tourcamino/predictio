@@ -22,6 +22,7 @@ import {
   developerApiKeyForWrite,
   optionalDeveloperApiKey,
   rateLimitByApiKey,
+  requireDeveloperPermission,
 } from "./middleware/auth";
 import { ApiError } from "./middleware/errors";
 
@@ -207,6 +208,7 @@ app.get(
   "/api/me",
   writeLimiter,
   optionalDeveloperApiKey,
+  requireDeveloperPermission("read"),
   rateLimitByApiKey({ windowMs: 60_000, max: 600, code: "READ_RATE_LIMITED" }),
   (req, res, next) => {
   try {
@@ -421,7 +423,7 @@ app.put("/api/v1/markets/:id/resolve", authenticateApiKey, async (req, res) => {
 });
 
 // POST /api/v1/orders
-app.post("/api/v1/orders", developerApiKeyForWrite, async (req, res, next) => {
+app.post("/api/v1/orders", developerApiKeyForWrite, requireDeveloperPermission("trade"), async (req, res, next) => {
   try {
     const authedWallet = (req as any).walletAddress as string | undefined;
     const { marketId, outcome, amount } = req.body;
@@ -665,6 +667,13 @@ wss.on("connection", (ws: WebSocket, req) => {
       if (!row) {
         sendJson(ws, { type: "error", error: "Unauthorized", timestamp: Date.now() });
         ws.close(1008, "Unauthorized");
+        return;
+      }
+      // permissions: if present and missing "stream", deny trading socket
+      const perms = Array.isArray((row as any).permissions) ? (row as any).permissions.map(String) : [];
+      if (perms.length > 0 && !perms.includes("stream")) {
+        sendJson(ws, { type: "error", error: "Forbidden", timestamp: Date.now() });
+        ws.close(1008, "Forbidden");
         return;
       }
       state.walletAddress = row.walletAddress;
