@@ -1,5 +1,5 @@
 {
-  "framework": "other",
+  "framework": "tanstack-start",
   "buildCommand": "corepack enable && pnpm run build",
   "outputDirectory": ".output/public",
   "installCommand": "corepack enable && pnpm install --frozen-lockfile",
