@@ -26,8 +26,9 @@ export type NormalizedCuratorGame = {
 
 type MappedCuratorGame = NormalizedCuratorGame & { sportName: string };
 
+/** Same shape as app `ACTIVE_GAMES_QUERY` — do not request `title` on Game (not on all subgraph versions). */
 const CURATOR_GAMES_QUERY = `
-  query CuratorGames($first: Int!, $where: Game_filter!) {
+  query CuratorGames($first: Int!, $where: Game_filter) {
     games(
       first: $first
       where: $where
@@ -36,10 +37,13 @@ const CURATOR_GAMES_QUERY = `
     ) {
       id
       gameId
-      title
-      startsAt
+      sport {
+        sportId
+        name
+      }
       league {
         name
+        slug
         country {
           name
         }
@@ -48,10 +52,43 @@ const CURATOR_GAMES_QUERY = `
         name
         image
       }
+      startsAt
       status
+      conditions(where: { status: "Created" }) {
+        conditionId
+        status
+      }
+    }
+  }
+`;
+
+const CURATOR_GAMES_QUERY_LITE = `
+  query CuratorGamesLite($first: Int!, $where: Game_filter) {
+    games(
+      first: $first
+      where: $where
+      orderBy: startsAt
+      orderDirection: asc
+    ) {
+      id
+      gameId
       sport {
+        sportId
         name
       }
+      league {
+        name
+        slug
+        country {
+          name
+        }
+      }
+      participants {
+        name
+        image
+      }
+      startsAt
+      status
     }
   }
 `;
@@ -61,10 +98,13 @@ const SINGLE_GAME_QUERY = `
     games(where: { gameId: $gameId }) {
       id
       gameId
-      title
-      startsAt
+      sport {
+        sportId
+        name
+      }
       league {
         name
+        slug
         country {
           name
         }
@@ -73,10 +113,8 @@ const SINGLE_GAME_QUERY = `
         name
         image
       }
+      startsAt
       status
-      sport {
-        name
-      }
     }
   }
 `;
@@ -123,12 +161,10 @@ function mapGame(raw: Record<string, unknown>): MappedCuratorGame | null {
   const awayImage = participants[1]?.image ?? null;
 
   const sport = raw.sport as { name?: string } | undefined;
-  const sportName = sport?.name?.toLowerCase() || "";
+  const sportDisplayName = sport?.name?.trim() || "";
+  const sportName = sportDisplayName.toLowerCase();
 
-  const titleRaw = typeof raw.title === "string" ? raw.title.trim() : "";
-  const title =
-    titleRaw ||
-    `${homeTeam} vs ${awayTeam}`;
+  const title = `${homeTeam} vs ${awayTeam}`;
 
   const status = String(raw.status ?? "");
 
@@ -150,44 +186,47 @@ function mapGame(raw: Record<string, unknown>): MappedCuratorGame | null {
   };
 }
 
-function isFootballishSport(name: string): boolean {
-  const s = name.toLowerCase();
-  return s.includes("football") || s.includes("soccer") || s === "";
+/** Mirrors `mapAzuroSportToSlug` in app `services/azuro.ts` — soccer vs american-football. */
+function sportSlugFromAzuroName(name: string): string {
+  const sportMap: Record<string, string> = {
+    Soccer: "football",
+    Football: "football",
+    Basketball: "basketball",
+    Tennis: "tennis",
+    MMA: "mma",
+    "Mixed Martial Arts": "mma",
+    "American Football": "american-football",
+    "Ice Hockey": "hockey",
+    Baseball: "baseball",
+    Esports: "esports",
+  };
+  return sportMap[name] || "football";
 }
 
-/** Football games with kickoff in (now, now+14d], status Created, ordered by startsAt. */
+function isSoccerFootball(rawSportName: string): boolean {
+  return sportSlugFromAzuroName(rawSportName.trim()) === "football";
+}
+
+/** Football games with kickoff in (now, now+14d]. Same indexer filter as app `fetchAzuroGames`. */
 export async function fetchFootballGamesNext14Days(): Promise<NormalizedCuratorGame[]> {
   const nowSec = Math.floor(Date.now() / 1000);
   const endSec = nowSec + 14 * 24 * 3600;
 
   const whereVariants: Record<string, unknown>[] = [
     {
-      sport_: { name: "Football" },
-      startsAt_gt: nowSec.toString(),
-      startsAt_lt: endSec.toString(),
-      status: "Created",
-    },
-    {
-      sport_: { name: "Football" },
-      startsAt_gt: nowSec.toString(),
-      startsAt_lt: endSec.toString(),
-      status_in: ["Created"],
-    },
-    {
-      startsAt_gt: nowSec.toString(),
-      startsAt_lt: endSec.toString(),
       status_in: ["Created", "Paused"],
+      startsAt_gt: nowSec.toString(),
     },
   ];
 
   for (const where of whereVariants) {
     try {
-      const res = await graphqlFetch({
+      let res = await graphqlFetch({
         query: CURATOR_GAMES_QUERY,
-        variables: { first: 100, where },
+        variables: { first: 300, where },
       });
-      const text = await res.text();
-      const json = JSON.parse(text) as {
+      let text = await res.text();
+      let json = JSON.parse(text) as {
         errors?: unknown;
         data?: { games?: Record<string, unknown>[] };
       };
@@ -197,8 +236,20 @@ export async function fetchFootballGamesNext14Days(): Promise<NormalizedCuratorG
         continue;
       }
       if (json.errors) {
-        console.warn("[azuroCurator] GraphQL errors:", JSON.stringify(json.errors).slice(0, 400));
-        continue;
+        console.warn("[azuroCurator] GraphQL errors (full query), retrying lite:", JSON.stringify(json.errors).slice(0, 400));
+        res = await graphqlFetch({
+          query: CURATOR_GAMES_QUERY_LITE,
+          variables: { first: 300, where },
+        });
+        text = await res.text();
+        json = JSON.parse(text) as {
+          errors?: unknown;
+          data?: { games?: Record<string, unknown>[] };
+        };
+        if (!res.ok || json.errors) {
+          console.warn("[azuroCurator] GraphQL errors (lite):", JSON.stringify(json.errors).slice(0, 600));
+          continue;
+        }
       }
 
       const games = json.data?.games || [];
@@ -206,8 +257,10 @@ export async function fetchFootballGamesNext14Days(): Promise<NormalizedCuratorG
       for (const g of games) {
         const row = mapGame(g as Record<string, unknown>);
         if (!row) continue;
-        if (!isFootballishSport(row.sportName)) continue;
+        const sportDisplay = (g as { sport?: { name?: string } }).sport?.name ?? "";
+        if (!isSoccerFootball(sportDisplay)) continue;
         if (row.startsAtUnix <= nowSec) continue;
+        if (row.startsAtUnix > endSec) continue;
         const { sportName: _s, ...rest } = row;
         void _s;
         mapped.push(rest);
@@ -220,6 +273,9 @@ export async function fetchFootballGamesNext14Days(): Promise<NormalizedCuratorG
     }
   }
 
+  console.warn(
+    "[azuroCurator] No football games in 14d window — check AZURO_GRAPHQL_URL / indexer chain.",
+  );
   return [];
 }
 
