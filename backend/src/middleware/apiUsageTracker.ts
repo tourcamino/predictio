@@ -3,7 +3,22 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+let pruneStarted = false;
+function startPruneJob() {
+  if (pruneStarted) return;
+  pruneStarted = true;
+
+  const days = Number(process.env.API_USAGE_RETENTION_DAYS || 30);
+  if (!Number.isFinite(days) || days <= 0) return;
+
+  setInterval(() => {
+    const cutoff = new Date(Date.now() - days * 86400 * 1000);
+    prisma.apiUsage.deleteMany({ where: { timestamp: { lt: cutoff } } }).catch(() => null);
+  }, 6 * 3600 * 1000).unref?.(); // every 6 hours
+}
+
 export function apiUsageTracker(req: Request, res: Response, next: NextFunction) {
+  startPruneJob();
   const start = Date.now();
 
   res.on("finish", () => {
