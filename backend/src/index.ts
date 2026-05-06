@@ -12,6 +12,7 @@ import affiliateRouter from "./routes/affiliate";
 import vaultRouter from "./routes/vault";
 import adminPayoutsRouter from "./routes/adminPayouts";
 import adminUsageRouter from "./routes/adminUsage";
+import adminWalletKeysRouter from "./routes/adminWalletKeys";
 import developerKeysRouter from "./routes/developerKeys";
 import { referralCookieMiddleware } from "./middleware/referral";
 import { requestContext } from "./middleware/requestContext";
@@ -208,6 +209,7 @@ app.use("/api", affiliateRouter);
 app.use("/api", vaultRouter);
 app.use("/api", adminPayoutsRouter);
 app.use("/api", adminUsageRouter);
+app.use("/api", adminWalletKeysRouter);
 app.use("/api", developerKeysRouter);
 
 // Auth middleware

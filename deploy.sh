@@ -22,7 +22,7 @@ node ./scripts/validate-env.mjs .env
 
 # 2. Pull code
 echo -e "${YELLOW}[2/8] Pulling latest code...${NC}"
-git pull origin main
+git pull origin master
 
 # 3. Build
 echo -e "${YELLOW}[3/8] Building images...${NC}"
@@ -45,7 +45,7 @@ docker-compose -f docker-compose.prod.yml up -d
 echo -e "${YELLOW}[7/8] Health check...${NC}"
 sleep 15
 HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
-  https://api.predictio.live/health)
+  https://api.predictio.live/api/v1/health)
 if [ "$HTTP" = "200" ]; then
   echo -e "${GREEN}✅ Backend healthy${NC}"
 else
@@ -76,7 +76,7 @@ echo -e "${GREEN}✅ Predictio live!${NC}"
 echo ""
 echo -e "Frontend:  ${GREEN}https://predictio.live${NC}"
 echo -e "API:       ${GREEN}https://api.predictio.live${NC}"
-echo -e "Health:    ${GREEN}https://api.predictio.live/health${NC}"
+echo -e "Health:    ${GREEN}https://api.predictio.live/api/v1/health${NC}"
 echo -e "WebSocket: ${GREEN}wss://api.predictio.live/ws${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""

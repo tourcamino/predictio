@@ -43,5 +43,43 @@ router.get("/admin/usage", requireAdminKey, async (req, res) => {
   }
 });
 
+// GET /api/admin/usage/summary?days=1&walletAddress=0x...
+router.get("/admin/usage/summary", requireAdminKey, async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(1, Number(req.query.days || 1)));
+    const walletAddress = req.query.walletAddress
+      ? String(req.query.walletAddress).toLowerCase()
+      : undefined;
+
+    let apiKeyIds: string[] | undefined = undefined;
+    if (walletAddress) {
+      const keys = await prisma.apiKey.findMany({
+        where: { walletAddress },
+        select: { id: true },
+        take: 200,
+      });
+      apiKeyIds = keys.map((k) => k.id);
+    }
+
+    const since = new Date(Date.now() - days * 86400 * 1000);
+    const rows = await prisma.apiUsage.groupBy({
+      by: ["apiKeyId", "endpoint", "method", "statusCode"],
+      where: {
+        timestamp: { gte: since },
+        ...(apiKeyIds ? { apiKeyId: { in: apiKeyIds } } : {}),
+      },
+      _count: { _all: true },
+      _avg: { latencyMs: true },
+      // Note: Prisma requires orderBy when using take/skip; we sort+slice in JS instead.
+    });
+
+    const sorted = rows.sort((a, b) => (b._count?._all ?? 0) - (a._count?._all ?? 0)).slice(0, 200);
+    res.json({ since, days, rows: sorted });
+  } catch (e) {
+    console.error("[admin/usage] summary failed", e);
+    res.status(500).json({ error: "Failed to fetch usage summary" });
+  }
+});
+
 export default router;
 

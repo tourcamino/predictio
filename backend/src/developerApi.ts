@@ -12,12 +12,24 @@ async function authenticateAPIKey(req: Request, res: Response, next: NextFunctio
 }
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+let pruneStarted = false;
+function ensureRateLimitPrune() {
+  if (pruneStarted) return;
+  pruneStarted = true;
+  setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of rateLimitMap.entries()) {
+      if (now > v.resetAt) rateLimitMap.delete(k);
+    }
+  }, 60_000).unref?.();
+}
 
 function rateLimit(req: Request, res: Response, next: NextFunction) {
   const apiKey = (req as any).apiKey;
   if (!apiKey) {
     return next();
   }
+  ensureRateLimitPrune();
   
   const now = Date.now();
   const windowMs = 60 * 1000; // 1 minute
