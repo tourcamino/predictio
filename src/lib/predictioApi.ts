@@ -11,12 +11,18 @@ type ApiErrorShape = {
 const DEFAULT_DEV_BACKEND = 'http://127.0.0.1:3001';
 
 /** Vinxi/Vite dev + preview: SPA runs on these ports while Express stays on 3001. Do not rely on `import.meta.env.DEV` — it is often false in Vinxi client bundles. */
-function isLocalFrontendDevOrigin(): boolean {
+export function isLocalFrontendDevOrigin(): boolean {
   if (typeof window === 'undefined') return false;
   const { hostname, port } = window.location;
   if (hostname !== 'localhost' && hostname !== '127.0.0.1') return false;
   const p = port || '';
   return ['5173', '5174', '3000', '4173', '3050'].includes(p);
+}
+
+/** Matches backend dev fallback: `BOT_API_KEY` default `dev_bot_key` for `X-Admin-Key` when `ADMIN_SECRET` unset. */
+export function getLocalDevAdminSecretFallback(): string | undefined {
+  if (!isLocalFrontendDevOrigin()) return undefined;
+  return 'dev_bot_key';
 }
 
 export function getApiBaseUrl(): string {

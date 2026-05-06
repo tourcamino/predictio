@@ -2,7 +2,11 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminTopBar } from '~/components/admin/AdminTopBar';
 import { useWallet } from '~/store/useWalletStore';
-import { apiRequest, getApiBaseUrl } from '~/lib/predictioApi';
+import {
+  apiRequest,
+  getApiBaseUrl,
+  getLocalDevAdminSecretFallback,
+} from '~/lib/predictioApi';
 import toast from 'react-hot-toast';
 import { Search, Loader2 } from 'lucide-react';
 
@@ -31,7 +35,9 @@ function EventCurationPage() {
   const navigate = useNavigate();
   const { address, isConnected } = useWallet();
   const founderWallet = (import.meta.env.VITE_FOUNDER_WALLET as string | undefined)?.trim();
-  const adminKey = (import.meta.env.VITE_ADMIN_KEY as string | undefined)?.trim();
+  const adminKeyFromEnv = (import.meta.env.VITE_ADMIN_KEY as string | undefined)?.trim();
+  const adminKey =
+    adminKeyFromEnv || getLocalDevAdminSecretFallback() || '';
 
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -52,6 +58,7 @@ function EventCurationPage() {
   const loadEvents = useCallback(async () => {
     if (!adminKey) {
       setLoading(false);
+      toast.error('Set VITE_ADMIN_KEY or open this page from localhost dev (uses dev_bot_key).');
       return;
     }
     setLoading(true);
@@ -184,10 +191,22 @@ function EventCurationPage() {
           </p>
         </div>
 
-        {!adminKey && (
+        {!adminKeyFromEnv && (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-amber-200 text-sm">
-            Set <code className="font-mono">VITE_ADMIN_KEY</code> to match server{' '}
-            <code className="font-mono">ADMIN_SECRET</code>.
+            {getLocalDevAdminSecretFallback() ? (
+              <>
+                No <code className="font-mono">VITE_ADMIN_KEY</code> — using local fallback{' '}
+                <code className="font-mono">dev_bot_key</code> (same as default backend{' '}
+                <code className="font-mono">BOT_API_KEY</code>). For production, set{' '}
+                <code className="font-mono">VITE_ADMIN_KEY</code> ={' '}
+                <code className="font-mono">ADMIN_SECRET</code>.
+              </>
+            ) : (
+              <>
+                Set <code className="font-mono">VITE_ADMIN_KEY</code> to match server{' '}
+                <code className="font-mono">ADMIN_SECRET</code>.
+              </>
+            )}
           </div>
         )}
 
