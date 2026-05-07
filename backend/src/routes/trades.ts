@@ -273,6 +273,42 @@ router.post(
     const { marketId, outcome, amountUsd, analystWallet, referralWallet } = req.body as any;
     const size = Number(amountUsd);
 
+    // Azuro curated markets lifecycle (OPEN only, closes 5 min before kickoff)
+    const now = new Date();
+    const azuroGameId = typeof marketId === "string" && marketId.startsWith("azuro-")
+      ? marketId.slice("azuro-".length)
+      : null;
+
+    let curated: Awaited<
+      ReturnType<typeof prisma.curatedEvent.findUnique>
+    > | null = null;
+    if (azuroGameId) {
+      try {
+        curated = await prisma.curatedEvent.findUnique({
+          where: { gameId: azuroGameId },
+        });
+      } catch {
+        curated = null;
+      }
+    }
+
+    if (curated) {
+      if ((curated as any).status !== "OPEN") {
+        return res.status(400).json({
+          error: "Market is not open for trading",
+          status: (curated as any).status,
+          lockedAt: curated.lockedAt,
+        });
+      }
+      if (now >= curated.lockedAt) {
+        return res.status(400).json({
+          error: "Trading closed — match lock reached",
+          lockedAt: curated.lockedAt,
+          kickoff: curated.startsAt,
+        });
+      }
+    }
+
     const market = await prisma.market.findUnique({ where: { id: marketId } });
     if (!market || market.status !== "open") {
       return res.status(400).json({ error: "Market not available" });

@@ -1,4 +1,4 @@
-import { Link, useRouterState } from '@tanstack/react-router';
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { BarChart3, Target, PlusCircle, CheckCircle, Users, TrendingUp, Settings, LogOut, Zap, AlertTriangle, FileText, Briefcase, ListChecks } from 'lucide-react';
 import { useAdmin } from '~/store/useAdminStore';
 import { mockAnomalies } from '~/data/mockAdmin';
@@ -26,6 +26,7 @@ const navItems: NavItem[] = [
 
 export function AdminSidebar() {
   const { logout } = useAdmin();
+  const navigate = useNavigate();
   const router = useRouterState();
   const currentPath = router.location.pathname;
 
@@ -34,9 +35,9 @@ export function AdminSidebar() {
   ).length;
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-60 bg-black border-r border-white/10 flex flex-col">
+    <aside className="fixed left-0 top-0 z-40 h-screen w-60 bg-black border-r border-white/10 flex flex-col">
       {/* Logo */}
-      <div className="p-6 border-b border-white/10">
+      <div className="shrink-0 p-6 border-b border-white/10">
         <div className="flex items-center gap-2 mb-2">
           <div className="w-2 h-2 bg-brand-green rounded-full"></div>
           <span className="text-lg font-syne font-bold">PREDICTIO ADMIN</span>
@@ -46,8 +47,8 @@ export function AdminSidebar() {
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      {/* Navigation — scrolls so footer (Logout) stays on screen */}
+      <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentPath === item.path || 
@@ -84,12 +85,16 @@ export function AdminSidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-white/10 space-y-3">
+      <div className="shrink-0 p-4 border-t border-white/10 space-y-3 bg-black">
         <div className="text-xs text-gray-500 font-mono">
           Logged in as: <span className="text-white">admin</span>
         </div>
         <button
-          onClick={logout}
+          type="button"
+          onClick={() => {
+            logout();
+            void navigate({ to: '/admin' });
+          }}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/10 border border-red-500/30 rounded-lg text-sm font-medium text-red-500 hover:bg-red-500/20 transition-colors"
         >
           <LogOut size={16} />

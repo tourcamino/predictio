@@ -34,6 +34,8 @@ const envSchema = z.object({
   AZURO_API_KEY: z.string().optional(),
   AZURO_OPERATOR_ADDRESS: z.string().optional(),
   AZURO_CHAIN_ID: z.string().optional().default("8453"),
+  /** Azuro V3 games/odds — use data-feed subgraph (Polygon prod). Overrides AZURO_GRAPHQL_URL when set. */
+  AZURO_DATA_FEED_URL: z.string().optional(),
   AZURO_GRAPHQL_URL: z.string().optional(),
   
   // OpenRouter (AI)

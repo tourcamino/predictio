@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Bell } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { Bell, LogOut } from 'lucide-react';
+import { useAdmin } from '~/store/useAdminStore';
 
 interface AdminTopBarProps {
   title: string;
@@ -7,7 +9,14 @@ interface AdminTopBarProps {
 }
 
 export function AdminTopBar({ title, breadcrumbs = [] }: AdminTopBarProps) {
+  const navigate = useNavigate();
+  const { logout } = useAdmin();
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const handleLogout = () => {
+    logout();
+    void navigate({ to: '/admin' });
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -52,9 +61,22 @@ export function AdminTopBar({ title, breadcrumbs = [] }: AdminTopBarProps) {
         </div>
 
         {/* Notifications */}
-        <button className="relative p-2 hover:bg-white/5 rounded-lg transition-colors">
+        <button
+          type="button"
+          className="relative p-2 hover:bg-white/5 rounded-lg transition-colors"
+          aria-label="Notifications"
+        >
           <Bell size={18} className="text-gray-400" />
           <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+        </button>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-400 border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 transition-colors"
+        >
+          <LogOut size={16} aria-hidden />
+          Logout
         </button>
       </div>
     </div>

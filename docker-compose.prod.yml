@@ -11,6 +11,8 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=redis://redis:6379
+      - AZURO_DATA_FEED_URL=${AZURO_DATA_FEED_URL}
+      - AZURO_API_URL=${AZURO_API_URL}
       - AZURO_API_KEY=${AZURO_API_KEY}
       - OPENROUTER_KEY=${OPENROUTER_KEY}
       - BOT_API_KEY=${BOT_API_KEY}

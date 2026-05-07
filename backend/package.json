@@ -7,9 +7,9 @@
     "schema": "prisma/schema.prisma"
   },
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "node --dns-result-order=ipv4first --env-file=.env --import tsx src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node --dns-result-order=ipv4first dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy"
   },
