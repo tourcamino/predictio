@@ -46,7 +46,14 @@ export default tseslint.config([
     },
   },
   {
-    ignores: [".vinxi/", ".output/", "src/generated", "app.config.timestamp_*"],
+    ignores: [
+      ".vinxi/",
+      ".output/",
+      "src/generated",
+      "app.config.timestamp_*",
+      /** tsc emit uses CommonJS `require()` — do not lint compiled output */
+      "**/dist/**",
+    ],
   },
   {
     settings: {
