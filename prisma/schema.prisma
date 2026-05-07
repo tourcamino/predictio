@@ -622,6 +622,12 @@ model MarketMakerConfig {
   @@index([updatedAt])
 }
 
+enum MarketStatus {
+  OPEN
+  LOCKED
+  RESOLVED
+}
+
 /// Founder-selected Azuro games surfaced on the platform (max 12 active).
 model CuratedEvent {
   id          String   @id @default(cuid())
@@ -630,13 +636,19 @@ model CuratedEvent {
   leagueName  String
   country     String
   startsAt    DateTime
+  lockedAt    DateTime
+  status      MarketStatus @default(OPEN)
   homeTeam    String
   awayTeam    String
   homeImage   String?
   awayImage   String?
   isActive    Boolean  @default(true)
   selectedAt  DateTime @default(now())
+  resolvedAt  DateTime?
+  result      String?
   selectedBy  String
+  importanceScore Int     @default(0)
+  autoPublish     Boolean @default(false)
 
   @@index([isActive])
   @@index([startsAt])

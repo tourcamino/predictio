@@ -33,6 +33,9 @@ import {
 import { ApiError } from "./middleware/errors";
 import { requireAdminKey } from "./middleware/auth";
 
+// Market lifecycle updater (OPEN → LOCKED → RESOLVED)
+import "./jobs/marketStatusUpdater";
+
 function requireEnv(name: string): string | undefined {
   const v = process.env[name];
   return v && v.trim().length > 0 ? v : undefined;

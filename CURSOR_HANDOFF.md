@@ -405,29 +405,67 @@ Sono stati inoltre aggiunti:
 
 ---
 
-## Event Curation (Azuro) — 2026-05-06
+## Event Curation (Azuro) — 2026-05-06 / aggiornato 2026-05-07
 
 **Fatto**
 - Tabella PostgreSQL `curated_events` (model Prisma `CuratedEvent`), migration `20260506120000_curated_events` (root `Predictio/prisma` + mirror `Predictio/backend/prisma`).
+- Campi aggiuntivi: `importanceScore`, `autoPublish` — migration backend `20260507183000_curated_event_scores` (aggiungere mirror in root `prisma/migrations` se necessario in deploy).
 - Backend Express:
-  - `GET /api/admin/azuro-events` — lista football da subgraph Azuro (14 giorni, kickoff futuri), merge `isSelected` da DB; cache Redis `REDIS_URL` **5 minuti** (chiave `admin:azuro:football:14d:v1`; senza Redis niente cache).
-  - `POST /api/admin/events/select` — body `{ gameId, selected, selectedBy? }`; max **12** righe con `isActive: true`; header **`X-Admin-Key`** (`ADMIN_SECRET`, fallback `ADMIN_API_KEY`).
-  - `GET /api/markets` — lista pubblica solo eventi curati attivi; include `startsAt` e `lockedAt` (= kickoff).
+  - `GET /api/admin/azuro-events` — football nei prossimi **15 giorni** solo in **JavaScript** dopo fetch. GraphQL: **no** `startsAt_gt/lt`, `first: 200`, `Prematch` + `activeConditionsCount_gt`, order `startsAt` asc. Pipeline condivisa **`backend/src/services/eventCurationPipeline.ts`**: EU/blacklist/whitelist, **`importanceScore`**, **`autoPublish`** (`isAutoPublish`). Payload `games` / `events` allineati sui nomi campi.
+  - `POST /api/admin/events/select` — max **12** attivi; persist **`importanceScore`** e **`autoPublish`**; `lockedAt` = startsAt − 5 min.
+  - `GET /api/markets` — pubblico; solo `isActive: true`, **max 12**, sort **`importanceScore` desc** poi **`startsAt` asc**; campi `importanceScore`, `autoPublish`, `status`, `startsAt`, `lockedAt`, `timeToLock`, `result`, ecc.
+- **Auto-publish**: ogni ~60s il job `marketStatusUpdater` (dopo OPEN/LOCKED/RESOLVED) crea fino a cap 12 eventi con `autoPublish` e `selectedBy: "AUTO"` (solo **create** se `gameId` non esiste).
 - Middleware `requireXAdminKey` in `backend/src/middleware/auth.ts`.
-- Servizi: `backend/src/services/redisCache.ts`, `backend/src/services/azuroCuratorGraphql.ts`, wiring `registerAdminCurationRoutes` in `backend/src/index.ts`.
+- Servizi: `eventCurationPipeline.ts`, `azuroCuratorGraphql.ts`, `redisCache.ts`, wiring `registerAdminCurationRoutes` in `backend/src/index.ts`.
 - tRPC `getAzuroMarkets`: se esiste almeno un `CuratedEvent` attivo, la lista mercati è **filtrata** a quei `gameId` (allineato ad Azuro); se non ci sono curati, comportamento precedente (nessun filtro).
-- Frontend: route `/admin/event-curation` — counter 12, ricerca, checkbox, Save Selection, toast; sidebar link “Event Curation”; `VITE_ADMIN_KEY` + `VITE_FOUNDER_WALLET` (optional gate).
-- `SeedMarket.event.lockedAt` + mapping Azuro `lockedAt` = `startsAt` ISO.
+- Frontend `/admin/event-curation`: filtri **lega**, **data**, **paese** (preferiti + **Europe (coppe europee)** + paesi dinamici dai dati); “top match” = **`importanceScore > 70`**; badge 🔥/⭐/📅 e colonna **Auto** (✓).
+- `lockedAt` = `startsAt - 5 minutes` (trading closes 5 min before kickoff).
+
+## Market Lifecycle (OPEN → LOCKED → RESOLVED) — 2026-05-07
+
+**Schema**
+- Prisma enum `MarketStatus`: `OPEN`, `LOCKED`, `RESOLVED`
+- `CuratedEvent` fields: `lockedAt`, `status`, `resolvedAt`, `result`, `importanceScore`, `autoPublish`
+- Migrations: `20260507141700_market_lifecycle`, `20260507183000_curated_event_scores`
+
+**Job**
+- `backend/src/jobs/marketStatusUpdater.ts`
+  - Runs every 60s
+  - `OPEN → LOCKED` when `lockedAt <= now`
+  - `LOCKED → RESOLVED` via Azuro state check (placeholder logic)
+  - Auto-publish eventi importanti (cap 12 attivi)
+- Wired in `backend/src/index.ts` via `import "./jobs/marketStatusUpdater";`
+
+**Trading guard**
+- `POST /api/trades` blocks trading for curated Azuro markets when `status != OPEN` or `now >= lockedAt`.
 
 **Env**
-- Backend: `ADMIN_SECRET`, `REDIS_URL` (opzionale), `AZURO_CURATOR_GRAPHQL_URL` opzionale (default stessa catena di `AZURO_GRAPHQL_URL` / Base v3).
-- Frontend: `VITE_API_URL` verso API Express, `VITE_ADMIN_KEY`, `VITE_FOUNDER_WALLET`.
+- Backend: `ADMIN_SECRET`, `REDIS_URL` (opzionale), `AZURO_DATA_FEED_URL` (required for games), `AZURO_API_URL` (optional for historical bets).
+- Frontend (root `.env`): `VITE_API_URL` verso API Express, `VITE_ADMIN_KEY`, `VITE_FOUNDER_WALLET`.
+- **Server-side Azuro nel monorepo** (`src/services/azuro.ts`, tRPC / Vinxi): `AZURO_DATA_FEED_URL` — stesso URL del data-feed Polygon V3; ha priorità su `AZURO_GRAPHQL_URL`. Default in codice = onchainfeed data-feed se nessuno dei due è settato.
+
+**Azuro V3 — Hosted service deprecato**
+- The Graph hosted service è stato spento (2024). Non usare `thegraph.com/hosted-service/...` per le partite.
+- In Azuro V3 le entità **games/sport/league/odds** sono nel **data-feed graph**, non nell’API graph.
+
+**Env Azuro (Polygon mainnet)**
+- `AZURO_DATA_FEED_URL=https://thegraph-1.onchainfeed.org/subgraphs/name/azuro-protocol/azuro-data-feed-polygon`
+- `AZURO_API_URL=https://thegraph.onchainfeed.org/subgraphs/name/azuro-protocol/azuro-api-polygon-v3` (non serve per Event Curation)
+
+**Testnet (Base Sepolia)**
+- Quando saremo in testnet **Base Sepolia**, basterà allineare `AZURO_DATA_FEED_URL` alla chain/indexer usati dall’app (solo env).
+
+**Debug**
+- Endpoint temporaneo: `GET /api/admin/azuro-raw-test` (header `X-Admin-Key`) ritorna la risposta **grezza** e stampa `AZURO RAW RESPONSE` nei log.
+- `GET /api/admin/azuro-test` — stesso header; usa **V3 data-feed** (`AZURO_DATA_FEED_URL` o fallback `AZURO_GRAPHQL_URL` normalizzato), query `state: Prematch`.
+- Script locale: `node scripts/debug-azuro-subgraph.mjs` (HTTP 200 + lista gameId se l’indexer risponde).
+- `docker-compose.prod.yml` — passa `AZURO_DATA_FEED_URL` e `AZURO_API_URL` al servizio `backend` (valorizzare nel `.env` del deploy).
 
 **Migration**
 - Applicare: `npx prisma migrate deploy` (root app) e backend deploy con stesso migration history.
 
 **Prossimi step**
 - Eseguire `migrate deploy` su DB staging/prod.
-- Verificare subgraph Azuro produzione (Base vs Polygon) e allineare `AZURO_GRAPHQL_URL` / `AZURO_CURATOR_GRAPHQL_URL`.
+- Verificare subgraph Azuro produzione (Base vs Polygon) e allineare `AZURO_DATA_FEED_URL`.
 - ~~Opzionale: invalidare cache Redis dopo POST select~~ — fatto (`cacheDel` su `POST /api/admin/events/select`).
 - Opzionale: batch API per Save in una singola richiesta.

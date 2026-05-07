@@ -1,14 +1,23 @@
+const AZURO_FEED_URL = process.env.AZURO_DATA_FEED_URL;
+
 /**
- * Azuro GraphQL for admin event curation (football, next 14 days).
- * Uses AZURO_CURATOR_GRAPHQL_URL or AZURO_GRAPHQL_URL — must match the chain used by the app indexer.
+ * Legacy The Graph "hosted service" URLs are HTML pages, not GraphQL endpoints.
+ * Map `thegraph.com/hosted-service/subgraph/owner/name` → `api.thegraph.com/subgraphs/name/owner/name`.
  */
-
-const DEFAULT_GRAPHQL =
-  process.env.AZURO_CURATOR_GRAPHQL_URL?.trim() ||
-  process.env.AZURO_GRAPHQL_URL?.trim() ||
-  "https://thegraph.azuro.org/subgraphs/name/azuro-protocol/azuro-api-base-v3";
-
-const FETCH_TIMEOUT_MS = 15_000;
+export function normalizeAzuroGraphqlUrl(raw: string): string {
+  const u = raw.trim();
+  if (!u) return u;
+  try {
+    const parsed = new URL(u);
+    const m = parsed.pathname.match(/\/hosted-service\/subgraph\/([^/]+)\/([^/]+)\/?$/);
+    if (m && parsed.hostname === "thegraph.com") {
+      return `https://api.thegraph.com/subgraphs/name/${m[1]}/${m[2]}`;
+    }
+  } catch {
+    // keep raw
+  }
+  return u;
+}
 
 export type NormalizedCuratorGame = {
   gameId: string;
@@ -24,165 +33,117 @@ export type NormalizedCuratorGame = {
   status: string;
 };
 
-type MappedCuratorGame = NormalizedCuratorGame & { sportName: string };
-
-/** Same shape as app `ACTIVE_GAMES_QUERY` — do not request `title` on Game (not on all subgraph versions). */
-const CURATOR_GAMES_QUERY = `
-  query CuratorGames($first: Int!, $where: Game_filter) {
-    games(
-      first: $first
-      where: $where
-      orderBy: startsAt
-      orderDirection: asc
-    ) {
-      id
-      gameId
-      sport {
-        sportId
-        name
-      }
-      league {
-        name
-        slug
-        country {
-          name
-        }
-      }
-      participants {
-        name
-        image
-      }
-      startsAt
-      status
-      conditions(where: { status: "Created" }) {
-        conditionId
-        status
-      }
-    }
-  }
-`;
-
-const CURATOR_GAMES_QUERY_LITE = `
-  query CuratorGamesLite($first: Int!, $where: Game_filter) {
-    games(
-      first: $first
-      where: $where
-      orderBy: startsAt
-      orderDirection: asc
-    ) {
-      id
-      gameId
-      sport {
-        sportId
-        name
-      }
-      league {
-        name
-        slug
-        country {
-          name
-        }
-      }
-      participants {
-        name
-        image
-      }
-      startsAt
-      status
-    }
-  }
-`;
-
-const SINGLE_GAME_QUERY = `
-  query CuratorGame($gameId: String!) {
-    games(where: { gameId: $gameId }) {
-      id
-      gameId
-      sport {
-        sportId
-        name
-      }
-      league {
-        name
-        slug
-        country {
-          name
-        }
-      }
-      participants {
-        name
-        image
-      }
-      startsAt
-      status
-    }
-  }
-`;
-
-function graphqlEndpoint(): string {
-  return DEFAULT_GRAPHQL;
-}
-
-/** Subgraph URL used for curation (env or default Base v3). */
-export function getAzuroCuratorGraphqlUrl(): string {
-  return graphqlEndpoint();
-}
-
 export type CuratorFetchDiagnostics = {
   graphqlUrl: string;
-  /** Largest raw `games` array length from the indexer before football / time filters */
+  /** Total `games` rows returned by Azuro before JS filters */
   indexerRawCount: number;
-  /** Games after football + 14d + future-kickoff filters */
+  /** Football games after JS filters in 14d window */
   footballInWindowCount: number;
   /** True if at least one GraphQL round-trip succeeded without errors */
   querySucceeded: boolean;
   lastError?: string;
 };
 
-async function graphqlFetch(body: object): Promise<Response> {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    return await fetch(graphqlEndpoint(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(t);
+export type RawAzuroGame = {
+  id?: string;
+  gameId?: string;
+  title?: string;
+  startsAt?: string | number;
+  state?: string;
+  sport?: { name?: string; slug?: string };
+  league?: { name?: string; country?: { name?: string } };
+  participants?: Array<{ name?: string; image?: string | null; sortOrder?: number }>;
+  activeConditionsCount?: number;
+};
+
+export async function fetchAzuroGames(): Promise<RawAzuroGame[]> {
+  if (!AZURO_FEED_URL) {
+    throw new Error("AZURO_DATA_FEED_URL is not set");
   }
+
+  const query = `
+    query Games {
+      games(
+        first: 200
+        where: {
+          state: Prematch
+          activeConditionsCount_gt: 0
+        }
+        orderBy: startsAt
+        orderDirection: asc
+      ) {
+        id
+        gameId
+        title
+        startsAt
+        state
+        sport {
+          name
+          slug
+        }
+        league {
+          name
+          country {
+            name
+          }
+        }
+        participants {
+          name
+          image
+          sortOrder
+        }
+        activeConditionsCount
+      }
+    }
+  `;
+
+  const response = await fetch(AZURO_FEED_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+
+  const json = (await response.json()) as {
+    data?: { games?: RawAzuroGame[] };
+    errors?: unknown;
+  };
+
+  // eslint-disable-next-line no-console
+  console.log("AZURO RESPONSE STATUS:", response.status);
+  // eslint-disable-next-line no-console
+  console.log("AZURO RAW:", JSON.stringify(json).substring(0, 500));
+
+  if ((json as any).errors) {
+    throw new Error(JSON.stringify((json as any).errors));
+  }
+
+  return json.data?.games || [];
 }
 
-function mapGame(raw: Record<string, unknown>): MappedCuratorGame | null {
-  const gameId = typeof raw.gameId === "string" ? raw.gameId : "";
+function normalizeGame(raw: RawAzuroGame): NormalizedCuratorGame | null {
+  const gameId = typeof raw.gameId === "string" ? raw.gameId.trim() : "";
   if (!gameId) return null;
 
-  const startsRaw = raw.startsAt;
   const startsUnix =
-    typeof startsRaw === "string" ? parseInt(startsRaw, 10) : Number(startsRaw);
+    typeof raw.startsAt === "string" ? parseInt(raw.startsAt, 10) : Number(raw.startsAt);
   if (!Number.isFinite(startsUnix)) return null;
 
-  const league = raw.league as Record<string, unknown> | undefined;
-  const countryObj = league?.country as Record<string, unknown> | undefined;
-  const leagueName = typeof league?.name === "string" ? league.name : "";
-  const country = typeof countryObj?.name === "string" ? countryObj.name : "";
+  const leagueName = raw.league?.name?.trim() || "";
+  const country = raw.league?.country?.name?.trim() || "";
 
-  const participants = Array.isArray(raw.participants)
-    ? (raw.participants as Array<{ name?: string; image?: string | null }>)
-    : [];
-  const homeTeam = participants[0]?.name?.trim() || "Home";
-  const awayTeam = participants[1]?.name?.trim() || "Away";
-  const homeImage = participants[0]?.image ?? null;
-  const awayImage = participants[1]?.image ?? null;
+  const participants = Array.isArray(raw.participants) ? raw.participants : [];
+  const sorted = [...participants].sort(
+    (a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0),
+  );
+  const homeTeam = sorted[0]?.name?.trim() || "Home";
+  const awayTeam = sorted[1]?.name?.trim() || "Away";
+  const homeImage = sorted[0]?.image ?? null;
+  const awayImage = sorted[1]?.image ?? null;
 
-  const sport = raw.sport as { name?: string } | undefined;
-  const sportDisplayName = sport?.name?.trim() || "";
-  const sportName = sportDisplayName.toLowerCase();
-
-  const title = `${homeTeam} vs ${awayTeam}`;
-
-  const status = String(raw.status ?? "");
+  const title =
+    typeof raw.title === "string" && raw.title.trim().length > 0
+      ? raw.title.trim()
+      : `${homeTeam} vs ${awayTeam}`;
 
   const startsAt = new Date(startsUnix * 1000).toISOString();
 
@@ -197,157 +158,162 @@ function mapGame(raw: Record<string, unknown>): MappedCuratorGame | null {
     awayTeam,
     homeImage,
     awayImage,
-    status,
-    sportName,
+    status: String(raw.state || ""),
   };
 }
 
-/** Mirrors `mapAzuroSportToSlug` in app `services/azuro.ts` — soccer vs american-football. */
-function sportSlugFromAzuroName(name: string): string {
-  const sportMap: Record<string, string> = {
-    Soccer: "football",
-    Football: "football",
-    Basketball: "basketball",
-    Tennis: "tennis",
-    MMA: "mma",
-    "Mixed Martial Arts": "mma",
-    "American Football": "american-football",
-    "Ice Hockey": "hockey",
-    Baseball: "baseball",
-    Esports: "esports",
-  };
-  return sportMap[name] || "football";
-}
-
-function isSoccerFootball(rawSportName: string): boolean {
-  return sportSlugFromAzuroName(rawSportName.trim()) === "football";
-}
-
-/** Football games with kickoff in (now, now+14d]. Same indexer filter as app `fetchAzuroGames`. */
 export async function fetchFootballGamesNext14Days(): Promise<{
   games: NormalizedCuratorGame[];
   diagnostics: CuratorFetchDiagnostics;
 }> {
-  const graphqlUrl = graphqlEndpoint();
-  const nowSec = Math.floor(Date.now() / 1000);
-  const endSec = nowSec + 14 * 24 * 3600;
+  const graphqlUrl = AZURO_FEED_URL || "";
 
-  let indexerRawCount = 0;
   let querySucceeded = false;
   let lastError: string | undefined;
 
-  const whereVariants: Record<string, unknown>[] = [
-    {
-      status_in: ["Created", "Paused"],
-      startsAt_gt: nowSec.toString(),
-    },
-  ];
+  try {
+    const allGames = await fetchAzuroGames();
+    querySucceeded = true;
 
-  for (const where of whereVariants) {
-    try {
-      let res = await graphqlFetch({
-        query: CURATOR_GAMES_QUERY,
-        variables: { first: 300, where },
-      });
-      let text = await res.text();
-      let json = JSON.parse(text) as {
-        errors?: unknown;
-        data?: { games?: Record<string, unknown>[] };
-      };
+    // ── 1. LOG per vedere nomi esatti leghe ──
+    const allLeagues = [
+      ...new Set(
+        allGames.map(
+          (g) => `${g.sport?.name} | ${g.league?.country?.name} | ${g.league?.name}`,
+        ),
+      ),
+    ].sort();
+    // eslint-disable-next-line no-console
+    console.log("LEGHE DISPONIBILI:\n" + allLeagues.join("\n"));
 
-      if (!res.ok) {
-        console.warn("[azuroCurator] HTTP", res.status, text.slice(0, 200));
-        lastError = `HTTP ${res.status}`;
-        continue;
-      }
-      if (json.errors) {
-        console.warn("[azuroCurator] GraphQL errors (full query), retrying lite:", JSON.stringify(json.errors).slice(0, 400));
-        res = await graphqlFetch({
-          query: CURATOR_GAMES_QUERY_LITE,
-          variables: { first: 300, where },
-        });
-        text = await res.text();
-        json = JSON.parse(text) as {
-          errors?: unknown;
-          data?: { games?: Record<string, unknown>[] };
-        };
-        if (!res.ok || json.errors) {
-          console.warn("[azuroCurator] GraphQL errors (lite):", JSON.stringify(json.errors).slice(0, 600));
-          lastError = json.errors ? JSON.stringify(json.errors).slice(0, 200) : `HTTP ${res.status}`;
-          continue;
-        }
-      }
+    // ── 2. Paesi europei whitelist ──
+    const EUROPEAN_COUNTRIES = [
+      "england",
+      "italy",
+      "spain",
+      "germany",
+      "france",
+      "portugal",
+      "netherlands",
+      "belgium",
+      "turkey",
+      "scotland",
+      "austria",
+      "ukraine",
+      "russia",
+      "switzerland",
+      "greece",
+      "denmark",
+      "sweden",
+      "norway",
+      "czech republic",
+      "croatia",
+      "serbia",
+      "europe", // per Champions, Europa League, Conference
+    ];
 
-      querySucceeded = true;
-      const games = json.data?.games || [];
-      indexerRawCount = Math.max(indexerRawCount, games.length);
-      const mapped: NormalizedCuratorGame[] = [];
-      for (const g of games) {
-        const row = mapGame(g as Record<string, unknown>);
-        if (!row) continue;
-        const sportDisplay = (g as { sport?: { name?: string } }).sport?.name ?? "";
-        if (!isSoccerFootball(sportDisplay)) continue;
-        if (row.startsAtUnix <= nowSec) continue;
-        if (row.startsAtUnix > endSec) continue;
-        const { sportName: _s, ...rest } = row;
-        void _s;
-        mapped.push(rest);
-      }
+    // ── 3. Leghe prioritarie (mostrate per prime) ──
+    const PRIORITY_LEAGUES = [
+      "champions league",
+      "europa league",
+      "conference league",
+      "serie a",
+      "premier league",
+      "la liga",
+      "bundesliga",
+      "ligue 1",
+      "primeira liga",
+      "eredivisie",
+      "super lig",
+    ];
 
-      mapped.sort((a, b) => a.startsAtUnix - b.startsAtUnix);
-      if (mapped.length > 0) {
-        return {
-          games: mapped,
-          diagnostics: {
-            graphqlUrl,
-            indexerRawCount,
-            footballInWindowCount: mapped.length,
-            querySucceeded: true,
-          },
-        };
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn("[azuroCurator] fetch attempt failed:", msg);
-      lastError = msg;
+    // ── 4. Filtra calcio europeo ──
+    const now = Math.floor(Date.now() / 1000);
+    const fifteenDays = now + 15 * 24 * 60 * 60;
+
+    const europeanFootball = allGames.filter((game) => {
+      // solo calcio
+      if (game.sport?.slug !== "football") return false;
+
+      // solo partite future nei prossimi 15 giorni
+      const kickoff = parseInt(String(game.startsAt), 10);
+      if (!Number.isFinite(kickoff) || kickoff <= now || kickoff > fifteenDays) return false;
+
+      // solo paesi europei
+      const country = (game.league?.country?.name || "").toLowerCase();
+      return EUROPEAN_COUNTRIES.some((c) => country.includes(c));
+    });
+
+    // ── 5. Ordina: leghe prioritarie prima, poi per data ──
+    europeanFootball.sort((a, b) => {
+      const leagueA = (a.league?.name || "").toLowerCase();
+      const leagueB = (b.league?.name || "").toLowerCase();
+
+      const prioA = PRIORITY_LEAGUES.findIndex((l) => leagueA.includes(l));
+      const prioB = PRIORITY_LEAGUES.findIndex((l) => leagueB.includes(l));
+
+      const rankA = prioA === -1 ? 999 : prioA;
+      const rankB = prioB === -1 ? 999 : prioB;
+
+      if (rankA !== rankB) return rankA - rankB;
+      return parseInt(String(a.startsAt), 10) - parseInt(String(b.startsAt), 10);
+    });
+
+    // eslint-disable-next-line no-console
+    console.log("Totale giochi Azuro:", allGames.length);
+    // eslint-disable-next-line no-console
+    console.log("Calcio europeo 15gg:", europeanFootball.length);
+    // eslint-disable-next-line no-console
+    console.log("Prime 20 partite:");
+    europeanFootball.slice(0, 20).forEach((g) =>
+      // eslint-disable-next-line no-console
+      console.log(
+        `  ${g.participants?.[0]?.name} vs ${g.participants?.[1]?.name}`,
+        `| ${g.league?.name}`,
+        `| ${new Date(parseInt(String(g.startsAt), 10) * 1000).toLocaleDateString("it-IT")}`,
+      ),
+    );
+
+    const normalized: NormalizedCuratorGame[] = [];
+    for (const g of europeanFootball) {
+      const mapped = normalizeGame(g);
+      if (mapped) normalized.push(mapped);
     }
-  }
 
-  console.warn(
-    "[azuroCurator] No football games in 14d window — check AZURO_GRAPHQL_URL / indexer chain.",
-  );
-  return {
-    games: [],
-    diagnostics: {
-      graphqlUrl,
-      indexerRawCount,
-      footballInWindowCount: 0,
-      querySucceeded,
-      lastError,
-    },
-  };
+    normalized.sort((a, b) => a.startsAtUnix - b.startsAtUnix);
+
+    return {
+      games: normalized,
+      diagnostics: {
+        graphqlUrl,
+        indexerRawCount: allGames.length,
+        footballInWindowCount: normalized.length,
+        querySucceeded: true,
+      },
+    };
+  } catch (e) {
+    lastError = e instanceof Error ? e.message : String(e);
+    // eslint-disable-next-line no-console
+    console.warn("[azuroCurator] fetch failed:", lastError);
+    return {
+      games: [],
+      diagnostics: {
+        graphqlUrl,
+        indexerRawCount: 0,
+        footballInWindowCount: 0,
+        querySucceeded,
+        lastError,
+      },
+    };
+  }
 }
 
 export async function fetchGameByGameId(gameId: string): Promise<NormalizedCuratorGame | null> {
   try {
-    const res = await graphqlFetch({
-      query: SINGLE_GAME_QUERY,
-      variables: { gameId },
-    });
-    const text = await res.text();
-    const json = JSON.parse(text) as {
-      errors?: unknown;
-      data?: { games?: Record<string, unknown>[] };
-    };
-
-    if (!res.ok || json.errors) return null;
-    const raw = json.data?.games?.[0];
-    if (!raw) return null;
-    const mapped = mapGame(raw as Record<string, unknown>);
-    if (!mapped) return null;
-    const { sportName: _sn, ...rest } = mapped;
-    void _sn;
-    return rest;
+    const allGames = await fetchAzuroGames();
+    const found = allGames.find((g) => String(g.gameId || "") === gameId);
+    if (!found) return null;
+    return normalizeGame(found);
   } catch {
     return null;
   }
