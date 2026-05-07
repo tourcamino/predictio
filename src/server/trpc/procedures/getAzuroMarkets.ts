@@ -12,7 +12,30 @@ import {
 // Server-side football focus check
 // In production, this could be an environment variable
 const FOOTBALL_FOCUS_ENABLED = true;
-const PRIORITY_COMPETITIONS = ['UEFA Champions League', 'Serie A'];
+const PRIORITY_COMPETITIONS = ["UEFA Champions League", "Serie A"];
+/** When founder curation is active, match Express `GET /api/markets` (max 12, importance ↓ then kickoff ↑). */
+const CURATED_MARKETS_CAP = 12;
+
+function sortByCuratedMeta(
+  markets: AzuroMarket[],
+  curatedByGameId: Map<string, { importanceScore: number; startsAtMs: number }>,
+): AzuroMarket[] {
+  return [...markets].sort((a, b) => {
+    const ga = a.azuroGameId;
+    const gb = b.azuroGameId;
+    if (!ga || !gb) return 0;
+    const ca = curatedByGameId.get(ga);
+    const cb = curatedByGameId.get(gb);
+    if (ca && cb) {
+      const scoreDiff = cb.importanceScore - ca.importanceScore;
+      if (scoreDiff !== 0) return scoreDiff;
+      return ca.startsAtMs - cb.startsAtMs;
+    }
+    if (ca && !cb) return -1;
+    if (!ca && cb) return 1;
+    return b.volume24h - a.volume24h;
+  });
+}
 
 export const getAzuroMarkets = baseProcedure
   .input(
@@ -44,12 +67,26 @@ export const getAzuroMarkets = baseProcedure
       console.warn("[getAzuroMarkets] Skipping DB merge:", err);
     }
 
+    let curatedByGameId: Map<string, { importanceScore: number; startsAtMs: number }> | null =
+      null;
+
     try {
       const activeCurated = await db.curatedEvent.findMany({
         where: { isActive: true },
-        select: { gameId: true },
       });
       if (activeCurated.length > 0) {
+        curatedByGameId = new Map(
+          activeCurated.map((c) => {
+            const imp = (c as { importanceScore?: number }).importanceScore ?? 0;
+            return [
+              c.gameId,
+              {
+                importanceScore: imp,
+                startsAtMs: c.startsAt.getTime(),
+              },
+            ];
+          }),
+        );
         const allow = new Set(activeCurated.map((c) => c.gameId));
         markets = markets.filter(
           (m) => m.azuroGameId != null && allow.has(m.azuroGameId),
@@ -58,26 +95,29 @@ export const getAzuroMarkets = baseProcedure
     } catch (err) {
       console.warn("[getAzuroMarkets] Curated filter skipped:", err);
     }
-    
+
     // Enforce football-only filtering when football focus is enabled
     if (FOOTBALL_FOCUS_ENABLED) {
-      markets = markets.filter(m => m.sport === 'football');
-      
-      // Sort to prioritize Serie A and Champions League
-      markets.sort((a, b) => {
-        const aIsPriority = PRIORITY_COMPETITIONS.some(comp => 
-          a.competition.toLowerCase().includes(comp.toLowerCase())
-        );
-        const bIsPriority = PRIORITY_COMPETITIONS.some(comp => 
-          b.competition.toLowerCase().includes(comp.toLowerCase())
-        );
-        
-        if (aIsPriority && !bIsPriority) return -1;
-        if (!aIsPriority && bIsPriority) return 1;
-        
-        // Secondary sort by volume
-        return b.volume24h - a.volume24h;
-      });
+      markets = markets.filter((m) => m.sport === "football");
+
+      if (curatedByGameId && curatedByGameId.size > 0) {
+        markets = sortByCuratedMeta(markets, curatedByGameId);
+      } else {
+        // Sort to prioritize Serie A and Champions League
+        markets.sort((a, b) => {
+          const aIsPriority = PRIORITY_COMPETITIONS.some((comp) =>
+            a.competition.toLowerCase().includes(comp.toLowerCase()),
+          );
+          const bIsPriority = PRIORITY_COMPETITIONS.some((comp) =>
+            b.competition.toLowerCase().includes(comp.toLowerCase()),
+          );
+
+          if (aIsPriority && !bIsPriority) return -1;
+          if (!aIsPriority && bIsPriority) return 1;
+
+          return b.volume24h - a.volume24h;
+        });
+      }
     }
     
     // Apply additional filters if provided
@@ -93,6 +133,14 @@ export const getAzuroMarkets = baseProcedure
     
     if (input?.status && input.status !== 'all') {
       filteredMarkets = filteredMarkets.filter(m => m.status === input.status);
+    }
+
+    if (
+      curatedByGameId &&
+      curatedByGameId.size > 0 &&
+      FOOTBALL_FOCUS_ENABLED
+    ) {
+      filteredMarkets = sortByCuratedMeta(filteredMarkets, curatedByGameId);
     }
 
     let usedEmptyFallback = false;
@@ -124,7 +172,11 @@ export const getAzuroMarkets = baseProcedure
       }
     }
     
-    const cappedMarkets = filteredMarkets.slice(0, MAX_FOOTBALL_MARKETS);
+    const listCap =
+      curatedByGameId && curatedByGameId.size > 0
+        ? CURATED_MARKETS_CAP
+        : MAX_FOOTBALL_MARKETS;
+    const cappedMarkets = filteredMarkets.slice(0, listCap);
 
     const source =
       mergedDbCount > 0

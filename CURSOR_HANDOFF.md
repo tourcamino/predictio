@@ -417,7 +417,7 @@ Sono stati inoltre aggiunti:
 - **Auto-publish**: ogni ~60s il job `marketStatusUpdater` (dopo OPEN/LOCKED/RESOLVED) crea fino a cap 12 eventi con `autoPublish` e `selectedBy: "AUTO"` (solo **create** se `gameId` non esiste).
 - Middleware `requireXAdminKey` in `backend/src/middleware/auth.ts`.
 - Servizi: `eventCurationPipeline.ts`, `azuroCuratorGraphql.ts`, `redisCache.ts`, wiring `registerAdminCurationRoutes` in `backend/src/index.ts`.
-- tRPC `getAzuroMarkets`: se esiste almeno un `CuratedEvent` attivo, la lista mercati è **filtrata** a quei `gameId` (allineato ad Azuro); se non ci sono curati, comportamento precedente (nessun filtro).
+- tRPC `getAzuroMarkets`: con almeno un `CuratedEvent` attivo, la lista è **filtrata** a quei `gameId` e **ordinata come `GET /api/markets`** (`importanceScore` desc, `startsAt` asc), **fino a 12** righe; senza curati resta il sort per priorità leghe / volume e cap `MAX_FOOTBALL_MARKETS` (9).
 - Frontend `/admin/event-curation`: filtri **lega**, **data**, **paese** (preferiti + **Europe (coppe europee)** + paesi dinamici dai dati); “top match” = **`importanceScore > 70`**; badge 🔥/⭐/📅 e colonna **Auto** (✓).
 - `lockedAt` = `startsAt - 5 minutes` (trading closes 5 min before kickoff).
 
