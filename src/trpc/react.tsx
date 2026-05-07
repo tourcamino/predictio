@@ -2,7 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import {
   loggerLink,
   splitLink,
-  httpBatchStreamLink,
+  httpBatchLink,
   httpSubscriptionLink,
   createTRPCClient,
   type Operation,
@@ -50,9 +50,12 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
         }),
         splitLink({
           condition: (op: Operation) => op.type === "subscription",
-          false: httpBatchStreamLink({
+          // Non-streaming batch: avoids "Stream closed" when proxies, SSR, or slow
+          // Azuro payloads interrupt httpBatchStreamLink's chunked response.
+          false: httpBatchLink({
             transformer: SuperJSON,
             url: getBaseUrl() + "/trpc",
+            maxURLLength: Infinity,
           }),
           true: httpSubscriptionLink({
             transformer: SuperJSON,
