@@ -9,7 +9,8 @@ import { useTRPC } from '~/trpc/react';
 import { seedMarketToLiveMarket } from '~/utils/seedMarketToLiveMarket';
 import type { Market } from '~/data/mockMarkets';
 
-const HOME_MARKET_CARD_COUNT = 6;
+/** Match curated cap (12) / football grid expectations — same pool as `/markets`. */
+const HOME_MARKET_CARD_COUNT = 12;
 
 export function LiveMarkets() {
   const navigate = useNavigate();

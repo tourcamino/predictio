@@ -9,6 +9,14 @@ import { SEED_MARKETS } from "~/data/seedMarkets";
 import { fetchAzuroGameDetail } from "~/services/azuro";
 import type { SeedMarket } from "~/data/seedMarkets";
 
+function safeDecodeMarketIdParam(raw: string): string {
+  try {
+    return decodeURIComponent(raw.trim());
+  } catch {
+    return raw.trim();
+  }
+}
+
 function seedStatusToUi(s: SeedMarket["status"], endsAt: Date): Market["status"] {
   switch (s) {
     case "resolved":
@@ -31,26 +39,30 @@ function seedStatusToUi(s: SeedMarket["status"], endsAt: Date): Market["status"]
 export const getMarketDetail = baseProcedure
   .input(z.object({ marketId: z.string() }))
   .query(async ({ input }) => {
-    const marketId = normalizeMarketIdParam(input.marketId);
+    const marketId = normalizeMarketIdParam(safeDecodeMarketIdParam(input.marketId));
 
     // Check if this is an Azuro market
     if (marketId.startsWith('azuro-')) {
-      const syncedAzuro = await db.market.findUnique({
-        where: { id: marketId },
-      });
-      if (syncedAzuro) {
-        const market = prismaMarketToUi(syncedAzuro);
-        const predictionHistory = generateMockPredictionHistory(market);
-        return {
-          market,
-          predictionHistory,
-          azuroData: {
-            gameId: marketId.replace(/^azuro-/, ''),
-            conditionId: undefined,
-            status: undefined,
-            result: undefined,
-          },
-        };
+      try {
+        const syncedAzuro = await db.market.findUnique({
+          where: { id: marketId },
+        });
+        if (syncedAzuro) {
+          const market = prismaMarketToUi(syncedAzuro);
+          const predictionHistory = generateMockPredictionHistory(market);
+          return {
+            market,
+            predictionHistory,
+            azuroData: {
+              gameId: marketId.replace(/^azuro-/, ''),
+              conditionId: undefined,
+              status: undefined,
+              result: undefined,
+            },
+          };
+        }
+      } catch (dbErr) {
+        console.warn("[getMarketDetail] DB lookup skipped for Azuro market:", dbErr);
       }
 
       try {
@@ -90,13 +102,17 @@ export const getMarketDetail = baseProcedure
       };
     }
 
-    const dbMarket = await db.market.findUnique({
-      where: { id: marketId },
-    });
-    if (dbMarket) {
-      const market = prismaMarketToUi(dbMarket);
-      const predictionHistory = generateMockPredictionHistory(market);
-      return { market, predictionHistory };
+    try {
+      const dbMarket = await db.market.findUnique({
+        where: { id: marketId },
+      });
+      if (dbMarket) {
+        const market = prismaMarketToUi(dbMarket);
+        const predictionHistory = generateMockPredictionHistory(market);
+        return { market, predictionHistory };
+      }
+    } catch (dbErr) {
+      console.warn("[getMarketDetail] DB lookup skipped:", dbErr);
     }
     
     // Try to find in mock markets

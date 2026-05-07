@@ -46,8 +46,37 @@ export const getAzuroMarkets = baseProcedure
     }).optional()
   )
   .query(async ({ input }) => {
-    // Fetch Azuro + merge PostgreSQL markets (VPS / local seeded rows appear in list)
-    let markets = await fetchAzuroGames();
+    let curatedByGameId: Map<string, { importanceScore: number; startsAtMs: number }> | null =
+      null;
+    let useCuratedIntersection = false;
+
+    try {
+      const activeCurated = await db.curatedEvent.findMany({
+        where: { isActive: true },
+      });
+      if (activeCurated.length > 0) {
+        useCuratedIntersection = true;
+        curatedByGameId = new Map(
+          activeCurated.map((c) => {
+            const imp = (c as { importanceScore?: number }).importanceScore ?? 0;
+            return [
+              c.gameId,
+              {
+                importanceScore: imp,
+                startsAtMs: c.startsAt.getTime(),
+              },
+            ];
+          }),
+        );
+      }
+    } catch (err) {
+      console.warn("[getAzuroMarkets] Curated lookup skipped:", err);
+    }
+
+    // Founder-curated mode needs the full indexer list — tiering caps at 9 games and breaks intersection.
+    let markets = await fetchAzuroGames({
+      skipTiering: useCuratedIntersection,
+    });
     let mergedDbCount = 0;
     let fromDb: AzuroMarket[] = [];
 
@@ -67,33 +96,11 @@ export const getAzuroMarkets = baseProcedure
       console.warn("[getAzuroMarkets] Skipping DB merge:", err);
     }
 
-    let curatedByGameId: Map<string, { importanceScore: number; startsAtMs: number }> | null =
-      null;
-
-    try {
-      const activeCurated = await db.curatedEvent.findMany({
-        where: { isActive: true },
-      });
-      if (activeCurated.length > 0) {
-        curatedByGameId = new Map(
-          activeCurated.map((c) => {
-            const imp = (c as { importanceScore?: number }).importanceScore ?? 0;
-            return [
-              c.gameId,
-              {
-                importanceScore: imp,
-                startsAtMs: c.startsAt.getTime(),
-              },
-            ];
-          }),
-        );
-        const allow = new Set(activeCurated.map((c) => c.gameId));
-        markets = markets.filter(
-          (m) => m.azuroGameId != null && allow.has(m.azuroGameId),
-        );
-      }
-    } catch (err) {
-      console.warn("[getAzuroMarkets] Curated filter skipped:", err);
+    if (curatedByGameId && curatedByGameId.size > 0) {
+      const allow = new Set(curatedByGameId.keys());
+      markets = markets.filter(
+        (m) => m.azuroGameId != null && allow.has(m.azuroGameId),
+      );
     }
 
     // Enforce football-only filtering when football focus is enabled

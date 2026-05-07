@@ -34,14 +34,18 @@ export { MAX_FOOTBALL_MARKETS };
  *    - Update all open positions for that market
  */
 
-const DEFAULT_AZURO_GRAPHQL =
-  "https://thegraph.azuro.org/subgraphs/name/azuro-protocol/azuro-api-base-v3";
+/** Azuro V3 prematch/odds live on the data-feed subgraph, not azuro-api-* */
+const DEFAULT_AZURO_DATA_FEED =
+  "https://thegraph-1.onchainfeed.org/subgraphs/name/azuro-protocol/azuro-data-feed-polygon";
 
 const AZURO_FETCH_TIMEOUT_MS = 15_000;
 
 function azuroGraphqlEndpoint(): string {
-  const fromEnv = env.AZURO_GRAPHQL_URL?.trim();
-  return fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_AZURO_GRAPHQL;
+  const dataFeed = env.AZURO_DATA_FEED_URL?.trim();
+  if (dataFeed) return dataFeed;
+  const legacy = env.AZURO_GRAPHQL_URL?.trim();
+  if (legacy) return legacy;
+  return DEFAULT_AZURO_DATA_FEED;
 }
 
 async function azuroGraphqlFetch(body: object): Promise<Response> {
@@ -65,7 +69,7 @@ async function readAzuroGraphqlJson(response: Response): Promise<unknown> {
   if (start.startsWith("<!DOCTYPE") || start.startsWith("<html")) {
     console.error("[Azuro] GraphQL URL returned HTML:", start.slice(0, 200));
     throw new Error(
-      "Azuro indexer returned HTML instead of JSON — check AZURO_GRAPHQL_URL",
+      "Azuro indexer returned HTML instead of JSON — set AZURO_DATA_FEED_URL (V3 data-feed) or AZURO_GRAPHQL_URL",
     );
   }
   try {
@@ -81,12 +85,12 @@ export interface AzuroGame {
   id: string;
   gameId: string;
   sport: {
-    sportId: string;
     name: string;
+    slug?: string;
   };
   league: {
     name: string;
-    slug: string;
+    slug?: string;
     country: {
       name: string;
     };
@@ -94,15 +98,18 @@ export interface AzuroGame {
   participants: Array<{
     name: string;
     image?: string;
+    sortOrder?: number;
   }>;
   startsAt: string; // Unix timestamp as string
-  status: 'Created' | 'Paused' | 'Canceled' | 'Resolved';
+  status?: string;
+  state?: string;
   conditions: Array<{
     conditionId: string;
-    status: string;
+    state?: string;
     outcomes: Array<{
       outcomeId: string;
-      odds: string; // Decimal odds as string
+      title?: string;
+      currentOdds?: string; // Decimal odds as string
     }>;
     wonOutcomeIds?: string[];
   }>;
@@ -204,19 +211,25 @@ export function pickTieredFootballMarkets(markets: AzuroMarket[]): AzuroMarket[]
   return picked.slice(0, MAX_FOOTBALL_MARKETS);
 }
 
-const ACTIVE_GAMES_QUERY = `
-  query GetActiveGames($first: Int!, $where: Game_filter) {
+const AZURO_GAMES_QUERY = `
+  query Games {
     games(
-      first: $first
-      where: $where
+      first: 200
+      where: {
+        state: Prematch
+        activeConditionsCount_gt: 0
+      }
       orderBy: startsAt
       orderDirection: asc
     ) {
       id
       gameId
+      title
+      startsAt
+      state
       sport {
-        sportId
         name
+        slug
       }
       league {
         name
@@ -228,17 +241,20 @@ const ACTIVE_GAMES_QUERY = `
       participants {
         name
         image
+        sortOrder
       }
-      startsAt
-      status
-      conditions(where: { status: "Created" }) {
+      conditions(where: { state: Active }) {
+        id
         conditionId
-        status
+        state
         outcomes {
+          id
           outcomeId
-          odds
+          title
+          currentOdds
         }
       }
+      activeConditionsCount
     }
   }
 `;
@@ -248,9 +264,12 @@ const GAME_DETAIL_QUERY = `
     games(where: { gameId: $gameId }) {
       id
       gameId
+      title
+      startsAt
+      state
       sport {
-        sportId
         name
+        slug
       }
       league {
         name
@@ -262,15 +281,15 @@ const GAME_DETAIL_QUERY = `
       participants {
         name
         image
+        sortOrder
       }
-      startsAt
-      status
       conditions {
         conditionId
-        status
+        state
         outcomes {
           outcomeId
-          odds
+          title
+          currentOdds
         }
         wonOutcomeIds
       }
@@ -278,6 +297,10 @@ const GAME_DETAIL_QUERY = `
     }
   }
 `;
+
+function sortAzuroParticipants<T extends { sortOrder?: number }>(participants: T[]): T[] {
+  return [...participants].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0));
+}
 
 /**
  * Transform Azuro decimal odds to normalized YES/NO probabilities
@@ -313,21 +336,20 @@ export function transformAzuroOdds(homeOdds: string, awayOdds: string): {
 /**
  * Map Azuro sport names to our internal sport slugs
  */
-function mapAzuroSportToSlug(azuroSport: string): string {
-  const sportMap: Record<string, string> = {
-    'Soccer': 'football',
-    'Football': 'football',
-    'Basketball': 'basketball',
-    'Tennis': 'tennis',
-    'MMA': 'mma',
-    'Mixed Martial Arts': 'mma',
-    'American Football': 'american-football',
-    'Ice Hockey': 'hockey',
-    'Baseball': 'baseball',
-    'Esports': 'esports',
+function mapAzuroSportToSlug(sportName: string): string {
+  const map: Record<string, string> = {
+    Football: "football",
+    Soccer: "football",
+    Tennis: "tennis",
+    Basketball: "basketball",
+    "Ice Hockey": "ice-hockey",
+    Cricket: "cricket",
+    "Table Tennis": "table-tennis",
+    "Dota 2": "dota-2",
+    "League of Legends": "lol",
+    "Counter-Strike 2": "cs2",
   };
-  
-  return sportMap[azuroSport] || 'football';
+  return map[sportName] || sportName.toLowerCase().replace(/\s+/g, "-");
 }
 
 /**
@@ -348,24 +370,25 @@ function getSportEmoji(sportSlug: string): string {
   return emojiMap[sportSlug] || '⚽';
 }
 
+export type FetchAzuroGamesOptions = {
+  /**
+   * When true, return all mapped football games from the indexer (no 3+3+3 tier pick).
+   * Use when intersecting with founder-curated `gameId`s so the list is not reduced to 9 first.
+   */
+  skipTiering?: boolean;
+};
+
 /**
  * Fetch active games from Azuro Protocol
  * Filters for: Champions League, Serie A, Premier League, NBA, MMA
  * Falls back to mock data if Azuro is unavailable
  */
-export async function fetchAzuroGames(): Promise<AzuroMarket[]> {
+export async function fetchAzuroGames(
+  options?: FetchAzuroGamesOptions,
+): Promise<AzuroMarket[]> {
   try {
-    const nowSec = Math.floor(Date.now() / 1000);
-
     const response = await azuroGraphqlFetch({
-        query: ACTIVE_GAMES_QUERY,
-        variables: {
-          first: 300,
-          where: {
-            status_in: ['Created', 'Paused'],
-            startsAt_gt: nowSec.toString(),
-          },
-        },
+      query: AZURO_GAMES_QUERY,
     });
 
     if (!response.ok) {
@@ -400,8 +423,9 @@ export async function fetchAzuroGames(): Promise<AzuroMarket[]> {
     // Transform Azuro games to our market format (football only)
     const markets: AzuroMarket[] = footballGames.map(game => {
       const sportSlug = mapAzuroSportToSlug(game.sport.name);
-      const homeTeam = game.participants[0]?.name || 'Team A';
-      const awayTeam = game.participants[1]?.name || 'Team B';
+      const ordered = sortAzuroParticipants(game.participants || []);
+      const homeTeam = ordered[0]?.name || 'Team A';
+      const awayTeam = ordered[1]?.name || 'Team B';
       
       // Get main match winner condition (usually the first one)
       const mainCondition = game.conditions[0];
@@ -409,8 +433,8 @@ export async function fetchAzuroGames(): Promise<AzuroMarket[]> {
       let noPrice = 0.5;
       
       if (mainCondition && mainCondition.outcomes.length >= 2) {
-        const homeOdds = mainCondition.outcomes[0]?.odds || '2.0';
-        const awayOdds = mainCondition.outcomes[1]?.odds || '2.0';
+        const homeOdds = mainCondition.outcomes[0]?.currentOdds || '2.0';
+        const awayOdds = mainCondition.outcomes[1]?.currentOdds || '2.0';
         const prices = transformAzuroOdds(homeOdds, awayOdds);
         yesPrice = prices.yesPrice;
         noPrice = prices.noPrice;
@@ -442,7 +466,7 @@ export async function fetchAzuroGames(): Promise<AzuroMarket[]> {
         sport: sportSlug,
         sportEmoji: getSportEmoji(sportSlug),
         competition: game.league.name,
-        competitionSlug: game.league.slug,
+        competitionSlug: game.league.slug || game.league.name.toLowerCase().replace(/\s+/g, "-"),
         event: {
           name: `${homeTeam} vs ${awayTeam}`,
           slug: `${homeTeam.toLowerCase().replace(/\s+/g, '-')}-vs-${awayTeam.toLowerCase().replace(/\s+/g, '-')}`,
@@ -469,9 +493,16 @@ export async function fetchAzuroGames(): Promise<AzuroMarket[]> {
                     volume24h > 100000,
         azuroGameId: game.gameId,
         azuroConditionId: mainCondition?.conditionId,
-        azuroStatus: game.status,
+        azuroStatus: game.state ?? game.status,
       };
     });
+
+    if (options?.skipTiering) {
+      console.log(
+        `[Azuro] Fetched ${markets.length} football markets (no tier cap — for curation / full list)`,
+      );
+      return markets;
+    }
 
     const tiered = pickTieredFootballMarkets(markets);
 
@@ -513,7 +544,14 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
     };
 
     if (data.errors || !data.data?.games?.[0]) {
-      console.error('[Azuro] Game not found or error:', data.errors);
+      if (data.errors) {
+        console.error("[Azuro] Game not found or error:", data.errors);
+      }
+      const fromList = await fetchAzuroGames({ skipTiering: true });
+      const hit = fromList.find((m) => m.azuroGameId === gameId);
+      if (hit) {
+        return hit;
+      }
       return null;
     }
 
@@ -521,8 +559,9 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
     
     // Transform to our format (same logic as above)
     const sportSlug = mapAzuroSportToSlug(game.sport.name);
-    const homeTeam = game.participants[0]?.name || 'Team A';
-    const awayTeam = game.participants[1]?.name || 'Team B';
+    const ordered = sortAzuroParticipants(game.participants || []);
+    const homeTeam = ordered[0]?.name || 'Team A';
+    const awayTeam = ordered[1]?.name || 'Team B';
     
     const mainCondition = game.conditions[0];
     let yesPrice = 0.5;
@@ -531,8 +570,8 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
     
     if (mainCondition) {
       if (mainCondition.outcomes.length >= 2) {
-        const homeOdds = mainCondition.outcomes[0]?.odds || '2.0';
-        const awayOdds = mainCondition.outcomes[1]?.odds || '2.0';
+        const homeOdds = mainCondition.outcomes[0]?.currentOdds || '2.0';
+        const awayOdds = mainCondition.outcomes[1]?.currentOdds || '2.0';
         const prices = transformAzuroOdds(homeOdds, awayOdds);
         yesPrice = prices.yesPrice;
         noPrice = prices.noPrice;
@@ -552,9 +591,10 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
     const hoursUntilStart = (startsAt.getTime() - now.getTime()) / (1000 * 60 * 60);
     let status: SeedMarket['status'] = 'upcoming';
     
-    if (game.status === 'Resolved') {
+    const gState = game.state ?? game.status;
+    if (gState === 'Resolved' || gState === 'Finished') {
       status = 'resolved';
-    } else if (game.status === 'Canceled') {
+    } else if (gState === 'Canceled') {
       status = 'locked'; // We'll show as voided in UI
     } else if (hoursUntilStart < 0) {
       status = 'live';
@@ -571,7 +611,7 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
       sport: sportSlug,
       sportEmoji: getSportEmoji(sportSlug),
       competition: game.league.name,
-      competitionSlug: game.league.slug,
+      competitionSlug: game.league.slug || game.league.name.toLowerCase().replace(/\s+/g, "-"),
       event: {
         name: `${homeTeam} vs ${awayTeam}`,
         slug: `${homeTeam.toLowerCase().replace(/\s+/g, '-')}-vs-${awayTeam.toLowerCase().replace(/\s+/g, '-')}`,
@@ -594,13 +634,18 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
       description: `Market resolves automatically via Azuro Protocol oracle based on official ${game.league.name} match result.`,
       azuroGameId: game.gameId,
       azuroConditionId: mainCondition?.conditionId,
-      azuroStatus: game.status,
+      azuroStatus: gState,
       azuroResult: result,
     };
     
   } catch (error) {
-    console.error('[Azuro] Failed to fetch game detail:', error);
-    return null;
+    console.error("[Azuro] Failed to fetch game detail:", error);
+    try {
+      const fromList = await fetchAzuroGames({ skipTiering: true });
+      return fromList.find((m) => m.azuroGameId === gameId) ?? null;
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -646,9 +691,9 @@ export async function checkResolvedMarkets(
     const response = await azuroGraphqlFetch({
         query: `
           query CheckResolved($gameIds: [String!]!) {
-            games(where: { gameId_in: $gameIds, status: "Resolved" }) {
+            games(where: { gameId_in: $gameIds }) {
               gameId
-              status
+              state
               conditions {
                 conditionId
                 wonOutcomeIds
@@ -671,7 +716,10 @@ export async function checkResolvedMarkets(
     const games: AzuroGame[] = data.data?.games || [];
     
     const resolved = games
-      .filter(game => game.status === 'Resolved')
+      .filter((game) => {
+        const s = game.state ?? game.status;
+        return s === "Resolved" || s === "Finished";
+      })
       .map(game => {
         const mainCondition = game.conditions[0];
         if (!mainCondition?.wonOutcomeIds?.[0]) {
