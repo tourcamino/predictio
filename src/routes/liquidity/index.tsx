@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { Droplet, TrendingUp, Shield } from 'lucide-react';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
@@ -9,6 +8,8 @@ import { ProtocolVaultDepositModal } from '~/components/liquidity/ProtocolVaultD
 import { ProtocolVaultWithdrawModal } from '~/components/liquidity/ProtocolVaultWithdrawModal';
 import { LPEarningsHistoryDashboard } from '~/components/liquidity/LPEarningsHistoryDashboard';
 import { useWallet } from '~/store/useWalletStore';
+import { useWalletGate } from '~/hooks/useWalletGate';
+import { WalletGateModal } from '~/components/WalletGateModal';
 
 export const Route = createFileRoute('/liquidity/')({
   component: LiquidityPage,
@@ -17,6 +18,7 @@ export const Route = createFileRoute('/liquidity/')({
 function LiquidityPage() {
   const trpc = useTRPC();
   const { isConnected, address } = useWallet();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
 
@@ -113,11 +115,15 @@ function LiquidityPage() {
             {/* Add Liquidity Button */}
             <div className="mb-6">
               <button
-                onClick={() => setIsDepositModalOpen(true)}
+                type="button"
+                onClick={() => {
+                  if (!requireWallet()) return;
+                  setIsDepositModalOpen(true);
+                }}
                 className="w-full py-4 bg-gradient-to-r from-brand-green to-brand-cyan text-brand-bg font-bold text-lg rounded-lg hover:opacity-90 transition-all shadow-xl shadow-brand-green/20 flex items-center justify-center gap-2"
               >
                 <Droplet className="w-5 h-5" />
-                {isConnected ? 'Add Liquidity to Vault' : 'Connect Wallet to Add Liquidity'}
+                Add Liquidity to Vault
               </button>
             </div>
 
@@ -268,10 +274,14 @@ function LiquidityPage() {
 
             <div className="mt-6 text-center">
               <button
-                onClick={() => setIsDepositModalOpen(true)}
+                type="button"
+                onClick={() => {
+                  if (!requireWallet()) return;
+                  setIsDepositModalOpen(true);
+                }}
                 className="px-8 py-4 bg-brand-green text-brand-bg font-bold text-lg rounded-lg hover:opacity-90 transition-all shadow-xl shadow-brand-green/20"
               >
-                {isConnected ? 'Start Earning Now →' : 'Connect Wallet to Start'}
+                Start Earning Now →
               </button>
             </div>
           </div>
@@ -584,7 +594,9 @@ function LiquidityPage() {
         />
       )}
 
-      <Footer />
+
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
     </div>
   );
 }
+

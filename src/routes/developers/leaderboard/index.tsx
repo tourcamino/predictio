@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Trophy, TrendingUp, Activity, DollarSign, ExternalLink } from 'lucide-react';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 
 export const Route = createFileRoute('/developers/leaderboard/')({
   component: DeveloperLeaderboardPage,
@@ -244,7 +243,7 @@ function DeveloperLeaderboardPage() {
         </div>
       </div>
 
-      <Footer />
     </div>
   );
 }
+

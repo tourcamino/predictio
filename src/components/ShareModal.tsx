@@ -3,6 +3,8 @@ import { Dialog, Transition } from '@headlessui/react';
 import { X, Send, MessageCircle, Link2, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useWalletStore } from '~/store/useWalletStore';
+import { useWalletGate } from '~/hooks/useWalletGate';
+import { WalletGateModal } from '~/components/WalletGateModal';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
 
@@ -34,6 +36,7 @@ export function ShareModal({ isOpen, onClose, marketId, marketData, userPosition
   
   const trpc = useTRPC();
   const { isConnected, address } = useWalletStore();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   
   // Fetch user's referral code if they're an affiliate
   const affiliateQuery = useQuery({
@@ -189,6 +192,7 @@ Trade on ${shareUrl}`;
   }
 
   return (
+    <>
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
         <Transition.Child
@@ -236,9 +240,16 @@ Trade on ${shareUrl}`;
                       <p className="text-sm text-purple-300 mb-2">
                         💡 <strong>Connect your wallet</strong> to earn referral rewards
                       </p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-gray-400 mb-3">
                         Earn 15% of trading fees when users sign up through your link
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => requireWallet()}
+                        className="w-full py-2 rounded-lg border border-[#00FF87] text-[#00FF87] text-sm font-semibold hover:bg-[#00FF87]/10 transition-colors"
+                      >
+                        Connect Wallet
+                      </button>
                     </div>
                   )}
                   
@@ -368,5 +379,8 @@ Trade on ${shareUrl}`;
         </div>
       </Dialog>
     </Transition>
+
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
+    </>
   );
 }

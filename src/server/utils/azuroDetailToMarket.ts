@@ -1,12 +1,15 @@
 import type { Market } from "~/data/mockMarkets";
 import type { AzuroMarket } from "~/services/azuro";
+import { normalizeYesNoUnitPrices } from "~/server/utils/prismaMarket";
 
 /** Maps Azuro GraphQL detail (`fetchAzuroGameDetail`) to the UI `Market` shape used across tRPC + loaders. */
 export function azuroDetailToMarket(azuroMarket: AzuroMarket): Market {
   const teamA = azuroMarket.event.teams[0] || "Team A";
   const teamB = azuroMarket.event.teams[1] || "Team B";
-  const yesPrice = azuroMarket.outcomes[0]?.price || 0.5;
-  const noPrice = azuroMarket.outcomes[1]?.price || 0.5;
+  const yesRaw = Number(azuroMarket.outcomes[0]?.price ?? 0.5);
+  const noRaw =
+    azuroMarket.outcomes[1]?.price != null ? Number(azuroMarket.outcomes[1].price) : undefined;
+  const { yesPrice, noPrice } = normalizeYesNoUnitPrices(yesRaw, noRaw);
 
   const kickoff = new Date(azuroMarket.event.startsAt);
 

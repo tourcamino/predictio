@@ -1,6 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { PositionDetail } from '~/components/trading/PositionDetail';
 import { useTradingStore } from '~/store/tradingStore';
 import { ArrowLeft } from 'lucide-react';
@@ -34,7 +33,6 @@ function PositionDetailPage() {
             </button>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -57,7 +55,7 @@ function PositionDetailPage() {
           <PositionDetail position={position} />
         </div>
       </div>
-      <Footer />
     </div>
   );
 }
+

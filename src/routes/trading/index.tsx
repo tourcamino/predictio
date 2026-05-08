@@ -1,6 +1,4 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { useWallet } from '~/store/useWalletStore';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { EmptyTradingState } from '~/components/trading/EmptyTradingState';
@@ -98,8 +96,7 @@ function TradingPage() {
   if (!hasPositions) {
     return (
       <div className="min-h-screen bg-brand-bg">
-        <Header />
-        <div className="pt-32 pb-20 px-4">
+        <div className="pb-20 px-4">
           <div className="max-w-7xl mx-auto">
             <div className="mb-8">
               <h1 className="font-syne font-bold text-4xl mb-2">Trading</h1>
@@ -115,7 +112,6 @@ function TradingPage() {
             <EmptyTradingState />
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -123,8 +119,7 @@ function TradingPage() {
   // Has positions - show trading dashboard
   return (
     <div className="min-h-screen bg-brand-bg">
-      <Header />
-      <div className="pt-32 pb-20 px-4">
+      <div className="pb-20 px-4">
         <div className="max-w-7xl mx-auto">
           {/* Copy Trading Banner */}
           <div className="mb-6 px-6 py-4 bg-brand-green/10 border border-brand-green/30 rounded-xl flex items-center justify-between gap-4">
@@ -257,7 +252,7 @@ function TradingPage() {
           )}
         </div>
       </div>
-      <Footer />
     </div>
   );
 }
+

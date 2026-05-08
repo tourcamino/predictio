@@ -50,27 +50,27 @@ function startupEnvCheck() {
   if (!db) {
     if (isProd) {
       // fail fast in prod
-      // eslint-disable-next-line no-console
+       
       console.error("[startup] DATABASE_URL missing in production");
       process.exit(1);
     }
     // local dev fallback
     process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/predictio";
-    // eslint-disable-next-line no-console
+     
     console.warn("[startup] DATABASE_URL missing; using local fallback");
   }
 
   // Optional but important: warn if keys not set
   if (!requireEnv("BOT_API_KEY")) {
-    // eslint-disable-next-line no-console
+     
     console.warn("[startup] BOT_API_KEY not set (using default dev key)");
   }
   if (!requireEnv("ADMIN_API_KEY")) {
-    // eslint-disable-next-line no-console
+     
     console.warn("[startup] ADMIN_API_KEY not set");
   }
   if (!requireEnv("MARKET_MAKER_WALLET")) {
-    // eslint-disable-next-line no-console
+     
     console.warn(
       "[startup] MARKET_MAKER_WALLET not set — POST /api/v1/bot/market-maker/provide-liquidity will return 503",
     );
@@ -81,14 +81,14 @@ function startupEnvCheck() {
   const feeReferral = Number(process.env.FEE_REFERRAL || 0.15);
   const feeSum = feeVault + feeAnalyst + feeReferral;
   if (isProd && Math.abs(feeSum - 1) > 1e-6) {
-    // eslint-disable-next-line no-console
+     
     console.error(
       `[startup] FEE_VAULT+FEE_ANALYST+FEE_REFERRAL must sum to 1 (got ${feeSum.toFixed(6)})`,
     );
     process.exit(1);
   }
 
-  // eslint-disable-next-line no-console
+   
   console.log(`[startup] env ok NODE_ENV=${nodeEnv}`);
 }
 
@@ -443,6 +443,32 @@ app.use("/api", developerKeysRouter);
 
 registerAdminCurationRoutes(app, prisma, publicLimiter);
 
+// Same paths as Vinxi (`live-handler.ts`, `health-handler.ts`) — smoke / probes hitting Express only.
+app.get("/api/live", (_req, res) => {
+  res.json({
+    ok: true,
+    status: "live",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/api/health", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      ok: true,
+      db: "up",
+      timestamp: new Date().toISOString(),
+    });
+  } catch {
+    res.status(503).json({
+      ok: false,
+      db: "down",
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Health check
 app.get("/api/v1/health", async (req, res) => {
   try {
@@ -550,7 +576,7 @@ app.get(
   (req, res, next) => {
   try {
     const walletAddress = (req as any).walletAddress as string | undefined;
-    const apiKey = (req as any).apiKey as any | undefined;
+    const apiKey = (req as any).apiKey;
     if (!walletAddress || !apiKey) {
       throw new ApiError("Unauthorized", { status: 401, code: "UNAUTHORIZED" });
     }
@@ -615,7 +641,7 @@ app.get("/api/v1/markets/hot", async (req, res) => {
 
     // Calculate score for each market
     type MarketRow = (typeof markets)[number];
-    const scoredMarkets = (markets as MarketRow[]).map((market) => {
+    const scoredMarkets = (markets).map((market) => {
       const timeToClose = (new Date(market.closesAt).getTime() - Date.now()) / 1000;
       const volumeScore = (market.volume / 200000) * 50;
       const timeScore = timeToClose < 3600 ? 50 : timeToClose < 21600 ? 30 : 10;
@@ -718,7 +744,7 @@ app.put("/api/v1/markets/:id/resolve", authenticateApiKey, async (req, res) => {
     });
 
     type WinnerRow = (typeof winners)[number];
-    const totalDistributed = (winners as WinnerRow[]).reduce(
+    const totalDistributed = (winners).reduce(
       (sum: number, order) => sum + order.amount * (order.odds ?? 0),
       0
     );
@@ -992,7 +1018,7 @@ wss.on("connection", (ws: WebSocket, req) => {
     if (rec.count > WS_MAX_CONNECTIONS_PER_IP) {
       try {
         ws.close(1013, "Rate limited");
-      } catch {}
+      } catch { /* ignore */ }
       return;
     }
   }
@@ -1034,7 +1060,7 @@ wss.on("connection", (ws: WebSocket, req) => {
         sendJson(ws, { type: "error", error: "No subscriptions", timestamp: Date.now() });
         try {
           ws.close(1008, "No subscriptions");
-        } catch {}
+        } catch { /* ignore */ }
       }, WS_REQUIRE_SUBSCRIBE_SECONDS * 1000);
     }
 
@@ -1044,7 +1070,7 @@ wss.on("connection", (ws: WebSocket, req) => {
         sendJson(ws, { type: "error", error: "Unauthorized", timestamp: Date.now() });
         try {
           ws.close(1008, "Unauthorized");
-        } catch {}
+        } catch { /* ignore */ }
         return;
       }
       try {
@@ -1082,6 +1108,10 @@ wss.on("connection", (ws: WebSocket, req) => {
           sendJson(ws, { type: "pong", timestamp: Date.now() });
           return;
         }
+        if (m?.type === "ping") {
+          sendJson(ws, { type: "pong", timestamp: Date.now() });
+          return;
+        }
       } catch (e) {
         sendJson(ws, { type: "error", error: "Invalid message", timestamp: Date.now() });
       }
@@ -1090,7 +1120,7 @@ wss.on("connection", (ws: WebSocket, req) => {
     console.error("[WebSocket] auth failed", e);
     try {
       ws.close(1011, "Internal error");
-    } catch {}
+    } catch { /* ignore */ }
   });
 
   ws.on("error", (e) => {
@@ -1137,20 +1167,20 @@ if (WS_SERVER_PING_INTERVAL_SECONDS > 0) {
       if (lastPongAt && ageMs > WS_SERVER_PONG_TIMEOUT_SECONDS * 1000) {
         try {
           sendJson(client as any, { type: "error", error: "Heartbeat timeout", timestamp: Date.now() });
-        } catch {}
+        } catch { /* ignore */ }
         try {
           client.close(1008, "Heartbeat timeout");
-        } catch {}
+        } catch { /* ignore */ }
         return;
       }
 
       try {
         // ws library supports ping frames; we also send JSON ping for clients that only handle messages
         (client as any).ping?.();
-      } catch {}
+      } catch { /* ignore */ }
       try {
         sendJson(client as any, { type: "ping", timestamp: Date.now() });
-      } catch {}
+      } catch { /* ignore */ }
     });
   }, WS_SERVER_PING_INTERVAL_SECONDS * 1000).unref?.();
 }

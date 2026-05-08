@@ -108,9 +108,9 @@ export async function fetchAzuroGames(): Promise<RawAzuroGame[]> {
     errors?: unknown;
   };
 
-  // eslint-disable-next-line no-console
+   
   console.log("AZURO RESPONSE STATUS:", response.status);
-  // eslint-disable-next-line no-console
+   
   console.log("AZURO RAW:", JSON.stringify(json).substring(0, 500));
 
   if ((json as any).errors) {
@@ -183,7 +183,7 @@ export async function fetchFootballGamesNext14Days(): Promise<{
         ),
       ),
     ].sort();
-    // eslint-disable-next-line no-console
+     
     console.log("LEGHE DISPONIBILI:\n" + allLeagues.join("\n"));
 
     // ── 2. Paesi europei whitelist ──
@@ -259,14 +259,14 @@ export async function fetchFootballGamesNext14Days(): Promise<{
       return parseInt(String(a.startsAt), 10) - parseInt(String(b.startsAt), 10);
     });
 
-    // eslint-disable-next-line no-console
+     
     console.log("Totale giochi Azuro:", allGames.length);
-    // eslint-disable-next-line no-console
+     
     console.log("Calcio europeo 15gg:", europeanFootball.length);
-    // eslint-disable-next-line no-console
+     
     console.log("Prime 20 partite:");
     europeanFootball.slice(0, 20).forEach((g) =>
-      // eslint-disable-next-line no-console
+       
       console.log(
         `  ${g.participants?.[0]?.name} vs ${g.participants?.[1]?.name}`,
         `| ${g.league?.name}`,
@@ -293,7 +293,7 @@ export async function fetchFootballGamesNext14Days(): Promise<{
     };
   } catch (e) {
     lastError = e instanceof Error ? e.message : String(e);
-    // eslint-disable-next-line no-console
+     
     console.warn("[azuroCurator] fetch failed:", lastError);
     return {
       games: [],

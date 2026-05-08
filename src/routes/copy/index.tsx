@@ -1,22 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Header } from "~/components/Header";
-import { Footer } from "~/components/Footer";
 import { useWalletStore } from "~/store/useWalletStore";
-import { Eye, Zap, DollarSign, Users } from "lucide-react";
+import { Eye, Zap, DollarSign } from "lucide-react";
 import { SocialTradingDashboard } from "~/components/trading/SocialTradingDashboard";
+import { useWalletGate } from "~/hooks/useWalletGate";
+import { WalletGateModal } from "~/components/WalletGateModal";
+import { GuestPageState } from "~/components/GuestPageState";
 
 export const Route = createFileRoute("/copy/")({
   component: CopyTradingPage,
 });
 
 function CopyTradingPage() {
-  const { isConnected, openWalletModal, address } = useWalletStore();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
+  const { isConnected, address } = useWalletStore();
 
   return (
     <div className="min-h-screen bg-brand-bg">
-      <Header />
-
-      <div className="pt-32 pb-20 px-4">
+      <div className="pb-20 px-4">
         <div className="max-w-7xl mx-auto">
           {/* Hero Section */}
           <div className="text-center mb-16">
@@ -37,27 +37,17 @@ function CopyTradingPage() {
             {isConnected ? (
               <SocialTradingDashboard userWallet={address || ''} />
             ) : (
-              <div className="text-center py-20 bg-white/5 border border-white/10 rounded-xl">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-white/5 rounded-full mb-6">
-                  <Users className="w-10 h-10 text-gray-500" />
-                </div>
-                <h3 className="font-syne font-bold text-2xl mb-3">Connect Your Wallet</h3>
-                <p className="text-gray-400 mb-6 max-w-md mx-auto">
-                  Connect your wallet to discover top traders and start copy trading.
-                </p>
-                <button
-                  onClick={openWalletModal}
-                  className="inline-block px-8 py-4 bg-brand-green text-brand-bg font-bold rounded-lg hover:bg-brand-green/90 transition-colors"
-                >
-                  Connect Wallet
-                </button>
-              </div>
+              <GuestPageState
+                title="👀 Watching as guest"
+                description="Connect wallet to copy traders and save your allocations"
+                onConnect={() => requireWallet()}
+              />
             )}
           </div>
         </div>
       </div>
 
-      <Footer />
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
     </div>
   );
 }
@@ -104,3 +94,4 @@ function HowItWorksSection() {
     </div>
   );
 }
+

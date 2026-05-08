@@ -2,8 +2,6 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, Tag, ArrowRight } from 'lucide-react';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 
 export const Route = createFileRoute('/blog/')({
   component: BlogPage,
@@ -24,8 +22,6 @@ function BlogPage() {
 
   return (
     <div className="min-h-screen bg-brand-bg text-white">
-      <Header />
-      
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-20">
         {/* Page Header */}
         <div className="mb-12">
@@ -227,7 +223,7 @@ function BlogPage() {
         )}
       </main>
 
-      <Footer />
     </div>
   );
 }
+

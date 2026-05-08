@@ -1,6 +1,6 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, type MouseEvent } from 'react';
 import { Menu, Transition } from '@headlessui/react';
-import { Copy, ExternalLink, User, BarChart3, Trophy, Settings, LogOut, TrendingUp, KeyRound, Fingerprint } from 'lucide-react';
+import { Copy, ExternalLink, User, BarChart3, Trophy, Settings, LogOut, TrendingUp, KeyRound } from 'lucide-react';
 import { useWallet } from '~/store/useWalletStore';
 import { Link, useNavigate } from '@tanstack/react-router';
 import toast from 'react-hot-toast';
@@ -26,20 +26,23 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
     }
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = (e: MouseEvent<HTMLButtonElement>, close: () => void) => {
     if (showDisconnectConfirm) {
       disconnectWallet();
       toast.success('Wallet disconnected');
       onClose?.();
-      // Force navigation to home page after disconnect
+      setShowDisconnectConfirm(false);
+      close();
       setTimeout(() => {
         navigate({ to: '/', replace: true });
       }, 100);
-      setShowDisconnectConfirm(false);
-    } else {
-      setShowDisconnectConfirm(true);
-      setTimeout(() => setShowDisconnectConfirm(false), 3000);
+      return;
     }
+    // Headless UI closes the menu on MenuItem click by default; unmount resets confirm state.
+    // preventDefault keeps the panel open for the second confirmation tap (see Menu docs).
+    e.preventDefault();
+    setShowDisconnectConfirm(true);
+    setTimeout(() => setShowDisconnectConfirm(false), 3000);
   };
 
   const truncateAddress = (addr: string) => {
@@ -60,21 +63,27 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
         leaveFrom="opacity-100 translate-y-0"
         leaveTo="opacity-0 translate-y-1"
       >
-        <Menu.Items className="absolute right-0 mt-2 w-80 origin-top-right rounded-lg bg-brand-navy border border-brand-green/20 shadow-2xl focus:outline-none overflow-hidden z-[60]">
-          {/* Connection Status */}
-          <div className="p-4 border-b border-white/10">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 bg-brand-green rounded-full animate-pulse"></div>
-              <span className="text-sm font-semibold text-brand-green">Connected</span>
+        <Menu.Items
+          unmount={false}
+          className="absolute right-0 mt-2 w-72 max-h-[min(34rem,88vh)] overflow-y-auto origin-top-right rounded-lg bg-brand-navy border border-brand-green/20 shadow-2xl focus:outline-none z-[60]"
+        >
+          {/* Connection + address */}
+          <div className="px-3 py-2.5 border-b border-white/10">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-2 h-2 shrink-0 bg-brand-green rounded-full animate-pulse" />
+                <span className="text-xs font-semibold text-brand-green uppercase tracking-wide">Connected</span>
+                <span className="text-[11px] text-gray-500 shrink-0">· BASE</span>
+              </div>
             </div>
-            
-            <div className="flex items-center gap-2 mb-2">
-              <code className="flex-1 font-mono text-sm text-gray-300">
+            <div className="flex items-center gap-1.5 mt-2">
+              <code className="flex-1 min-w-0 font-mono text-xs text-gray-300 truncate">
                 {address && truncateAddress(address)}
               </code>
               <button
+                type="button"
                 onClick={copyAddress}
-                className="p-1.5 hover:bg-white/10 rounded transition-colors"
+                className="p-1.5 hover:bg-white/10 rounded transition-colors shrink-0"
                 title="Copy address"
               >
                 <Copy className="w-4 h-4" />
@@ -83,183 +92,161 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
                 href={`https://basescan.org/address/${address}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-1.5 hover:bg-white/10 rounded transition-colors"
+                className="p-1.5 hover:bg-white/10 rounded transition-colors shrink-0"
                 title="View on explorer"
               >
                 <ExternalLink className="w-4 h-4" />
               </a>
             </div>
-            
-            <p className="text-xs text-gray-400">BASE</p>
           </div>
 
-          {/* Balance */}
-          <div className="p-4 border-b border-white/10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-2xl font-bold text-brand-green">
-                ${balance.toLocaleString()} USDC
+          {/* Balance + actions */}
+          <div className="px-3 py-2.5 border-b border-white/10">
+            <div className="flex items-baseline justify-between gap-2 mb-2">
+              <span className="text-xl font-bold text-brand-green tabular-nums leading-none">
+                ${balance.toLocaleString()}
               </span>
-              <span className="text-sm text-gray-400">
-                {activePredictions} Active Predictions
-              </span>
+              <span className="text-xs text-gray-500 whitespace-nowrap">USDC</span>
             </div>
-            
+            <p className="text-xs text-gray-500 mb-2.5">{activePredictions} active predictions</p>
             <div className="flex gap-2">
-              <button 
+              <button
+                type="button"
                 onClick={() => setDepositWithdrawModal({ isOpen: true, type: 'deposit' })}
-                className="flex-1 py-2 bg-brand-green/20 hover:bg-brand-green/30 text-brand-green font-semibold rounded transition-colors text-sm"
+                className="flex-1 py-2 bg-brand-green/20 hover:bg-brand-green/30 text-brand-green font-semibold rounded text-xs transition-colors"
               >
                 Deposit
               </button>
-              <button 
+              <button
+                type="button"
                 onClick={() => setDepositWithdrawModal({ isOpen: true, type: 'withdraw' })}
-                className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 font-semibold rounded transition-colors text-sm"
+                className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 font-semibold rounded text-xs transition-colors"
               >
                 Withdraw
               </button>
             </div>
           </div>
 
-          {/* Navigation Links */}
-          <div className="p-2">
+          {/* Navigation */}
+          <div className="py-1.5 px-1.5">
             <Menu.Item>
               {({ active }) => (
                 <Link
                   to="/account"
-                  className={`flex items-center gap-3 px-3 py-2 rounded transition-colors ${
+                  search={{ tab: 'overview' }}
+                  className={`flex items-center gap-2.5 px-2.5 py-2 rounded transition-colors ${
                     active ? 'bg-white/10' : ''
                   }`}
                 >
-                  <User className="w-4 h-4" />
-                  <span className="flex-1 text-sm font-medium">My Account</span>
-                  <span className="text-gray-500">→</span>
+                  <User className="w-4 h-4 shrink-0 text-gray-400" />
+                  <span className="text-sm font-medium truncate">My Account</span>
                 </Link>
               )}
             </Menu.Item>
-            
+
             <Menu.Item>
               {({ active }) => (
                 <Link
                   to="/account"
                   search={{ tab: 'predictions' }}
-                  className={`flex items-center gap-3 px-3 py-2 rounded transition-colors ${
+                  className={`flex items-center gap-2.5 px-2.5 py-2 rounded transition-colors ${
                     active ? 'bg-white/10' : ''
                   }`}
                 >
-                  <BarChart3 className="w-4 h-4" />
-                  <span className="flex-1 text-sm font-medium">My Predictions</span>
-                  <span className="text-gray-500">→</span>
+                  <BarChart3 className="w-4 h-4 shrink-0 text-gray-400" />
+                  <span className="text-sm font-medium truncate">My Predictions</span>
                 </Link>
               )}
             </Menu.Item>
-            
+
             <Menu.Item>
               {({ active }) => (
                 <Link
                   to="/portfolio"
-                  className={`flex items-center gap-3 px-3 py-2 rounded transition-colors ${
+                  className={`flex items-center gap-2.5 px-2.5 py-2 rounded transition-colors ${
                     active ? 'bg-white/10' : ''
                   }`}
                 >
-                  <User className="w-4 h-4" />
-                  <span className="flex-1 text-sm font-medium">Portfolio</span>
-                  <span className="text-gray-500">→</span>
+                  <User className="w-4 h-4 shrink-0 text-gray-400" />
+                  <span className="text-sm font-medium truncate">Portfolio</span>
                 </Link>
               )}
             </Menu.Item>
-            
+
             <Menu.Item>
               {({ active }) => (
                 <Link
                   to="/analyst-dashboard"
-                  className={`flex items-center gap-3 px-3 py-2 rounded transition-colors ${
+                  className={`flex items-center gap-2.5 px-2.5 py-2 rounded transition-colors ${
                     active ? 'bg-white/10' : ''
                   }`}
                 >
-                  <TrendingUp className="w-4 h-4" />
-                  <span className="flex-1 text-sm font-medium">Analyst Program</span>
-                  <span className="text-gray-500">→</span>
+                  <TrendingUp className="w-4 h-4 shrink-0 text-gray-400" />
+                  <span className="text-sm font-medium truncate">Analyst</span>
                 </Link>
               )}
             </Menu.Item>
-            
+
             <Menu.Item>
               {({ active }) => (
                 <Link
                   to="/leaderboard"
-                  className={`flex items-center gap-3 px-3 py-2 rounded transition-colors ${
+                  className={`flex items-center gap-2.5 px-2.5 py-2 rounded transition-colors ${
                     active ? 'bg-white/10' : ''
                   }`}
                 >
-                  <Trophy className="w-4 h-4" />
-                  <span className="flex-1 text-sm font-medium">Leaderboard</span>
-                  <span className="text-gray-500">→</span>
+                  <Trophy className="w-4 h-4 shrink-0 text-gray-400" />
+                  <span className="text-sm font-medium truncate">Leaderboard</span>
                 </Link>
               )}
             </Menu.Item>
-            
+
             <Menu.Item>
               {({ active }) => (
                 <Link
                   to="/account"
                   search={{ tab: 'settings' }}
-                  className={`flex items-center gap-3 px-3 py-2 rounded transition-colors ${
+                  className={`flex items-center gap-2.5 px-2.5 py-2 rounded transition-colors ${
                     active ? 'bg-white/10' : ''
                   }`}
                 >
-                  <Settings className="w-4 h-4" />
-                  <span className="flex-1 text-sm font-medium">Settings</span>
-                  <span className="text-gray-500">→</span>
+                  <Settings className="w-4 h-4 shrink-0 text-gray-400" />
+                  <span className="text-sm font-medium truncate">Settings</span>
                 </Link>
               )}
             </Menu.Item>
 
-            <div className="my-2 border-t border-white/10" />
+            <div className="my-1.5 border-t border-white/10" />
 
             <Menu.Item>
               {({ active }) => (
                 <Link
-                  to="/me"
-                  className={`flex items-center gap-3 px-3 py-2 rounded transition-colors ${
+                  to="/developers"
+                  className={`flex items-center gap-2.5 px-2.5 py-2 rounded transition-colors ${
                     active ? 'bg-white/10' : ''
                   }`}
                 >
-                  <Fingerprint className="w-4 h-4" />
-                  <span className="flex-1 text-sm font-medium">API /me</span>
-                  <span className="text-gray-500">→</span>
-                </Link>
-              )}
-            </Menu.Item>
-
-            <Menu.Item>
-              {({ active }) => (
-                <Link
-                  to="/developers/keys"
-                  className={`flex items-center gap-3 px-3 py-2 rounded transition-colors ${
-                    active ? 'bg-white/10' : ''
-                  }`}
-                >
-                  <KeyRound className="w-4 h-4" />
-                  <span className="flex-1 text-sm font-medium">Developer API Keys</span>
-                  <span className="text-gray-500">→</span>
+                  <KeyRound className="w-4 h-4 shrink-0 text-gray-400" />
+                  <span className="text-sm font-medium truncate">Developers / API</span>
                 </Link>
               )}
             </Menu.Item>
           </div>
 
           {/* Disconnect */}
-          <div className="p-2 border-t border-white/10">
+          <div className="p-1.5 border-t border-white/10">
             <Menu.Item>
-              {({ active }) => (
+              {({ active, close }) => (
                 <button
-                  onClick={handleDisconnect}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded transition-colors ${
+                  type="button"
+                  onClick={(e) => handleDisconnect(e, close)}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded transition-colors ${
                     active ? 'bg-red-500/10' : ''
                   } ${showDisconnectConfirm ? 'bg-red-500/20 text-red-500 border border-red-500/50' : 'text-red-400'}`}
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-4 h-4 shrink-0" />
                   <span className="flex-1 text-left text-sm font-medium">
-                    {showDisconnectConfirm ? '⚠️ Click again to confirm' : 'Disconnect Wallet'}
+                    {showDisconnectConfirm ? 'Tap again to confirm' : 'Disconnect'}
                   </span>
                 </button>
               )}

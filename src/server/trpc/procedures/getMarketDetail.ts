@@ -7,32 +7,14 @@ import { prismaMarketToUi } from "~/server/utils/prismaMarket";
 import { getMarketById, mockMarkets, type Market } from "~/data/mockMarkets";
 import { SEED_MARKETS } from "~/data/seedMarkets";
 import { fetchAzuroGameDetail } from "~/services/azuro";
-import type { SeedMarket } from "~/data/seedMarkets";
+import { curatedEventRowToUiMarket } from "~/server/utils/curatedEventToUiMarket";
+import { seedMarketToUiMarket } from "~/server/utils/seedMarketToUi";
 
 function safeDecodeMarketIdParam(raw: string): string {
   try {
     return decodeURIComponent(raw.trim());
   } catch {
     return raw.trim();
-  }
-}
-
-function seedStatusToUi(s: SeedMarket["status"], endsAt: Date): Market["status"] {
-  switch (s) {
-    case "resolved":
-      return "resolved";
-    case "locked":
-      return "closed";
-    case "ending-soon":
-      return "closing-soon";
-    case "live":
-      return "closed";
-    case "upcoming":
-    default: {
-      const ms = endsAt.getTime() - Date.now();
-      if (ms > 0 && ms < 2 * 60 * 60 * 1000) return "closing-soon";
-      return "open";
-    }
   }
 }
 
@@ -63,6 +45,47 @@ export const getMarketDetail = baseProcedure
         }
       } catch (dbErr) {
         console.warn("[getMarketDetail] DB lookup skipped for Azuro market:", dbErr);
+      }
+
+      try {
+        const azuroGameId = marketId.replace(/^azuro-/, "");
+        const curated = await db.curatedEvent.findFirst({
+          where: {
+            OR: [{ gameId: azuroGameId }, { id: azuroGameId }],
+            isActive: true,
+          },
+        });
+
+        if (curated) {
+          let market: Market;
+          try {
+            const azuroMarket = await fetchAzuroGameDetail(azuroGameId);
+            if (azuroMarket) {
+              market = {
+                ...azuroDetailToMarket(azuroMarket),
+                priceHistory: generatePriceHistory(azuroMarket),
+              };
+            } else {
+              market = curatedEventRowToUiMarket(curated, marketId);
+            }
+          } catch {
+            market = curatedEventRowToUiMarket(curated, marketId);
+          }
+
+          const predictionHistory = generateMockPredictionHistory(market);
+          return {
+            market,
+            predictionHistory,
+            azuroData: {
+              gameId: azuroGameId,
+              conditionId: undefined,
+              status: undefined,
+              result: undefined,
+            },
+          };
+        }
+      } catch (curatedErr) {
+        console.warn("[getMarketDetail] CuratedEvent lookup skipped:", curatedErr);
       }
 
       try {
@@ -102,65 +125,38 @@ export const getMarketDetail = baseProcedure
       };
     }
 
+    // Mock + seed data first — avoids hanging on Prisma when DATABASE_URL/Postgres is down.
+    let market = getMarketById(marketId);
+    if (!market) {
+      const seedMarket = SEED_MARKETS.find((m) => m.id === marketId);
+      if (seedMarket) {
+        market = seedMarketToUiMarket(seedMarket);
+      }
+    }
+
+    if (market) {
+      const predictionHistory = generateMockPredictionHistory(market);
+      return { market, predictionHistory };
+    }
+
     try {
       const dbMarket = await db.market.findUnique({
         where: { id: marketId },
       });
       if (dbMarket) {
-        const market = prismaMarketToUi(dbMarket);
-        const predictionHistory = generateMockPredictionHistory(market);
-        return { market, predictionHistory };
+        const m = prismaMarketToUi(dbMarket);
+        const predictionHistory = generateMockPredictionHistory(m);
+        return { market: m, predictionHistory };
       }
     } catch (dbErr) {
       console.warn("[getMarketDetail] DB lookup skipped:", dbErr);
     }
     
-    // Try to find in mock markets
-    let market = getMarketById(marketId);
-    
-    // If not found in mock markets, try seed markets
-    if (!market) {
-      const seedMarket = SEED_MARKETS.find(m => m.id === marketId);
-      if (seedMarket) {
-        // Transform seed market to Market format
-        const closesAt = new Date(seedMarket.endsAt);
-        market = {
-          id: seedMarket.id,
-          sport: seedMarket.sport,
-          sportEmoji: seedMarket.sportEmoji,
-          league: seedMarket.competition,
-          region: seedMarket.event.location || 'International',
-          teamA: seedMarket.event.teams[0] || 'Team A',
-          teamB: seedMarket.event.teams[1] || 'Team B',
-          marketType: 'moneyline' as const,
-          yesPrice: seedMarket.outcomes[0]?.price || 0.5,
-          noPrice: seedMarket.outcomes[1]?.price || 0.5,
-          volume: seedMarket.volume24h,
-          closesAt,
-          start_time: new Date(seedMarket.event.startsAt),
-          event: seedMarket.event.name,
-          traders: seedMarket.traders,
-          isFeatured: seedMarket.isFeatured || false,
-          location: seedMarket.event.location,
-          status: seedStatusToUi(seedMarket.status, closesAt),
-          percentA: Math.round((seedMarket.outcomes[0]?.price || 0.5) * 100),
-          percentB: Math.round((seedMarket.outcomes[1]?.price || 0.5) * 100),
-          predictions: seedMarket.traders,
-        };
-      }
-    }
-    
-    // If still not found, return a random mock market as ultimate fallback
-    if (!market) {
-      console.warn(`[Mock Fallback] Market ${marketId} not found, using random mock market`);
-      market = { ...mockMarkets[0]!, id: marketId } satisfies Market;
-    }
-
-    const predictionHistory = generateMockPredictionHistory(market);
-
+    console.warn(`[Mock Fallback] Market ${marketId} not found, using random mock market`);
+    const fallback = { ...mockMarkets[0]!, id: marketId } satisfies Market;
     return {
-      market,
-      predictionHistory,
+      market: fallback,
+      predictionHistory: generateMockPredictionHistory(fallback),
     };
   });
 
@@ -168,7 +164,10 @@ export const getMarketDetail = baseProcedure
 function generatePriceHistory(azuroMarket: any) {
   const history = [];
   const now = Date.now();
-  const currentYesPrice = azuroMarket.outcomes[0]?.price || 0.5;
+  let currentYesPrice = Number(azuroMarket.outcomes?.[0]?.price ?? 0.5);
+  if (!Number.isFinite(currentYesPrice)) currentYesPrice = 0.5;
+  if (currentYesPrice > 1) currentYesPrice /= 100;
+  currentYesPrice = Math.max(0.01, Math.min(0.99, currentYesPrice));
   const startPrice = Math.max(0.3, Math.min(0.7, currentYesPrice - (Math.random() * 0.2 - 0.1)));
   
   for (let i = 7 * 24; i >= 0; i--) {

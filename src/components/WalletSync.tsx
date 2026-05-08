@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useTRPC } from '~/trpc/react';
 import { useWallet } from '~/store/useWalletStore';
 import { OnboardingModal } from '~/components/onboarding/OnboardingModal';
+import { invalidateWalletPointsSummary } from '~/utils/invalidateWalletNotifications';
 
 // Helper to read cookie
 function getCookie(name: string): string | null {
@@ -22,6 +23,7 @@ function getCookie(name: string): string | null {
  */
 export function WalletSync() {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const { isConnected, address, updateBalance, setSyncing } = useWallet();
   const [showOnboarding, setShowOnboarding] = useState(false);
   
@@ -52,6 +54,14 @@ export function WalletSync() {
             // Update wallet store with real balance from DB
             updateBalance(data.virtualBalance);
             setSyncing(false);
+
+            if (address) {
+              invalidateWalletPointsSummary(
+                queryClient,
+                trpc.getPointsSummary.queryKey,
+                address,
+              );
+            }
             
             // Clear referral cookie after successful attribution
             if (refCodeFromCookie) {

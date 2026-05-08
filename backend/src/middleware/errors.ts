@@ -89,7 +89,7 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   }
 
   const message = err instanceof Error ? err.message : "Unknown error";
-  // eslint-disable-next-line no-console
+   
   console.error("[api] unhandled error", err);
 
   return res.status(500).json({

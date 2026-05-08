@@ -11,11 +11,12 @@ export const getPortfolioSummary = baseProcedure
   )
   .query(async ({ input }) => {
     const { walletAddress } = input;
+    const wallet = walletAddress.toLowerCase();
 
     // Get all orders for the wallet
     const allOrders = await db.order.findMany({
       where: {
-        wallet: walletAddress,
+        wallet,
       },
     });
 
@@ -39,7 +40,7 @@ export const getPortfolioSummary = baseProcedure
     // Calculate sport-wise breakdown
     const ordersWithMarkets = await db.order.findMany({
       where: {
-        wallet: walletAddress,
+        wallet,
       },
       include: {
         market: {
@@ -154,7 +155,7 @@ export const getPortfolioSummary = baseProcedure
     // Get transaction totals
     const deposits = await db.transaction.findMany({
       where: {
-        wallet: walletAddress,
+        wallet,
         type: 'deposit',
         status: 'completed',
       },
@@ -162,7 +163,7 @@ export const getPortfolioSummary = baseProcedure
     
     const withdrawals = await db.transaction.findMany({
       where: {
-        wallet: walletAddress,
+        wallet,
         type: 'withdrawal',
         status: 'completed',
       },
@@ -174,7 +175,7 @@ export const getPortfolioSummary = baseProcedure
     // Calculate holding rewards statistics
     const openOrders = await db.order.findMany({
       where: {
-        wallet: walletAddress,
+        wallet,
         status: 'open',
       },
     });
@@ -213,7 +214,7 @@ export const getPortfolioSummary = baseProcedure
 
     // Get user's claimed rewards
     const user = await db.user.findUnique({
-      where: { wallet: walletAddress },
+      where: { wallet },
       select: {
         claimedHoldingRewards: true,
       },

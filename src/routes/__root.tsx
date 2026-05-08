@@ -6,8 +6,9 @@ import {
 import { Toaster } from "react-hot-toast";
 import { WalletSync } from '~/components/WalletSync';
 import { WalletModal } from '~/components/WalletModal';
-import { NetworkBanner } from '~/components/NetworkBanner';
-import { DemoBanner } from '~/components/demo/DemoBanner';
+import { TopStack } from '~/components/TopStack';
+import { TopChromeProvider } from '~/components/TopChromeContext';
+import { FooterInner } from '~/components/Footer';
 import { Chatbot } from '~/components/Chatbot';
 import { ScrollToTop } from '~/components/ScrollToTop';
 import { useAzuroResolutionPolling } from '~/hooks/useAzuroResolutionPolling';
@@ -124,7 +125,8 @@ function RootComponent() {
   
   return (
     <ErrorBoundary>
-      <div style={{ '--demo-banner-height': '40px' } as React.CSSProperties}>
+      <TopChromeProvider value={true}>
+        <div className="min-h-screen flex flex-col">
         <Toaster
           position="top-right"
           toastOptions={{
@@ -150,8 +152,7 @@ function RootComponent() {
         />
         <WalletSync />
         <WalletModal />
-        <NetworkBanner />
-        <DemoBanner />
+        <TopStack />
         <Chatbot />
         <ScrollToTop />
         <OnboardingTour 
@@ -159,8 +160,12 @@ function RootComponent() {
           onComplete={handleTourComplete}
           onSkip={handleTourSkip}
         />
-        <Outlet />
-      </div>
+        <main className="flex-1" style={{ paddingTop: 'calc(var(--top-stack-height) + 0px)' }}>
+          <Outlet />
+        </main>
+        <FooterInner />
+        </div>
+      </TopChromeProvider>
     </ErrorBoundary>
   );
 }

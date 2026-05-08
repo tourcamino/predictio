@@ -122,6 +122,8 @@ export interface AzuroMarket extends SeedMarket {
   azuroConditionId?: string;
   azuroStatus?: string;
   azuroResult?: string;
+  /** From curated API — higher = more editorial priority (UCL, WC, etc.). */
+  importanceScore?: number;
 }
 
 const PRIORITY_LEAGUE_MARKERS = [

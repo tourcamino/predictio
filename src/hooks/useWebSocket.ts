@@ -13,6 +13,7 @@ interface UseWebSocketOptions {
   maxMessages?: number;
   reconnectDelay?: number;
   enabled?: boolean;
+  maxReconnectAttempts?: number;
 }
 
 export function useWebSocket(
@@ -23,26 +24,37 @@ export function useWebSocket(
     maxMessages = 50,
     reconnectDelay = 3000,
     enabled = true,
+    maxReconnectAttempts = 5,
   } = options;
 
-  const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8080/ws";
-  
+  // No localhost fallback: when VITE_WS_URL is unset there is no realtime server in dev,
+  // so the previous fallback caused an infinite reconnect storm that re-rendered every
+  // consumer roughly every `reconnectDelay`.
+  const WS_URL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim() || null;
+
   const [messages, setMessages] = useState<WebSocketMessage[]>([]);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
+  const attemptsRef = useRef(0);
 
   const connect = useCallback(() => {
     if (!enabled || !mountedRef.current) return;
+    if (!WS_URL) {
+      // Realtime not configured for this environment.
+      setError("offline");
+      return;
+    }
 
     try {
       const ws = new WebSocket(`${WS_URL}/${channel}`);
-      
+
       ws.onopen = () => {
         console.log(`[WebSocket] Connected to ${channel}`);
+        attemptsRef.current = 0;
         setConnected(true);
         setError(null);
       };
@@ -62,17 +74,27 @@ export function useWebSocket(
       };
 
       ws.onclose = () => {
-        console.log(`[WebSocket] Disconnected from ${channel}`);
         setConnected(false);
         wsRef.current = null;
 
-        // Attempt reconnection
-        if (mountedRef.current && enabled) {
-          reconnectTimeoutRef.current = setTimeout(() => {
-            console.log(`[WebSocket] Reconnecting to ${channel}...`);
-            connect();
-          }, reconnectDelay);
+        if (!mountedRef.current || !enabled) return;
+
+        if (attemptsRef.current >= maxReconnectAttempts) {
+          console.warn(
+            `[WebSocket] Giving up on ${channel} after ${attemptsRef.current} attempts`,
+          );
+          setError("offline");
+          return;
         }
+
+        // Exponential backoff with jitter, capped at 30s.
+        const delay = Math.min(
+          reconnectDelay * Math.pow(2, attemptsRef.current) +
+            Math.random() * 500,
+          30_000,
+        );
+        attemptsRef.current += 1;
+        reconnectTimeoutRef.current = setTimeout(connect, delay);
       };
 
       wsRef.current = ws;
@@ -80,7 +102,14 @@ export function useWebSocket(
       console.error(`[WebSocket] Failed to connect to ${channel}:`, err);
       setError("Failed to connect");
     }
-  }, [channel, enabled, maxMessages, reconnectDelay, WS_URL]);
+  }, [
+    channel,
+    enabled,
+    maxMessages,
+    reconnectDelay,
+    maxReconnectAttempts,
+    WS_URL,
+  ]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {

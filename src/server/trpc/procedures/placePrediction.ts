@@ -7,6 +7,7 @@ import { loadMarketUiById } from "~/server/utils/loadMarketUi";
 import { ensureMarketRowForPaperTrade } from "~/server/utils/paperMarketPersistence";
 import { getOrderRole } from "~/utils/marketUtils";
 import { calculateFeeSplit, recordFeeDistribution, TAKER_FEE_RATE } from "~/server/services/feeCalculation";
+import { creditWalletPoints } from "~/server/utils/pointsLedger";
 
 function marketEventLabel(m: Market): string {
   return m.event ?? `${m.teamA} vs ${m.teamB}`;
@@ -430,27 +431,20 @@ export const placePrediction = baseProcedure
       }
     }
 
-    // Create POSITION_OPENED notification (only for first position on this market)
-    const existingPositions = await db.order.count({
-      where: {
-        wallet: input.walletAddress.toLowerCase(),
-        marketId: input.marketId,
-      },
-    });
-    
-    if (existingPositions === 1) { // This is the first position
-      await db.notification.create({
+    // In-app bell: notify on every successful buy (paper / production)
+    await db.notification
+      .create({
         data: {
           walletAddress: input.walletAddress.toLowerCase(),
-          type: 'POSITION_OPENED',
-          title: 'Position Opened',
-          message: `You bought ${shares.toFixed(2)} ${input.outcome.toUpperCase()} tokens on ${marketEventLabel(market)} at $${effectivePrice.toFixed(2)}`,
+          type: 'TRADE_FILLED',
+          title: 'Trade filled',
+          message: `${input.outcome.toUpperCase()} · $${input.amount.toFixed(2)} on ${marketEventLabel(market)} · ~${shares.toFixed(2)} shares @ $${effectivePrice.toFixed(3)}`,
           marketId: input.marketId,
         },
-      }).catch((err) => {
-        console.error('[Notifications] Failed to create POSITION_OPENED notification:', err);
+      })
+      .catch((err) => {
+        console.error('[Notifications] Failed to create TRADE_FILLED notification:', err);
       });
-    }
 
     // Check if user is an analyst and notify followers
     try {
@@ -493,65 +487,30 @@ export const placePrediction = baseProcedure
 
     // Credit points for trade
     try {
-      // Check if this is the first trade
+      const w = input.walletAddress.toLowerCase();
       const firstTradeEntry = await db.pointsLedger.findFirst({
         where: {
-          walletAddress: input.walletAddress.toLowerCase(),
-          actionType: 'FIRST_TRADE',
+          walletAddress: w,
+          actionType: "FIRST_TRADE",
         },
       });
-      
-      let totalPointsEarned = 50; // TRADE_PLACED
-      
+
+      let totalPointsEarned = 0;
+
       if (!firstTradeEntry) {
-        totalPointsEarned += 500; // FIRST_TRADE bonus
-        
-        await db.pointsLedger.create({
-          data: {
-            walletAddress: input.walletAddress.toLowerCase(),
-            actionType: 'FIRST_TRADE',
-            points: 500,
-            metadata: { marketId: input.marketId },
-          },
+        await creditWalletPoints(w, "FIRST_TRADE", 500, {
+          marketId: input.marketId,
         });
+        totalPointsEarned += 500;
       }
-      
-      // Always credit TRADE_PLACED
-      await db.pointsLedger.create({
-        data: {
-          walletAddress: input.walletAddress.toLowerCase(),
-          actionType: 'TRADE_PLACED',
-          points: 50,
-          metadata: { 
-            marketId: input.marketId,
-            amount: input.amount,
-            outcome: input.outcome,
-          },
-        },
+
+      await creditWalletPoints(w, "TRADE_PLACED", 50, {
+        marketId: input.marketId,
+        amount: input.amount,
+        outcome: input.outcome,
       });
-      
-      // Update total
-      const pointsTotal = await db.pointsTotal.findUnique({
-        where: { walletAddress: input.walletAddress.toLowerCase() },
-      });
-      
-      const newTotal = (pointsTotal?.totalPoints || 0) + totalPointsEarned;
-      const newTier = newTotal >= 20000 ? 'DIAMOND' : newTotal >= 5000 ? 'GOLD' : newTotal >= 1000 ? 'SILVER' : 'BRONZE';
-      
-      await db.pointsTotal.upsert({
-        where: { walletAddress: input.walletAddress.toLowerCase() },
-        create: {
-          walletAddress: input.walletAddress.toLowerCase(),
-          totalPoints: totalPointsEarned,
-          season: 1,
-          tier: 'BRONZE',
-        },
-        update: {
-          totalPoints: newTotal,
-          tier: newTier,
-        },
-      });
-      
+      totalPointsEarned += 50;
+
       console.log(`[Points] Credited ${totalPointsEarned} pts for trade`);
     } catch (error) {
       console.error('[Points] Failed to credit trade points:', error);

@@ -12,7 +12,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
       req.ip ||
       (req.socket?.remoteAddress ?? "unknown");
 
-    // eslint-disable-next-line no-console
+     
     console.log(
       JSON.stringify({
         at: new Date().toISOString(),

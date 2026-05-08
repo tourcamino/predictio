@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Header } from "~/components/Header";
-import { Footer } from "~/components/Footer";
 import {
   TierBadge,
   verificationToRewardTier,
@@ -63,7 +62,6 @@ function MaterialsPage() {
             </button>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -77,7 +75,6 @@ function MaterialsPage() {
             <div className="animate-pulse">Loading materials...</div>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -100,7 +97,6 @@ function MaterialsPage() {
             </Link>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -356,7 +352,6 @@ function MaterialsPage() {
         </div>
       </div>
 
-      <Footer />
     </div>
   );
 }
@@ -412,3 +407,4 @@ function AssetCard({
     </div>
   );
 }
+

@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Header } from "~/components/Header";
-import { Footer } from "~/components/Footer";
 import { FeeBreakdownCard } from '~/components/FeeBreakdownCard';
+import { GuestPageState } from "~/components/GuestPageState";
+import { WalletGateModal } from "~/components/WalletGateModal";
+import { useWalletGate } from "~/hooks/useWalletGate";
 import { useTRPC } from "~/trpc/react";
 import { useWalletStore } from "~/store/useWalletStore";
 import {
@@ -29,8 +31,8 @@ export const Route = createFileRoute("/analyst-dashboard/")({
 
 function AnalystDashboardPage() {
   const trpc = useTRPC();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const wallet = useWalletStore((state) => state.address);
-  const openWalletModal = useWalletStore((state) => state.openWalletModal);
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({
@@ -138,18 +140,16 @@ function AnalystDashboardPage() {
         <div className="pt-32 pb-20 px-4">
           <div className="max-w-4xl mx-auto text-center">
             <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
-            <p className="text-gray-400 mb-6">
-              Please connect your wallet to access your analyst dashboard.
+            <p className="text-gray-400 mb-8">
+              Track your performance, earnings, and referrals when connected.
             </p>
-            <button
-              onClick={openWalletModal}
-              className="px-8 py-3 bg-brand-green text-brand-bg font-bold rounded-lg hover:bg-brand-green/90 transition-colors"
-            >
-              Connect Wallet
-            </button>
+            <GuestPageState
+              description="Connect wallet to access your analyst dashboard"
+              onConnect={() => requireWallet()}
+            />
           </div>
         </div>
-        <Footer />
+        <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
       </div>
     );
   }
@@ -163,7 +163,6 @@ function AnalystDashboardPage() {
             <div className="animate-pulse">Loading dashboard...</div>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -186,7 +185,6 @@ function AnalystDashboardPage() {
             </Link>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -661,7 +659,6 @@ function AnalystDashboardPage() {
         </div>
       </div>
 
-      <Footer />
     </div>
   );
 }
@@ -819,3 +816,4 @@ function TopReferralsTable({ referrals }: any) {
     </div>
   );
 }
+

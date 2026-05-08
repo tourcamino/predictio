@@ -29,7 +29,7 @@ export function Hero() {
   };
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-4">
       {/* Noise Texture Overlay */}
       <svg className="absolute inset-0 w-full h-full opacity-[0.03]">
         <filter id="noiseFilter">

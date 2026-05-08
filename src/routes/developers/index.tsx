@@ -1,8 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useState, useEffect } from 'react';
 import { Terminal, Shield, BarChart3, Check, X, AlertCircle, MessageCircle, ExternalLink } from 'lucide-react';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { useWalletStore } from '~/store/useWalletStore';
 import { MetaTags } from '~/components/MetaTags';
 
@@ -117,10 +115,8 @@ function DevelopersLandingPage() {
         description="Build trading bots and integrations with the Predictio.live REST API and npm SDK."
         url={typeof window !== 'undefined' ? window.location.href : undefined}
       />
-      <Header />
-      
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-4">
+      <section className="relative pb-20 px-4">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#111111_1px,transparent_1px),linear-gradient(to_bottom,#111111_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20" />
         
         <div className="relative max-w-7xl mx-auto">
@@ -359,7 +355,7 @@ function DevelopersLandingPage() {
         </div>
       </section>
 
-      <Footer />
     </div>
   );
 }
+

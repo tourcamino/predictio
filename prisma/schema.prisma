@@ -398,7 +398,7 @@ model Notification {
 model PointsLedger {
   id             String   @id @default(cuid())
   walletAddress  String
-  actionType     String   // WALLET_CONNECTED, FIRST_TRADE, TRADE_PLACED, DAILY_LOGIN, MARKET_RESOLVED_WIN, LIQUIDITY_ADDED, STREAK_7_DAYS, STREAK_30_DAYS, REFERRAL_CONVERTED
+  actionType     String   // WALLET_CONNECTED, LP_WAITLIST_JOINED, FIRST_TRADE, TRADE_PLACED, TRADE_CLOSED, DAILY_LOGIN, MARKET_RESOLVED_WIN, DEPOSIT_COMPLETED, WITHDRAW_COMPLETED, LIQUIDITY_ADDED, STREAK_*, REFERRAL_CONVERTED
   points         Int
   metadata       Json?    // market_id, amount, etc.
   createdAt      DateTime @default(now())

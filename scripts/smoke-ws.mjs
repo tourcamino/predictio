@@ -2,15 +2,18 @@
  * Predictio WS smoke (optional).
  *
  * Usage:
- *   WS_URL=wss://api.predictio.live/ws BOT_API_KEY=... node ./scripts/smoke-ws.mjs
+ *   WS_URL=wss://host/ws/trading BOT_API_KEY=... node ./scripts/smoke-ws.mjs
  *
  * Notes:
- * - If WS_AUTH_REQUIRED=1 on server, BOT_API_KEY is required.
- * - The backend sends {type:"ready"} after auth; we wait for it before ping/subscribe.
+ * - Local backend: use URL path /trading (or /ws/trading) so the server sends type ready on connect.
+ * - Default: ws://127.0.0.1:8080/trading (override WS_PORT)
+ * - If WS_AUTH_REQUIRED=1 on server, use a valid developer apiKey query param or Bearer token as configured.
  */
 import WebSocket from "ws";
 
-const wsUrl = process.env.WS_URL || "";
+const wsPort = process.env.WS_PORT || "8080";
+const wsUrl =
+  process.env.WS_URL || `ws://127.0.0.1:${wsPort}/trading`;
 const botKey = process.env.BOT_API_KEY || "";
 
 function assert(cond, msg) {
@@ -18,8 +21,6 @@ function assert(cond, msg) {
 }
 
 async function main() {
-  assert(wsUrl, "WS_URL is required (e.g. wss://api.predictio.live/ws)");
-
   console.log(`smoke-ws url=${wsUrl}`);
 
   const headers = {};
@@ -37,7 +38,7 @@ async function main() {
     });
     ws.on("error", (e) => {
       clearTimeout(t);
-      reject(e);
+      reject(e instanceof Error ? e : new Error(String(e)));
     });
     ws.on("message", (buf) => {
       let msg;
@@ -84,6 +85,16 @@ async function main() {
 }
 
 main().catch((e) => {
+  const code = e?.code || e?.cause?.code;
+  const msg = e instanceof Error ? e.message : String(e);
+  const down =
+    code === "ECONNREFUSED" ||
+    code === "ENOTFOUND" ||
+    /ECONNREFUSED|ENOTFOUND/i.test(msg);
+  if (process.env.SMOKE_ALLOW_DOWN === "1" && down) {
+    console.warn(`WARN smoke-ws skipped (${code || msg})`);
+    process.exit(0);
+  }
   console.error(e);
   process.exit(1);
 });

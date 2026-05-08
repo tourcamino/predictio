@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
+import { z } from 'zod';
+import { fallback, zodValidator } from '@tanstack/zod-adapter';
 import { useWallet } from '~/store/useWalletStore';
 import { useState, useEffect, useMemo } from 'react';
 import { User, FileText, Wallet, BarChart3, Settings, Copy, ExternalLink, TrendingUp, Trophy, Calendar, ArrowDownCircle, ArrowUpCircle, TrendingDown, RefreshCw, Users, Hexagon, CheckCircle, Circle, Gift, DollarSign } from 'lucide-react';
@@ -13,16 +13,35 @@ import { ReferralDashboardTab } from '~/components/account/ReferralDashboardTab'
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
 
+const ACCOUNT_TAB_KEYS = [
+  'overview',
+  'predictions',
+  'wallet',
+  'history',
+  'stats',
+  'points',
+  'followed-analysts',
+  'referral-earnings',
+  'payout-history',
+  'analytics',
+  'settings',
+] as const;
+
+type TabType = (typeof ACCOUNT_TAB_KEYS)[number];
+
+const accountSearchSchema = z.object({
+  tab: fallback(z.enum(ACCOUNT_TAB_KEYS), 'overview').default('overview'),
+});
+
 export const Route = createFileRoute('/account/')({
+  validateSearch: zodValidator(accountSearchSchema),
   component: AccountPage,
 });
 
-type TabType = 'overview' | 'predictions' | 'wallet' | 'history' | 'stats' | 'points' | 'followed-analysts' | 'referral-earnings' | 'payout-history' | 'analytics' | 'settings';
-
 function AccountPage() {
   const { isConnected, address, balance, openWalletModal, disconnectWallet } = useWallet();
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const navigate = useNavigate({ from: '/account' });
+  const { tab: activeTab } = Route.useSearch();
   const [displayName, setDisplayName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('🦁');
   const [depositWithdrawModal, setDepositWithdrawModal] = useState<{ isOpen: boolean; type: 'deposit' | 'withdraw' }>({
@@ -95,14 +114,39 @@ function AccountPage() {
       WALLET_CONNECTED: 'Wallet connected',
       FIRST_TRADE: 'First trade',
       TRADE_PLACED: 'Trade placed',
+      TRADE_CLOSED: 'Position closed / reduced',
       DAILY_LOGIN: 'Daily login',
       MARKET_RESOLVED_WIN: 'Won a market',
       LIQUIDITY_ADDED: 'Added liquidity',
       STREAK_7_DAYS: '7-day streak',
       STREAK_30_DAYS: '30-day streak',
       REFERRAL_CONVERTED: 'Referral converted',
+      DEPOSIT_COMPLETED: 'Deposit completed',
+      WITHDRAW_COMPLETED: 'Withdrawal completed',
+      LP_WAITLIST_JOINED: 'LP waitlist joined',
     };
-    return labels[actionType] || actionType;
+    return labels[actionType] || actionType.replace(/_/g, ' ');
+  };
+
+  const formatPointsActivityDetails = (meta: unknown) => {
+    if (!meta || typeof meta !== 'object') return '—';
+    const m = meta as Record<string, unknown>;
+    const parts: string[] = [];
+    if (typeof m.marketLabel === 'string' && m.marketLabel.trim()) {
+      parts.push(m.marketLabel.trim());
+    } else if (typeof m.marketEvent === 'string' && m.marketEvent.trim()) {
+      parts.push(m.marketEvent.trim());
+    }
+    if (typeof m.amount === 'number' && Number.isFinite(m.amount)) {
+      parts.push(`$${m.amount.toFixed(2)}`);
+    }
+    if (typeof m.winningOutcome === 'string') {
+      parts.push(`${m.winningOutcome} won`);
+    }
+    if (typeof m.marketId === 'string' && m.marketId.length > 0 && parts.length === 0) {
+      parts.push(`Market …${m.marketId.slice(-8)}`);
+    }
+    return parts.length ? parts.join(' · ') : '—';
   };
 
   const transactionHistoryQuery = useQuery({
@@ -157,8 +201,7 @@ function AccountPage() {
   if (!isConnected) {
     return (
       <div className="min-h-screen bg-brand-bg">
-        <Header />
-        <div className="pt-32 pb-20 px-4">
+        <div className="pb-20 px-4">
           <div className="max-w-7xl mx-auto text-center">
             <p className="text-gray-400">Redirecting to home...</p>
           </div>
@@ -185,9 +228,7 @@ function AccountPage() {
 
   return (
     <div className="min-h-screen bg-brand-bg">
-      <Header />
-      
-      <div className="pt-32 pb-20 px-4">
+      <div className="pb-20 px-4">
         <div className="max-w-7xl mx-auto">
           {/* Page Header */}
           <div className="mb-8">
@@ -205,7 +246,12 @@ function AccountPage() {
                 return (
                   <button
                     key={tab.key}
-                    onClick={() => setActiveTab(tab.key as TabType)}
+                    onClick={() =>
+                      navigate({
+                        search: { tab: tab.key as TabType },
+                        replace: true,
+                      })
+                    }
                     className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-all whitespace-nowrap ${
                       activeTab === tab.key
                         ? 'border-brand-green text-brand-green'
@@ -256,7 +302,12 @@ function AccountPage() {
               {/* Quick Actions */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <button
-                  onClick={() => setActiveTab('predictions')}
+                  onClick={() =>
+                    navigate({
+                      search: { tab: 'predictions' },
+                      replace: true,
+                    })
+                  }
                   className="p-6 bg-white/5 border border-white/10 rounded-lg hover:border-brand-green transition-all text-left"
                 >
                   <FileText className="w-8 h-8 text-brand-green mb-3" />
@@ -266,7 +317,12 @@ function AccountPage() {
                   </p>
                 </button>
                 <button
-                  onClick={() => setActiveTab('wallet')}
+                  onClick={() =>
+                    navigate({
+                      search: { tab: 'wallet' },
+                      replace: true,
+                    })
+                  }
                   className="p-6 bg-white/5 border border-white/10 rounded-lg hover:border-brand-green transition-all text-left"
                 >
                   <Wallet className="w-8 h-8 text-brand-cyan mb-3" />
@@ -276,7 +332,12 @@ function AccountPage() {
                   </p>
                 </button>
                 <button
-                  onClick={() => setActiveTab('stats')}
+                  onClick={() =>
+                    navigate({
+                      search: { tab: 'stats' },
+                      replace: true,
+                    })
+                  }
                   className="p-6 bg-white/5 border border-white/10 rounded-lg hover:border-brand-green transition-all text-left"
                 >
                   <BarChart3 className="w-8 h-8 text-purple-400 mb-3" />
@@ -495,7 +556,7 @@ function AccountPage() {
                     </div>
 
                     {/* Progress to Next Tier */}
-                    {pointsQuery.data.nextTier && (
+                    {pointsQuery.data.nextTier ? (
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm text-gray-400">Next: {pointsQuery.data.nextTier}</span>
@@ -504,44 +565,60 @@ function AccountPage() {
                           </span>
                         </div>
                         <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className="h-full bg-gradient-to-r from-brand-green to-brand-cyan transition-all duration-500"
-                            style={{ 
-                              width: `${Math.min(100, (1 - (pointsQuery.data.pointsToNextTier / (pointsQuery.data.totalPoints + pointsQuery.data.pointsToNextTier))) * 100)}%` 
+                            style={{
+                              width: `${(() => {
+                                const t = pointsQuery.data.totalPoints;
+                                const g = pointsQuery.data.pointsToNextTier;
+                                const denom = t + g;
+                                if (denom <= 0) return 0;
+                                return Math.min(100, (t / denom) * 100);
+                              })()}%`,
                             }}
                           />
                         </div>
                       </div>
+                    ) : (
+                      <p className="text-sm text-gray-400">
+                        {pointsQuery.data.tier === 'DIAMOND'
+                          ? 'Top tier reached for Season 1 — keep earning for future seasons.'
+                          : 'Tier progress unavailable.'}
+                      </p>
                     )}
                   </div>
 
                   {/* How to Earn */}
                   <div className="bg-white/5 border border-white/10 rounded-lg p-6">
                     <h3 className="font-syne font-bold text-lg mb-4">HOW TO EARN</h3>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Rewards match your on-platform activity. Repeatable rows show how many times you&apos;ve been credited.
+                    </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {[
-                        { action: 'WALLET_CONNECTED', label: 'Wallet connected', points: 100 },
-                        { action: 'FIRST_TRADE', label: 'First trade', points: 500 },
-                        { action: 'TRADE_PLACED', label: 'Place a trade', points: 50 },
-                        { action: 'DAILY_LOGIN', label: 'Daily login', points: 25 },
-                        { action: 'MARKET_RESOLVED_WIN', label: 'Win a market', points: 200 },
-                        { action: 'LIQUIDITY_ADDED', label: 'Add liquidity', points: '10/10 USDC' },
-                        { action: 'STREAK_7_DAYS', label: '7-day streak', points: 350 },
-                        { action: 'STREAK_30_DAYS', label: '30-day streak', points: 2000 },
-                      ].map((item) => {
-                        const hasCompleted = pointsQuery.data.recentActivity.some(
-                          (activity: any) => activity.actionType === item.action
-                        );
+                      {(pointsQuery.data.earnGuide ?? []).map((item) => {
+                        const done = item.repeatable
+                          ? item.timesEarned > 0
+                          : item.completed;
                         return (
-                          <div key={item.action} className="flex items-center gap-3 p-3 bg-white/5 rounded">
-                            {hasCompleted ? (
-                              <CheckCircle className="w-5 h-5 text-brand-green flex-shrink-0" />
+                          <div
+                            key={item.actionType}
+                            className="flex items-start gap-3 p-3 bg-white/5 rounded"
+                          >
+                            {done ? (
+                              <CheckCircle className="w-5 h-5 text-brand-green flex-shrink-0 mt-0.5" />
                             ) : (
-                              <Circle className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                              <Circle className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
                             )}
-                            <span className="flex-1 text-sm">{item.label}</span>
-                            <span className="font-mono text-sm text-brand-green font-semibold">
-                              +{item.points} pts
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm">{item.label}</div>
+                              {item.repeatable && item.timesEarned > 0 && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Credited {item.timesEarned}×
+                                </div>
+                              )}
+                            </div>
+                            <span className="font-mono text-sm text-brand-green font-semibold whitespace-nowrap">
+                              {item.pointsLabel}
                             </span>
                           </div>
                         );
@@ -579,12 +656,17 @@ function AccountPage() {
                                 </td>
                                 <td className="px-6 py-4">
                                   <span className="text-sm text-gray-400">
-                                    {activity.metadata?.marketId ? `Market ${activity.metadata.marketId.slice(0, 8)}...` : '—'}
+                                    {formatPointsActivityDetails(activity.metadata)}
                                   </span>
                                 </td>
                                 <td className="px-6 py-4">
-                                  <span className="font-mono font-semibold text-brand-green">
-                                    +{activity.points}
+                                  <span
+                                    className={`font-mono font-semibold ${
+                                      activity.points >= 0 ? 'text-brand-green' : 'text-red-400'
+                                    }`}
+                                  >
+                                    {activity.points >= 0 ? '+' : ''}
+                                    {activity.points}
                                   </span>
                                 </td>
                                 <td className="px-6 py-4">
@@ -682,7 +764,12 @@ function AccountPage() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-syne font-bold text-lg">Recent Transactions</h3>
                   <button
-                    onClick={() => setActiveTab('history')}
+                    onClick={() =>
+                      navigate({
+                        search: { tab: 'history' },
+                        replace: true,
+                      })
+                    }
                     className="text-sm text-brand-green hover:text-brand-green/80"
                   >
                     View All →
@@ -1173,7 +1260,6 @@ function AccountPage() {
         </div>
       </div>
       
-      <Footer />
       
       <DepositWithdrawModal
         isOpen={depositWithdrawModal.isOpen}
@@ -1183,3 +1269,4 @@ function AccountPage() {
     </div>
   );
 }
+

@@ -1,6 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Header } from "~/components/Header";
-import { Footer } from "~/components/Footer";
 import { useState, useEffect } from "react";
 import {
   TrendingUp,
@@ -43,10 +41,8 @@ function AffiliatesPage() {
 
   return (
     <div className="min-h-screen bg-brand-bg">
-      <Header />
-
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 relative overflow-hidden">
+      <section className="pb-20 px-4 relative overflow-hidden">
         {/* Background Grid */}
         <div className="absolute inset-0 opacity-10">
           <div
@@ -158,7 +154,6 @@ function AffiliatesPage() {
         <ContactModal onClose={() => setShowContactModal(false)} />
       )}
 
-      <Footer />
     </div>
   );
 }
@@ -838,3 +833,4 @@ function ContactModal({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+

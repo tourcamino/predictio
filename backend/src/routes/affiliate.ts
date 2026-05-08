@@ -73,7 +73,7 @@ router.post(
   async (req, res, next) => {
   try {
     const authedWallet = (req as any).walletAddress as string | undefined;
-    const bodyWallet = (req.body as any).walletAddress as string | undefined;
+    const bodyWallet = (req.body).walletAddress as string | undefined;
     const walletAddress = authedWallet || bodyWallet || null;
     if (!walletAddress) {
       throw new ApiError("Wallet not authenticated", { status: 401, code: "UNAUTHORIZED" });
@@ -82,8 +82,8 @@ router.post(
       throw new ApiError("Wallet mismatch", { status: 403, code: "WALLET_MISMATCH" });
     }
 
-    const refCode = (req.body as any).refCode ? String((req.body as any).refCode).toUpperCase() : null;
-    const isFounder = Boolean((req.body as any)?.isFounder);
+    const refCode = (req.body).refCode ? String((req.body).refCode).toUpperCase() : null;
+    const isFounder = Boolean((req.body)?.isFounder);
 
     const affiliate = await prisma.affiliate.upsert({
       where: { walletAddress },

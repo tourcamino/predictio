@@ -3,7 +3,6 @@ import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
 import { MapPin, Clock, ArrowLeft, Briefcase } from 'lucide-react';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import Markdown from 'markdown-to-jsx';
 
 export const Route = createFileRoute('/careers/$id/')({
@@ -32,7 +31,6 @@ function JobPositionPage() {
             </div>
           </div>
         </main>
-        <Footer />
       </div>
     );
   }
@@ -54,7 +52,6 @@ function JobPositionPage() {
             </Link>
           </div>
         </main>
-        <Footer />
       </div>
     );
   }
@@ -237,7 +234,7 @@ function JobPositionPage() {
         </div>
       </main>
 
-      <Footer />
     </div>
   );
 }
+

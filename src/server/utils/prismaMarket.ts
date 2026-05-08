@@ -1,24 +1,50 @@
 import type { Market as PrismaMarketRow } from "@prisma/client";
 import { type Market, SPORT_METADATA } from "~/data/mockMarkets";
 
+export function normalizeYesNoUnitPrices(yesRaw: number, noRaw: number | undefined): {
+  yesPrice: number;
+  noPrice: number;
+} {
+  let yes = Number(yesRaw);
+  let no = noRaw != null ? Number(noRaw) : NaN;
+  if (!Number.isFinite(yes)) yes = 0.5;
+  // API/DB sometimes stores 0–100; coerce to 0–1
+  if (yes > 1 || (Number.isFinite(no) && no > 1)) {
+    yes = yes > 1 ? yes / 100 : yes;
+    no = Number.isFinite(no) && no > 1 ? no / 100 : no;
+  }
+  if (!Number.isFinite(no)) {
+    no = Math.max(0.01, Math.min(0.99, 1 - yes));
+  }
+  yes = Math.max(0.001, Math.min(0.999, yes));
+  no = Math.max(0.001, Math.min(0.999, no));
+  const sum = yes + no;
+  if (sum > 0 && Math.abs(sum - 1) > 0.02) {
+    yes /= sum;
+    no /= sum;
+  }
+  return {
+    yesPrice: Math.max(0.01, Math.min(0.99, yes)),
+    noPrice: Math.max(0.01, Math.min(0.99, no)),
+  };
+}
+
 export function parseYesNoPrices(outcomes: unknown): {
   yesPrice: number;
   noPrice: number;
 } {
   if (outcomes == null) return { yesPrice: 0.5, noPrice: 0.5 };
   if (Array.isArray(outcomes)) {
-    const yesPrice = Number(outcomes[0]?.price ?? 0.5);
-    const noPrice = Number(
-      outcomes[1]?.price ?? Math.max(0.01, Math.min(0.99, 1 - yesPrice)),
-    );
-    return { yesPrice, noPrice };
+    const yesRaw = Number(outcomes[0]?.price ?? 0.5);
+    const noRaw = outcomes[1]?.price != null ? Number(outcomes[1].price) : undefined;
+    return normalizeYesNoUnitPrices(yesRaw, noRaw);
   }
   if (typeof outcomes === "object") {
     const o = outcomes as Record<string, unknown>;
     const y = o.yesPrice;
     const n = o.noPrice;
-    if (typeof y === "number" && typeof n === "number") {
-      return { yesPrice: y, noPrice: n };
+    if (typeof y === "number") {
+      return normalizeYesNoUnitPrices(y, typeof n === "number" ? n : undefined);
     }
   }
   return { yesPrice: 0.5, noPrice: 0.5 };

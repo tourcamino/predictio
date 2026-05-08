@@ -10,12 +10,13 @@ export const getProtocolVaultPosition = baseProcedure
   )
   .query(async ({ input }) => {
     const { walletAddress } = input;
+    const wallet = walletAddress.toLowerCase();
 
     // Get user's Protocol Vault position
     const position = await db.liquidityPosition.findFirst({
       where: {
         marketId: 'protocol-vault',
-        userWallet: walletAddress.toLowerCase(),
+        userWallet: wallet,
         status: 'active',
       },
       include: {
@@ -35,7 +36,7 @@ export const getProtocolVaultPosition = baseProcedure
     // Get all deposits and withdrawals for this user in the Protocol Vault
     const transactions = await db.transaction.findMany({
       where: {
-        wallet: walletAddress,
+        wallet,
         type: {
           in: ['deposit', 'withdrawal'],
         },

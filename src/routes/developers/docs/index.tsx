@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Book, Copy, Check, ChevronRight, AlertTriangle, Zap, Code2, Terminal, Globe } from 'lucide-react';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 
 export const Route = createFileRoute('/developers/docs/')({
   component: DocsPage,
@@ -1062,7 +1061,7 @@ function connect() {
         </main>
       </div>
 
-      <Footer />
     </div>
   );
 }
+

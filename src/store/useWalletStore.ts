@@ -121,12 +121,11 @@ export const useWalletStore = create<WalletStore>()(
       recentRecipients: [],
       resolvedMarkets: [],
 
-      // Connect wallet with simulated delay
+      // Connect wallet with short simulated delay (paper mode)
       connectWallet: async (walletType: string) => {
         set({ isConnecting: true });
         
-        // Simulate wallet connection delay
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 350));
         
         // Mock wallet data
         const mockAddress = '0x7f3a8b2c4e2b9f1a6d5c8e7f9a2b4c6d8e0f1a3b';
@@ -318,8 +317,7 @@ export const useWalletStore = create<WalletStore>()(
         const state = get();
         if (!state.address) return;
         
-        // Mock: simulate balance refresh
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 120));
         
         // In production, this would fetch from blockchain
         const mockBalance = state.balance + (Math.random() - 0.5) * 10;
@@ -339,7 +337,7 @@ export const useWalletStore = create<WalletStore>()(
       // Refresh transaction history
       refreshTransactions: async () => {
         // Mock: in production, fetch from API/blockchain
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 80));
         console.log('[Wallet] Transactions refreshed');
       },
 
@@ -379,7 +377,7 @@ export const useWalletStore = create<WalletStore>()(
         }
         
         // Mock execution
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 450));
         
         const mockTxHash = `0x${Array.from({ length: 64 }, () =>
           Math.floor(Math.random() * 16).toString(16)
@@ -428,7 +426,7 @@ export const useWalletStore = create<WalletStore>()(
         const totalAmount = claimableMarkets.reduce((sum, m) => sum + m.claimableAmount, 0);
         
         // Mock execution (longer delay for batch)
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 550));
         
         const mockTxHash = `0x${Array.from({ length: 64 }, () =>
           Math.floor(Math.random() * 16).toString(16)

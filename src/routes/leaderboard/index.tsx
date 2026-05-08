@@ -1,6 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { useState } from 'react';
 import { Trophy, Medal, TrendingUp, RefreshCw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -141,9 +139,7 @@ function LeaderboardPage() {
         url={typeof window !== 'undefined' ? window.location.href : undefined}
       />
       <div className="min-h-screen bg-brand-bg">
-        <Header />
-        
-        <div className="pt-32 pb-20 px-4">
+        <div className="pb-20 px-4">
           <div className="max-w-7xl mx-auto">
             {/* Header */}
             <div className="text-center mb-12">
@@ -815,8 +811,8 @@ function LeaderboardPage() {
           </div>
         </div>
         
-        <Footer />
       </div>
     </>
   );
 }
+

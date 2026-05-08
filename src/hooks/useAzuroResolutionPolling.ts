@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useTRPC } from '~/trpc/react';
+import { invalidateAllPointsSummaryQueries } from '~/utils/invalidateWalletNotifications';
 import { useTradingStore } from '~/store/tradingStore';
 
 /**
@@ -62,7 +63,8 @@ export function useAzuroResolutionPolling() {
           queryClient.invalidateQueries({
             queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: '' }),
           });
-          
+          invalidateAllPointsSummaryQueries(queryClient);
+
           console.log(`[Paper Trading] Resolved positions for market ${resolved.marketId}`);
         } catch (error) {
           console.error(`[Paper Trading] Failed to resolve positions for market ${resolved.marketId}:`, error);

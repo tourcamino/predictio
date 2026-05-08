@@ -3,6 +3,8 @@ import { ChevronDown, ChevronUp, Star, TrendingUp, Clock, Zap, Filter, ChevronLe
 import { SPORT_METADATA } from '~/data/mockMarkets';
 import { useMarketsUIStore } from '~/store/useMarketsUIStore';
 import { isFootballFocusEnabled, isSportAllowed } from '~/config/footballFocus';
+import { useUserCountry } from '~/hooks/useUserCountry';
+import { COUNTRY_FLAG, COUNTRY_LABEL, COUNTRY_OPTIONS } from '~/config/marketGeo';
 
 interface MarketsFilterSidebarProps {
   selectedSport: string;
@@ -39,6 +41,7 @@ export function MarketsFilterSidebar({
   onAnalystRecommendedChange,
   onClearAll,
 }: MarketsFilterSidebarProps) {
+  const userCountry = useUserCountry();
   const [expandedSections, setExpandedSections] = useState<Set<AccordionSection>>(
     new Set(['sports', 'status', 'sorting'])
   );
@@ -71,19 +74,21 @@ export function MarketsFilterSidebar({
 
   const statuses = [
     { id: 'all', name: 'All Status', icon: null },
-    { id: 'live', name: 'Live', icon: '🔴' },
-    { id: 'ending-soon', name: 'Closing Soon', icon: '⏰' },
-    { id: 'upcoming', name: 'Active', icon: '✅' },
+    { id: 'live', name: 'Match live (trading locked)', icon: '🔴' },
+    { id: 'ending-soon', name: 'Locks soon (pre-kickoff)', icon: '⏰' },
+    { id: 'upcoming', name: 'Open for trading', icon: '✅' },
     { id: 'locked', name: 'Closed', icon: '🔒' },
   ];
 
   const regions = [
     { id: 'all', name: 'All Regions', emoji: '🌍' },
-    { id: 'Europe', name: 'Europe', emoji: '🇪🇺' },
-    { id: 'Americas', name: 'Americas', emoji: '🌎' },
-    { id: 'Asia-Pacific', name: 'Asia-Pacific', emoji: '🌏' },
-    { id: 'Africa', name: 'Africa', emoji: '🌍' },
-    { id: 'Middle East', name: 'Middle East', emoji: '🏜️' },
+    { id: userCountry.countryCode, name: 'Your Nation', emoji: userCountry.flag },
+    { id: 'elite', name: 'World Class', emoji: '🌍' },
+    ...COUNTRY_OPTIONS.map((cc) => ({
+      id: cc,
+      name: COUNTRY_LABEL[cc],
+      emoji: COUNTRY_FLAG[cc],
+    })),
   ];
 
   const oddsRanges = [
@@ -94,11 +99,11 @@ export function MarketsFilterSidebar({
   ];
 
   const sortOptions = [
+    { id: 'trending', name: 'Trending', icon: TrendingUp },
     { id: 'volume', name: 'Volume', icon: TrendingUp },
-    { id: 'closing-soon', name: 'Closing Soon', icon: Clock },
+    { id: 'closing-soon', name: 'Kickoff / lock soon', icon: Clock },
     { id: 'newest', name: 'Newest', icon: Zap },
-    { id: 'most-predicted', name: 'Most Predicted', icon: TrendingUp },
-    { id: 'most-popular', name: 'Most Popular', icon: Star },
+    { id: 'most-popular', name: 'Most traders', icon: Star },
   ];
 
   const getCurrentOddsId = () => {

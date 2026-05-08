@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useTRPCClient, useTRPC } from "~/trpc/react";
+import { useTRPCClient } from "~/trpc/react";
+import { fetchCuratedMarketsFromApi } from "~/utils/curatedMarketsApi";
 
 /**
  * Pre-generates OG images for the top Azuro football markets in the background
@@ -8,14 +9,10 @@ import { useTRPCClient, useTRPC } from "~/trpc/react";
  */
 export function OGImagePreloader() {
   const client = useTRPCClient();
-  const trpc = useTRPC();
 
   const marketsQuery = useQuery({
-    ...trpc.getAzuroMarkets.queryOptions({
-      sport: "football",
-      competition: "all",
-      status: "all",
-    }),
+    queryKey: ["curatedMarkets", "og-preload"],
+    queryFn: fetchCuratedMarketsFromApi,
     staleTime: 120_000,
   });
 

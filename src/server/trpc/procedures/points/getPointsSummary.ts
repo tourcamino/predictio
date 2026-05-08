@@ -1,26 +1,64 @@
 import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
-
-const TIER_THRESHOLDS = {
-  BRONZE: 0,
-  SILVER: 1000,
-  GOLD: 5000,
-  DIAMOND: 20000,
-} as const;
+import {
+  TIER_THRESHOLDS,
+  calculateTier,
+  POINTS_EARN_GUIDE,
+} from "~/server/utils/pointsLedger";
 
 export const getPointsSummary = baseProcedure
   .input(
     z.object({
       walletAddress: z.string(),
-    })
+    }),
   )
   .query(async ({ input }) => {
     const normalizedAddress = input.walletAddress.toLowerCase();
 
-    // Get total points
-    const pointsTotal = await db.pointsTotal.findUnique({
+    let pointsTotal = await db.pointsTotal.findUnique({
       where: { walletAddress: normalizedAddress },
+    });
+
+    // Repair: ledger rows exist but totals row missing (e.g. legacy writes)
+    if (!pointsTotal) {
+      const ledgerSum = await db.pointsLedger.aggregate({
+        where: { walletAddress: normalizedAddress },
+        _sum: { points: true },
+      });
+      const sum = ledgerSum._sum.points ?? 0;
+      if (sum > 0) {
+        const tier = calculateTier(sum);
+        pointsTotal = await db.pointsTotal.create({
+          data: {
+            walletAddress: normalizedAddress,
+            totalPoints: sum,
+            season: 1,
+            tier,
+          },
+        });
+      }
+    }
+
+    const actionCounts = await db.pointsLedger.groupBy({
+      by: ["actionType"],
+      where: { walletAddress: normalizedAddress },
+      _count: { _all: true },
+    });
+    const timesByAction = new Map(
+      actionCounts.map((r) => [r.actionType, r._count._all]),
+    );
+
+    const earnGuide = POINTS_EARN_GUIDE.map((entry) => {
+      const timesEarned = timesByAction.get(entry.actionType) ?? 0;
+      const completed = entry.repeatable
+        ? timesEarned > 0
+        : timesEarned > 0;
+      return {
+        ...entry,
+        timesEarned,
+        completed,
+      };
     });
 
     if (!pointsTotal) {
@@ -28,28 +66,27 @@ export const getPointsSummary = baseProcedure
         totalPoints: 0,
         tier: "BRONZE",
         nextTier: "SILVER",
-        pointsToNextTier: 1000,
+        pointsToNextTier: TIER_THRESHOLDS.SILVER,
         globalRank: null,
         recentActivity: [],
+        earnGuide,
       };
     }
 
-    // Calculate next tier and points needed
     let nextTier: string | null = null;
     let pointsToNextTier = 0;
 
     if (pointsTotal.tier === "BRONZE") {
       nextTier = "SILVER";
-      pointsToNextTier = TIER_THRESHOLDS.SILVER - pointsTotal.totalPoints;
+      pointsToNextTier = Math.max(0, TIER_THRESHOLDS.SILVER - pointsTotal.totalPoints);
     } else if (pointsTotal.tier === "SILVER") {
       nextTier = "GOLD";
-      pointsToNextTier = TIER_THRESHOLDS.GOLD - pointsTotal.totalPoints;
+      pointsToNextTier = Math.max(0, TIER_THRESHOLDS.GOLD - pointsTotal.totalPoints);
     } else if (pointsTotal.tier === "GOLD") {
       nextTier = "DIAMOND";
-      pointsToNextTier = TIER_THRESHOLDS.DIAMOND - pointsTotal.totalPoints;
+      pointsToNextTier = Math.max(0, TIER_THRESHOLDS.DIAMOND - pointsTotal.totalPoints);
     }
 
-    // Calculate global rank
     const higherRankedCount = await db.pointsTotal.count({
       where: {
         totalPoints: {
@@ -59,11 +96,10 @@ export const getPointsSummary = baseProcedure
     });
     const globalRank = higherRankedCount + 1;
 
-    // Get recent activity (last 10)
     const recentActivity = await db.pointsLedger.findMany({
       where: { walletAddress: normalizedAddress },
       orderBy: { createdAt: "desc" },
-      take: 10,
+      take: 25,
     });
 
     return {
@@ -78,5 +114,6 @@ export const getPointsSummary = baseProcedure
         metadata: entry.metadata,
         createdAt: entry.createdAt,
       })),
+      earnGuide,
     };
   });

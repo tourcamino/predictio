@@ -2,11 +2,10 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Key, Copy, Eye, EyeOff, RotateCw, Trash2, Activity, AlertTriangle } from 'lucide-react';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { useWalletStore } from '~/store/useWalletStore';
 import toast from 'react-hot-toast';
 import { useApiAuthStore } from '~/store/useApiAuthStore';
-import { apiRequest } from '~/lib/predictioApi';
+import { apiRequest, type ApiErrorShape } from '~/lib/predictioApi';
 
 export const Route = createFileRoute('/developers/keys/')({
   component: APIKeysPage,
@@ -99,7 +98,7 @@ function APIKeysPage() {
     const r = await apiRequest<{ keys: any[] }>(`/api/admin/wallet/${walletAddress}/keys`, { adminApiKey });
     setLoading(false);
     if (!r.ok) {
-      toast.error(`List keys failed: ${r.error?.error?.code || `HTTP_${r.status}`}`);
+      toast.error(`List keys failed: ${(r.error as ApiErrorShape)?.error?.code || `HTTP_${r.status}`}`);
       return;
     }
     const normalized: APIKey[] = (r.data.keys || []).map((k: any) => ({
@@ -121,7 +120,7 @@ function APIKeysPage() {
 
   useEffect(() => {
     refreshKeys().catch(() => null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [adminApiKey, walletAddress]);
 
   const handleGenerate = (key: string) => {
@@ -162,7 +161,7 @@ function APIKeysPage() {
     });
     setLoading(false);
     if (!r.ok) {
-      toast.error(`Create failed: ${r.error?.error?.code || `HTTP_${r.status}`}`);
+      toast.error(`Create failed: ${(r.error as ApiErrorShape)?.error?.code || `HTTP_${r.status}`}`);
       return;
     }
     handleGenerate(r.data.apiKey);
@@ -182,7 +181,7 @@ function APIKeysPage() {
     });
     setLoading(false);
     if (!r.ok) {
-      toast.error(`Revoke failed: ${r.error?.error?.code || `HTTP_${r.status}`}`);
+      toast.error(`Revoke failed: ${(r.error as ApiErrorShape)?.error?.code || `HTTP_${r.status}`}`);
       return;
     }
     toast.success('API key revoked');
@@ -208,7 +207,7 @@ function APIKeysPage() {
     });
     setLoading(false);
     if (!r.ok) {
-      toast.error(`Rotate failed: ${r.error?.error?.code || `HTTP_${r.status}`}`);
+      toast.error(`Rotate failed: ${(r.error as ApiErrorShape)?.error?.code || `HTTP_${r.status}`}`);
       return;
     }
     toast.success(`Rotated (revoked ${r.data.revoked})`);
@@ -250,7 +249,6 @@ function APIKeysPage() {
           </div>
         </div>
         
-        <Footer />
       </div>
     );
   }
@@ -488,7 +486,6 @@ function APIKeysPage() {
         )}
       </div>
 
-      <Footer />
 
       {showKeyModal && (
         <ShowKeyModal
@@ -499,3 +496,4 @@ function APIKeysPage() {
     </div>
   );
 }
+

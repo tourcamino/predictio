@@ -53,9 +53,9 @@ router.post(
   async (req, res, next) => {
   try {
     const authedWallet = (req as any).walletAddress as string | undefined;
-    const action = (req.body as any).action as string;
-    const walletAddress = (req.body as any).walletAddress as string;
-    const amountUsd = Number((req.body as any).amountUsd || 0);
+    const action = (req.body).action as string;
+    const walletAddress = (req.body).walletAddress as string;
+    const amountUsd = Number((req.body).amountUsd || 0);
 
     if (authedWallet && authedWallet !== walletAddress) {
       throw new ApiError("Wallet mismatch", { status: 403, code: "WALLET_MISMATCH" });

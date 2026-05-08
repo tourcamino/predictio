@@ -1,4 +1,4 @@
-type ApiErrorShape = {
+export type ApiErrorShape = {
   error?: {
     code?: string;
     message?: string;
@@ -38,6 +38,11 @@ export function getApiBaseUrl(): string {
     }
     if (fromEnv) return fromEnv;
 
+    // `npm run dev`: Vite proxies `/api/*` → Express (see app.config.ts). Same-origin when Vite HMR is active.
+    const viteMeta = import.meta as { hot?: unknown };
+    if (isLocalFrontendDevOrigin() && viteMeta.hot) {
+      return window.location.origin.replace(/\/$/, "");
+    }
     if (isLocalFrontendDevOrigin()) return DEFAULT_DEV_BACKEND;
     return window.location.origin;
   }
@@ -67,7 +72,10 @@ export async function apiRequest<T>(
     signal?: AbortSignal;
     timeoutMs?: number;
   } = {},
-): Promise<{ ok: true; data: T } | { ok: false; status: number; error: ApiErrorShape | any }> {
+): Promise<
+  | { ok: true; data: T }
+  | { ok: false; status: number; error: ApiErrorShape | Record<string, unknown> }
+> {
   const url = `${getApiBaseUrl()}${path.startsWith('/') ? '' : '/'}${path}`;
   const headers: Record<string, string> = {};
 

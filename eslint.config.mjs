@@ -46,6 +46,15 @@ export default tseslint.config([
     },
   },
   {
+    files: ["backend/**/*.ts"],
+    rules: {
+      // Express `req.query` / mixed payloads: explicit string coercions are noisy without strong typing everywhere.
+      "@typescript-eslint/no-base-to-string": "off",
+      "@typescript-eslint/no-unnecessary-type-assertion": "off",
+      "@typescript-eslint/no-redundant-type-constituents": "off",
+    },
+  },
+  {
     ignores: [
       ".vinxi/",
       ".output/",

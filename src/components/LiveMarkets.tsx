@@ -5,8 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { SEED_MARKETS } from '~/data/seedMarkets';
 import { LiveMarketCard } from './markets/LiveMarketCard';
 import { isFootballFocusEnabled } from '~/config/footballFocus';
-import { useTRPC } from '~/trpc/react';
 import { seedMarketToLiveMarket } from '~/utils/seedMarketToLiveMarket';
+import { fetchCuratedMarketsFromApi } from '~/utils/curatedMarketsApi';
 import type { Market } from '~/data/mockMarkets';
 
 /** Match curated cap (12) / football grid expectations — same pool as `/markets`. */
@@ -14,18 +14,14 @@ const HOME_MARKET_CARD_COUNT = 12;
 
 export function LiveMarkets() {
   const navigate = useNavigate();
-  const trpc = useTRPC();
   const [selectedCategory, setSelectedCategory] = useState<string>(
     isFootballFocusEnabled() ? 'football' : 'all'
   );
   const [sortBy, setSortBy] = useState<'volume' | 'trending' | 'ending-soon'>('trending');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | '24h' | 'week'>('all');
   const marketsQuery = useQuery({
-    ...trpc.getAzuroMarkets.queryOptions({
-      sport: isFootballFocusEnabled() ? "football" : "all",
-      competition: "all",
-      status: "all",
-    }),
+    queryKey: ["curatedMarkets", "home"],
+    queryFn: fetchCuratedMarketsFromApi,
     staleTime: 50_000,
   });
 

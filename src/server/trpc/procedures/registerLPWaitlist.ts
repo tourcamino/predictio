@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
+import { creditWalletPoints } from "~/server/utils/pointsLedger";
 
 export const registerLPWaitlist = baseProcedure
   .input(
@@ -33,52 +34,22 @@ export const registerLPWaitlist = baseProcedure
       },
     });
 
-    // Credit 150 points for joining waitlist
     try {
-      await db.pointsLedger.create({
-        data: {
-          walletAddress: normalizedAddress,
-          actionType: "REFERRAL_CONVERTED", // Reuse existing type for now
-          points: 150,
-          metadata: {
-            source: "lp_waitlist",
-            registeredAt: waitlistEntry.registeredAt.toISOString(),
-          },
+      const { newTotal } = await creditWalletPoints(
+        normalizedAddress,
+        "LP_WAITLIST_JOINED",
+        150,
+        {
+          source: "lp_waitlist",
+          registeredAt: waitlistEntry.registeredAt.toISOString(),
         },
-      });
-
-      // Update points total
-      const existingTotal = await db.pointsTotal.findUnique({
-        where: { walletAddress: normalizedAddress },
-      });
-
-      const newTotal = (existingTotal?.totalPoints || 0) + 150;
-      const newTier = 
-        newTotal >= 20000 ? "DIAMOND" :
-        newTotal >= 5000 ? "GOLD" :
-        newTotal >= 1000 ? "SILVER" :
-        "BRONZE";
-
-      await db.pointsTotal.upsert({
-        where: { walletAddress: normalizedAddress },
-        create: {
-          walletAddress: normalizedAddress,
-          totalPoints: newTotal,
-          season: 1,
-          tier: newTier,
-        },
-        update: {
-          totalPoints: newTotal,
-          tier: newTier,
-        },
-      });
+      );
 
       console.log(
-        `[LP Waitlist] ${normalizedAddress} registered. Credited 150 pts. New total: ${newTotal}`
+        `[LP Waitlist] ${normalizedAddress} registered. Credited 150 pts. New total: ${newTotal}`,
       );
     } catch (error) {
       console.error("[LP Waitlist] Failed to credit points:", error);
-      // Don't fail the registration if points credit fails
     }
 
     return {

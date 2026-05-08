@@ -2,6 +2,10 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
+import {
+  creditWalletPoints,
+  POINT_ACTION_VALUES,
+} from "~/server/utils/pointsLedger";
 
 export const closePosition = baseProcedure
   .input(
@@ -129,7 +133,39 @@ export const closePosition = baseProcedure
         },
       });
     }
-    
+
+    const eventLabel = order.market?.event?.trim() || order.marketId;
+    await db.notification
+      .create({
+        data: {
+          walletAddress: walletAddress.toLowerCase(),
+          type: 'TRADE_FILLED',
+          title: 'Trade filled',
+          message: `Sold ${sharesToSell.toFixed(2)} ${order.outcome} @ $${currentPrice.toFixed(3)} → $${proceeds.toFixed(2)} USDC (${realizedPnL >= 0 ? '+' : ''}$${realizedPnL.toFixed(2)} PnL) · ${eventLabel}`,
+          marketId: order.marketId,
+        },
+      })
+      .catch((err) => {
+        console.error('[Notifications] Failed to create TRADE_FILLED (sell) notification:', err);
+      });
+
+    try {
+      await creditWalletPoints(
+        walletAddress,
+        "TRADE_CLOSED",
+        POINT_ACTION_VALUES.TRADE_CLOSED,
+        {
+          orderId,
+          marketId: order.marketId,
+          marketEvent: order.market?.event,
+          sharesSold: sharesToSell,
+          proceeds,
+        },
+      );
+    } catch (err) {
+      console.error("[Points] Failed to credit TRADE_CLOSED:", err);
+    }
+
     return {
       success: true,
       proceeds,

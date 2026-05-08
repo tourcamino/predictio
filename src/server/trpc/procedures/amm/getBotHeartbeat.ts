@@ -2,26 +2,35 @@ import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
 
+const OFFLINE_HEARTBEAT = {
+  status: 'OFFLINE' as const,
+  lastRun: null,
+  nextRun: null,
+  marketsProcessed: 0,
+  ordersPlaced: 0,
+  rebalancesDone: 0,
+  errorMessage: null,
+  isStale: true,
+  secondsSinceLastRun: null,
+};
+
 export const getBotHeartbeat = baseProcedure
   .input(z.object({}).optional())
-  .query(async ({ input }) => {
-    const heartbeat = await db.botHeartbeat.findUnique({
-      where: { id: 'singleton' },
-    });
+  .query(async () => {
+    let heartbeat: Awaited<ReturnType<typeof db.botHeartbeat.findUnique>> = null;
+    try {
+      heartbeat = await db.botHeartbeat.findUnique({
+        where: { id: 'singleton' },
+      });
+    } catch (err) {
+      // DB unreachable in dev → surface a stable offline state instead of
+      // throwing, which would cause the client to retry on a refetchInterval.
+      console.warn('[getBotHeartbeat] DB unavailable, returning offline state:', err instanceof Error ? err.message : err);
+      return OFFLINE_HEARTBEAT;
+    }
 
     if (!heartbeat) {
-      // Return default offline state if no heartbeat exists
-      return {
-        status: 'OFFLINE' as const,
-        lastRun: null,
-        nextRun: null,
-        marketsProcessed: 0,
-        ordersPlaced: 0,
-        rebalancesDone: 0,
-        errorMessage: null,
-        isStale: true,
-        secondsSinceLastRun: null,
-      };
+      return OFFLINE_HEARTBEAT;
     }
 
     // Calculate if heartbeat is stale (>2 minutes since last run)

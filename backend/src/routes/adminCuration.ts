@@ -12,6 +12,27 @@ import {
 const CACHE_KEY = "admin:azuro:football:14d:v2";
 const MAX_ACTIVE = 12;
 
+/** Avoid hanging requests when Postgres is down or TCP stalls (default Prisma can wait a long time). */
+const DB_READ_TIMEOUT_MS = 8_000;
+
+function withDbTimeout<T>(operation: string, promise: Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`PrismaTimeout:${operation}`));
+    }, DB_READ_TIMEOUT_MS);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e: unknown) => {
+        clearTimeout(timer);
+        reject(e instanceof Error ? e : new Error(String(e)));
+      },
+    );
+  });
+}
+
 export function registerAdminCurationRoutes(
   app: Express,
   prisma: PrismaClient,
@@ -75,7 +96,7 @@ export function registerAdminCurationRoutes(
         }
       })();
 
-      // eslint-disable-next-line no-console
+       
       console.log("AZURO RAW RESPONSE:", JSON.stringify({ url, status: response.status, json }, null, 2));
 
       return res.status(response.status).json(json);
@@ -134,7 +155,7 @@ export function registerAdminCurationRoutes(
         }
       })();
 
-      // eslint-disable-next-line no-console
+       
       console.log(
         "AZURO RESPONSE:",
         JSON.stringify(
@@ -178,7 +199,7 @@ export function registerAdminCurationRoutes(
         selectedCount: selectedGameIds.size,
       };
 
-      // eslint-disable-next-line no-console
+       
       console.log("[adminCuration] azuro-events diagnostics:", JSON.stringify(diagnosticsFull));
 
       const events = games.map((row) => ({
@@ -310,13 +331,16 @@ export function registerAdminCurationRoutes(
   });
 
   /** Public list of founder-curated Azuro games (same chain as indexer). */
-  app.get("/api/markets", publicLimiter, async (_req, res, next) => {
+  app.get("/api/markets", publicLimiter, async (_req, res) => {
     try {
       let rows: Awaited<ReturnType<typeof prisma.curatedEvent.findMany>>;
       try {
-        rows = await prisma.curatedEvent.findMany({
-          where: { isActive: true },
-        });
+        rows = await withDbTimeout(
+          "curatedEvent.findMany",
+          prisma.curatedEvent.findMany({
+            where: { isActive: true },
+          }),
+        );
       } catch (dbErr) {
         console.warn(
           "[adminCuration] GET /api/markets — database unavailable, returning empty list:",
@@ -359,7 +383,54 @@ export function registerAdminCurationRoutes(
 
       res.json({ markets, total: markets.length });
     } catch (e) {
-      next(e);
+      // Never 500 for public catalog — mapping/sort edge cases or unexpected errors → empty list.
+      console.warn(
+        "[adminCuration] GET /api/markets — unexpected error, returning empty list:",
+        e instanceof Error ? e.message : e,
+      );
+      return res.json({ markets: [], total: 0 });
+    }
+  });
+
+  /** Single active curated event by Azuro `gameId` or CuratedEvent `id` (for `/markets/azuro-…` links). */
+  app.get("/api/markets/:gameId", publicLimiter, async (req, res) => {
+    try {
+      const raw = typeof req.params.gameId === "string" ? req.params.gameId.trim() : "";
+      const gameId = raw.startsWith("azuro-") ? raw.slice("azuro-".length) : raw;
+      if (!gameId) {
+        return res.status(400).json({ error: "gameId required" });
+      }
+
+      let market: Awaited<ReturnType<typeof prisma.curatedEvent.findFirst>>;
+      try {
+        market = await withDbTimeout(
+          "curatedEvent.findFirst",
+          prisma.curatedEvent.findFirst({
+            where: {
+              OR: [{ gameId }, { id: gameId }],
+              isActive: true,
+            },
+          }),
+        );
+      } catch (dbErr) {
+        console.warn(
+          "[adminCuration] GET /api/markets/:gameId — database error:",
+          dbErr instanceof Error ? dbErr.message : dbErr,
+        );
+        return res.status(503).json({ error: "Database unavailable" });
+      }
+
+      if (!market) {
+        return res.status(404).json({ error: "Market not found" });
+      }
+
+      return res.json({ market });
+    } catch (e) {
+      console.warn(
+        "[adminCuration] GET /api/markets/:gameId — unexpected error:",
+        e instanceof Error ? e.message : e,
+      );
+      return res.status(503).json({ error: "Database unavailable" });
     }
   });
 }

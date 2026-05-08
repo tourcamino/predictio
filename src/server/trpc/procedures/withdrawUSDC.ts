@@ -2,6 +2,10 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
+import {
+  creditWalletPoints,
+  POINT_ACTION_VALUES,
+} from "~/server/utils/pointsLedger";
 
 export const withdrawUSDC = baseProcedure
   .input(
@@ -28,8 +32,7 @@ export const withdrawUSDC = baseProcedure
       });
     }
 
-    // Simulate blockchain transaction delay
-    await new Promise(resolve => setTimeout(resolve, 2500));
+    await new Promise(resolve => setTimeout(resolve, 400));
 
     // Simulate occasional failures (5% chance)
     if (Math.random() < 0.05) {
@@ -45,11 +48,12 @@ export const withdrawUSDC = baseProcedure
     const timestamp = new Date();
     const balanceBefore = input.currentBalance;
     const balanceAfter = balanceBefore - input.amount;
+    const w = input.walletAddress.toLowerCase();
 
     // Record transaction in database
     await db.transaction.create({
       data: {
-        wallet: input.walletAddress,
+        wallet: w,
         type: 'withdrawal',
         amount: input.amount,
         balanceBefore,
@@ -61,6 +65,17 @@ export const withdrawUSDC = baseProcedure
         },
       },
     });
+
+    try {
+      await creditWalletPoints(
+        w,
+        "WITHDRAW_COMPLETED",
+        POINT_ACTION_VALUES.WITHDRAW_COMPLETED,
+        { amount: input.amount },
+      );
+    } catch (err) {
+      console.error("[Points] Failed to credit WITHDRAW_COMPLETED:", err);
+    }
 
     // In a real app, we would:
     // 1. Verify the wallet signature

@@ -60,7 +60,7 @@ router.post(
   async (req, res, next) => {
   try {
     const authedWallet = (req as any).walletAddress as string | undefined;
-    const { action, copierWallet, analystWallet } = req.body as any;
+    const { action, copierWallet, analystWallet } = req.body;
 
     const copier = String(copierWallet).toLowerCase();
     const analyst = String(analystWallet).toLowerCase();
@@ -77,10 +77,10 @@ router.post(
       return res.json({ relationship: updated });
     }
 
-    const maxPerTradeUsd = Number((req.body as any).maxPerTradeUsd || 50);
-    const copyMode = String((req.body as any).copyMode || "all");
-    const selectedMarkets = Array.isArray((req.body as any).selectedMarkets)
-      ? (req.body as any).selectedMarkets.map((x: any) => String(x))
+    const maxPerTradeUsd = Number((req.body).maxPerTradeUsd || 50);
+    const copyMode = String((req.body).copyMode || "all");
+    const selectedMarkets = Array.isArray((req.body).selectedMarkets)
+      ? (req.body).selectedMarkets.map((x: any) => String(x))
       : [];
 
     const relationship = await prisma.copyRelationship.upsert({

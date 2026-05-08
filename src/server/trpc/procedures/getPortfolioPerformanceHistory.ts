@@ -13,6 +13,7 @@ export const getPortfolioPerformanceHistory = baseProcedure
   )
   .query(async ({ input }) => {
     const { walletAddress, timeRange, startDate, endDate } = input;
+    const wallet = walletAddress.toLowerCase();
 
     // Calculate date range
     const now = new Date();
@@ -40,7 +41,7 @@ export const getPortfolioPerformanceHistory = baseProcedure
     // Fetch all orders for the wallet
     const allOrders = await db.order.findMany({
       where: {
-        wallet: walletAddress,
+        wallet,
       },
       include: {
         market: {
@@ -60,7 +61,7 @@ export const getPortfolioPerformanceHistory = baseProcedure
     // Fetch all transactions for the wallet
     const allTransactions = await db.transaction.findMany({
       where: {
-        wallet: walletAddress,
+        wallet,
       },
       orderBy: {
         createdAt: 'asc',

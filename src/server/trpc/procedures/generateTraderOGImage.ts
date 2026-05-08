@@ -12,6 +12,14 @@ export const generateTraderOGImage = baseProcedure
     analystId: z.string().optional(),
   }))
   .query(async ({ input }) => {
+    // Object storage is optional in local dev.
+    if (!minioClient) {
+      return {
+        url: `${minioBaseUrl}/og-default.png`,
+        cached: true,
+      };
+    }
+
     // Try to get analyst data first
     let traderData: any = null;
     

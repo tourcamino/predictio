@@ -9,6 +9,8 @@ import { formatDistanceToNow } from 'date-fns';
 
 function getNotificationIcon(type: string): string {
   switch (type) {
+    case 'TRADE_FILLED':
+      return '✅';
     case 'MARKET_RESOLVED':
       return '🏁';
     case 'POSITION_OPENED':
@@ -55,7 +57,7 @@ export function NotificationCenter() {
       limit: 50,
     }),
     enabled: !!address && isOpen,
-    refetchInterval: 30000, // Refetch every 30 seconds when open
+    refetchInterval: 90_000,
   });
 
   // Mark notification as read mutation

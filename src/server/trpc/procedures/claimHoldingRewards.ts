@@ -11,10 +11,11 @@ export const claimHoldingRewards = baseProcedure
   )
   .mutation(async ({ input }) => {
     const { walletAddress } = input;
+    const wallet = walletAddress.toLowerCase();
 
     // Get user's pending rewards
     const user = await db.user.findUnique({
-      where: { wallet: walletAddress },
+      where: { wallet },
     });
 
     if (!user) {
@@ -37,7 +38,7 @@ export const claimHoldingRewards = baseProcedure
     // Create reward claim transaction
     await db.transaction.create({
       data: {
-        wallet: walletAddress,
+        wallet,
         type: 'reward_claim',
         amount: pendingRewards,
         status: 'completed',
@@ -51,7 +52,7 @@ export const claimHoldingRewards = baseProcedure
 
     // Update user's rewards
     await db.user.update({
-      where: { wallet: walletAddress },
+      where: { wallet },
       data: {
         pendingHoldingRewards: 0,
         claimedHoldingRewards: {

@@ -14,6 +14,10 @@ import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { DemoBadge } from '~/components/demo/DemoBadge';
 import { FeeBreakdownCard } from '~/components/FeeBreakdownCard';
 import { getMarketStatus, isMarketTradeable } from '~/utils/marketLifecycle';
+import {
+  invalidateWalletNotifications,
+  invalidateWalletPointsSummary,
+} from '~/utils/invalidateWalletNotifications';
 
 interface TradingBoxProps {
   market: Market;
@@ -74,7 +78,7 @@ function Tooltip({ children, content }: { children: React.ReactNode; content: st
 export function TradingBox({ market }: TradingBoxProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { isConnected: isWalletConnected, openWalletModal, address: walletAddress, updateBalance, balance: walletBalance } = useWallet();
+  const { isConnected: isWalletConnected, address: walletAddress, updateBalance, balance: walletBalance } = useWallet();
   const { isActive: isDemoActive, executeDemoTrade, balance: demoBalance, activateDemo } = useDemoAccount();
   
   // Use demo balance when wallet is not connected
@@ -204,6 +208,13 @@ export function TradingBox({ market }: TradingBoxProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletAddress || '', status: 'all' }),
         });
+        queryClient.invalidateQueries({
+          queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletAddress || '' }),
+        });
+        if (walletAddress) {
+          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletAddress);
+          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletAddress);
+        }
       },
       onError: (error) => {
         setTxModalState('error');
@@ -255,6 +266,10 @@ export function TradingBox({ market }: TradingBoxProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletAddress || '' }),
         });
+        if (walletAddress) {
+          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletAddress);
+          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletAddress);
+        }
       },
       onError: (error) => {
         setTxModalState('error');
@@ -440,7 +455,7 @@ export function TradingBox({ market }: TradingBoxProps) {
   return (
     <div className="lg:static lg:transform-none fixed bottom-0 left-0 right-0 z-40 lg:z-auto pb-safe">
       <div className="bg-brand-bg border-2 border-brand-green/30 rounded-t-lg lg:rounded-lg p-4 sm:p-6 shadow-2xl lg:shadow-lg max-h-[85vh] lg:max-h-none overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 max-lg:mt-[1cm] lg:mt-0">
           <h2 className="font-syne font-bold text-xl">Trade Shares</h2>
           {(isDemoActive || !isWalletConnected) && (
             <div className="flex items-center gap-2">

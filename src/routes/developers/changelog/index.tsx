@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Plus, TrendingUp, Wrench, AlertTriangle } from 'lucide-react';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 
 export const Route = createFileRoute('/developers/changelog/')({
   component: ChangelogPage,
@@ -178,7 +177,7 @@ function ChangelogPage() {
         </div>
       </div>
 
-      <Footer />
     </div>
   );
 }
+

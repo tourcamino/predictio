@@ -2,6 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X, Check, Loader2, Copy, ExternalLink, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { useWallet } from '~/store/useWalletStore';
+import { useNavigate } from '@tanstack/react-router';
 import toast from 'react-hot-toast';
 
 type ModalStep = 'choose' | 'connecting' | 'success' | 'deposit' | 'error';
@@ -9,6 +10,7 @@ type DepositTab = 'bridge' | 'buy' | 'transfer';
 type ConnectionStatus = 'requesting' | 'signing' | 'verifying' | 'syncing';
 
 export function WalletModal() {
+  const navigate = useNavigate();
   const { isModalOpen, closeWalletModal, connectWallet, isConnecting, isConnected, address, balance, walletType } = useWallet();
   const [step, setStep] = useState<ModalStep>('choose');
   const [selectedWallet, setSelectedWallet] = useState<string>('');
@@ -33,6 +35,8 @@ export function WalletModal() {
 
   // Handle connection flow with status updates
   useEffect(() => {
+    if (!isModalOpen) return;
+
     if (isConnecting) {
       setStep('connecting');
       
@@ -47,7 +51,7 @@ export function WalletModal() {
         } else {
           clearInterval(interval);
         }
-      }, 500);
+      }, 120);
       
       return () => clearInterval(interval);
     } else if (isConnected && step === 'connecting') {
@@ -56,8 +60,9 @@ export function WalletModal() {
       // Auto-close if balance > 0
       if (balance > 0) {
         let progress = 100;
+        const ticks = 15; // 1.5s at 100ms
         const interval = setInterval(() => {
-          progress -= 100 / 30; // 3 seconds = 30 frames at 100ms
+          progress -= 100 / ticks;
           setAutoCloseProgress(progress);
           if (progress <= 0) {
             clearInterval(interval);
@@ -68,7 +73,7 @@ export function WalletModal() {
         return () => clearInterval(interval);
       }
     }
-  }, [isConnecting, isConnected, step, balance, closeWalletModal]);
+  }, [isModalOpen, isConnecting, isConnected, step, balance, closeWalletModal]);
 
   const handleWalletSelect = async (wallet: string) => {
     setSelectedWallet(wallet);
@@ -372,7 +377,11 @@ export function WalletModal() {
                           Deposit USDC
                         </button>
                         <button
-                          onClick={closeWalletModal}
+                          type="button"
+                          onClick={() => {
+                            closeWalletModal();
+                            navigate({ to: '/markets' });
+                          }}
                           className="w-full py-3 border border-white/20 rounded-lg hover:bg-white/5 transition-colors"
                         >
                           Explore Markets First →
@@ -381,13 +390,21 @@ export function WalletModal() {
                     ) : (
                       <div className="mt-6 space-y-3">
                         <button
-                          onClick={closeWalletModal}
+                          type="button"
+                          onClick={() => {
+                            closeWalletModal();
+                            navigate({ to: '/markets' });
+                          }}
                           className="w-full py-3 bg-brand-green text-brand-bg font-bold rounded-lg hover:bg-brand-green/90 transition-colors"
                         >
                           Start Predicting →
                         </button>
                         <button
-                          onClick={closeWalletModal}
+                          type="button"
+                          onClick={() => {
+                            closeWalletModal();
+                            navigate({ to: '/portfolio' });
+                          }}
                           className="w-full py-3 border border-white/20 rounded-lg hover:bg-white/5 transition-colors"
                         >
                           View Portfolio →
@@ -401,7 +418,7 @@ export function WalletModal() {
                               style={{ width: `${autoCloseProgress}%` }}
                             />
                           </div>
-                          <p className="text-xs text-gray-500 mt-2">Auto-closing in 3s...</p>
+                          <p className="text-xs text-gray-500 mt-2">Auto-closing in 1.5s...</p>
                         </div>
                       </div>
                     )}
@@ -576,7 +593,11 @@ export function WalletModal() {
                     )}
 
                     <button
-                      onClick={closeWalletModal}
+                      type="button"
+                      onClick={() => {
+                        closeWalletModal();
+                        navigate({ to: '/markets' });
+                      }}
                       className="w-full mt-6 py-3 border border-white/20 rounded-lg hover:bg-white/5 transition-colors"
                     >
                       I'll do this later — Explore Markets →

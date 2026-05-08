@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Menu, X, LogOut, Loader2, Hexagon } from 'lucide-react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -7,16 +8,23 @@ import { useWallet } from '~/store/useWalletStore';
 import { WalletDropdown } from './WalletDropdown';
 import { Menu as HeadlessMenu } from '@headlessui/react';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
+import { ModeToggle } from './ModeToggle';
 import { NotificationBell } from './notifications/NotificationBell';
 import { NotificationCenter } from './notifications/NotificationCenter';
 import { useScrollDirection } from '~/hooks/useScrollDirection';
+import { useTopChromeManaged } from '~/components/TopChromeContext';
 
 export function Header() {
+  const isManaged = useTopChromeManaged();
+  if (isManaged) return null;
+  return <HeaderInner />;
+}
+
+export function HeaderInner() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showMobileDisconnectConfirm, setShowMobileDisconnectConfirm] = useState(false);
-  const [isDemoBannerVisible, setIsDemoBannerVisible] = useState(true);
-  const { isConnected, address, balance, openWalletModal, disconnectWallet, isSyncing } = useWallet();
+  const { isConnected, address, balance, openWalletModal, disconnectWallet, isSyncing, wrongNetwork, switchNetwork } = useWallet();
   const { isActive: isDemoActive, balance: demoBalance } = useDemoAccount();
   const navigate = useNavigate();
   const trpc = useTRPC();
@@ -29,7 +37,7 @@ export function Header() {
       status: 'open',
     }),
     enabled: !!address && isConnected,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 90_000,
   });
 
   const openPositionsCount = positionsQuery.data?.positions.length || 0;
@@ -40,7 +48,7 @@ export function Header() {
       walletAddress: address || '',
     }),
     enabled: !!address && isConnected,
-    refetchInterval: 60000, // Refresh every 60 seconds
+    refetchInterval: 120_000,
   });
 
   const userPoints = pointsQuery.data?.totalPoints || 0;
@@ -64,28 +72,20 @@ export function Header() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Monitor demo banner dismissal
   useEffect(() => {
-    const checkBannerStatus = () => {
-      const dismissed = sessionStorage.getItem('demo-banner-dismissed');
-      setIsDemoBannerVisible(dismissed !== 'true');
-    };
-    
-    // Check initial state
-    checkBannerStatus();
-    
-    // Listen for storage events (cross-tab)
-    window.addEventListener('storage', checkBannerStatus);
-    
-    // Custom event for same-tab updates
-    const handleBannerDismiss = () => checkBannerStatus();
-    window.addEventListener('demo-banner-dismissed', handleBannerDismiss);
-    
+    if (typeof document === 'undefined') return;
+    document.documentElement.dataset.mobileMenuOpen = isMobileMenuOpen ? 'true' : 'false';
+    window.dispatchEvent(new Event('mobile-menu-toggle'));
+  }, [isMobileMenuOpen]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const prevOverflow = document.body.style.overflow;
+    if (isMobileMenuOpen) document.body.style.overflow = 'hidden';
     return () => {
-      window.removeEventListener('storage', checkBannerStatus);
-      window.removeEventListener('demo-banner-dismissed', handleBannerDismiss);
+      document.body.style.overflow = prevOverflow;
     };
-  }, []);
+  }, [isMobileMenuOpen]);
 
   const handleMobileDisconnect = () => {
     if (showMobileDisconnectConfirm) {
@@ -104,20 +104,14 @@ export function Header() {
 
   // Calculate if header should be visible
   const shouldHideHeader = scrollDirection === 'down' && !isAtTop && !isMobileMenuOpen;
-  
-  // Calculate translation amount based on banner visibility
-  const hideTranslateClass = isDemoActive && isDemoBannerVisible ? '-translate-y-[calc(100%+2.5rem)]' : '-translate-y-full';
-  
-  // Calculate top position based on demo banner visibility
-  const headerTopClass = isDemoActive && isDemoBannerVisible ? 'top-10' : 'top-0';
 
   return (
     <header
-      className={`fixed left-0 right-0 z-50 transition-all duration-300 ${headerTopClass} ${
+      className={`relative w-full transition-all duration-300 ${
         isScrolled
           ? 'bg-brand-bg/80 backdrop-blur-xl border-b border-white/10'
           : 'bg-transparent'
-      } ${shouldHideHeader ? hideTranslateClass : 'translate-y-0'}`}
+      } ${shouldHideHeader ? '-translate-y-full md:translate-y-0' : 'translate-y-0'}`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
@@ -184,15 +178,21 @@ export function Header() {
                 </div>
                 {/* Optional connect wallet button */}
                 <button
-                  onClick={openWalletModal}
+                  onClick={() => (wrongNetwork ? switchNetwork() : openWalletModal())}
                   data-tour="connect-wallet"
-                  className="px-6 py-2.5 bg-brand-green text-brand-bg font-semibold text-sm rounded hover:bg-brand-green/90 transition-colors"
+                  className={`px-6 py-2.5 font-semibold text-sm rounded transition-colors ${
+                    wrongNetwork
+                      ? 'bg-red-600 text-white hover:bg-red-500'
+                      : 'bg-brand-green text-brand-bg hover:bg-brand-green/90'
+                  }`}
                 >
-                  Connect Wallet
+                  {wrongNetwork ? 'Switch to Base' : 'Connect Wallet'}
                 </button>
               </div>
             ) : (
-              <HeadlessMenu as="div" className="relative hidden md:block">
+              <div className="relative hidden md:flex items-center gap-2">
+              <ModeToggle />
+              <HeadlessMenu as="div" className="relative">
                 <HeadlessMenu.Button className="flex items-center gap-3 px-4 py-2.5 bg-white/5 border border-brand-green/30 rounded-lg hover:bg-white/10 transition-all">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-brand-green rounded-full animate-pulse"></div>
@@ -239,6 +239,7 @@ export function Header() {
                 </HeadlessMenu.Button>
                 <WalletDropdown />
               </HeadlessMenu>
+              </div>
             )}
           </div>
 
@@ -252,41 +253,62 @@ export function Header() {
           </button>
         </div>
 
-        {/* Mobile Menu */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-white/10">
-            <nav className="flex flex-col gap-4">
+        {isConnected && wrongNetwork && (
+          <div className="pb-3">
+            <div className="animate-slide-down rounded-lg border border-red-500/30 bg-red-950/60 backdrop-blur-md px-3 py-2 flex items-center justify-between gap-3">
+              <p className="text-xs sm:text-sm font-medium text-white/90">
+                <span className="text-red-300">Wrong Network</span>
+                <span className="text-white/70"> — Predictio runs on </span>
+                <span className="text-white">BASE</span>
+              </p>
+              <button
+                onClick={switchNetwork}
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-semibold text-xs sm:text-sm rounded transition-colors whitespace-nowrap"
+              >
+                Switch to BASE
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile Menu (portal to escape transformed ancestors) */}
+        {isMobileMenuOpen && typeof document !== 'undefined' && createPortal(
+          <div
+            className="md:hidden fixed left-0 right-0 bottom-0 z-[9999] bg-slate-950/95 backdrop-blur-md border-t border-white/10 overflow-auto animate-slide-up"
+            style={{ top: 'var(--top-stack-height)' }}
+          >
+            <nav className="relative z-[10000] max-w-7xl mx-auto px-4 py-6 flex flex-col gap-4 text-white">
               <Link
                 to="/markets"
-                className="text-sm font-medium text-gray-300 hover:text-brand-green transition-colors"
+                className="text-sm font-medium text-white/90 hover:text-brand-green transition-colors"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Markets
               </Link>
               <Link
                 to="/copy"
-                className="text-sm font-medium text-gray-300 hover:text-brand-green transition-colors"
+                className="text-sm font-medium text-white/90 hover:text-brand-green transition-colors"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Copy
               </Link>
               <Link
                 to="/trading"
-                className="text-sm font-medium text-gray-300 hover:text-brand-green transition-colors"
+                className="text-sm font-medium text-white/90 hover:text-brand-green transition-colors"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Trading
               </Link>
               <Link
                 to="/liquidity"
-                className="text-sm font-medium text-gray-300 hover:text-brand-green transition-colors"
+                className="text-sm font-medium text-white/90 hover:text-brand-green transition-colors"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Liquidity
               </Link>
               <Link
                 to="/analyst-dashboard"
-                className="text-sm font-medium text-gray-300 hover:text-brand-green transition-colors"
+                className="text-sm font-medium text-white/90 hover:text-brand-green transition-colors"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Analyst Program
@@ -309,12 +331,17 @@ export function Header() {
                   </div>
                   <button
                     onClick={() => {
-                      openWalletModal();
+                      if (wrongNetwork) switchNetwork();
+                      else openWalletModal();
                       setIsMobileMenuOpen(false);
                     }}
-                    className="w-full px-4 py-2.5 bg-brand-green text-brand-bg font-semibold text-sm rounded hover:bg-brand-green/90 transition-colors"
+                    className={`w-full px-4 py-2.5 font-semibold text-sm rounded transition-colors ${
+                      wrongNetwork
+                        ? 'bg-red-600 text-white hover:bg-red-500'
+                        : 'bg-brand-green text-brand-bg hover:bg-brand-green/90'
+                    }`}
                   >
-                    Connect Wallet (Optional)
+                    {wrongNetwork ? 'Switch to Base' : 'Connect Wallet (Optional)'}
                   </button>
                 </div>
               ) : (
@@ -351,6 +378,14 @@ export function Header() {
                   <p className="font-mono text-xs text-gray-400 mb-3 break-all">
                     {address?.slice(0, 10)}...{address?.slice(-8)}
                   </p>
+
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <span className="text-xs uppercase tracking-wide text-gray-500">
+                      Trading mode
+                    </span>
+                    <ModeToggle />
+                  </div>
+
                   <Link
                     to="/portfolio"
                     className="block w-full py-2 text-center bg-brand-green/20 text-brand-green font-semibold text-sm rounded hover:bg-brand-green/30 transition-colors mb-2"
@@ -372,7 +407,8 @@ export function Header() {
                 </div>
               )}
             </nav>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </header>

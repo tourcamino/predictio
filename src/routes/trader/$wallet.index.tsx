@@ -1,6 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Header } from "~/components/Header";
-import { Footer } from "~/components/Footer";
 import { useMemo, useState } from "react";
 import { useWalletStore } from "~/store/useWalletStore";
 import {
@@ -94,8 +92,7 @@ function TraderProfilePage() {
   if (!trader) {
     return (
       <div className="min-h-screen bg-brand-bg">
-        <Header />
-        <div className="pt-32 pb-20 px-4">
+        <div className="pb-20 px-4">
           <div className="max-w-7xl mx-auto text-center">
             <h1 className="text-2xl font-bold mb-4">Trader Not Found</h1>
             <p className="text-gray-400 mb-6">
@@ -109,16 +106,13 @@ function TraderProfilePage() {
             </Link>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-brand-bg">
-      <Header />
-
-      <div className="pt-32 pb-20 px-4">
+      <div className="pb-20 px-4">
         <div className="max-w-7xl mx-auto">
           {/* Profile Header */}
           <div className="bg-white/5 border border-white/10 rounded-lg p-8 mb-8">
@@ -281,7 +275,6 @@ function TraderProfilePage() {
         </div>
       </div>
 
-      <Footer />
 
       {/* Copy Modal */}
       {showCopyModal && (
@@ -645,3 +638,4 @@ function SharePerformanceModal({
     </div>
   );
 }
+

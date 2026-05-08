@@ -32,7 +32,7 @@ async function checkAzuroResolution(gameId: string) {
     }
     return null;
   } catch (e) {
-    // eslint-disable-next-line no-console
+     
     console.error("[MarketUpdater] Azuro check failed:", e instanceof Error ? e.message : e);
     return null;
   }
@@ -87,64 +87,74 @@ async function runAutoPublishImportant() {
 
       currentCount += 1;
       selectedSet.add(event.gameId);
-      // eslint-disable-next-line no-console
+       
       console.log("[AutoPublish]", event.title);
     }
   } catch (e) {
-    // eslint-disable-next-line no-console
+     
     console.error("[MarketUpdater] Auto-publish failed:", e instanceof Error ? e.message : e);
   }
 }
 
 export async function updateMarketStatuses() {
-  const now = new Date();
+  try {
+    const now = new Date();
 
-  // OPEN → LOCKED: lockedAt passed (5 min before kickoff)
-  const toLock = await prisma.curatedEvent.updateMany({
-    where: {
-      status: "OPEN",
-      lockedAt: { lte: now },
-    },
-    data: { status: "LOCKED" },
-  });
-
-  if (toLock.count > 0) {
-    // eslint-disable-next-line no-console
-    console.log(`[MarketUpdater] Locked ${toLock.count} markets`);
-  }
-
-  // LOCKED → RESOLVED (checks Azuro state)
-  const lockedMarkets = await prisma.curatedEvent.findMany({
-    where: { status: "LOCKED" },
-    take: 50,
-    orderBy: { startsAt: "asc" },
-  });
-
-  for (const market of lockedMarkets) {
-    const resolved = await checkAzuroResolution(market.gameId);
-    if (!resolved) continue;
-
-    await prisma.curatedEvent.update({
-      where: { id: market.id },
-      data: {
-        status: "RESOLVED",
-        resolvedAt: now,
-        result: resolved.result,
+    // OPEN → LOCKED: lockedAt passed (5 min before kickoff)
+    const toLock = await prisma.curatedEvent.updateMany({
+      where: {
+        status: "OPEN",
+        lockedAt: { lte: now },
       },
+      data: { status: "LOCKED" },
     });
 
-    // eslint-disable-next-line no-console
-    console.log(`[MarketUpdater] Resolved market: ${market.title} → ${resolved.result}`);
-  }
+    if (toLock.count > 0) {
+      console.log(`[MarketUpdater] Locked ${toLock.count} markets`);
+    }
 
-  await runAutoPublishImportant();
+    // LOCKED → RESOLVED (checks Azuro state)
+    const lockedMarkets = await prisma.curatedEvent.findMany({
+      where: { status: "LOCKED" },
+      take: 50,
+      orderBy: { startsAt: "asc" },
+    });
+
+    for (const market of lockedMarkets) {
+      const resolved = await checkAzuroResolution(market.gameId);
+      if (!resolved) continue;
+
+      await prisma.curatedEvent.update({
+        where: { id: market.id },
+        data: {
+          status: "RESOLVED",
+          resolvedAt: now,
+          result: resolved.result,
+        },
+      });
+
+      console.log(`[MarketUpdater] Resolved market: ${market.title} → ${resolved.result}`);
+    }
+
+    await runAutoPublishImportant();
+  } catch (e) {
+    console.warn(
+      "[MarketUpdater] cycle skipped (DB offline or transient Prisma error):",
+      e instanceof Error ? e.message : e,
+    );
+  }
 }
 
 setInterval(() => {
   void updateMarketStatuses().catch((e) => {
-    // eslint-disable-next-line no-console
+     
     console.error("[MarketUpdater] updateMarketStatuses failed:", e instanceof Error ? e.message : e);
   });
 }, 60 * 1000);
 
-void updateMarketStatuses();
+void updateMarketStatuses().catch((e) => {
+  console.warn(
+    "[MarketUpdater] initial run failed (DB offline?)",
+    e instanceof Error ? e.message : e,
+  );
+});

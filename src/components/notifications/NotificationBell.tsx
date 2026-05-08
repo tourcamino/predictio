@@ -18,7 +18,7 @@ export function NotificationBell() {
       unreadOnly: true,
     }),
     enabled: !!address && isConnected,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 90_000,
   });
 
   // Update local state when unread count changes

@@ -41,7 +41,7 @@ export function getReferralCodeFromRequest(req: Request): string | null {
   if (refFromCookie) return refFromCookie;
 
   const refFromBody =
-    (req.body as any)?.refCode || (req.body as any)?.ref || (req.body as any)?.referralCode;
+    (req.body)?.refCode || (req.body)?.ref || (req.body)?.referralCode;
   return refFromBody ? String(refFromBody).toUpperCase() : null;
 }
 

@@ -61,7 +61,9 @@ Backend is **NOT YET IMPLEMENTED**. This section defines what will be needed whe
 ```bash
 # Database
 DATABASE_URL=postgresql://user:password@localhost:5432/predictio
+# Local dev: use `localhost` (see docker-compose.dev.yml port mapping). Hostname `postgres` only works when the Node process runs inside the same Docker Compose network.
 # Example production: postgresql://predictio:STRONG_PASSWORD@postgres:5432/predictio
+# Optional Prisma logs (quieter default in development — see src/server/db.ts): PRISMA_LOG=silent | verbose | query,warn,error
 # Current: NOT SET (backend not built yet)
 # Production: MUST create PostgreSQL database and set this
 

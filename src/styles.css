@@ -19,17 +19,6 @@ body {
   min-height: 100vh;
 }
 
-/* Utility class for content that needs to account for demo banner */
-.pt-with-demo-banner {
-  padding-top: calc(4rem + var(--demo-banner-height));
-}
-
-@media (min-width: 1024px) {
-  .pt-with-demo-banner {
-    padding-top: calc(5rem + var(--demo-banner-height));
-  }
-}
-
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -145,7 +134,7 @@ body {
 .ticker-wrapper {
   overflow: hidden;
   white-space: nowrap;
-  height: 48px; /* Fixed height for consistent spacing */
+  height: 40px; /* Fixed height for consistent spacing */
   display: flex;
   align-items: center;
 }

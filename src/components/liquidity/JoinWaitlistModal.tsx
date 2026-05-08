@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { X, CheckCircle, Loader2 } from 'lucide-react';
 import { useWallet } from '~/store/useWalletStore';
 import { useTRPC } from '~/trpc/react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { invalidateWalletPointsSummary } from '~/utils/invalidateWalletNotifications';
 
 interface JoinWaitlistModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ export function JoinWaitlistModal({ isOpen, onClose }: JoinWaitlistModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const registerMutation = useMutation(trpc.registerLPWaitlist.mutationOptions());
 
   const handleRegister = async () => {
@@ -36,6 +38,11 @@ export function JoinWaitlistModal({ isOpen, onClose }: JoinWaitlistModalProps) {
         });
       } else {
         toast.success("You're on the list. We'll notify you.");
+        invalidateWalletPointsSummary(
+          queryClient,
+          trpc.getPointsSummary.queryKey,
+          address,
+        );
       }
 
       onClose();

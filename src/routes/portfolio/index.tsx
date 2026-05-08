@@ -1,6 +1,4 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { useWallet } from '~/store/useWalletStore';
 import { Wallet, TrendingUp, TrendingDown, Clock, CheckCircle, XCircle, ArrowRight, RefreshCw, Share2 } from 'lucide-react';
 import { ShareButton } from '~/components/ShareButton';
@@ -22,13 +20,17 @@ import { toast } from 'react-hot-toast';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { DemoSettings } from '~/components/demo/DemoSettings';
 import { DemoBadge } from '~/components/demo/DemoBadge';
+import { useWalletGate } from '~/hooks/useWalletGate';
+import { WalletGateModal } from '~/components/WalletGateModal';
+import { GuestPageState } from '~/components/GuestPageState';
 
 export const Route = createFileRoute('/portfolio/')({
   component: Portfolio,
 });
 
 function Portfolio() {
-  const { isConnected, openWalletModal, balance, address, updateBalance } = useWallet();
+  const { isConnected, balance, address, updateBalance } = useWallet();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const { isActive: isDemoActive, positions: demoPositions, balance: demoBalance, tradeHistory: demoTradeHistory } = useDemoAccount();
   const trpc = useTRPC();
   const [timeRange, setTimeRange] = useState<'7D' | '30D' | '90D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM'>('1M');
@@ -130,71 +132,16 @@ function Portfolio() {
     }
   };
 
-  if (!isConnected) {
-    return (
-      <div className="min-h-screen bg-brand-bg">
-        <Header />
-        <div className="pt-32 pb-20 px-4">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="mb-8 flex justify-center">
-              <div className="w-24 h-24 bg-white/5 border border-white/10 rounded-full flex items-center justify-center">
-                <Wallet className="w-12 h-12 text-gray-500" />
-              </div>
-            </div>
-            
-            <h1 className="font-syne font-bold text-4xl mb-4">
-              Connect Your Wallet
-            </h1>
-            
-            <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
-              Connect your wallet to view your portfolio, active predictions, and trading history.
-            </p>
-            
-            <button
-              onClick={openWalletModal}
-              className="px-8 py-4 bg-brand-green text-brand-bg font-bold text-lg rounded-lg hover:bg-brand-green/90 transition-all shadow-xl shadow-brand-green/20"
-            >
-              Connect Wallet
-            </button>
-            
-            <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl mx-auto">
-              <div className="p-6 bg-white/5 border border-white/10 rounded-lg">
-                <TrendingUp className="w-8 h-8 text-brand-green mb-3 mx-auto" />
-                <h3 className="font-semibold mb-2">Track Performance</h3>
-                <p className="text-sm text-gray-400">
-                  Monitor your wins, losses, and overall ROI
-                </p>
-              </div>
-              
-              <div className="p-6 bg-white/5 border border-white/10 rounded-lg">
-                <Clock className="w-8 h-8 text-brand-cyan mb-3 mx-auto" />
-                <h3 className="font-semibold mb-2">Active Predictions</h3>
-                <p className="text-sm text-gray-400">
-                  View all your live predictions in one place
-                </p>
-              </div>
-              
-              <div className="p-6 bg-white/5 border border-white/10 rounded-lg">
-                <CheckCircle className="w-8 h-8 text-purple-400 mb-3 mx-auto" />
-                <h3 className="font-semibold mb-2">History</h3>
-                <p className="text-sm text-gray-400">
-                  Access your complete trading history
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
   // Loading state
-  if (positionsQuery.isLoading || summaryQuery.isLoading || performanceQuery.isLoading) {
+  if (
+    isConnected &&
+    (positionsQuery.isLoading ||
+      summaryQuery.isLoading ||
+      performanceQuery.isLoading)
+  ) {
     return (
       <div className="min-h-screen bg-brand-bg">
-        <Header />
-        <div className="pt-32 pb-20 px-4">
+        <div className="pb-20 px-4">
           <div className="max-w-7xl mx-auto">
             <div className="mb-8">
               <h1 className="font-syne font-bold text-4xl mb-2">Portfolio</h1>
@@ -206,17 +153,20 @@ function Portfolio() {
             </div>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
 
   // Error state
-  if (positionsQuery.isError || summaryQuery.isError || performanceQuery.isError) {
+  if (
+    isConnected &&
+    (positionsQuery.isError ||
+      summaryQuery.isError ||
+      performanceQuery.isError)
+  ) {
     return (
       <div className="min-h-screen bg-brand-bg">
-        <Header />
-        <div className="pt-32 pb-20 px-4">
+        <div className="pb-20 px-4">
           <div className="max-w-7xl mx-auto">
             <div className="mb-8">
               <h1 className="font-syne font-bold text-4xl mb-2">Portfolio</h1>
@@ -237,7 +187,6 @@ function Portfolio() {
             </div>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -282,8 +231,7 @@ function Portfolio() {
 
   return (
     <div className="min-h-screen bg-brand-bg">
-      <Header />
-      <div className="pt-32 pb-20 px-4">
+      <div className="pb-20 px-4">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
             <h1 className="font-syne font-bold text-4xl mb-2">Portfolio</h1>
@@ -291,6 +239,7 @@ function Portfolio() {
               <p className="text-gray-400">
                 Track your positions and performance
               </p>
+              {isConnected && (
               <ShareButton
                 text={generatePortfolioShareText({
                   totalProfit: Math.round(unrealizedPnL + resolvedPnL),
@@ -302,10 +251,39 @@ function Portfolio() {
                 variant="secondary"
                 size="md"
               />
+              )}
             </div>
           </div>
 
-          {/* Portfolio Stats */}
+          {!isConnected ? (
+            <>
+              <GuestPageState onConnect={() => requireWallet()} />
+              <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl mx-auto">
+                <div className="p-6 bg-white/5 border border-white/10 rounded-lg">
+                  <TrendingUp className="w-8 h-8 text-brand-green mb-3 mx-auto" />
+                  <h3 className="font-semibold mb-2">Track Performance</h3>
+                  <p className="text-sm text-gray-400">
+                    Monitor your wins, losses, and overall ROI
+                  </p>
+                </div>
+                <div className="p-6 bg-white/5 border border-white/10 rounded-lg">
+                  <Clock className="w-8 h-8 text-brand-cyan mb-3 mx-auto" />
+                  <h3 className="font-semibold mb-2">Active Predictions</h3>
+                  <p className="text-sm text-gray-400">
+                    View all your live predictions in one place
+                  </p>
+                </div>
+                <div className="p-6 bg-white/5 border border-white/10 rounded-lg">
+                  <CheckCircle className="w-8 h-8 text-purple-400 mb-3 mx-auto" />
+                  <h3 className="font-semibold mb-2">History</h3>
+                  <p className="text-sm text-gray-400">
+                    Access your complete trading history
+                  </p>
+                </div>
+              </div>
+            </>
+          ) : (
+          <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="p-6 bg-white/5 border border-white/10 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
@@ -878,9 +856,12 @@ function Portfolio() {
               </Link>
             </div>
           )}
+          </>
+          )}
         </div>
       </div>
-      <Footer />
+
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
 
       {/* LP Position Modal */}
       {selectedLPPosition && (
@@ -906,3 +887,4 @@ function Portfolio() {
     </div>
   );
 }
+

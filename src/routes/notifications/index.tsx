@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Bell, ExternalLink, Loader2, ArrowLeft } from 'lucide-react';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
+import { GuestPageState } from '~/components/GuestPageState';
+import { WalletGateModal } from '~/components/WalletGateModal';
+import { useWalletGate } from '~/hooks/useWalletGate';
 import { useWallet } from '~/store/useWalletStore';
 import { useTRPC } from '~/trpc/react';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -14,6 +15,8 @@ export const Route = createFileRoute('/notifications/')({
 
 function getNotificationIcon(type: string): string {
   switch (type) {
+    case 'TRADE_FILLED':
+      return '✅';
     case 'MARKET_RESOLVED':
       return '🏁';
     case 'POSITION_OPENED':
@@ -29,6 +32,7 @@ function getNotificationIcon(type: string): string {
 
 function NotificationsPage() {
   const { address, isConnected } = useWallet();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const trpc = useTRPC();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
@@ -40,7 +44,7 @@ function NotificationsPage() {
       unreadOnly: filter === 'unread',
     }),
     enabled: !!address && isConnected,
-    refetchInterval: 30000,
+    refetchInterval: 90_000,
   });
 
   // Mark notification as read mutation
@@ -65,8 +69,6 @@ function NotificationsPage() {
 
   return (
     <div className="min-h-screen bg-brand-bg text-white">
-      <Header />
-      
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Back link */}
         <Link
@@ -86,12 +88,12 @@ function NotificationsPage() {
         </div>
 
         {!isConnected ? (
-          <div className="bg-white/5 rounded-lg p-12 text-center">
-            <Bell className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-            <h2 className="font-syne text-2xl font-bold mb-2">Connect Your Wallet</h2>
-            <p className="text-gray-400 mb-6">
-              Connect your wallet to view your notifications
-            </p>
+          <div className="bg-white/5 rounded-lg p-12">
+            <GuestPageState
+              title="👀 Watching as guest"
+              description="Connect wallet to view your notifications"
+              onConnect={() => requireWallet()}
+            />
           </div>
         ) : (
           <>
@@ -198,7 +200,8 @@ function NotificationsPage() {
         )}
       </main>
       
-      <Footer />
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
     </div>
   );
 }
+

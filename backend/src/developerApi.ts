@@ -358,7 +358,7 @@ router.get('/v1/markets/:id/trades', rateLimit, async (req: Request, res: Respon
 router.post('/v1/orders', authenticateAPIKey, rateLimit, async (req: Request, res: Response) => {
   try {
     const walletAddress = (req as any).walletAddress;
-    const body = (req.body ?? {}) as any;
+    const body = (req.body ?? {});
     // Support both snake_case (legacy bot docs) and camelCase (backend REST)
     const market_id = body.market_id ?? body.marketId;
     const side = body.side ?? body.outcome;

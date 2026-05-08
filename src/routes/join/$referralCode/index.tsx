@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Header } from "~/components/Header";
-import { Footer } from "~/components/Footer";
 import {
   TierBadge,
   verificationToRewardTier,
@@ -44,7 +43,6 @@ function ReferralLandingPage() {
             <div className="animate-pulse">Loading...</div>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -67,7 +65,6 @@ function ReferralLandingPage() {
             </Link>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -265,7 +262,7 @@ function ReferralLandingPage() {
         </div>
       </div>
 
-      <Footer />
     </div>
   );
 }
+

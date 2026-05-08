@@ -2,6 +2,7 @@ import { Clock, TrendingUp, Flame, Zap } from 'lucide-react';
 import { SeedMarket } from '~/data/seedMarkets';
 import { formatCurrency } from '~/utils/marketUtils';
 import { useState, useEffect } from 'react';
+import { COUNTRY_FLAG, getMarketCountryCode, isEliteMarket } from '~/config/marketGeo';
 
 interface MarketCardCompactProps {
   market: SeedMarket;
@@ -52,6 +53,9 @@ function useCountdown(targetDate: string) {
 
 export function MarketCardCompact({ market, onClick, variant = 'card' }: MarketCardCompactProps) {
   const { timeLeft, isUrgent } = useCountdown(market.endsAt);
+  const countryCode = getMarketCountryCode(market);
+  const flag = countryCode ? COUNTRY_FLAG[countryCode] : null;
+  const elite = isEliteMarket(market);
   
   // Determine badges
   const isHot = market.volume24h > 50000;
@@ -79,7 +83,15 @@ export function MarketCardCompact({ market, onClick, variant = 'card' }: MarketC
           {/* Left: Event Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className="text-sm text-gray-500 uppercase tracking-wide font-semibold">{market.competition}</span>
+              <span className="text-sm text-gray-500 uppercase tracking-wide font-semibold flex items-center gap-2">
+                {flag && <span className="text-base leading-none">{flag}</span>}
+                <span>{market.competition}</span>
+              </span>
+              {elite && (
+                <span className="px-2 py-1 bg-brand-cyan/15 border border-brand-cyan/30 text-brand-cyan text-xs font-bold rounded">
+                  GLOBAL
+                </span>
+              )}
               {getStatusBadge()}
               {isHot && (
                 <span className="flex items-center gap-1 px-2 py-0.5 bg-orange-500/20 border border-orange-500/40 text-orange-400 text-xs font-bold rounded">

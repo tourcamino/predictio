@@ -3,7 +3,6 @@ import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
 import { MapPin, Clock, ArrowRight, Briefcase } from 'lucide-react';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 
 export const Route = createFileRoute('/careers/')({
   component: CareersPage,
@@ -168,7 +167,7 @@ function CareersPage() {
         </div>
       </main>
 
-      <Footer />
     </div>
   );
 }
+

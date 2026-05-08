@@ -45,7 +45,7 @@ export async function executeBuy(params: BuyParams): Promise<TxResult> {
  */
 async function mockSellExecution(params: SellParams): Promise<TxResult> {
   // Simulate network delay
-  await new Promise((resolve) => setTimeout(resolve, 800 + Math.random() * 400));
+  await new Promise((resolve) => setTimeout(resolve, 180 + Math.random() * 120));
   
   // Calculate proceeds
   const { net } = calculateAmountFromShares(params.shares, params.price, false);
@@ -74,7 +74,7 @@ async function mockSellExecution(params: SellParams): Promise<TxResult> {
  */
 async function mockBuyExecution(params: BuyParams): Promise<TxResult> {
   // Simulate network delay
-  await new Promise((resolve) => setTimeout(resolve, 800 + Math.random() * 400));
+  await new Promise((resolve) => setTimeout(resolve, 180 + Math.random() * 120));
   
   // Calculate shares
   const { shares, fee } = calculateSharesFromAmount(params.amountUSDC, params.price, true);

@@ -7,7 +7,7 @@ export function NetworkBanner() {
   if (!isConnected || !wrongNetwork) return null;
 
   return (
-    <div className="fixed top-32 lg:top-36 left-0 right-0 z-40 animate-slide-down">
+    <div className="relative z-[100] animate-slide-down">
       <div className="bg-red-500/20 border-b border-red-500/50 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center justify-between gap-4">

@@ -19,8 +19,19 @@ const base = (
 
 async function check(path, { allowFailure = false } = {}) {
   const url = `${base}${path}`;
-  const res = await fetch(url);
-  const text = await res.text();
+  let res;
+  let text;
+  try {
+    res = await fetch(url);
+    text = await res.text();
+  } catch (err) {
+    if (allowFailure) {
+      const msg = err?.cause?.code || err?.message || String(err);
+      console.warn(`WARN ${path} unreachable (${msg})`);
+      return null;
+    }
+    throw err;
+  }
   let body;
   try {
     body = JSON.parse(text);
@@ -54,12 +65,23 @@ async function check(path, { allowFailure = false } = {}) {
 
 async function post(path, json, { allowFailure = false } = {}) {
   const url = `${base}${path}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(json),
-  });
-  const text = await res.text();
+  let res;
+  let text;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(json),
+    });
+    text = await res.text();
+  } catch (err) {
+    if (allowFailure) {
+      const msg = err?.cause?.code || err?.message || String(err);
+      console.warn(`WARN ${path} POST unreachable (${msg})`);
+      return null;
+    }
+    throw err;
+  }
   let body;
   try {
     body = JSON.parse(text);

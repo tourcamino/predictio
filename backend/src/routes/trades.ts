@@ -210,7 +210,7 @@ async function mirrorTradeToActiveCopiers(params: {
         })
         .catch(() => null);
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error(`[COPY TRADING] Failed for copier ${rel.copierWallet}`, err);
     }
   }
@@ -261,7 +261,7 @@ router.post(
   async (req, res, next) => {
   try {
     const authedWallet = (req as any).walletAddress as string | undefined;
-    const bodyWallet = (req.body as any).walletAddress as string | undefined;
+    const bodyWallet = (req.body).walletAddress as string | undefined;
     const walletAddress = authedWallet || bodyWallet || null;
     if (!walletAddress) {
       throw new ApiError("Wallet not authenticated", { status: 401, code: "UNAUTHORIZED" });
@@ -270,7 +270,7 @@ router.post(
       throw new ApiError("Wallet mismatch", { status: 403, code: "WALLET_MISMATCH" });
     }
 
-    const { marketId, outcome, amountUsd, analystWallet, referralWallet } = req.body as any;
+    const { marketId, outcome, amountUsd, analystWallet, referralWallet } = req.body;
     const size = Number(amountUsd);
 
     // Azuro curated markets lifecycle (OPEN only, closes 5 min before kickoff)
@@ -501,7 +501,7 @@ router.post(
         });
       }
     } catch (copyErr) {
-      // eslint-disable-next-line no-console
+       
       console.error("[COPY TRADING] mirror after main trade failed", copyErr);
     }
 

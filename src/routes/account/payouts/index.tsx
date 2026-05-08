@@ -1,6 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { useWallet } from '~/store/useWalletStore';
 import { useState, useEffect } from 'react';
 import { DollarSign, ChevronDown, ChevronUp, RefreshCw, TrendingUp, Clock } from 'lucide-react';
@@ -309,7 +308,7 @@ function PayoutHistoryPage() {
         </div>
       </div>
       
-      <Footer />
     </div>
   );
 }
+

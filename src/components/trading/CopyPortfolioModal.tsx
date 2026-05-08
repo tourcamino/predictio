@@ -4,6 +4,8 @@ import { X, TrendingUp, Target, Award, AlertTriangle, Copy, Check } from 'lucide
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '~/trpc/react';
 import { useWalletStore } from '~/store/useWalletStore';
+import { useWalletGate } from '~/hooks/useWalletGate';
+import { WalletGateModal } from '~/components/WalletGateModal';
 import toast from 'react-hot-toast';
 import { MarketSelectionUI } from './MarketSelectionUI';
 interface CopyPortfolioModalProps {
@@ -36,7 +38,8 @@ export function CopyPortfolioModal({
 }: CopyPortfolioModalProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { address, balance, openWalletModal } = useWalletStore();
+  const { address, balance } = useWalletStore();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   
   const [maxPerTrade, setMaxPerTrade] = useState(existingCopy?.maxPerTradeUsd.toString() || '50');
   const [copyMode, setCopyMode] = useState<'all' | 'selective'>(
@@ -118,11 +121,8 @@ export function CopyPortfolioModal({
   );
 
   const handleStartCopy = () => {
-    if (!address) {
-      openWalletModal();
-      return;
-    }
-
+    if (!requireWallet()) return;
+    if (!address) return;
     const amount = parseFloat(maxPerTrade);
     if (isNaN(amount) || amount < 10) {
       toast.error('Minimum copy amount is $10');
@@ -160,6 +160,7 @@ export function CopyPortfolioModal({
   const isPending = startCopyMutation.isPending || stopCopyMutation.isPending;
 
   return (
+    <>
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
         <Transition.Child
@@ -399,10 +400,10 @@ export function CopyPortfolioModal({
                         </button>
                         <button
                           onClick={handleStartCopy}
-                          disabled={isPending || !address}
+                          disabled={isPending}
                           className="flex-1 py-3 bg-brand-green text-brand-bg font-bold rounded-lg hover:bg-brand-green/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {isPending ? 'Starting...' : address ? 'Start Copying' : 'Connect Wallet'}
+                          {isPending ? 'Starting...' : 'Start Copying'}
                         </button>
                       </>
                     )}
@@ -414,5 +415,8 @@ export function CopyPortfolioModal({
         </div>
       </Dialog>
     </Transition>
+
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
+    </>
   );
 }

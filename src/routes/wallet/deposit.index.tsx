@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { useWallet } from '~/store/useWalletStore';
 import { Wallet, CreditCard, ArrowRightLeft, QrCode, Copy, Check, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { CHAIN_CONFIG } from '~/config/chain';
 import toast from 'react-hot-toast';
+import { useWalletGate } from '~/hooks/useWalletGate';
+import { WalletGateModal } from '~/components/WalletGateModal';
+import { GuestPageState } from '~/components/GuestPageState';
 
 export const Route = createFileRoute('/wallet/deposit/')({
   component: DepositPage,
@@ -14,7 +15,8 @@ export const Route = createFileRoute('/wallet/deposit/')({
 type DepositMethod = 'select' | 'direct' | 'moonpay' | 'bridge';
 
 function DepositPage() {
-  const { isConnected, openWalletModal, address, updateBalance, balance, addTransaction } = useWallet();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
+  const { isConnected, address, updateBalance, balance, addTransaction } = useWallet();
   const [selectedMethod, setSelectedMethod] = useState<DepositMethod>('select');
   const [copied, setCopied] = useState(false);
   const [bridgeAmount, setBridgeAmount] = useState('');
@@ -97,43 +99,9 @@ function DepositPage() {
     setBridgeAmount('');
   };
 
-  if (!isConnected) {
-    return (
-      <div className="min-h-screen bg-brand-bg">
-        <Header />
-        <div className="pt-32 pb-20 px-4">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="mb-8 flex justify-center">
-              <div className="w-24 h-24 bg-white/5 border border-white/10 rounded-full flex items-center justify-center">
-                <Wallet className="w-12 h-12 text-gray-500" />
-              </div>
-            </div>
-            
-            <h1 className="font-syne font-bold text-4xl mb-4">
-              Connect Your Wallet
-            </h1>
-            
-            <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
-              Connect your wallet to deposit funds.
-            </p>
-            
-            <button
-              onClick={openWalletModal}
-              className="px-8 py-4 bg-brand-green text-brand-bg font-bold text-lg rounded-lg hover:bg-brand-green/90 transition-all shadow-xl shadow-brand-green/20"
-            >
-              Connect Wallet
-            </button>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-brand-bg">
-      <Header />
-      <div className="pt-32 pb-20 px-4">
+      <div className="pb-20 px-4">
         <div className="max-w-2xl mx-auto">
           {/* Page Header */}
           <div className="mb-8">
@@ -149,6 +117,10 @@ function DepositPage() {
             <p className="text-gray-400">Choose how you'd like to add funds</p>
           </div>
 
+          {!isConnected ? (
+            <GuestPageState onConnect={() => requireWallet()} />
+          ) : (
+          <>
           {/* Method Selection */}
           {selectedMethod === 'select' && (
             <div className="space-y-4">
@@ -419,9 +391,12 @@ function DepositPage() {
               </div>
             </div>
           )}
+          </>
+          )}
         </div>
       </div>
-      <Footer />
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
     </div>
   );
 }
+

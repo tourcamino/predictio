@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Header } from "~/components/Header";
-import { Footer } from "~/components/Footer";
 import { useState } from "react";
 import { Search, Filter } from "lucide-react";
 import { mockAnalysts } from "~/data/mockAffiliates";
@@ -144,7 +143,7 @@ function AnalystsPage() {
         </div>
       </div>
 
-      <Footer />
     </div>
   );
 }
+

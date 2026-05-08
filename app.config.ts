@@ -18,11 +18,49 @@ function viteAllowedHostsFromBaseUrl(
   return hostname ? [hostname] : undefined;
 }
 
+/** Express (`backend`, default :3001). Vinxi dev proxies these so the browser can call same-origin `/api/*`. */
+const EXPRESS_DEV_PROXY_TARGET =
+  process.env.EXPRESS_PROXY_TARGET ?? "http://127.0.0.1:3001";
+
+function expressDevApiProxy(): Record<
+  string,
+  { target: string; changeOrigin: boolean }
+> {
+  const prefixes = [
+    "/api/v1",
+    "/api/me",
+    "/api/markets",
+    "/api/admin",
+    "/api/developer",
+    "/api/leaderboard",
+    "/api/vault",
+    "/api/affiliate",
+    "/api/copy",
+    "/api/trades",
+    "/api/translate",
+  ];
+  return Object.fromEntries(
+    prefixes.map((prefix) => [
+      prefix,
+      { target: EXPRESS_DEV_PROXY_TARGET, changeOrigin: true },
+    ]),
+  );
+}
+
 export default createApp({
   server: {
     preset: "node-server", // change to 'netlify' or 'bun' or anyof the supported presets for nitro (nitro.unjs.io)
     experimental: {
       asyncContext: true,
+    },
+    // Nitro/Rollup cannot bundle Prisma client (it imports ".prisma" internals).
+    // Keep Prisma external so node-server runs with the installed node_modules at runtime.
+    externals: {
+      external: ["@prisma/client", /\.prisma/],
+    },
+    rollupConfig: {
+      // Ensure Rollup never tries to resolve Prisma internals during server build.
+      external: ["@prisma/client", /\.prisma/],
     },
   },
   routers: [
@@ -149,6 +187,12 @@ export default createApp({
           // @ts-ignore
           server: {
             allowedHosts: viteAllowedHostsFromBaseUrl(env.BASE_URL),
+          },
+        }),
+        config("express-api-proxy", {
+          // @ts-expect-error Vinxi `CustomizableConfig` omits `server`; Vite still merges `server.proxy` in dev.
+          server: {
+            proxy: expressDevApiProxy(),
           },
         }),
         tsConfigPaths({

@@ -8,8 +8,14 @@ import { Check, Loader2, Zap, Lock, CheckCircle, ChevronDown } from 'lucide-reac
 import { useTRPC } from '~/trpc/react';
 import { Market } from '~/data/mockMarkets';
 import { useWallet } from '~/store/useWalletStore';
+import { useWalletGate } from '~/hooks/useWalletGate';
+import { WalletGateModal } from '~/components/WalletGateModal';
 import { TransactionModal } from '../TransactionModal';
 import { calcFee } from '~/utils/marketUtils';
+import {
+  invalidateWalletNotifications,
+  invalidateWalletPointsSummary,
+} from '~/utils/invalidateWalletNotifications';
 
 interface BetBoxProps {
   market: Market;
@@ -29,7 +35,8 @@ type PredictionFormData = z.infer<typeof predictionSchema>;
 export function BetBox({ market, selectedOutcome }: BetBoxProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { isConnected: isWalletConnected, openWalletModal, address } = useWallet();
+  const { isConnected: isWalletConnected, address, updateBalance } = useWallet();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const [txModalState, setTxModalState] = useState<'review' | 'pending' | 'mining' | 'success' | 'error'>('review');
   const [showTxModal, setShowTxModal] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
@@ -57,6 +64,9 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
     trpc.placePrediction.mutationOptions({
       onSuccess: (data) => {
         setTxModalState('success');
+        if (data.newBalance !== undefined) {
+          updateBalance(data.newBalance);
+        }
         setTimeout(() => {
           setShowTxModal(false);
           reset();
@@ -64,6 +74,16 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
         });
+        if (address) {
+          queryClient.invalidateQueries({
+            queryKey: trpc.getUserPositions.queryKey({ walletAddress: address, status: 'all' }),
+          });
+          queryClient.invalidateQueries({
+            queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: address }),
+          });
+          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, address);
+          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, address);
+        }
       },
       onError: (error) => {
         setTxModalState('error');
@@ -109,10 +129,7 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
       return;
     }
 
-    if (!isWalletConnected) {
-      openWalletModal();
-      return;
-    }
+    if (!requireWallet()) return;
 
     // Show transaction modal for review
     setTxModalState('review');
@@ -120,10 +137,8 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
   };
 
   const handleConfirmTransaction = () => {
-    if (!address) {
-      openWalletModal();
-      return;
-    }
+    if (!requireWallet()) return;
+    if (!address) return;
     setTxModalState('pending');
     
     // Simulate wallet approval
@@ -169,10 +184,7 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
     return `Place Prediction · $${amount.toLocaleString()} USDC`;
   };
 
-  const isButtonDisabled = 
-    !isWalletConnected || 
-    !selectedOutcome || 
-    amount <= 0;
+  const isButtonDisabled = !selectedOutcome || amount <= 0;
 
   return (
     <div className="bg-brand-bg border-2 border-brand-green/30 rounded-lg p-6 shadow-lg" data-tour="bet-box">
@@ -408,6 +420,8 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
         teamB={market.teamB}
         odds={outcomeData?.odds || 0}
       />
+
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
     </div>
   );
 }

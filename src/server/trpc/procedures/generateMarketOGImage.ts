@@ -20,6 +20,14 @@ export const generateMarketOGImage = baseProcedure
 
     const imageKey = `market-${input.marketId}.png`;
     const bucketName = "og-images";
+
+    // Object storage is optional in local dev.
+    if (!minioClient) {
+      return {
+        url: `${minioBaseUrl}/og-default.png`,
+        cached: true,
+      };
+    }
     
     try {
       // Check if image exists and is fresh (< 60 seconds old)

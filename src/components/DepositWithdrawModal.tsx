@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { TransactionModal } from './TransactionModal';
 import { useWallet } from '~/store/useWalletStore';
 import { useTRPC } from '~/trpc/react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { AlertCircle } from 'lucide-react';
+import { invalidateWalletPointsSummary } from '~/utils/invalidateWalletNotifications';
 
 type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 
@@ -22,6 +23,7 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
   const [error, setError] = useState<string>('');
 
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const depositMutation = useMutation(trpc.depositUSDC.mutationOptions());
   const withdrawMutation = useMutation(trpc.withdrawUSDC.mutationOptions());
 
@@ -65,8 +67,7 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
       setTxHash(result.txHash);
       setTransactionState('mining');
 
-      // Simulate mining delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 600));
 
       // Update balance
       const newBalance = type === 'deposit' 
@@ -76,6 +77,13 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
 
       setTransactionState('success');
       toast.success(`${type === 'deposit' ? 'Deposit' : 'Withdrawal'} successful!`);
+      if (address) {
+        invalidateWalletPointsSummary(
+          queryClient,
+          trpc.getPointsSummary.queryKey,
+          address,
+        );
+      }
     } catch (err: any) {
       setError(err.message || 'Transaction failed');
       setTransactionState('error');

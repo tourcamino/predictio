@@ -98,7 +98,7 @@ export function calculateFeeSplit(input: FeeSplitInput): FeeSplitResult {
 
   const sum = vaultUsd + analystUsd + referralUsd + treasuryUsd;
   if (Math.abs(sum - totalFee) > 0.01) {
-    // eslint-disable-next-line no-console
+     
     console.error(
       `[fees] mismatch: expected=${totalFee.toFixed(4)} got=${sum.toFixed(4)} trade=${input.tradeId}`
     );

@@ -8,6 +8,7 @@ import { PriceMovement } from './PriceMovement';
 import { WatchlistButton } from './WatchlistButton';
 import { MarketCountdown } from '../MarketCountdown';
 import { getMarketStatus } from '~/utils/marketLifecycle';
+import { COUNTRY_FLAG, getMarketCountryCode, isEliteMarket } from '~/config/marketGeo';
 
 interface MarketCardProps {
   market: Market;
@@ -17,6 +18,9 @@ interface MarketCardProps {
 export function MarketCard({ market, onClick }: MarketCardProps) {
   const sportMeta = SPORT_METADATA[market.sport];
   const lifecycleStatus = getMarketStatus(market);
+  const countryCode = getMarketCountryCode(market);
+  const flag = countryCode ? COUNTRY_FLAG[countryCode] : null;
+  const elite = isEliteMarket(market);
 
   const volumeCounter = useLiveCounter({
     initialValue: market.volume,
@@ -84,7 +88,15 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
         >
           {sportMeta.emoji} {sportMeta.name.toUpperCase()}
         </span>
-        <span className="text-xs text-gray-500 truncate">{market.league}</span>
+        <span className="text-xs text-gray-500 truncate flex items-center gap-1.5">
+          {flag && <span className="text-sm leading-none">{flag}</span>}
+          <span className="truncate">{market.league}</span>
+          {elite && (
+            <span className="ml-1 px-2 py-0.5 bg-brand-cyan/15 border border-brand-cyan/30 text-brand-cyan text-[10px] font-bold rounded">
+              GLOBAL
+            </span>
+          )}
+        </span>
         <div className="ml-auto flex items-center gap-1">
           <WatchlistButton marketId={market.id} variant="icon" size="sm" />
           {statusBadge}

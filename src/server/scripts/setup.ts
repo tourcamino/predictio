@@ -1089,6 +1089,11 @@ async function setup() {
   // Create og-images bucket for social media preview cards
   const ogImagesBucket = "og-images";
   
+  if (!minioClient) {
+    console.warn("Skipping MinIO bucket setup (ADMIN_PASSWORD unset)");
+    return;
+  }
+
   try {
     const bucketExists = await minioClient.bucketExists(ogImagesBucket);
     

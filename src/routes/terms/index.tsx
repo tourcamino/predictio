@@ -1,6 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 
@@ -56,9 +54,7 @@ function TermsPage() {
 
   return (
     <div className="min-h-screen bg-brand-bg">
-      <Header />
-      
-      <div className="pt-32 pb-20 px-4">
+      <div className="pb-20 px-4">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
             <h1 className="font-syne font-bold text-4xl mb-2">Terms of Service</h1>
@@ -102,7 +98,7 @@ function TermsPage() {
         </div>
       </div>
       
-      <Footer />
     </div>
   );
 }
+

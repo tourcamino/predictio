@@ -13,6 +13,7 @@ import SuperJSON from "superjson";
 
 import { AppRouter } from "~/server/trpc/root";
 import { getQueryClient } from "./query-client";
+import { isLocalFrontendDevOrigin } from "~/lib/predictioApi";
 
 // Now, with the newer @trpc/tanstack-react-query package, we no longer need createTRPCReact.
 // We use createTRPCContext instead.
@@ -24,13 +25,22 @@ export { useTRPC, useTRPCClient };
  * tRPC HTTP batch URL origin. Prefer `VITE_API_URL` when the UI is hosted separately
  * from the API (avoids fetching `/trpc` and receiving SPA HTML). In the browser,
  * default is same-origin. SSR fallback matches Vinxi dev (`VITE_APP_URL` / port 5173).
+ *
+ * Local dev exception: `VITE_API_URL` is also used by the REST helper to point at the
+ * Express backend (default `http://127.0.0.1:3001`), but Express does not host `/trpc`.
+ * When the SPA is running on a localhost dev port (Vinxi serves `/trpc` same-origin),
+ * ignore a cross-origin `VITE_API_URL` and use the current origin instead.
  */
 function getBaseUrl() {
   const viteApi = import.meta.env.VITE_API_URL as string | undefined;
-  const apiTrimmed = viteApi?.trim();
+  const apiTrimmed = viteApi?.trim().replace(/\/$/, "");
   if (typeof window !== "undefined") {
-    if (apiTrimmed) return apiTrimmed.replace(/\/$/, "");
-    return window.location.origin;
+    const origin = window.location.origin.replace(/\/$/, "");
+    if (apiTrimmed && apiTrimmed !== origin && isLocalFrontendDevOrigin()) {
+      return origin;
+    }
+    if (apiTrimmed) return apiTrimmed;
+    return origin;
   }
   const appTrimmed = (import.meta.env.VITE_APP_URL as string | undefined)?.trim();
   if (appTrimmed) return appTrimmed.replace(/\/$/, "");
@@ -44,9 +54,9 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
     createTRPCClient<AppRouter>({
       links: [
         loggerLink({
+          // Verbose request logging in dev noticeably slows the UI; log failures only.
           enabled: (opts) =>
-            process.env.NODE_ENV === "development" ||
-            (opts.direction === "down" && opts.result instanceof Error),
+            opts.direction === "down" && opts.result instanceof Error,
         }),
         splitLink({
           condition: (op: Operation) => op.type === "subscription",

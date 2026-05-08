@@ -1,9 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { useApiAuthStore } from '~/store/useApiAuthStore';
-import { apiRequest } from '~/lib/predictioApi';
+import { apiRequest, type ApiErrorShape } from '~/lib/predictioApi';
 import toast from 'react-hot-toast';
 
 export const Route = createFileRoute('/me/')({
@@ -34,7 +32,7 @@ function MePage() {
     setLoading(false);
     if (!r.ok) {
       setMe(null);
-      const code = r.error?.error?.code || `HTTP_${r.status}`;
+      const code = (r.error as ApiErrorShape)?.error?.code || `HTTP_${r.status}`;
       toast.error(`/api/me failed: ${code}`);
       return;
     }
@@ -43,13 +41,11 @@ function MePage() {
 
   useEffect(() => {
     refresh().catch(() => null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [developerApiKey]);
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-[#E5E5E5]">
-      <Header />
-
       <div className="max-w-3xl mx-auto px-4 py-24">
         <h1 className="text-3xl font-bold mb-2">/me</h1>
         <p className="text-[#999999] mb-8">
@@ -129,8 +125,8 @@ function MePage() {
         </div>
       </div>
 
-      <Footer />
     </div>
   );
 }
+
 

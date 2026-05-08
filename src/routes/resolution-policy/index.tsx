@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { ArrowLeft, CheckCircle, AlertTriangle, XCircle, Mail } from 'lucide-react';
 import { AppealForm } from '~/components/markets/AppealForm';
 import { useWallet } from '~/store/useWalletStore';
@@ -199,7 +198,6 @@ function ResolutionPolicyPage() {
         </div>
       </div>
 
-      <Footer />
 
       {/* Appeal Form Modal */}
       {showAppealForm && address && (
@@ -213,3 +211,4 @@ function ResolutionPolicyPage() {
     </div>
   );
 }
+

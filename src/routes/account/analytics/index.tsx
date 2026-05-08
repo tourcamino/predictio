@@ -1,6 +1,4 @@
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { useWallet } from '~/store/useWalletStore';
 import { useEffect } from 'react';
 import { Users, TrendingUp, DollarSign, Target, BarChart3, Share2, Copy, ExternalLink, RefreshCw } from 'lucide-react';
@@ -53,8 +51,7 @@ function AnalyticsPage() {
   if (!isConnected) {
     return (
       <div className="min-h-screen bg-brand-bg">
-        <Header />
-        <div className="pt-32 pb-20 px-4">
+        <div className="pb-20 px-4">
           <div className="max-w-7xl mx-auto text-center">
             <p className="text-gray-400">Redirecting to home...</p>
           </div>
@@ -65,9 +62,7 @@ function AnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-brand-bg">
-      <Header />
-      
-      <div className="pt-32 pb-20 px-4">
+      <div className="pb-20 px-4">
         <div className="max-w-7xl mx-auto">
           {/* Page Header */}
           <div className="mb-8">
@@ -404,7 +399,7 @@ function AnalyticsPage() {
         </div>
       </div>
       
-      <Footer />
     </div>
   );
 }
+

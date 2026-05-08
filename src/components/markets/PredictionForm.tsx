@@ -7,6 +7,12 @@ import { DollarSign, TrendingUp } from 'lucide-react';
 import { useTRPC } from '~/trpc/react';
 import { Market } from '~/data/mockMarkets';
 import { useWallet } from '~/store/useWalletStore';
+import { useWalletGate } from '~/hooks/useWalletGate';
+import { WalletGateModal } from '~/components/WalletGateModal';
+import {
+  invalidateWalletNotifications,
+  invalidateWalletPointsSummary,
+} from '~/utils/invalidateWalletNotifications';
 
 interface PredictionFormProps {
   market: Market;
@@ -25,7 +31,8 @@ type PredictionFormData = z.infer<typeof predictionSchema>;
 export function PredictionForm({ market, selectedOutcome }: PredictionFormProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { address } = useWallet();
+  const { address, updateBalance } = useWallet();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
 
   const {
     register,
@@ -43,11 +50,23 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
     trpc.placePrediction.mutationOptions({
       onSuccess: (data) => {
         toast.success(data.message);
+        if (data.newBalance !== undefined) {
+          updateBalance(data.newBalance);
+        }
         reset();
-        // Invalidate market detail query to refresh data
         queryClient.invalidateQueries({
           queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
         });
+        if (address) {
+          queryClient.invalidateQueries({
+            queryKey: trpc.getUserPositions.queryKey({ walletAddress: address, status: 'all' }),
+          });
+          queryClient.invalidateQueries({
+            queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: address }),
+          });
+          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, address);
+          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, address);
+        }
       },
       onError: (error) => {
         toast.error(error.message || 'Failed to place prediction');
@@ -60,10 +79,8 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
       toast.error('Please select an outcome first');
       return;
     }
-    if (!address) {
-      toast.error('Connect your wallet to place a prediction');
-      return;
-    }
+    if (!requireWallet()) return;
+    if (!address) return;
 
     placePredictionMutation.mutate({
       marketId: market.id,
@@ -187,6 +204,8 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
           <li>• Markets close at the scheduled time</li>
         </ul>
       </div>
+
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
     </div>
   );
 }

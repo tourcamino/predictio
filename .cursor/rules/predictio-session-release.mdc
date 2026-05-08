@@ -1,0 +1,29 @@
+---
+description: "Predictio — ritmo veloce: lavoro Cursor↔VPS; Git/GitHub/Vercel e sync locale solo a fine sessione."
+alwaysApply: true
+---
+
+# Predictio — Ritmo di lavoro e rilascio (veloce)
+
+## Durante la sessione
+
+- **Ambiente principale**: **Cursor ↔ VPS** (SSH / Remote). Build, `npm run dev`, Docker, Postgres e prove sul **VPS** salvo richiesta esplicita di solo laptop.
+- **Non** proporre commit, `git push`, deploy **Vercel** o passaggi di pubblicazione come step dopo ogni piccolo cambiamento.
+- **Non** eseguire push/deploy automatici senza che l’utente lo chieda o sia chiaro che è **chiusura sessione**.
+
+## Fine sessione — batch unico (veloce)
+
+Solo quando l’utente chiude il lavoro o dice esplicitamente di pubblicare / mettere su git / deployare:
+
+1. **Allineamento codice** tra VPS e cartella di lavoro (pull/rebase, rsync, o copia dal path concordato — **un solo passaggio**).
+2. **Sync “locale”** se usa cartella sincronizzata (es. OneDrive/Desktop): assicurarsi che il tree salvato sul disco locale sia quello appena allineato al VPS.
+3. **`git status`** → **un (o pochi) commit** con messaggio che riassume la sessione.
+4. **`git push`** verso **GitHub** sul branch concordato.
+5. **Vercel**: un deploy (preview o production secondo convenzione del progetto).
+
+Obiettivo: **un ciclo** allinea → commit → push → deploy per sessione, non dopo ogni edit.
+
+## Eccezioni
+
+- **Hotfix produzione**: workflow abbreviato fuori da questo ritmo se l’utente lo ordina.
+- Se l’utente chiede esplicitamente commit/push/deploy **nel mezzo** della sessione, eseguire solo quel passaggio richiesto.

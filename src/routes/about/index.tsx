@@ -1,6 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { Globe, Zap, Shield, Users, ExternalLink } from 'lucide-react';
 import { useLiveCounter } from '~/hooks/useLiveCounter';
 
@@ -32,9 +30,7 @@ function AboutPage() {
 
   return (
     <div className="min-h-screen bg-brand-bg">
-      <Header />
-      
-      <div className="pt-32 pb-20 px-4">
+      <div className="pb-20 px-4">
         <div className="max-w-4xl mx-auto">
           {/* Hero */}
           <div className="text-center mb-16">
@@ -158,7 +154,7 @@ function AboutPage() {
         </div>
       </div>
       
-      <Footer />
     </div>
   );
 }
+

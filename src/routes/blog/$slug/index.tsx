@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Calendar, Tag, ArrowLeft } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import Markdown from 'markdown-to-jsx';
 import { MetaTags } from '~/components/MetaTags';
 import { ReadingProgressBar } from '~/components/blog/ReadingProgressBar';
@@ -87,7 +86,6 @@ function BlogPostPage() {
             </div>
           </div>
         </main>
-        <Footer />
       </div>
     );
   }
@@ -109,7 +107,6 @@ function BlogPostPage() {
             </Link>
           </div>
         </main>
-        <Footer />
       </div>
     );
   }
@@ -285,7 +282,7 @@ function BlogPostPage() {
         </article>
       </main>
 
-      <Footer />
     </div>
   );
 }
+

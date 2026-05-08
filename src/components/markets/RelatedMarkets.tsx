@@ -4,8 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { Market } from "~/data/mockMarkets";
 import { SEED_MARKETS } from "~/data/seedMarkets";
 import { MarketCard } from "./MarketCard";
-import { useTRPC } from "~/trpc/react";
 import { seedMarketToLiveMarket } from "~/utils/seedMarketToLiveMarket";
+import { fetchCuratedMarketsFromApi } from "~/utils/curatedMarketsApi";
 
 interface RelatedMarketsProps {
   currentMarket: Market;
@@ -13,19 +13,10 @@ interface RelatedMarketsProps {
 
 export function RelatedMarkets({ currentMarket }: RelatedMarketsProps) {
   const navigate = useNavigate();
-  const trpc = useTRPC();
-
-  const sportFilter =
-    currentMarket.sport && currentMarket.sport !== "all"
-      ? currentMarket.sport
-      : "football";
 
   const marketsQuery = useQuery({
-    ...trpc.getAzuroMarkets.queryOptions({
-      sport: sportFilter,
-      competition: "all",
-      status: "all",
-    }),
+    queryKey: ["curatedMarkets", "related"],
+    queryFn: fetchCuratedMarketsFromApi,
     staleTime: 60_000,
   });
 

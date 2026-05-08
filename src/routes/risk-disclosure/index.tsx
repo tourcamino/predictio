@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { AlertTriangle } from 'lucide-react';
 
 export const Route = createFileRoute('/risk-disclosure/')({
@@ -104,7 +103,7 @@ function RiskDisclosurePage() {
         </div>
       </div>
       
-      <Footer />
     </div>
   );
 }
+

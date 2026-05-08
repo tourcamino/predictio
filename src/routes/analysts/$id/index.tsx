@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Header } from "~/components/Header";
-import { Footer } from "~/components/Footer";
 import { PredictionAnalyticsCharts } from "~/components/analyst/PredictionAnalyticsCharts";
 import { TraderPerformanceCharts } from "~/components/analyst/TraderPerformanceCharts";
 import { CopyPortfolioModal } from "~/components/trading/CopyPortfolioModal";
@@ -170,7 +169,6 @@ function AnalystProfilePage() {
             <div className="animate-pulse">Loading analyst profile...</div>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -193,7 +191,6 @@ function AnalystProfilePage() {
             </a>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -490,7 +487,6 @@ function AnalystProfilePage() {
         </div>
       </div>
 
-      <Footer />
       
       {analyst && (
         <CopyPortfolioModal
@@ -838,3 +834,4 @@ function PredictionHistoryTable({ predictions }: { predictions: any[] }) {
     </div>
   );
 }
+

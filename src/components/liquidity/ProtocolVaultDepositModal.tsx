@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { TransactionModal } from '../TransactionModal';
 import { useWallet } from '~/store/useWalletStore';
+import { useWalletGate } from '~/hooks/useWalletGate';
+import { WalletGateModal } from '~/components/WalletGateModal';
 import { useTRPC } from '~/trpc/react';
 import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -25,7 +27,8 @@ export function ProtocolVaultDepositModal({
   vaultStats,
   onSuccess 
 }: ProtocolVaultDepositModalProps) {
-  const { balance, address, isConnected, openWalletModal, updateBalance } = useWallet();
+  const { balance, address, isConnected, updateBalance } = useWallet();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const [amount, setAmount] = useState('');
   const [riskAccepted, setRiskAccepted] = useState(false);
   const [transactionState, setTransactionState] = useState<TransactionState>('review');
@@ -113,7 +116,7 @@ export function ProtocolVaultDepositModal({
   // If not connected, prompt to connect wallet
   const handleConnectWallet = () => {
     onClose();
-    openWalletModal();
+    requireWallet();
   };
 
   const quickAmounts = [50, 100, 250, 500].filter(a => a <= balance);
@@ -336,6 +339,7 @@ export function ProtocolVaultDepositModal({
           onRetry={handleRetry}
         />
       )}
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
     </>
   );
 }

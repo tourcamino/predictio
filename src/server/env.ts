@@ -9,6 +9,12 @@ const envSchema = z.object({
   
   // Database
   DATABASE_URL: z.string().optional(),
+  /**
+   * Prisma Client log levels (comma-separated): query, info, warn, error.
+   * Use `silent` or empty override with explicit value to disable Prisma stdout logs.
+   * Default in development: warn only (avoids query + connection-error spam when Postgres is down).
+   */
+  PRISMA_LOG: z.string().optional(),
   
   // Auth
   // In Vercel builds we don't run admin routes; don't fail build on missing secret.

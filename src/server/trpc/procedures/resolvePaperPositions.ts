@@ -2,6 +2,10 @@ import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
 import { loadMarketUiById } from "~/server/utils/loadMarketUi";
+import {
+  creditWalletPoints,
+  POINT_ACTION_VALUES,
+} from "~/server/utils/pointsLedger";
 
 export const resolvePaperPositions = baseProcedure
   .input(
@@ -121,7 +125,20 @@ export const resolvePaperPositions = baseProcedure
         }).catch((err) => {
           console.error('[Notifications] Failed to create MARKET_RESOLVED notification:', err);
         });
-        
+
+        if (isWinner) {
+          try {
+            await creditWalletPoints(
+              position.wallet,
+              "MARKET_RESOLVED_WIN",
+              POINT_ACTION_VALUES.MARKET_RESOLVED_WIN,
+              { marketId, marketLabel, winningOutcome },
+            );
+          } catch (err) {
+            console.error("[Points] Failed to credit MARKET_RESOLVED_WIN:", err);
+          }
+        }
+
         return {
           wallet: position.wallet,
           isWinner,

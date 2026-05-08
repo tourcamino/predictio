@@ -690,7 +690,15 @@ function MyComponent() {
 }
 ```
 
-### 5. Form with React Hook Form + Zod
+### 5. Guest mode, `useWalletGate`, and demo (`~/hooks/useWalletGate.ts`)
+
+- **Wallet state is Zustand only:** use `useWallet()` from `~/store/useWalletStore` (or `useWalletGate()` which wraps it). Do **not** add parallel wagmi-only gates for “connect wallet”.
+- **`useWalletGate()`:** returns `requireWallet()`, `showGateModal`, `closeGateModal`, plus `isConnected` / `address`. If the user is not connected, `requireWallet()` returns `false` and opens the in-app **`WalletGateModal`**; the modal’s primary CTA calls `openWalletModal()` (wallet picker).
+- **Pages:** Portfolio, wallet, copy, notifications, analyst dashboard, etc. render for guests with **`GuestPageState`** where personal data would appear; protected actions use `requireWallet()` instead of full-page “connect wallet” walls.
+- **Demo:** `useDemoAccount()` owns demo activation (`activateDemo` / `deactivateDemo`). **`ModeToggle`** in the header shows only when connected. **`TradingBox`** still allows **guest demo trades** via `executeDemoTrade` when disconnected (browse + try flows).
+- **`DemoBanner`:** Copy depends on guest vs connected + demo vs real (`useWallet` + `useDemoAccount`).
+
+### 6. Form with React Hook Form + Zod
 
 ```typescript
 import { useForm } from 'react-hook-form';

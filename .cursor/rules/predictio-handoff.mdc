@@ -11,6 +11,7 @@ Source of truth: `docs/CURSOR_HANDOFF.md` and `CURSOR_HANDOFF.md`. Prefer matchi
 ## Workflow (team default)
 
 - **Primary environment is the VPS**, not the developer laptop. Edit code in Cursor (this repo); **run commands, Postgres, Docker, and `npm run dev` / deploy on the VPS** unless the user explicitly asks for local setup.
+- **Git / GitHub / Vercel**: batch at **end of session** unless you explicitly ask mid-session — see companion rule `predictio-session-release.mdc` (always-on).
 - Sync changes via **git pull/push** or **scp/rsync** to `/root/predictio` (or the agreed path on the server).
 - **`DATABASE_URL`** and secrets live on the **VPS `.env`**. Ignore laptop Docker/local Postgres unless explicitly requested.
 - Files like `docker-compose.dev.yml` are optional references; production-like orchestration is `docker-compose.prod.yml` on the VPS when used.

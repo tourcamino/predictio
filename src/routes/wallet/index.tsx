@@ -1,20 +1,21 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { useWallet } from '~/store/useWalletStore';
 import { Wallet, ArrowDownCircle, ArrowUpCircle, Send, AlertCircle } from 'lucide-react';
 import { CHAIN_CONFIG } from '~/config/chain';
 import { useState } from 'react';
 import { DepositWithdrawModal } from '~/components/DepositWithdrawModal';
+import { useWalletGate } from '~/hooks/useWalletGate';
+import { WalletGateModal } from '~/components/WalletGateModal';
+import { GuestPageState } from '~/components/GuestPageState';
 
 export const Route = createFileRoute('/wallet/')({
   component: WalletDashboard,
 });
 
 function WalletDashboard() {
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const {
     isConnected,
-    openWalletModal,
     address,
     balanceUsdc,
     balanceUsdcAvailable,
@@ -31,56 +32,30 @@ function WalletDashboard() {
   const tradesRemaining = Math.floor(balanceEthUsd / CHAIN_CONFIG.gas.avgTradeCostUsd);
   const isEthLow = balanceEthUsd < CHAIN_CONFIG.gas.lowBalanceThresholdUsd;
 
-  if (!isConnected) {
-    return (
-      <div className="min-h-screen bg-brand-bg">
-        <Header />
-        <div className="pt-32 pb-20 px-4">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="mb-8 flex justify-center">
-              <div className="w-24 h-24 bg-white/5 border border-white/10 rounded-full flex items-center justify-center">
-                <Wallet className="w-12 h-12 text-gray-500" />
-              </div>
-            </div>
-            
-            <h1 className="font-syne font-bold text-4xl mb-4">
-              Connect Your Wallet
-            </h1>
-            
-            <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
-              Connect your wallet to manage your funds and view transaction history.
-            </p>
-            
-            <button
-              onClick={openWalletModal}
-              className="px-8 py-4 bg-brand-green text-brand-bg font-bold text-lg rounded-lg hover:bg-brand-green/90 transition-all shadow-xl shadow-brand-green/20"
-            >
-              Connect Wallet
-            </button>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
   const recentTransactions = transactions.slice(0, 10);
 
   return (
     <div className="min-h-screen bg-brand-bg">
-      <Header />
-      <div className="pt-32 pb-20 px-4">
+      <div className="pb-20 px-4">
         <div className="max-w-5xl mx-auto">
           {/* Page Header */}
           <div className="mb-8">
             <h1 className="font-syne font-bold text-4xl mb-2">Your Wallet</h1>
             <div className="flex items-center gap-2 text-gray-400">
+              {isConnected && address ? (
               <span className="font-mono text-sm">
-                {address?.slice(0, 6)}...{address?.slice(-4)}
+                {address.slice(0, 6)}...{address.slice(-4)}
               </span>
+              ) : (
+                <span className="text-sm text-gray-500">Guest — connect to manage funds on-chain</span>
+              )}
             </div>
           </div>
 
+          {!isConnected ? (
+            <GuestPageState onConnect={() => requireWallet()} />
+          ) : (
+          <>
           {/* USDC Balance Card */}
           <div className="mb-6 p-6 bg-white/5 border border-white/10 rounded-lg">
             <div className="mb-4">
@@ -241,9 +216,10 @@ function WalletDashboard() {
               </div>
             )}
           </div>
+          </>
+          )}
         </div>
       </div>
-      <Footer />
 
       {/* Modals */}
       <DepositWithdrawModal
@@ -256,6 +232,8 @@ function WalletDashboard() {
         onClose={() => setWithdrawModalOpen(false)}
         type="withdraw"
       />
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
     </div>
   );
 }
+

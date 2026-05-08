@@ -2,6 +2,10 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
+import {
+  creditWalletPoints,
+  POINT_ACTION_VALUES,
+} from "~/server/utils/pointsLedger";
 
 export const syncUserAccount = baseProcedure
   .input(
@@ -146,29 +150,13 @@ export const syncUserAccount = baseProcedure
     
     if (!walletConnectedEntry) {
       try {
-        await db.pointsLedger.create({
-          data: {
-            walletAddress: normalizedAddress,
-            actionType: 'WALLET_CONNECTED',
-            points: 100,
-            metadata: {},
-          },
-        });
-        
-        await db.pointsTotal.upsert({
-          where: { walletAddress: normalizedAddress },
-          create: {
-            walletAddress: normalizedAddress,
-            totalPoints: 100,
-            season: 1,
-            tier: 'BRONZE',
-          },
-          update: {
-            totalPoints: { increment: 100 },
-          },
-        });
-        
-        console.log(`[Points] Credited 100 pts to ${normalizedAddress} for WALLET_CONNECTED`);
+        await creditWalletPoints(
+          normalizedAddress,
+          "WALLET_CONNECTED",
+          POINT_ACTION_VALUES.WALLET_CONNECTED,
+          {},
+        );
+        console.log(`[Points] Credited ${POINT_ACTION_VALUES.WALLET_CONNECTED} pts to ${normalizedAddress} for WALLET_CONNECTED`);
       } catch (error) {
         console.error('[Points] Failed to credit WALLET_CONNECTED:', error);
       }
@@ -190,37 +178,13 @@ export const syncUserAccount = baseProcedure
     
     if (!todayLoginEntry) {
       try {
-        await db.pointsLedger.create({
-          data: {
-            walletAddress: normalizedAddress,
-            actionType: 'DAILY_LOGIN',
-            points: 25,
-            metadata: {},
-          },
-        });
-        
-        const pointsTotal = await db.pointsTotal.findUnique({
-          where: { walletAddress: normalizedAddress },
-        });
-        
-        const newTotal = (pointsTotal?.totalPoints || 0) + 25;
-        const newTier = newTotal >= 20000 ? 'DIAMOND' : newTotal >= 5000 ? 'GOLD' : newTotal >= 1000 ? 'SILVER' : 'BRONZE';
-        
-        await db.pointsTotal.upsert({
-          where: { walletAddress: normalizedAddress },
-          create: {
-            walletAddress: normalizedAddress,
-            totalPoints: 25,
-            season: 1,
-            tier: 'BRONZE',
-          },
-          update: {
-            totalPoints: newTotal,
-            tier: newTier,
-          },
-        });
-        
-        console.log(`[Points] Credited 25 pts to ${normalizedAddress} for DAILY_LOGIN`);
+        await creditWalletPoints(
+          normalizedAddress,
+          "DAILY_LOGIN",
+          POINT_ACTION_VALUES.DAILY_LOGIN,
+          {},
+        );
+        console.log(`[Points] Credited ${POINT_ACTION_VALUES.DAILY_LOGIN} pts to ${normalizedAddress} for DAILY_LOGIN`);
       } catch (error) {
         console.error('[Points] Failed to credit DAILY_LOGIN:', error);
       }

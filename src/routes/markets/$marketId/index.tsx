@@ -2,8 +2,6 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Loader2, Home, ChevronRight, Clock, TrendingUp } from 'lucide-react';
-import { Header } from '~/components/Header';
-import { LiveTicker } from '~/components/LiveTicker';
 import { AIInsightBadge } from '~/components/AIInsightBadge';
 import { EventHero } from '~/components/markets/EventHero';
 import { PriceChart } from '~/components/markets/PriceChart';
@@ -50,7 +48,7 @@ function MarketDetailPage() {
   // Get bot status for AMM indicator
   const botHeartbeatQuery = useQuery({
     ...trpc.getBotHeartbeat.queryOptions({}),
-    refetchInterval: 10000,
+    refetchInterval: 30_000,
   });
 
   // Get vault allocation for this market
@@ -73,7 +71,6 @@ function MarketDetailPage() {
   if (marketQuery.isLoading) {
     return (
       <div className="min-h-screen bg-brand-navy">
-        <Header />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
@@ -89,7 +86,6 @@ function MarketDetailPage() {
   if (marketQuery.isError) {
     return (
       <div className="min-h-screen bg-brand-navy">
-        <Header />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
           <div className="text-center py-20">
             <h2 className="text-2xl font-bold text-red-500 mb-4">Market Not Found</h2>
@@ -120,11 +116,6 @@ function MarketDetailPage() {
 
   return (
     <div className="min-h-screen bg-brand-navy">
-      <Header />
-      <div className="pt-16 lg:pt-20 mt-5 mb-8">
-        <LiveTicker />
-      </div>
-      
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-6 sm:py-8 pb-[500px] lg:pb-8">
         {/* Main Content Grid - Desktop: 2 columns with sticky sidebar */}
         <div className="lg:grid lg:grid-cols-12 lg:gap-8">

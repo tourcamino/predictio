@@ -1,17 +1,20 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { useWallet } from '~/store/useWalletStore';
-import { Wallet, Trophy, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Trophy, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { useWalletGate } from '~/hooks/useWalletGate';
+import { WalletGateModal } from '~/components/WalletGateModal';
+import { GuestPageState } from '~/components/GuestPageState';
 
 export const Route = createFileRoute('/portfolio/resolved/')({
   component: ResolvedMarketsPage,
 });
 
 function ResolvedMarketsPage() {
-  const { isConnected, openWalletModal, resolvedMarkets, claimWinnings, batchClaimWinnings, balanceEth } = useWallet();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
+  const { isConnected, resolvedMarkets, claimWinnings, batchClaimWinnings, balanceEth } = useWallet();
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [batchClaiming, setBatchClaiming] = useState(false);
 
@@ -64,40 +67,7 @@ function ResolvedMarketsPage() {
     }
   };
 
-  if (!isConnected) {
-    return (
-      <div className="min-h-screen bg-brand-bg">
-        <Header />
-        <div className="pt-32 pb-20 px-4">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="mb-8 flex justify-center">
-              <div className="w-24 h-24 bg-white/5 border border-white/10 rounded-full flex items-center justify-center">
-                <Wallet className="w-12 h-12 text-gray-500" />
-              </div>
-            </div>
-            
-            <h1 className="font-syne font-bold text-4xl mb-4">
-              Connect Your Wallet
-            </h1>
-            
-            <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
-              Connect your wallet to view resolved markets and claim winnings.
-            </p>
-            
-            <button
-              onClick={openWalletModal}
-              className="px-8 py-4 bg-brand-green text-brand-bg font-bold text-lg rounded-lg hover:bg-brand-green/90 transition-all shadow-xl shadow-brand-green/20"
-            >
-              Connect Wallet
-            </button>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
-  const hasLowGas = balanceEth < 0.001; // Threshold for showing warning
+  const hasLowGas = isConnected && balanceEth < 0.001;
 
   return (
     <div className="min-h-screen bg-brand-bg">
@@ -120,6 +90,10 @@ function ResolvedMarketsPage() {
             </p>
           </div>
 
+          {!isConnected ? (
+            <GuestPageState onConnect={() => requireWallet()} />
+          ) : (
+          <>
           {/* Low Gas Warning */}
           {hasLowGas && claimableMarkets.length > 0 && (
             <div className="mb-6 flex items-start gap-2 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
@@ -267,9 +241,12 @@ function ResolvedMarketsPage() {
               </Link>
             </div>
           )}
+          </>
+          )}
         </div>
       </div>
-      <Footer />
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
     </div>
   );
 }
+

@@ -31,7 +31,7 @@ function requireStaticKey(opts: {
     }
 
     if (!expected && fallback) {
-      // eslint-disable-next-line no-console
+       
       console.warn(`[auth] ${opts.envName} not set, falling back to ${opts.fallbackEnvName}`);
     }
 
@@ -70,7 +70,7 @@ export function requireXAdminKey(req: Request, _res: Response, next: NextFunctio
   }
 
   if (!secret && !adminApi && !isProd && presented === bot) {
-    // eslint-disable-next-line no-console
+     
     console.warn("[auth] ADMIN_SECRET / ADMIN_API_KEY unset — accepting BOT_API_KEY for X-Admin-Key (dev only)");
   }
 
@@ -128,7 +128,7 @@ export async function requireDeveloperApiKey(req: Request, _res: Response, next:
     (req as any).walletAddress = row.walletAddress;
     return next();
   } catch (e) {
-    // eslint-disable-next-line no-console
+     
     console.error("[auth] developer key verification failed", e);
     return next(new ApiError("Authentication failed", { status: 500, code: "AUTH_FAILED" }));
   }
@@ -142,7 +142,7 @@ function permissionsList(perm: unknown): string[] {
     try {
       const parsed = JSON.parse(perm);
       if (Array.isArray(parsed)) return parsed.map((x) => String(x));
-    } catch {}
+    } catch { /* ignore invalid JSON in permissions */ }
   }
   return [];
 }

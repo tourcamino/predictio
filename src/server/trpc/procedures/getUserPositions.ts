@@ -12,10 +12,11 @@ export const getUserPositions = baseProcedure
   )
   .query(async ({ input }) => {
     const { walletAddress, status } = input;
+    const wallet = walletAddress.toLowerCase();
 
-    // Build where clause
+    // Build where clause (orders/users always keyed lowercase — mismatch broke Portfolio with checksum addresses)
     const where: any = {
-      wallet: walletAddress,
+      wallet,
     };
 
     if (status !== 'all') {

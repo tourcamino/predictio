@@ -1,14 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { Header } from "~/components/Header";
 import { Hero } from "~/components/Hero";
 import { SportsGrid } from "~/components/SportsGrid";
 import { HowItWorks } from "~/components/HowItWorks";
 import { LiveMarkets } from "~/components/LiveMarkets";
 import { WhyPredictio } from "~/components/WhyPredictio";
 import { CTASection } from "~/components/CTASection";
-import { Footer } from "~/components/Footer";
-import { LiveTicker } from "~/components/LiveTicker";
 import { OGImagePreloader } from "~/components/OGImagePreloader";
 import { MetaTags } from "~/components/MetaTags";
 import { TrustSection } from "~/components/TrustSection";
@@ -46,10 +43,6 @@ function Home() {
         description="Trade YES/NO tokens on Champions League, Serie A, NBA and more. Powered by Base blockchain."
         url={typeof window !== 'undefined' ? window.location.href : undefined}
       />
-      <Header />
-      <div className="pt-16 lg:pt-20 mt-5 mb-8">
-        <LiveTicker />
-      </div>
       <OGImagePreloader />
       <Hero />
       <LiveMarkets />
@@ -61,7 +54,7 @@ function Home() {
       )}
       {!isFootballFocusEnabled() && <SportsGrid />}
       <CTASection />
-      <Footer />
     </div>
   );
 }
+

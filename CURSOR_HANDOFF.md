@@ -44,6 +44,7 @@ Il frontend è completato al 100% in termini di UI/UX, navigazione e componenti.
 - **Notifiche**: Centro notifiche persistente con conteggio non letti.
 - **Sistema Affiliati/Analisti**: Dashboard, profili pubblici, calcolo commissioni (50/35/15).
 - **Copy Trading**: UI per seguire/copiare trader con impostazioni di allocazione.
+- **Guest mode & wallet gate**: `useWalletGate()` + `WalletGateModal` + `GuestPageState`; stato wallet solo via Zustand (`useWallet`). Azioni protette con `requireWallet()` invece di muri full-page. Demo: `useDemoAccount` + `ModeToggle` in header se connesso. Dettagli in `docs/CURSOR_HANDOFF.md` → Common Patterns §5.
 - **Liquidity Pool**: Interfaccia deposito/prelievo vault, grafici APY.
 - **Admin Dashboard**: Gestione mercati, risoluzione, monitoraggio bot, log anomalie.
 - **Contenuti**: Blog CMS, Careers, Glossary.

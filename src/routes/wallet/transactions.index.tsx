@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { useWallet } from '~/store/useWalletStore';
-import { Wallet, Download, Filter, Search, ChevronDown, ExternalLink } from 'lucide-react';
+import { Download, Filter, Search, ChevronDown, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 import { CHAIN_CONFIG } from '~/config/chain';
+import { useWalletGate } from '~/hooks/useWalletGate';
+import { WalletGateModal } from '~/components/WalletGateModal';
+import { GuestPageState } from '~/components/GuestPageState';
 
 export const Route = createFileRoute('/wallet/transactions/')({
   component: TransactionHistory,
@@ -14,44 +15,12 @@ type TransactionType = 'all' | 'buy' | 'sell' | 'claim' | 'deposit' | 'withdraw'
 type TransactionStatus = 'all' | 'confirmed' | 'pending' | 'failed';
 
 function TransactionHistory() {
-  const { isConnected, openWalletModal, transactions } = useWallet();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
+  const { isConnected, transactions } = useWallet();
   const [typeFilter, setTypeFilter] = useState<TransactionType>('all');
   const [statusFilter, setStatusFilter] = useState<TransactionStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
-
-  if (!isConnected) {
-    return (
-      <div className="min-h-screen bg-brand-bg">
-        <Header />
-        <div className="pt-32 pb-20 px-4">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="mb-8 flex justify-center">
-              <div className="w-24 h-24 bg-white/5 border border-white/10 rounded-full flex items-center justify-center">
-                <Wallet className="w-12 h-12 text-gray-500" />
-              </div>
-            </div>
-            
-            <h1 className="font-syne font-bold text-4xl mb-4">
-              Connect Your Wallet
-            </h1>
-            
-            <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
-              Connect your wallet to view your transaction history.
-            </p>
-            
-            <button
-              onClick={openWalletModal}
-              className="px-8 py-4 bg-brand-green text-brand-bg font-bold text-lg rounded-lg hover:bg-brand-green/90 transition-all shadow-xl shadow-brand-green/20"
-            >
-              Connect Wallet
-            </button>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
 
   // Filter transactions
   const filteredTransactions = transactions.filter((tx) => {
@@ -91,8 +60,7 @@ function TransactionHistory() {
 
   return (
     <div className="min-h-screen bg-brand-bg">
-      <Header />
-      <div className="pt-32 pb-20 px-4">
+      <div className="pb-20 px-4">
         <div className="max-w-6xl mx-auto">
           {/* Page Header */}
           <div className="mb-8">
@@ -108,6 +76,10 @@ function TransactionHistory() {
             <p className="text-gray-400">All your activity on Predictio</p>
           </div>
 
+          {!isConnected ? (
+            <GuestPageState onConnect={() => requireWallet()} />
+          ) : (
+          <>
           {/* Filters */}
           <div className="mb-6 p-4 bg-white/5 border border-white/10 rounded-lg">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -318,9 +290,12 @@ function TransactionHistory() {
               <p className="text-sm text-gray-500">Try adjusting your filters</p>
             </div>
           )}
+          </>
+          )}
         </div>
       </div>
-      <Footer />
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
     </div>
   );
 }
+

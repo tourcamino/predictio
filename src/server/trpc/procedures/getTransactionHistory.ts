@@ -13,10 +13,11 @@ export const getTransactionHistory = baseProcedure
   )
   .query(async ({ input }) => {
     const { walletAddress, limit, offset, type } = input;
+    const wallet = walletAddress.toLowerCase();
 
     // Build where clause
     const where: any = {
-      wallet: walletAddress,
+      wallet,
     };
 
     if (type !== 'all') {

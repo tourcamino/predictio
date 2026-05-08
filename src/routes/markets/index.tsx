@@ -1,12 +1,11 @@
 // @ts-nocheck — TanStack Router search-param updaters infer `never` until route tree types catch up.
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMemo, useEffect } from 'react';
+import { useState } from 'react';
 import { z } from 'zod';
 import { fallback, zodValidator } from '@tanstack/zod-adapter';
 import { useQuery } from '@tanstack/react-query';
-import { useTRPC } from '~/trpc/react';
-import { Header } from '~/components/Header';
-import { MarketsHero } from '~/components/markets/MarketsHero';
+import { fetchCuratedMarketsFromApi } from '~/utils/curatedMarketsApi';
 import { SportCategoriesRail } from '~/components/markets/SportCategoriesRail';
 import { FilterChips } from '~/components/markets/FilterChips';
 import { MarketSection } from '~/components/markets/MarketSection';
@@ -19,12 +18,35 @@ import { MetaTags } from "~/components/MetaTags";
 import { useMarketsUIStore } from '~/store/useMarketsUIStore';
 import { isFootballFocusEnabled, getDefaultSport, isSportAllowed, FOOTBALL_FOCUS_CONFIG } from '~/config/footballFocus';
 import { MAX_FOOTBALL_MARKETS } from '~/constants/azuro';
+import { getApiBaseUrl } from '~/lib/predictioApi';
+import { useUserCountry } from '~/hooks/useUserCountry';
+import { COUNTRY_FLAG, COUNTRY_LABEL, COUNTRY_OPTIONS, getMarketCountryCode, isEliteMarket, isMajorTournamentMarket } from '~/config/marketGeo';
+import { MarketsFilterDrawer } from '~/components/markets/MarketsFilterDrawer';
+import {
+  getTradingLockMs,
+  hoursUntilTradingLock,
+  isSeedMarketTradable,
+} from '~/utils/seedMarketTrading';
+import type { AzuroMarket } from '~/services/azuro';
 
 const marketSearchSchema = z.object({
   sport: fallback(z.string(), isFootballFocusEnabled() ? 'football' : 'all').default(isFootballFocusEnabled() ? 'football' : 'all'),
   competition: fallback(z.string(), 'all').default('all'),
   status: fallback(z.string(), 'all').default('all'),
-  sortBy: fallback(z.enum(['trending', 'volume', 'liquidity', 'ending-soon', 'newest']), 'trending').default('trending'),
+  sortBy: fallback(
+    z.enum([
+      'trending',
+      'volume',
+      'liquidity',
+      'ending-soon',
+      'newest',
+      'traders',
+      'closing-soon',
+      'most-popular',
+      'most-predicted',
+    ]),
+    'trending',
+  ).default('trending'),
   search: fallback(z.string(), '').default(''),
   viewMode: fallback(z.enum(['grid', 'list']), 'grid').default('grid'),
   endsIn: fallback(z.string(), 'all').default('all'),
@@ -151,13 +173,22 @@ function sortMarkets(markets: SeedMarket[], sortBy: string): SeedMarket[] {
     case 'liquidity':
       return sorted.sort((a, b) => b.liquidity - a.liquidity);
     case 'ending-soon':
-      return sorted.sort((a, b) => 
-        new Date(a.endsAt).getTime() - new Date(b.endsAt).getTime()
-      );
+    case 'closing-soon':
+      return sorted.sort((a, b) => {
+        const la = getTradingLockMs(a);
+        const lb = getTradingLockMs(b);
+        const sa = Number.isFinite(la) ? la : Number.POSITIVE_INFINITY;
+        const sb = Number.isFinite(lb) ? lb : Number.POSITIVE_INFINITY;
+        return sa - sb;
+      });
     case 'newest':
       return sorted.sort((a, b) => 
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
+    case 'traders':
+    case 'most-popular':
+    case 'most-predicted':
+      return sorted.sort((a, b) => (b.traders || 0) - (a.traders || 0));
     default:
       return sorted;
   }
@@ -166,7 +197,6 @@ function sortMarkets(markets: SeedMarket[], sortBy: string): SeedMarket[] {
 function MarketsPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: '/markets' });
-  const trpc = useTRPC();
   const { isSidebarCollapsed } = useMarketsUIStore();
   
   const {
@@ -183,6 +213,9 @@ function MarketsPage() {
     maxOdds,
     analystRecommended,
   } = search;
+
+  const userCountry = useUserCountry();
+  const [filtersOpen, setFiltersOpen] = useState(false);
   
   // Redirect to football if user tries to access other sports in football focus mode
   useEffect(() => {
@@ -198,15 +231,12 @@ function MarketsPage() {
     }
   }, [selectedSport, navigate, search]);
   
-  // Fetch markets from Azuro with 60-second refresh
+  // Founder-curated list from Express `GET /api/markets` (same DB as admin curation)
   const marketsQuery = useQuery({
-    ...trpc.getAzuroMarkets.queryOptions({
-      sport: selectedSport,
-      competition: selectedCompetition,
-      status: selectedStatus,
-    }),
-    refetchInterval: 60000, // Refresh every 60 seconds
-    staleTime: 50000, // Consider data stale after 50 seconds
+    queryKey: ["curatedMarkets", "markets-page"],
+    queryFn: fetchCuratedMarketsFromApi,
+    refetchInterval: 120_000,
+    staleTime: 50000,
     retry: 2,
     retryDelay: (attempt) => Math.min(1500 * 2 ** attempt, 8000),
   });
@@ -245,21 +275,47 @@ function MarketsPage() {
   
   // Filter markets
   const filteredMarkets = useMemo(
-    () => filterMarkets(allMarkets, {
-      sport: selectedSport,
-      competition: selectedCompetition,
-      status: selectedStatus,
-      search: searchQuery,
+    () => {
+      const base = filterMarkets(allMarkets, {
+        sport: selectedSport,
+        competition: selectedCompetition,
+        status: selectedStatus,
+        search: searchQuery,
+        endsIn,
+      });
+
+      if (!selectedRegion || selectedRegion === 'all') return base;
+      if (selectedRegion === 'elite') return base.filter((m) => isEliteMarket(m));
+
+      // country code filter (e.g. "IT")
+      return base.filter((m) => getMarketCountryCode(m) === selectedRegion);
+    },
+    [
+      allMarkets,
+      selectedSport,
+      selectedCompetition,
+      selectedStatus,
+      searchQuery,
       endsIn,
-    }),
-    [allMarkets, selectedSport, selectedCompetition, selectedStatus, searchQuery, endsIn]
+      selectedRegion,
+    ]
   );
   
-  // Sort markets
-  const sortedMarkets = useMemo(
-    () => sortMarkets(filteredMarkets, sortBy),
-    [filteredMarkets, sortBy]
-  );
+  // Sort markets + overlay: tradable markets, then local, then volume
+  const sortedMarkets = useMemo(() => {
+    const base = sortMarkets(filteredMarkets, sortBy);
+    const cc = userCountry.countryCode;
+
+    const score = (m: SeedMarket) => {
+      const tradable = isSeedMarketTradable(m) ? 500000 : 0;
+      const local = getMarketCountryCode(m) === cc ? 100000 : 0;
+      const trending = (m.volume24h || 0) >= 30000 ? 10000 : 0;
+      const vol = Math.min(9999, Math.floor((m.volume24h || 0) / 10));
+      return tradable + local + trending + vol;
+    };
+
+    return [...base].sort((a, b) => score(b) - score(a));
+  }, [filteredMarkets, sortBy, userCountry.countryCode]);
   
   // Get curated sections (only show when no filters active)
   const hasActiveFilters = selectedSport !== (isFootballFocusEnabled() ? 'football' : 'all') || 
@@ -268,37 +324,90 @@ function MarketsPage() {
     searchQuery !== '' || 
     endsIn !== 'all';
   
-  const trendingMarkets = useMemo(() => 
-    sortMarkets(allMarkets.filter(m => m.volume24h > 30000), 'trending').slice(0, 5),
-    [allMarkets]
+  const spotlightMarkets = useMemo(() => {
+    const tradable = allMarkets.filter(isSeedMarketTradable);
+    const importance = (m: SeedMarket) => (m as AzuroMarket).importanceScore ?? 0;
+    const spotlightScore = (m: SeedMarket) => {
+      const imp = importance(m);
+      const major = isMajorTournamentMarket(m) ? 5000 : 0;
+      const elite = isEliteMarket(m) ? 2000 : 0;
+      return imp * 100 + major + elite + (m.traders || 0);
+    };
+    const candidates = tradable.filter((m) => {
+      const imp = importance(m);
+      return isMajorTournamentMarket(m) || imp >= 40 || isEliteMarket(m);
+    });
+    let list = [...candidates].sort((a, b) => spotlightScore(b) - spotlightScore(a));
+    if (list.length < 3) {
+      const ids = new Set(list.map((m) => m.id));
+      const extra = [...tradable]
+        .filter((m) => !ids.has(m.id))
+        .sort((a, b) => spotlightScore(b) - spotlightScore(a));
+      list = [...list, ...extra].slice(0, 5);
+    } else {
+      list = list.slice(0, 5);
+    }
+    return list;
+  }, [allMarkets]);
+
+  const mostTradedMarkets = useMemo(() => {
+    const tradable = allMarkets.filter(isSeedMarketTradable);
+    return [...tradable]
+      .sort((a, b) => (b.traders || 0) - (a.traders || 0))
+      .slice(0, 5);
+  }, [allMarkets]);
+
+  const locksSoonMarkets = useMemo(() => {
+    return allMarkets
+      .filter((m) => {
+        if (!isSeedMarketTradable(m)) return false;
+        const h = hoursUntilTradingLock(m);
+        return h > 0 && h <= 72;
+      })
+      .sort((a, b) => {
+        const la = getTradingLockMs(a);
+        const lb = getTradingLockMs(b);
+        const sa = Number.isFinite(la) ? la : 0;
+        const sb = Number.isFinite(lb) ? lb : 0;
+        return sa - sb;
+      })
+      .slice(0, 5);
+  }, [allMarkets]);
+
+  const trendingMarkets = useMemo(
+    () =>
+      sortMarkets(
+        allMarkets.filter((m) => isSeedMarketTradable(m) && m.volume24h > 30000),
+        'trending',
+      ).slice(0, 5),
+    [allMarkets],
   );
-  
-  const liveMarkets = useMemo(() => 
-    allMarkets.filter(m => m.status === 'live').slice(0, 5),
-    [allMarkets]
-  );
-  
-  const endingSoonMarkets = useMemo(() => {
-    const now = new Date();
+
+  const localMarkets = useMemo(() => {
+    const cc = userCountry.countryCode;
     return sortMarkets(
-      allMarkets.filter(m => {
-        const endsAt = new Date(m.endsAt);
-        const hoursUntil = (endsAt.getTime() - now.getTime()) / (1000 * 60 * 60);
-        return hoursUntil > 0 && hoursUntil < 24 && m.status !== 'live';
-      }),
-      'ending-soon'
+      allMarkets.filter(
+        (m) => isSeedMarketTradable(m) && getMarketCountryCode(m) === cc,
+      ),
+      'trending',
+    ).slice(0, 5);
+  }, [allMarkets, userCountry.countryCode]);
+
+  const eliteMarkets = useMemo(() => {
+    return sortMarkets(
+      allMarkets.filter((m) => isSeedMarketTradable(m) && isEliteMarket(m)),
+      'trending',
     ).slice(0, 5);
   }, [allMarkets]);
-  
+
   const upcomingMarkets = useMemo(() => {
-    const now = new Date();
     return sortMarkets(
-      allMarkets.filter(m => {
-        const endsAt = new Date(m.endsAt);
-        const hoursUntil = (endsAt.getTime() - now.getTime()) / (1000 * 60 * 60);
-        return hoursUntil >= 24 && m.status === 'upcoming';
+      allMarkets.filter((m) => {
+        if (!isSeedMarketTradable(m)) return false;
+        const h = hoursUntilTradingLock(m);
+        return Number.isFinite(h) ? h > 72 : m.status === 'upcoming';
       }),
-      'newest'
+      'newest',
     ).slice(0, 5);
   }, [allMarkets]);
   
@@ -334,6 +443,17 @@ function MarketsPage() {
       id: 'endsIn',
       label: `Ends in ${endsIn}`,
       onRemove: () => navigate({ search: prev => ({ ...prev, endsIn: 'all' }) }),
+    });
+  }
+  if (selectedRegion && selectedRegion !== 'all') {
+    const isElite = selectedRegion === 'elite';
+    const label = isElite
+      ? '🌍 World Class'
+      : `${COUNTRY_FLAG[selectedRegion as keyof typeof COUNTRY_FLAG] ?? '🏳️'} ${COUNTRY_LABEL[selectedRegion as keyof typeof COUNTRY_LABEL] ?? selectedRegion}`;
+    filterChips.push({
+      id: 'region',
+      label,
+      onRemove: () => navigate({ search: prev => ({ ...prev, selectedRegion: 'all' }) }),
     });
   }
   
@@ -375,47 +495,11 @@ function MarketsPage() {
           description="Browse all open prediction markets. Champions League, Serie A, NBA, MMA and more."
           url={typeof window !== 'undefined' ? window.location.href : undefined}
         />
-        <Header />
-        
-        <div className="pt-16 lg:pt-20">
-          {/* Compact Hero Section */}
-          <div className="bg-gradient-to-b from-brand-navy via-brand-bg to-transparent py-12 px-4">
-            <div className="max-w-5xl mx-auto text-center">
-              <h1 className="font-syne font-bold text-4xl sm:text-5xl mb-4">
-                Trade Football Markets
-              </h1>
-              <p className="text-lg text-gray-400 mb-6 max-w-2xl mx-auto">
-                Predict outcomes. Trade before kickoff. Profit from your sports knowledge.
-              </p>
-              
-              {/* Tag Pills */}
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <span className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-semibold">
-                  ⚽ Champions League
-                </span>
-                <span className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-semibold">
-                  ⚽ Serie A
-                </span>
-                <span className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-semibold">
-                  🏀 NBA
-                </span>
-                <span className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-semibold">
-                  🥊 MMA
-                </span>
-              </div>
-            </div>
-          </div>
-          
-          <MarketsHero
-            searchQuery={searchQuery}
-            onSearchChange={(query) => navigate({ search: prev => ({ ...prev, search: query }) })}
-          />
-          
-          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {/* Loading indicator */}
             <div className="mb-8 px-6 py-4 bg-brand-green/10 border border-brand-green/30 rounded-xl flex items-center justify-center gap-3">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-brand-green" />
-              <span className="text-brand-green font-semibold">Loading markets from Azuro Protocol...</span>
+              <span className="text-brand-green font-semibold">Loading markets…</span>
             </div>
 
             {/* Skeleton Grid */}
@@ -424,7 +508,6 @@ function MarketsPage() {
                 <MarketCardSkeleton key={i} />
               ))}
             </div>
-          </div>
         </div>
       </div>
     );
@@ -432,10 +515,16 @@ function MarketsPage() {
 
   // TRPC / network failure after retries exhausted (never got a successful response)
   if (marketsQuery.isError && !marketsQuery.isSuccess) {
-    const msg =
+    const rawMsg =
       marketsQuery.error instanceof Error
         ? marketsQuery.error.message
         : "Unable to load markets.";
+    const apiHint =
+      typeof window !== "undefined" &&
+      (rawMsg === "Failed to fetch" || /network|fetch/i.test(rawMsg))
+        ? ` API base: ${getApiBaseUrl() || window.location.origin}. Start Express in another terminal: cd backend && npm run dev (default port 3001). Ensure Postgres is up if you expect curated rows.`
+        : "";
+    const msg = rawMsg + apiHint;
     return (
       <div className="min-h-screen bg-brand-bg">
         <MetaTags
@@ -443,10 +532,9 @@ function MarketsPage() {
           description="Browse all open prediction markets. Champions League, Serie A, NBA, MMA and more."
           url={typeof window !== "undefined" ? window.location.href : undefined}
         />
-        <Header />
-        <div className="pt-24 lg:pt-28 px-4 max-w-lg mx-auto text-center">
+        <div className="px-4 max-w-lg mx-auto text-center">
           <p className="text-red-400 font-semibold mb-2">Could not load markets</p>
-          <p className="text-gray-400 text-sm mb-6">{msg}</p>
+          <p className="text-gray-400 text-sm mb-6 whitespace-pre-wrap">{msg}</p>
           <button
             type="button"
             onClick={() => marketsQuery.refetch()}
@@ -466,85 +554,17 @@ function MarketsPage() {
         description="Browse all open prediction markets. Champions League, Serie A, NBA, MMA and more."
         url={typeof window !== 'undefined' ? window.location.href : undefined}
       />
-      <Header />
-      
-      <div className="pt-16 lg:pt-20">
-        {/* Compact Hero Section */}
-        <div className="bg-gradient-to-b from-brand-navy via-brand-bg to-transparent py-12 px-4">
-          <div className="max-w-5xl mx-auto text-center">
-            <h1 className="font-syne font-bold text-4xl sm:text-5xl mb-4">
-              Trade Football Markets
-            </h1>
-            <p className="text-lg text-gray-400 mb-6 max-w-2xl mx-auto">
-              Predict outcomes. Trade before kickoff. Profit from your sports knowledge.
-            </p>
-            
-            {/* Tag Pills */}
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <span className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-semibold">
-                ⚽ Champions League
-              </span>
-              <span className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-semibold">
-                ⚽ Serie A
-              </span>
-              <span className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-semibold">
-                🏀 NBA
-              </span>
-              <span className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-semibold">
-                🥊 MMA
-              </span>
-            </div>
-          </div>
-        </div>
-        
-        {/* Hero Section */}
-        <MarketsHero
-          searchQuery={searchQuery}
-          onSearchChange={(query) => navigate({ search: prev => ({ ...prev, search: query }) })}
-        />
-        
-        {/* Football Focus Header */}
-        {isFootballFocusEnabled() && (
-          <div className="bg-gradient-to-r from-brand-green/10 to-brand-cyan/10 border-b border-brand-green/20">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-syne text-2xl font-bold text-brand-green mb-1">
-                    ⚽ Football Markets
-                  </h2>
-                  <p className="text-sm text-gray-400">
-                    Champions League • Serie A • Top European Competitions
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-brand-green">
-                    {allMarkets.length}
-                  </div>
-                  <div className="text-xs text-gray-500">Live Markets</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Sport Categories Rail - Hidden in Football Focus mode since there's only one sport */}
-        {!isFootballFocusEnabled() && (
-          <SportCategoriesRail
-            categories={sportCategories}
-            selectedSport={selectedSport}
-            onSelectSport={(sport) => navigate({ search: prev => ({ ...prev, sport, competition: 'all' }) })}
-          />
-        )}
-        
-        {/* Main Content Area with Sidebar */}
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Main Content Area with Sidebar */}
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {/* Azuro Status Indicator */}
-          {['azuro', 'mixed', 'fallback'].includes(marketsQuery.data?.source ?? '') && (
+          {['azuro', 'mixed', 'fallback', 'curated-api'].includes(marketsQuery.data?.source ?? '') && (
             <div className="mb-6 px-4 py-3 bg-brand-green/10 border border-brand-green/30 rounded-lg flex items-center gap-3">
               <span className="text-brand-green text-xl">✓</span>
               <div className="flex-1">
                 <span className="text-brand-green font-semibold">
-                  {marketsQuery.data?.source === 'mixed'
+                  {marketsQuery.data?.source === 'curated-api'
+                    ? 'Founder-curated markets (Predictio API)'
+                    : marketsQuery.data?.source === 'mixed'
                     ? 'Predictio DB markets + Azuro Protocol'
                     : marketsQuery.data?.source === 'fallback'
                       ? 'Demo markets (live feed empty for current filters)'
@@ -571,6 +591,127 @@ function MarketsPage() {
             </div>
           </div>
 
+          {/* Mobile filters: compact bar + drawer */}
+          <div className="mb-4 lg:hidden flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(true)}
+                className="h-10 px-3 bg-white/5 border border-white/10 rounded-lg text-sm text-white/90 hover:border-brand-green/30 transition-colors"
+              >
+                Filters
+              </button>
+              {(selectedRegion !== 'all' ||
+                selectedStatus !== 'all' ||
+                selectedSport !== (isFootballFocusEnabled() ? 'football' : 'all')) && (
+                <button
+                  type="button"
+                  onClick={handleClearAllFilters}
+                  className="h-10 px-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-200 hover:bg-red-500/20 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Geo-smart quick filters (mobile-first chips) */}
+          <div className="mb-4 lg:hidden flex items-center gap-3">
+            <div className="flex-1 overflow-x-auto scrollbar-hide">
+              <div className="flex items-center gap-2 min-w-max">
+              <button
+                type="button"
+                onClick={() => navigate({ search: prev => ({ ...prev, selectedRegion: userCountry.countryCode }) })}
+                className={`px-3 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                  selectedRegion === userCountry.countryCode
+                    ? 'bg-brand-green/20 border-brand-green/40 text-brand-green'
+                    : 'bg-white/5 border-white/10 text-white/80 hover:border-brand-green/30'
+                }`}
+              >
+                {userCountry.flag} Your Nation
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ search: prev => ({ ...prev, selectedRegion: 'elite' }) })}
+                className={`px-3 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                  selectedRegion === 'elite'
+                    ? 'bg-brand-cyan/20 border-brand-cyan/40 text-brand-cyan'
+                    : 'bg-white/5 border-white/10 text-white/80 hover:border-brand-cyan/30'
+                }`}
+              >
+                🌍 World Class
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ search: prev => ({ ...prev, selectedRegion: 'all' }) })}
+                className={`px-3 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                  selectedRegion === 'all'
+                    ? 'bg-white/10 border-white/20 text-white'
+                    : 'bg-white/5 border-white/10 text-white/70 hover:border-white/20'
+                }`}
+              >
+                All Regions
+              </button>
+              </div>
+            </div>
+
+            {/* Compact region/country dropdown (mobile) */}
+            <div className="flex-shrink-0">
+              <select
+                value={selectedRegion}
+                onChange={(e) =>
+                  navigate({ search: (prev) => ({ ...prev, selectedRegion: e.target.value }) })
+                }
+                className="h-10 px-3 bg-white/5 border border-white/10 rounded-lg text-sm text-white/90 focus:outline-none focus:ring-2 focus:ring-brand-green/40 focus:border-brand-green/40"
+              >
+                <option value="all">🌍 All</option>
+                <option value={userCountry.countryCode}>
+                  {userCountry.flag} Your Nation
+                </option>
+                <option value="elite">🌍 World Class</option>
+                <optgroup label="Countries">
+                  {COUNTRY_OPTIONS.map((cc) => (
+                    <option key={cc} value={cc}>
+                      {COUNTRY_FLAG[cc]} {COUNTRY_LABEL[cc]}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+          </div>
+
+          <MarketsFilterDrawer
+            open={filtersOpen}
+            onClose={() => setFiltersOpen(false)}
+            onApply={() => setFiltersOpen(false)}
+            selectedSport={selectedSport}
+            selectedRegion={selectedRegion}
+            selectedStatus={selectedStatus}
+            sortBy={sortBy}
+            minOdds={minOdds}
+            maxOdds={maxOdds}
+            analystRecommended={analystRecommended}
+            onSportChange={(sport) => {
+              navigate({ search: (prev) => ({ ...prev, sport }) });
+            }}
+            onRegionChange={(r) => {
+              navigate({ search: (prev) => ({ ...prev, selectedRegion: r }) });
+            }}
+            onStatusChange={(status) => {
+              navigate({ search: (prev) => ({ ...prev, status }) });
+            }}
+            onSortChange={(s) => {
+              navigate({ search: (prev) => ({ ...prev, sortBy: s }) });
+            }}
+            onOddsRangeChange={(min, max) =>
+              navigate({ search: (prev) => ({ ...prev, minOdds: min, maxOdds: max }) })
+            }
+            onAnalystRecommendedChange={(recommended) =>
+              navigate({ search: (prev) => ({ ...prev, analystRecommended: recommended }) })
+            }
+            onClearAll={handleClearAllFilters}
+          />
+
           {/* Filter Chips */}
           {filterChips.length > 0 && (
             <div className="mb-6">
@@ -594,7 +735,7 @@ function MarketsPage() {
                   maxOdds={maxOdds}
                   analystRecommended={analystRecommended}
                   onSportChange={(sport) => navigate({ search: prev => ({ ...prev, sport }) })}
-                  onRegionChange={(region) => navigate({ search: prev => ({ ...prev, region }) })}
+                  onRegionChange={(region) => navigate({ search: prev => ({ ...prev, selectedRegion: region }) })}
                   onStatusChange={(status) => navigate({ search: prev => ({ ...prev, status }) })}
                   onSortChange={(sortBy) => navigate({ search: prev => ({ ...prev, sortBy }) })}
                   onOddsRangeChange={(minOdds, maxOdds) => navigate({ search: prev => ({ ...prev, minOdds, maxOdds }) })}
@@ -609,43 +750,96 @@ function MarketsPage() {
               {!hasActiveFilters ? (
                 <>
                   {/* Feed Structure */}
+                  {spotlightMarkets.length > 0 && (
+                    <MarketSection
+                      title="Major events"
+                      subtitle="Champions League, cups, internationals & editorial highlights — still open for trading"
+                      icon="🏆"
+                      markets={spotlightMarkets}
+                      onMarketClick={handleMarketClick}
+                      onViewAll={() =>
+                        navigate({ search: (prev) => ({ ...prev, sortBy: 'volume' }) })
+                      }
+                    />
+                  )}
+
+                  {mostTradedMarkets.length > 0 && (
+                    <MarketSection
+                      title="Most active"
+                      subtitle="Markets with the highest trader participation"
+                      icon="📊"
+                      markets={mostTradedMarkets}
+                      onMarketClick={handleMarketClick}
+                      onViewAll={() =>
+                        navigate({ search: (prev) => ({ ...prev, sortBy: 'most-popular' }) })
+                      }
+                    />
+                  )}
+
+                  {locksSoonMarkets.length > 0 && (
+                    <MarketSection
+                      title="Locks soon"
+                      subtitle="Trading stops at kickoff — last hours before the match"
+                      icon="⏳"
+                      markets={locksSoonMarkets}
+                      onMarketClick={handleMarketClick}
+                      onViewAll={() =>
+                        navigate({ search: (prev) => ({ ...prev, sortBy: 'closing-soon' }) })
+                      }
+                    />
+                  )}
+
+                  {localMarkets.length > 0 && (
+                    <MarketSection
+                      title={`${userCountry.flag} Your Nation`}
+                      subtitle={`Top local markets in ${userCountry.label}`}
+                      icon=""
+                      markets={localMarkets}
+                      onMarketClick={handleMarketClick}
+                      onViewAll={() =>
+                        navigate({
+                          search: (prev) => ({ ...prev, selectedRegion: userCountry.countryCode }),
+                        })
+                      }
+                    />
+                  )}
+
+                  {eliteMarkets.length > 0 && (
+                    <MarketSection
+                      title="World Class"
+                      subtitle="Top leagues still open before kickoff"
+                      icon="🌍"
+                      markets={eliteMarkets}
+                      onMarketClick={handleMarketClick}
+                      onViewAll={() =>
+                        navigate({ search: (prev) => ({ ...prev, selectedRegion: 'elite' }) })
+                      }
+                    />
+                  )}
+
                   {trendingMarkets.length > 0 && (
                     <MarketSection
-                      title="Trending Now"
-                      subtitle="Most traded matches right now"
+                      title="Trending Global"
+                      subtitle="High volume among markets still open for trading"
                       icon="🔥"
                       markets={trendingMarkets}
                       onMarketClick={handleMarketClick}
+                      onViewAll={() =>
+                        navigate({ search: (prev) => ({ ...prev, sortBy: 'trending' }) })
+                      }
                     />
                   )}
-                  
-                  {liveMarkets.length > 0 && (
-                    <MarketSection
-                      title="Live Now"
-                      subtitle="Trade while the match is live"
-                      icon="🔴"
-                      markets={liveMarkets}
-                      onMarketClick={handleMarketClick}
-                    />
-                  )}
-                  
-                  {endingSoonMarkets.length > 0 && (
-                    <MarketSection
-                      title="Ending Soon"
-                      subtitle="Last chance to trade"
-                      icon="⏰"
-                      markets={endingSoonMarkets}
-                      onMarketClick={handleMarketClick}
-                    />
-                  )}
-                  
+
                   {upcomingMarkets.length > 0 && (
                     <MarketSection
                       title="Upcoming Matches"
-                      subtitle=""
+                      subtitle="Kickoff in more than ~3 days — still plenty of time to trade"
                       icon="⚽"
                       markets={upcomingMarkets}
                       onMarketClick={handleMarketClick}
+                      onViewAll={() =>
+                        navigate({ search: (prev) => ({ ...prev, status: 'upcoming' }) })
+                      }
                     />
                   )}
                   
@@ -811,7 +1005,6 @@ function MarketsPage() {
               )}
             </div>
           </div>
-        </div>
       </div>
     </div>
   );

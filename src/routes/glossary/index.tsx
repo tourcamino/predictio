@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Header } from '~/components/Header';
-import { Footer } from '~/components/Footer';
 import { GLOSSARY_TERMS } from '~/components/education/GlossaryTooltip';
 import { Search, ArrowLeft } from 'lucide-react';
 
@@ -89,7 +88,7 @@ function GlossaryPage() {
         </div>
       </div>
       
-      <Footer />
     </div>
   );
 }
+

@@ -1,7 +1,14 @@
 import { Globe, Send, MessageCircle, ExternalLink } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
+import { useTopChromeManaged } from '~/components/TopChromeContext';
 
 export function Footer() {
+  const isManaged = useTopChromeManaged();
+  if (isManaged) return null;
+  return <FooterInner />;
+}
+
+export function FooterInner() {
   return (
     <footer className="bg-brand-bg border-t border-brand-green/30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
