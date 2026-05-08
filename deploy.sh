@@ -1,6 +1,15 @@
 #!/bin/bash
 set -e
 
+# Compose V2 (`docker compose`) vs legacy `docker-compose` binary
+docker_compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+  else
+    docker-compose "$@"
+  fi
+}
+
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
@@ -26,20 +35,20 @@ git pull origin master
 
 # 3. Build
 echo -e "${YELLOW}[3/8] Building images...${NC}"
-docker-compose -f docker-compose.prod.yml build
+docker_compose -f docker-compose.prod.yml build
 
 # 4. Stop
 echo -e "${YELLOW}[4/8] Stopping containers...${NC}"
-docker-compose -f docker-compose.prod.yml down
+docker_compose -f docker-compose.prod.yml down
 
 # 5. Migrate DB
 echo -e "${YELLOW}[5/8] Running migrations...${NC}"
-docker-compose -f docker-compose.prod.yml run --rm \
+docker_compose -f docker-compose.prod.yml run --rm \
   backend npx prisma migrate deploy
 
 # 6. Start
 echo -e "${YELLOW}[6/8] Starting services...${NC}"
-docker-compose -f docker-compose.prod.yml up -d
+docker_compose -f docker-compose.prod.yml up -d
 
 # 7. Health check
 echo -e "${YELLOW}[7/8] Health check...${NC}"
@@ -50,7 +59,7 @@ if [ "$HTTP" = "200" ]; then
   echo -e "${GREEN}✅ Backend healthy${NC}"
 else
   echo -e "${RED}❌ Health check failed (HTTP $HTTP)${NC}"
-  docker-compose -f docker-compose.prod.yml logs \
+  docker_compose -f docker-compose.prod.yml logs \
     backend --tail=50
   exit 1
 fi
@@ -80,4 +89,4 @@ echo -e "Health:    ${GREEN}https://api.predictio.live/api/v1/health${NC}"
 echo -e "WebSocket: ${GREEN}wss://api.predictio.live/ws${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-docker-compose -f docker-compose.prod.yml ps
+docker_compose -f docker-compose.prod.yml ps
