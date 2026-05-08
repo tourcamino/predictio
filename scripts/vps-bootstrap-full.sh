@@ -7,7 +7,7 @@
 #   ./scripts/vps-bootstrap-full.sh
 #
 # Env:
-#   DATABASE_URL — default postgresql://postgres:postgres@127.0.0.1:5432/predictio
+#   DATABASE_URL — default port 5433 (see docker-compose.dev.yml)
 #   SKIP_BACKEND_KILL=1 — non terminare i processi sulle porte 3001/8080 dopo lo smoke (se il backend resta in esecuzione)
 
 set -euo pipefail
@@ -15,7 +15,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:5432/predictio}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:5433/predictio}"
 
 echo "==> [1/5] Docker: Postgres"
 docker compose -f docker-compose.dev.yml up -d

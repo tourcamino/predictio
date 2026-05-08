@@ -6,14 +6,14 @@
 #   ./scripts/vps-docker-migrate.sh
 #
 # Env:
-#   DATABASE_URL (default postgresql://postgres:postgres@127.0.0.1:5432/predictio)
+#   DATABASE_URL (default host port 5433 — must match docker-compose.dev.yml POSTGRES_HOST_PORT)
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:5432/predictio}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:5433/predictio}"
 
 echo "==> Docker: Postgres"
 docker compose -f docker-compose.dev.yml up -d

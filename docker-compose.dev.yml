@@ -5,8 +5,9 @@
 services:
   postgres:
     image: postgres:15-alpine
+    # Host :5432 spesso già usato (Postgres locale / altro stack). Override: POSTGRES_HOST_PORT=5432
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
