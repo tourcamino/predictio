@@ -10,6 +10,7 @@ import { checkAzuroResolutions } from "./procedures/checkAzuroResolutions";
 import { placePrediction } from "./procedures/placePrediction";
 import { syncUserAccount } from "./procedures/syncUserAccount";
 import { getLeaderboard } from "./procedures/getLeaderboard";
+import { getLiveActivityFeed } from "./procedures/getLiveActivityFeed";
 import { closePosition } from "./procedures/closePosition";
 import { resolvePaperPositions } from "./procedures/resolvePaperPositions";
 import { generateMarketOGImage } from "./procedures/generateMarketOGImage";
@@ -117,6 +118,7 @@ export const appRouter = createTRPCRouter({
   closePosition,
   syncUserAccount,
   getLeaderboard,
+  getLiveActivityFeed,
   resolvePaperPositions,
   generateMarketOGImage,
   generateTraderOGImage,
