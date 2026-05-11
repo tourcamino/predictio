@@ -11,6 +11,7 @@ import {
 import {
   buildEuropeanCurationGamesPayload,
   getImportanceScoreFromNormalized,
+  getTemporalBandForUnix,
   isAutoPublish,
 } from "../services/eventCurationPipeline";
 
@@ -375,9 +376,11 @@ export function registerAdminCurationRoutes(
       const top = sorted.slice(0, MAX_ACTIVE);
 
       const nowMs = Date.now();
+      const nowSec = Math.floor(nowMs / 1000);
       const markets = top.map((r) => {
         const lockedAt = r.lockedAt instanceof Date ? r.lockedAt : r.startsAt;
         const timeToLock = Math.floor((lockedAt.getTime() - nowMs) / 1000);
+        const kickSec = Math.floor(r.startsAt.getTime() / 1000);
         return {
           id: `azuro-${r.gameId}`,
           gameId: r.gameId,
@@ -395,6 +398,10 @@ export function registerAdminCurationRoutes(
           timeToLock,
           importanceScore: r.importanceScore ?? 0,
           autoPublish: r.autoPublish ?? false,
+          temporalBand: getTemporalBandForUnix(nowSec, kickSec),
+          homeOdds: r.homeOdds ?? null,
+          drawOdds: r.drawOdds ?? null,
+          awayOdds: r.awayOdds ?? null,
         };
       });
 
@@ -441,7 +448,14 @@ export function registerAdminCurationRoutes(
         return res.status(404).json({ error: "Market not found" });
       }
 
-      return res.json({ market });
+      const nowSec = Math.floor(Date.now() / 1000);
+      const kickSec = Math.floor(market.startsAt.getTime() / 1000);
+      return res.json({
+        market: {
+          ...market,
+          temporalBand: getTemporalBandForUnix(nowSec, kickSec),
+        },
+      });
     } catch (e) {
       console.warn(
         "[adminCuration] GET /api/markets/:gameId — unexpected error:",

@@ -27,6 +27,8 @@ export type CurationGamePayload = {
   homeOdds: number | null;
   drawOdds: number | null;
   awayOdds: number | null;
+  /** Fascia calendario (0–3g / 3–14g / 14–30g da now) */
+  temporalBand?: "SOON" | "MID" | "LATER";
 };
 
 type RawForScore = {
@@ -361,12 +363,12 @@ const WHITELIST_LEAGUES = [
   "uefa",
 ];
 
-function filterEuropeanUpcoming(rawGames: RawAzuroGame[], nowSec: number, fifteenDaysSec: number) {
+function filterEuropeanUpcoming(rawGames: RawAzuroGame[], nowSec: number, windowEndSec: number) {
   const footballGames = rawGames.filter((g) => g.sport?.slug === "football");
 
   const upcoming = footballGames.filter((g) => {
     const kickoff = parseInt(String(g.startsAt), 10);
-    return Number.isFinite(kickoff) && kickoff > nowSec && kickoff < fifteenDaysSec;
+    return Number.isFinite(kickoff) && kickoff > nowSec && kickoff < windowEndSec;
   });
 
   const europeanGames = upcoming.filter((g) => {
@@ -405,9 +407,86 @@ function isEventUnpredictable(homeOdds: number | null, awayOdds: number | null):
   return true;
 }
 
+const LOOKAHEAD_SEC_30D = 30 * 24 * 60 * 60;
+const BUCKET_SOON_SEC = 3 * 24 * 60 * 60;
+const BUCKET_MID_SEC = 14 * 24 * 60 * 60;
+
+/** Fascia temporale rispetto a `nowSec` (kickoff in secondi). */
+export function getTemporalBandForUnix(nowSec: number, kickoffSec: number): "SOON" | "MID" | "LATER" {
+  const d = kickoffSec - nowSec;
+  if (d <= BUCKET_SOON_SEC) return "SOON";
+  if (d <= BUCKET_MID_SEC) return "MID";
+  return "LATER";
+}
+
+type ScoredItalian = { raw: RawAzuroGame; importanceScore: number };
+
+function byImportanceThenKickoff(a: ScoredItalian, b: ScoredItalian) {
+  if (b.importanceScore !== a.importanceScore) return b.importanceScore - a.importanceScore;
+  return parseInt(String(a.raw.startsAt), 10) - parseInt(String(b.raw.startsAt), 10);
+}
+
+function partitionItalianTemporal(nowSec: number, items: ScoredItalian[]) {
+  const soon: ScoredItalian[] = [];
+  const mid: ScoredItalian[] = [];
+  const later: ScoredItalian[] = [];
+  for (const it of items) {
+    const k = parseInt(String(it.raw.startsAt), 10);
+    if (!Number.isFinite(k)) continue;
+    const band = getTemporalBandForUnix(nowSec, k);
+    if (band === "SOON") soon.push(it);
+    else if (band === "MID") mid.push(it);
+    else later.push(it);
+  }
+  soon.sort(byImportanceThenKickoff);
+  mid.sort(byImportanceThenKickoff);
+  later.sort(byImportanceThenKickoff);
+  return { soon, mid, later };
+}
+
+/** Max 9: top 3 per fascia (SOON/MID/LATER), poi compensazione dal pool globale per importanza. */
+function pickDistributedNineFromBuckets(source: ScoredItalian[], soon: ScoredItalian[], mid: ScoredItalian[], later: ScoredItalian[]) {
+  const MAX = 9;
+  const PER = 3;
+  const selectedIds = new Set<string>();
+  const picked: ScoredItalian[] = [];
+
+  function takeFrom(arr: ScoredItalian[], n: number) {
+    for (const it of arr) {
+      if (n <= 0) break;
+      const gid = String(it.raw.gameId || "").trim();
+      if (!gid || selectedIds.has(gid)) continue;
+      selectedIds.add(gid);
+      picked.push(it);
+      n--;
+    }
+  }
+
+  takeFrom(soon, PER);
+  takeFrom(mid, PER);
+  takeFrom(later, PER);
+
+  const pool = [...source]
+    .filter((it) => {
+      const gid = String(it.raw.gameId || "").trim();
+      return gid && !selectedIds.has(gid);
+    })
+    .sort(byImportanceThenKickoff);
+
+  while (picked.length < MAX && pool.length > 0) {
+    const it = pool.shift()!;
+    const gid = String(it.raw.gameId || "").trim();
+    if (selectedIds.has(gid)) continue;
+    selectedIds.add(gid);
+    picked.push(it);
+  }
+
+  return picked;
+}
+
 /**
- * Fetch Azuro Prematch games (no date in GraphQL), filter to EU football in the next 15 days,
- * rank by importanceScore, attach autoPublish.
+ * Fetch Azuro Prematch games (no date in GraphQL `where`), filter in JS a football EU nei prossimi 30 giorni,
+ * selezione italiana (Serie A + Coppa) distribuita su 3 fasce temporali, max 9 eventi.
  */
 export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<string>): Promise<{
   games: CurationGamePayload[];
@@ -418,11 +497,11 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     topMatchScoreOver80: number;
   };
 }> {
-  const now = Math.floor(Date.now() / 1000);
-  const fifteenDays = now + 30 * 24 * 60 * 60;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const windowEndSec = nowSec + LOOKAHEAD_SEC_30D;
 
   const allGames = await fetchAzuroGames();
-  const { footballGames, europeanGames } = filterEuropeanUpcoming(allGames, now, fifteenDays);
+  const { footballGames, europeanGames } = filterEuropeanUpcoming(allGames, nowSec, windowEndSec);
 
   const leagueNameLower = (g: RawAzuroGame) => String(g.league?.name || "").toLowerCase();
 
@@ -431,6 +510,16 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     const ln = leagueNameLower(g);
     return ln.includes("serie a") || ln.includes("coppa italia");
   };
+
+  const italianFootball30dPreEurope = allGames.filter((g) => {
+    if (g.sport?.slug !== "football") return false;
+    if (!isItalianAllowed(g)) return false;
+    const k = parseInt(String(g.startsAt), 10);
+    return Number.isFinite(k) && k > nowSec && k < windowEndSec;
+  }).length;
+  console.log(
+    `[curation] partite italiane Serie A+Coppa nei prossimi 30gg (da Azuro, pre-filtro EU): ${italianFootball30dPreEurope}`,
+  );
 
   const rankedItalian = europeanGames
     .filter(isItalianAllowed)
@@ -451,8 +540,23 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
   const sourceForPick =
     rankedItalianUnpredictable.length > 0 ? rankedItalianUnpredictable : rankedItalian;
 
+  const { soon: soonEvents, mid: midEvents, later: laterEvents } = partitionItalianTemporal(
+    nowSec,
+    sourceForPick,
+  );
+  console.log(`[curation] SOON: ${soonEvents.length} eventi`);
+  console.log(`[curation] MID: ${midEvents.length} eventi`);
+  console.log(`[curation] LATER: ${laterEvents.length} eventi`);
+
+  const picked = pickDistributedNineFromBuckets(
+    sourceForPick,
+    soonEvents,
+    midEvents,
+    laterEvents,
+  );
+  console.log(`[curation] Selezionati: ${picked.length} eventi`);
+
   const topOver80 = sourceForPick.filter((x) => x.importanceScore > 80).length;
-  const picked = sourceForPick.slice(0, 9);
 
   const games: CurationGamePayload[] = picked.map(({ raw: g, importanceScore }) => {
     const sorted = sortParticipants(g.participants);
@@ -466,6 +570,7 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
         : `${homeTeam} vs ${awayTeam}`;
     const autoP = isAutoPublish(g, importanceScore);
     const odds = extract1x2DecimalOddsFromRawGame(g);
+    const temporalBand = getTemporalBandForUnix(nowSec, kickoff);
 
     return {
       id: gid,
@@ -489,6 +594,7 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
       homeOdds: odds.homeOdds,
       drawOdds: odds.drawOdds,
       awayOdds: odds.awayOdds,
+      temporalBand,
     };
   });
 
