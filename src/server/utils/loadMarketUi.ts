@@ -3,12 +3,13 @@ import { SEED_MARKETS } from "~/data/seedMarkets";
 import { normalizeMarketIdParam } from "~/utils/marketId";
 import { db } from "~/server/db";
 import { azuroDetailToMarket } from "~/server/utils/azuroDetailToMarket";
+import { curatedEventRowToUiMarket } from "~/server/utils/curatedEventToUiMarket";
 import { prismaMarketToUi } from "~/server/utils/prismaMarket";
 import { seedMarketToUiMarket } from "~/server/utils/seedMarketToUi";
 
 /**
- * Resolve order: static mocks → PostgreSQL (includes synced Azuro rows) → Azuro GraphQL live.
- * Matches `getMarketDetail` so trading / OG / notifications work for all list sources.
+ * Resolve order: static mocks → PostgreSQL `Market` row → founder `curatedEvent` → Azuro GraphQL live.
+ * Must stay aligned with `getMarketDetail` so OG images / notifications match la lista `/api/markets`.
  */
 export async function loadMarketUiById(rawMarketId: string): Promise<Market | null> {
   const marketId = normalizeMarketIdParam(rawMarketId);
@@ -29,9 +30,31 @@ export async function loadMarketUiById(rawMarketId: string): Promise<Market | nu
   }
 
   if (marketId.startsWith("azuro-")) {
+    const gameId = marketId.replace(/^azuro-/, "");
+
+    try {
+      const curated = await db.curatedEvent.findFirst({
+        where: {
+          OR: [{ gameId }, { id: gameId }],
+          isActive: true,
+        },
+      });
+      if (curated) {
+        try {
+          const { fetchAzuroGameDetail } = await import("~/services/azuro");
+          const azuroMarket = await fetchAzuroGameDetail(gameId);
+          if (azuroMarket) return azuroDetailToMarket(azuroMarket);
+        } catch {
+          /* use DB row */
+        }
+        return curatedEventRowToUiMarket(curated, marketId);
+      }
+    } catch (err) {
+      console.warn("[loadMarketUiById] CuratedEvent lookup skipped:", marketId, err);
+    }
+
     try {
       const { fetchAzuroGameDetail } = await import("~/services/azuro");
-      const gameId = marketId.replace(/^azuro-/, "");
       const detail = await fetchAzuroGameDetail(gameId);
       if (detail) return azuroDetailToMarket(detail);
     } catch (err) {

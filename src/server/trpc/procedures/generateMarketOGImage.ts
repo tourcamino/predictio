@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { TRPCError } from "@trpc/server";
 import { baseProcedure } from "~/server/trpc/main";
 import { minioClient, minioBaseUrl } from "~/server/minio";
 import { loadMarketUiById } from "~/server/utils/loadMarketUi";
@@ -13,10 +12,10 @@ export const generateMarketOGImage = baseProcedure
     const market = await loadMarketUiById(input.marketId);
 
     if (!market) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Market not found",
-      });
+      return {
+        url: `${minioBaseUrl}/og-default.png`,
+        cached: true,
+      };
     }
 
     const imageKey = `market-${input.marketId}.png`;
@@ -47,9 +46,17 @@ export const generateMarketOGImage = baseProcedure
     }
 
     // Generate new OG image
-    const imageBuffer = await generateMarketCardImage(market);
-    
-    // Upload to MinIO with 60-second cache
+    let imageBuffer: Buffer;
+    try {
+      imageBuffer = await generateMarketCardImage(market);
+    } catch (e) {
+      console.warn("[generateMarketOGImage] Canvas/render failed, using default:", e);
+      return {
+        url: `${minioBaseUrl}/og-default.png`,
+        cached: true,
+      };
+    }
+
     const stream = Readable.from(imageBuffer);
     await minioClient.putObject(
       bucketName,

@@ -106,7 +106,25 @@ function MarketDetailPage() {
   }
 
   if (!marketQuery.data) {
-    return null;
+    return (
+      <div className="min-h-screen bg-brand-navy">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+          <div className="text-center py-20">
+            <h2 className="text-2xl font-bold text-gray-300 mb-4">Impossibile caricare il mercato</h2>
+            <p className="text-gray-400 mb-6">
+              Riprova tra qualche secondo o torna alla lista mercati.
+            </p>
+            <Link
+              to="/markets"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-brand-green text-brand-bg font-semibold rounded hover:bg-brand-green/90 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Torna ai mercati
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const { market, predictionHistory } = marketQuery.data;

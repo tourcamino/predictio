@@ -280,13 +280,13 @@ export function registerAdminCurationRoutes(
           ],
         };
         const importanceScore = getImportanceScoreFromNormalized(meta);
-        const autoPublishVal = isAutoPublish(rawForAuto, importanceScore);
 
         const oddsAz = (await fetchAzuro1x2DecimalOddsByGameId(gameId)) ?? {
           homeOdds: null as number | null,
           drawOdds: null as number | null,
           awayOdds: null as number | null,
         };
+        const autoPublishVal = isAutoPublish(rawForAuto, importanceScore, oddsAz);
 
         await prisma.curatedEvent.upsert({
           where: { gameId },
