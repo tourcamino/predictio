@@ -137,231 +137,19 @@ export function getImportanceScoreFromNormalized(meta: NormalizedCuratorGame): n
   });
 }
 
-function normLeague(s: string) {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "");
+/** UNICO filtro leghe per la curation (Serie A IT + Coppa Italia + coppe UEFA). */
+export function isAllowedLeague(leagueName: string, country: string): boolean {
+  const league = leagueName.toLowerCase();
+  const cnt = country.toLowerCase();
+
+  if (league.includes("serie a") && cnt.includes("ital")) return true;
+  if (league.includes("coppa italia")) return true;
+  if (league.includes("champions league")) return true;
+  if (league.includes("europa league")) return true;
+  if (league.includes("conference league")) return true;
+
+  return false;
 }
-
-const BLACKLIST_LEAGUES = [
-  "copa libertadores",
-  "copa sudamericana",
-  "copa do nordeste",
-  "copa de la liga",
-  "botola",
-  "brasileirao",
-  "serie a brasileira",
-  "campeonato brasileiro",
-  "liga mx",
-  "mls",
-  "saudi",
-  "chinese",
-  "japan",
-  "australia",
-  "argentina",
-  "colombia",
-  "chile",
-  "peru",
-  "venezuela",
-  "ecuador",
-  "bolivia",
-  "paraguay",
-  "uruguay",
-  "morocco",
-  "egypt",
-  "algeria",
-  "tunisia",
-  "nigeria",
-  "south africa",
-  "ghana",
-  "kenya",
-  "tanzania",
-  "india",
-  "uae",
-  "qatar",
-  "iran",
-  "iraq",
-  "korea",
-  "thailand",
-  "indonesia",
-  "malaysia",
-  "brazil",
-  "brasil",
-  "mexico",
-  "united states",
-  "bangladesh",
-  "pakistan",
-  "sri lanka",
-  "nepal",
-  "myanmar",
-  "cambodia",
-  "singapore",
-  "hong kong",
-  "botswana",
-  "zimbabwe",
-  "uganda",
-  "zambia",
-];
-
-const EUROPEAN_COUNTRY_TOKENS = [
-  "albania",
-  "andorra",
-  "armenia",
-  "austria",
-  "azerbaijan",
-  "belarus",
-  "belgium",
-  "bosnia",
-  "herzegovina",
-  "bosnia and herzegovina",
-  "bulgaria",
-  "croatia",
-  "cyprus",
-  "czech republic",
-  "czechia",
-  "czech",
-  "denmark",
-  "england",
-  "estonia",
-  "faroe islands",
-  "faroes",
-  "faroe",
-  "finland",
-  "france",
-  "georgia",
-  "germany",
-  "gibraltar",
-  "great britain",
-  "greece",
-  "guernsey",
-  "holland",
-  "holy see",
-  "hungary",
-  "iceland",
-  "ireland",
-  "isle of man",
-  "italy",
-  "jersey",
-  "kazakhstan",
-  "kosovo",
-  "latvia",
-  "liechtenstein",
-  "lithuania",
-  "luxembourg",
-  "malta",
-  "moldova",
-  "monaco",
-  "montenegro",
-  "netherlands",
-  "north macedonia",
-  "macedonia",
-  "northern ireland",
-  "norway",
-  "poland",
-  "portugal",
-  "republic of ireland",
-  "romania",
-  "russia",
-  "san marino",
-  "scotland",
-  "serbia",
-  "slovakia",
-  "slovenia",
-  "spain",
-  "sweden",
-  "switzerland",
-  "turkey",
-  "turkiye",
-  "ukraine",
-  "united kingdom",
-  "vatican",
-  "wales",
-];
-
-const WHITELIST_LEAGUES = [
-  "uefa champions league",
-  "champions league",
-  "uefa europa league",
-  "europa league",
-  "uefa conference league",
-  "conference league",
-  "uefa super cup",
-  "supercoppa uefa",
-  "uefa super",
-  "uefa youth league",
-  "women champions league",
-  "womens champions league",
-  "women euro",
-  "womens euro",
-  "serie a",
-  "serie b",
-  "premier league",
-  "premiership",
-  "scottish premiership",
-  "welsh premiership",
-  "la liga",
-  "laliga",
-  "laliga hypermotion",
-  "segunda",
-  "bundesliga",
-  "2. bundesliga",
-  "3. liga",
-  "ligue 1",
-  "ligue 2",
-  "coppa italia",
-  "supercoppa italia",
-  "fa cup",
-  "efl cup",
-  "community shield",
-  "copa del rey",
-  "supercopa de espana",
-  "dfb pokal",
-  "supercup",
-  "coupe de france",
-  "coupe de la ligue",
-  "trophee des champions",
-  "trophée des champions",
-  "primeira liga",
-  "liga portugal",
-  "taça de portugal",
-  "eredivisie",
-  "knvb beker",
-  "super lig",
-  "turkish cup",
-  "pro league",
-  "jupiler",
-  "championship",
-  "league one",
-  "league two",
-  "national league",
-  "super league",
-  "swiss super league",
-  "austrian bundesliga",
-  "russian premier",
-  "ukrainian premier",
-  "greek super league",
-  "superliga",
-  "eliteserien",
-  "allsvenskan",
-  "veikkausliiga",
-  "ekstraklasa",
-  "first league",
-  "liga i",
-  "fortuna liga",
-  "prvaliga",
-  "hnb",
-  "czech first league",
-  "uefa euro",
-  "european championship",
-  "euro qualifying",
-  "nations league",
-  "european qualification",
-  "wc qualification europe",
-  "world cup qualification",
-  "uefa nations",
-  "uefa",
-];
 
 function filterEuropeanUpcoming(rawGames: RawAzuroGame[], nowSec: number, windowEndSec: number) {
   const footballGames = rawGames.filter((g) => g.sport?.slug === "football");
@@ -374,16 +162,7 @@ function filterEuropeanUpcoming(rawGames: RawAzuroGame[], nowSec: number, window
   const europeanGames = upcoming.filter((g) => {
     const leagueName = g.league?.name || "";
     const countryName = g.league?.country?.name || "";
-    const combined = normLeague(`${leagueName} ${countryName}`);
-    const countryNorm = normLeague(countryName);
-
-    const isBlacklisted = BLACKLIST_LEAGUES.some((b) => combined.includes(normLeague(b)));
-    if (isBlacklisted) return false;
-
-    const isWhitelisted = WHITELIST_LEAGUES.some((w) => combined.includes(normLeague(w)));
-    if (isWhitelisted) return true;
-
-    return EUROPEAN_COUNTRY_TOKENS.some((c) => countryNorm.includes(normLeague(c)));
+    return isAllowedLeague(leagueName, countryName);
   });
 
   return { footballGames, upcoming, europeanGames };
@@ -410,31 +189,6 @@ function isEventUnpredictable(homeOdds: number | null, awayOdds: number | null):
 const LOOKAHEAD_SEC_30D = 30 * 24 * 60 * 60;
 const BUCKET_SOON_SEC = 3 * 24 * 60 * 60;
 const BUCKET_MID_SEC = 14 * 24 * 60 * 60;
-
-/** Squadre italiane note — TIER 2 (coppe UE) solo se una delle due è italiana. */
-const ITALIAN_CLUBS = [
-  "inter",
-  "milan",
-  "juventus",
-  "napoli",
-  "roma",
-  "lazio",
-  "atalanta",
-  "fiorentina",
-  "torino",
-  "bologna",
-  "udinese",
-  "sassuolo",
-  "monza",
-  "lecce",
-  "genoa",
-  "cagliari",
-];
-
-function teamLineHasItalianClub(homeTeam: string, awayTeam: string): boolean {
-  const blob = `${homeTeam} ${awayTeam}`.toLowerCase();
-  return ITALIAN_CLUBS.some((club) => blob.includes(club));
-}
 
 /** Fascia temporale rispetto a `nowSec` (kickoff in secondi). */
 export function getTemporalBandForUnix(nowSec: number, kickoffSec: number): "SOON" | "MID" | "LATER" {
@@ -509,22 +263,26 @@ function pickDistributedNineFromBuckets(source: ScoredItalian[], soon: ScoredIta
   return picked;
 }
 
-function curationGameId(it: ScoredItalian): string {
-  return String(it.raw.gameId || "").trim();
-}
-
-/** Tier 1: metti prima le partite “bilanciate” (unpred); se nessuna passa il filtro, usa tutto il tier 1; se solo alcune passano, accoda il resto della Serie A/Coppa così non resta solo tier 3. */
-function tier1OrderedForMerge(tier1: ScoredItalian[], t1u: ScoredItalian[]): ScoredItalian[] {
-  if (tier1.length === 0) return [];
-  if (t1u.length === 0) return tier1;
-  const seen = new Set(t1u.map(curationGameId).filter(Boolean));
-  const rest = tier1.filter((x) => !seen.has(curationGameId(x)));
-  return [...t1u, ...rest];
+function buildSourceUpToNine(pool: ScoredItalian[], passUnpred: (x: ScoredItalian) => boolean): ScoredItalian[] {
+  const seen = new Set<string>();
+  const out: ScoredItalian[] = [];
+  const take = (arr: ScoredItalian[]) => {
+    for (const it of arr) {
+      if (out.length >= 9) return;
+      const gid = String(it.raw.gameId || "").trim();
+      if (!gid || seen.has(gid)) continue;
+      seen.add(gid);
+      out.push(it);
+    }
+  };
+  take(pool.filter(passUnpred));
+  take(pool);
+  return out;
 }
 
 /**
- * Fetch Azuro Prematch games (no date in GraphQL `where`), filter in JS a football EU nei prossimi 30 giorni,
- * pool a 3 tier (Italia → coppe UE → top leghe, TEMP maggio–agosto), imprevedibilità, distribuzione SOON/MID/LATER, max 9.
+ * Fetch Azuro Prematch games (no date in GraphQL `where`), filter in JS a football nei prossimi 30 giorni,
+ * solo leghe consentite (Serie A IT, Coppa Italia, Champions/Europa/Conference), imprevedibilità, SOON/MID/LATER, max 9.
  */
 export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<string>): Promise<{
   games: CurationGamePayload[];
@@ -541,108 +299,21 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
   const allGames = await fetchAzuroGames();
   const { footballGames, europeanGames } = filterEuropeanUpcoming(allGames, nowSec, windowEndSec);
 
-  const leagueNameLower = (g: RawAzuroGame) => String(g.league?.name || "").toLowerCase();
-  const countryNorm = (g: RawAzuroGame) => normLeague(String(g.league?.country?.name || ""));
-
-  /**
-   * TIER 1 = solo Serie A + Coppa Italia (niente “tutta Italia” per country).
-   * TIER 2 = Champions + Europa + Conference, solo se una squadra è italiana nota.
-   * TIER 3 = Premier + La Liga + Bundesliga + Ligue 1, solo se importanceScore > 80.
-   */
-  function curationTier(g: RawAzuroGame, importanceScore: number): 0 | 1 | 2 | 3 {
-    const ln = leagueNameLower(g);
-    const cn = countryNorm(g);
-    const sorted = sortParticipants(g.participants);
-    const homeTeam = String(sorted[0]?.name || "").trim();
-    const awayTeam = String(sorted[1]?.name || "").trim();
-
-    const tier1SerieA =
-      ln.includes("serie a") &&
-      !ln.includes("serie b") &&
-      !ln.includes("brasileir") &&
-      !ln.includes("brasil") &&
-      !ln.includes("brazil");
-    const tier1Coppa = ln.includes("coppa italia");
-    if (tier1SerieA || tier1Coppa) return 1;
-
-    const uefaConference = ln.includes("conference league");
-    const uefaCl =
-      ln.includes("champions league") || (ln.includes("champions") && ln.includes("uefa"));
-    const uefaEl = ln.includes("europa league") && !uefaConference;
-    if (uefaConference || uefaCl || uefaEl) {
-      return teamLineHasItalianClub(homeTeam, awayTeam) ? 2 : 0;
-    }
-
-    /** Premier / La Liga / Bundes / Ligue 1 solo nel paese corretto (esclude Bahrain PL, Ucraina PL, …). */
-    const isEnglishPl =
-      ln.includes("premier league") &&
-      !ln.includes("scottish") &&
-      !ln.includes("welsh") &&
-      !ln.includes("northern ireland") &&
-      (cn.includes("england") || cn.includes("united kingdom"));
-    const isLaliga =
-      (ln.includes("la liga") || ln.includes("laliga")) && cn.includes("spain");
-    const isBundes = ln.includes("bundesliga") && cn.includes("germany");
-    const isLigue1 = ln.includes("ligue 1") && cn.includes("france");
-    if (isEnglishPl || isLaliga || isBundes || isLigue1) {
-      return importanceScore > 80 ? 3 : 0;
-    }
-
-    return 0;
-  }
-
-  const tier1: ScoredItalian[] = [];
-  const tier2: ScoredItalian[] = [];
-  const tier3: ScoredItalian[] = [];
+  const allowedPool: ScoredItalian[] = [];
   for (const g of europeanGames) {
     const importanceScore = getImportanceScore(g);
-    const t = curationTier(g, importanceScore);
-    if (t === 0) continue;
-    const item: ScoredItalian = { raw: g, importanceScore };
-    if (t === 1) tier1.push(item);
-    else if (t === 2) tier2.push(item);
-    else tier3.push(item);
+    allowedPool.push({ raw: g, importanceScore });
   }
-  tier1.sort(byImportanceThenKickoff);
-  tier2.sort(byImportanceThenKickoff);
-  tier3.sort(byImportanceThenKickoff);
+  allowedPool.sort(byImportanceThenKickoff);
 
-  console.log(`[curation] TIER1: ${tier1.length} eventi italiani`);
-  console.log(`[curation] TIER2: ${tier2.length} eventi coppe europee`);
-  console.log(`[curation] TIER3: ${tier3.length} eventi top europei`);
+  console.log(`[curation] allowed leagues pool: ${allowedPool.length} eventi`);
 
   const passUnpred = (x: ScoredItalian) => {
     const o = extract1x2DecimalOddsFromRawGame(x.raw);
     return isEventUnpredictable(o.homeOdds, o.awayOdds);
   };
 
-  const t1u = tier1.filter(passUnpred);
-  const t2u = tier2.filter(passUnpred);
-  const t3u = tier3.filter(passUnpred);
-
-  function mergeTiersUpToNine(a: ScoredItalian[], b: ScoredItalian[], c: ScoredItalian[]): ScoredItalian[] {
-    const seen = new Set<string>();
-    const out: ScoredItalian[] = [];
-    const take = (arr: ScoredItalian[]) => {
-      for (const it of arr) {
-        if (out.length >= 9) return;
-        const gid = String(it.raw.gameId || "").trim();
-        if (!gid || seen.has(gid)) continue;
-        seen.add(gid);
-        out.push(it);
-      }
-    };
-    take(a);
-    take(b);
-    take(c);
-    return out;
-  }
-
-  const t1Ordered = tier1OrderedForMerge(tier1, t1u);
-  let sourceForPick = mergeTiersUpToNine(t1Ordered, t2u, t3u);
-  if (sourceForPick.length === 0) {
-    sourceForPick = mergeTiersUpToNine(tier1, tier2, tier3);
-  }
+  const sourceForPick = buildSourceUpToNine(allowedPool, passUnpred);
 
   const { soon: soonEvents, mid: midEvents, later: laterEvents } = partitionItalianTemporal(
     nowSec,
