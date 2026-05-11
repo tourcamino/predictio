@@ -486,7 +486,7 @@ function pickDistributedNineFromBuckets(source: ScoredItalian[], soon: ScoredIta
 
 /**
  * Fetch Azuro Prematch games (no date in GraphQL `where`), filter in JS a football EU nei prossimi 30 giorni,
- * selezione italiana (Serie A + Coppa) distribuita su 3 fasce temporali, max 9 eventi.
+ * pool a 3 tier (Italia → coppe UE → top leghe, TEMP maggio–agosto), imprevedibilità, distribuzione SOON/MID/LATER, max 9.
  */
 export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<string>): Promise<{
   games: CurationGamePayload[];
@@ -504,41 +504,94 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
   const { footballGames, europeanGames } = filterEuropeanUpcoming(allGames, nowSec, windowEndSec);
 
   const leagueNameLower = (g: RawAzuroGame) => String(g.league?.name || "").toLowerCase();
+  const countryNorm = (g: RawAzuroGame) => normLeague(String(g.league?.country?.name || ""));
 
-  // Italy-only: Serie A / Coppa Italia by league name (no generic country — excludes Eccellenza, etc.)
-  const isItalianAllowed = (g: RawAzuroGame) => {
+  /** TEMP maggio–agosto: 3 tier — prima Italia, poi coppe UE, poi top leghe (fill fino a 9). */
+  function curationTier(g: RawAzuroGame): 0 | 1 | 2 | 3 {
     const ln = leagueNameLower(g);
-    return ln.includes("serie a") || ln.includes("coppa italia");
+    const cn = countryNorm(g);
+    if (
+      ln.includes("serie a") ||
+      ln.includes("coppa italia") ||
+      cn.includes("italy") ||
+      cn.includes("italia")
+    ) {
+      return 1;
+    }
+    if (ln.includes("conference league")) return 2;
+    if (ln.includes("champions league") || (ln.includes("champions") && ln.includes("uefa"))) return 2;
+    if (ln.includes("europa league")) return 2;
+    if (
+      ln.includes("nations league") ||
+      ln.includes("euro qualifying") ||
+      ln.includes("european qualification") ||
+      ln.includes("euro qualif")
+    ) {
+      return 2;
+    }
+    if (
+      ln.includes("premier league") ||
+      ln.includes("premiership") ||
+      ln.includes("la liga") ||
+      ln.includes("laliga") ||
+      ln.includes("bundesliga") ||
+      ln.includes("ligue 1")
+    ) {
+      return 3;
+    }
+    return 0;
+  }
+
+  const tier1: ScoredItalian[] = [];
+  const tier2: ScoredItalian[] = [];
+  const tier3: ScoredItalian[] = [];
+  for (const g of europeanGames) {
+    const t = curationTier(g);
+    if (t === 0) continue;
+    const item: ScoredItalian = { raw: g, importanceScore: getImportanceScore(g) };
+    if (t === 1) tier1.push(item);
+    else if (t === 2) tier2.push(item);
+    else tier3.push(item);
+  }
+  tier1.sort(byImportanceThenKickoff);
+  tier2.sort(byImportanceThenKickoff);
+  tier3.sort(byImportanceThenKickoff);
+
+  console.log(`[curation] TIER1: ${tier1.length} eventi italiani`);
+  console.log(`[curation] TIER2: ${tier2.length} eventi coppe europee`);
+  console.log(`[curation] TIER3: ${tier3.length} eventi top europei`);
+
+  const passUnpred = (x: ScoredItalian) => {
+    const o = extract1x2DecimalOddsFromRawGame(x.raw);
+    return isEventUnpredictable(o.homeOdds, o.awayOdds);
   };
 
-  const italianFootball30dPreEurope = allGames.filter((g) => {
-    if (g.sport?.slug !== "football") return false;
-    if (!isItalianAllowed(g)) return false;
-    const k = parseInt(String(g.startsAt), 10);
-    return Number.isFinite(k) && k > nowSec && k < windowEndSec;
-  }).length;
-  console.log(
-    `[curation] partite italiane Serie A+Coppa nei prossimi 30gg (da Azuro, pre-filtro EU): ${italianFootball30dPreEurope}`,
-  );
+  const t1u = tier1.filter(passUnpred);
+  const t2u = tier2.filter(passUnpred);
+  const t3u = tier3.filter(passUnpred);
 
-  const rankedItalian = europeanGames
-    .filter(isItalianAllowed)
-    .map((g) => ({ raw: g, importanceScore: getImportanceScore(g) }));
+  function mergeTiersUpToNine(a: ScoredItalian[], b: ScoredItalian[], c: ScoredItalian[]): ScoredItalian[] {
+    const seen = new Set<string>();
+    const out: ScoredItalian[] = [];
+    const take = (arr: ScoredItalian[]) => {
+      for (const it of arr) {
+        if (out.length >= 9) return;
+        const gid = String(it.raw.gameId || "").trim();
+        if (!gid || seen.has(gid)) continue;
+        seen.add(gid);
+        out.push(it);
+      }
+    };
+    take(a);
+    take(b);
+    take(c);
+    return out;
+  }
 
-  rankedItalian.sort((a, b) => {
-    if (b.importanceScore !== a.importanceScore) {
-      return b.importanceScore - a.importanceScore;
-    }
-    return parseInt(String(a.raw.startsAt), 10) - parseInt(String(b.raw.startsAt), 10);
-  });
-
-  const rankedItalianUnpredictable = rankedItalian.filter(({ raw }) => {
-    const o = extract1x2DecimalOddsFromRawGame(raw);
-    return isEventUnpredictable(o.homeOdds, o.awayOdds);
-  });
-
-  const sourceForPick =
-    rankedItalianUnpredictable.length > 0 ? rankedItalianUnpredictable : rankedItalian;
+  let sourceForPick = mergeTiersUpToNine(t1u, t2u, t3u);
+  if (sourceForPick.length === 0) {
+    sourceForPick = mergeTiersUpToNine(tier1, tier2, tier3);
+  }
 
   const { soon: soonEvents, mid: midEvents, later: laterEvents } = partitionItalianTemporal(
     nowSec,
@@ -554,7 +607,9 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     midEvents,
     laterEvents,
   );
-  console.log(`[curation] Selezionati: ${picked.length} eventi`);
+  console.log(
+    `[curation] Pool totale: ${sourceForPick.length} → selezionati: ${picked.length}`,
+  );
 
   const topOver80 = sourceForPick.filter((x) => x.importanceScore > 80).length;
 
