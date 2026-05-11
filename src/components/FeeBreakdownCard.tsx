@@ -26,8 +26,8 @@ export function FeeBreakdownCard({
 
   if (variant === 'compact') {
     return (
-      <div className={`flex items-center gap-2 text-xs ${className}`}>
-        <Info className="w-3 h-3 text-gray-500" />
+      <div className={`flex items-start gap-2.5 text-sm leading-snug ${className}`}>
+        <Info className="w-4 h-4 text-brand-green/80 flex-shrink-0 mt-0.5" />
         <span className="text-gray-400">
           Fee split: <span className="text-brand-green font-semibold">50%</span> Vault · 
           <span className="text-brand-cyan font-semibold"> 35%</span> Analysts · 

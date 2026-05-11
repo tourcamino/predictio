@@ -99,7 +99,7 @@ export function TradeConfirmationModal({
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-3">
+          <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-250"
@@ -109,19 +109,20 @@ export function TradeConfirmationModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-[19.6rem] transform overflow-hidden rounded-xl bg-brand-navy border border-brand-green/30 shadow-2xl transition-all">
+              <Dialog.Panel className="relative w-full max-w-lg sm:max-w-xl transform overflow-hidden rounded-2xl bg-brand-navy border border-brand-green/40 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.55)] transition-all max-h-[min(92dvh,880px)]">
                 {/* Close button */}
                 {state !== 'pending' && state !== 'mining' && (
                   <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5 z-10"
+                    className="absolute top-4 right-4 z-10 p-2.5 text-gray-400 hover:text-white transition-colors rounded-xl hover:bg-white/10"
+                    aria-label="Chiudi"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 )}
 
-                <div className="p-4">
-                  <Dialog.Title className="font-syne text-xl font-bold mb-4 text-center">
+                <div className="p-5 sm:p-7 overflow-y-auto overscroll-contain">
+                  <Dialog.Title className="font-syne text-2xl sm:text-3xl font-bold mb-6 text-center text-white pr-10">
                     {getTitle()}
                   </Dialog.Title>
 
@@ -183,18 +184,18 @@ export function TradeConfirmationModal({
                         </div>
                       </div>
 
-                      <div className="flex gap-2 mt-4">
+                      <div className="flex flex-col-reverse sm:flex-row gap-3 mt-4">
                         <button
                           onClick={onClose}
-                          className="flex-1 py-2 border border-white/20 rounded-lg hover:bg-white/5 transition-colors font-semibold text-sm"
+                          className="flex-1 min-h-[48px] py-3 px-4 border border-white/25 rounded-xl hover:bg-white/10 transition-colors font-semibold text-base"
                         >
-                          Cancel
+                          Annulla
                         </button>
                         <button
                           onClick={onConfirm}
-                          className="flex-1 py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 transition-colors text-sm"
+                          className="flex-1 min-h-[48px] py-3 px-4 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors text-base"
                         >
-                          Confirm Sale
+                          Conferma vendita
                         </button>
                       </div>
                     </div>
@@ -257,18 +258,18 @@ export function TradeConfirmationModal({
                         </div>
                       </div>
 
-                      <div className="flex gap-2 mt-4">
+                      <div className="flex flex-col-reverse sm:flex-row gap-3 mt-4">
                         <button
                           onClick={onClose}
-                          className="flex-1 py-2 border border-white/20 rounded-lg hover:bg-white/5 transition-colors font-semibold text-sm"
+                          className="flex-1 min-h-[48px] py-3 px-4 border border-white/25 rounded-xl hover:bg-white/10 transition-colors font-semibold text-base"
                         >
-                          Cancel
+                          Annulla
                         </button>
                         <button
                           onClick={onConfirm}
-                          className="flex-1 py-2 bg-brand-green text-brand-bg font-bold rounded-lg hover:bg-brand-green/90 transition-colors text-sm"
+                          className="flex-1 min-h-[48px] py-3 px-4 bg-brand-green text-brand-bg font-bold rounded-xl hover:bg-brand-green/90 transition-colors text-base shadow-lg shadow-brand-green/20"
                         >
-                          Confirm Purchase
+                          Conferma acquisto
                         </button>
                       </div>
                     </div>

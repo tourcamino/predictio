@@ -87,7 +87,7 @@ export function TransactionModal({
         </Transition.Child>
 
           <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-0 sm:p-2">
+          <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-250"
@@ -97,22 +97,32 @@ export function TransactionModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full h-full sm:h-auto sm:max-w-[14rem] transform overflow-hidden sm:rounded-xl bg-brand-navy border-0 sm:border border-brand-green/30 shadow-2xl transition-all">
+              <Dialog.Panel className="relative w-full max-w-lg sm:max-w-xl transform overflow-hidden rounded-2xl bg-brand-navy border border-brand-green/40 shadow-[0_0_0_1px_rgba(0,255,135,0.12),0_25px_60px_-15px_rgba(0,0,0,0.55)] transition-all max-h-[min(92dvh,880px)] flex flex-col">
                 {/* Close button */}
                 {state !== 'pending' && state !== 'mining' && (
                   <button
                     type="button"
                     onClick={onClose}
-                    className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
+                    className="absolute top-4 right-4 z-10 p-2.5 text-gray-400 hover:text-white transition-colors rounded-xl hover:bg-white/10"
+                    aria-label="Chiudi"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-5 h-5" />
                   </button>
                 )}
 
-                <div className="p-3">
-                  <Dialog.Title className="font-syne text-lg font-bold mb-3 text-center">
+                <div className="p-5 sm:p-7 overflow-y-auto overscroll-contain">
+                  <Dialog.Title
+                    className={`font-syne text-2xl sm:text-3xl font-bold text-center text-white pr-10 ${
+                      state === 'review' && type === 'bet' ? 'mb-2' : 'mb-6'
+                    }`}
+                  >
                     {getTitle()}
                   </Dialog.Title>
+                  {state === 'review' && type === 'bet' && (
+                    <p className="text-center text-sm text-gray-400 mb-6 sm:mb-7">
+                      Controlla importi e conferma l&apos;acquisto.
+                    </p>
+                  )}
 
                   {/* Review State */}
                   {state === 'review' && (
@@ -120,90 +130,90 @@ export function TransactionModal({
                       {(type === 'deposit' || type === 'withdraw') && children ? (
                         children
                       ) : type === 'bet' ? (
-                    <div className="space-y-2">
-                      <div className="p-2 bg-white/5 rounded-lg">
-                        <p className="text-[0.65rem] text-gray-400 mb-1">Market</p>
-                        <p className="font-semibold text-sm">{marketName}</p>
+                    <div className="space-y-4">
+                      <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+                        <p className="text-xs font-medium uppercase tracking-wide text-gray-400 mb-2">Mercato</p>
+                        <p className="font-semibold text-base sm:text-lg text-white leading-snug">{marketName}</p>
                       </div>
 
-                      <div className="p-2 bg-white/5 rounded-lg">
-                        <p className="text-[0.65rem] text-gray-400 mb-1">Your Prediction</p>
-                        <p className="font-syne text-sm font-bold text-brand-green">{outcome}</p>
+                      <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+                        <p className="text-xs font-medium uppercase tracking-wide text-gray-400 mb-2">La tua scelta</p>
+                        <p className="font-syne text-lg sm:text-xl font-bold text-brand-green">{outcome}</p>
                       </div>
 
-                      {/* Enhanced profit display with ROI */}
-                      <div className="p-2 bg-gradient-to-br from-brand-green/20 to-brand-green/5 border-2 border-brand-green/40 rounded-lg">
-                        <div className="text-center mb-2">
-                          <div className="text-[0.6rem] text-gray-400 mb-1">If you win</div>
-                          <div className="text-xl font-bold text-brand-green">
+                      <div className="p-5 sm:p-6 bg-gradient-to-br from-brand-green/25 via-brand-green/10 to-transparent border-2 border-brand-green/50 rounded-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                        <div className="text-center mb-4">
+                          <div className="text-xs sm:text-sm text-gray-300 mb-2">Se vinci, incassi</div>
+                          <div className="text-3xl sm:text-4xl font-bold text-brand-green tabular-nums">
                             ${potentialWin.toFixed(2)}
                           </div>
                         </div>
-                        <div className="text-center text-xs text-gray-400 mb-3">
-                          Deposit <span className="font-semibold text-white">${amount.toFixed(2)}</span> → Win <span className="font-semibold text-brand-green">${potentialWin.toFixed(2)}</span>
+                        <div className="text-center text-sm text-gray-300 mb-4">
+                          Punti <span className="font-semibold text-white">${amount.toFixed(2)}</span>
+                          <span className="mx-1 text-gray-500">→</span>
+                          vincita <span className="font-semibold text-brand-green">${potentialWin.toFixed(2)}</span>
                         </div>
-                        
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10">
+
+                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/15">
                           <div className="text-center">
-                            <div className="text-[0.65rem] text-gray-400 mb-1">Net Profit</div>
-                            <div className="text-sm font-bold text-brand-green">
+                            <div className="text-xs text-gray-400 mb-1">Profitto netto</div>
+                            <div className="text-lg font-bold text-brand-green tabular-nums">
                               +${netProfit.toFixed(2)}
                             </div>
                           </div>
                           <div className="text-center">
-                            <div className="text-[0.65rem] text-gray-400 mb-1">ROI</div>
-                            <div className="text-sm font-bold text-brand-green">
-                              +{((netProfit / amount) * 100).toFixed(1)}%
+                            <div className="text-xs text-gray-400 mb-1">ROI</div>
+                            <div className="text-lg font-bold text-brand-green tabular-nums">
+                              +
+                              {amount > 0 ? ((netProfit / amount) * 100).toFixed(1) : '0.0'}%
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="p-2 bg-white/5 rounded-lg space-y-1.5 font-mono text-[0.65rem]">
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Your stake:</span>
-                          <span className="font-bold">${amount.toFixed(2)} USDC</span>
+                      <div className="p-4 bg-white/5 rounded-xl border border-white/10 space-y-3 font-mono text-sm">
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-400">Stake</span>
+                          <span className="font-bold text-white tabular-nums">${amount.toFixed(2)} USDC</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Fee (0.8%):</span>
-                          <span>~${fee.toFixed(2)} USDC</span>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-400">Fee (0.8%)</span>
+                          <span className="tabular-nums">~${fee.toFixed(2)} USDC</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Odds:</span>
-                          <span className="font-semibold">{odds.toFixed(2)}x</span>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-400">Quote</span>
+                          <span className="font-semibold tabular-nums">{odds.toFixed(2)}x</span>
                         </div>
                       </div>
 
-                      {/* Fee Distribution Breakdown */}
                       {fee > 0 && (
-                        <FeeBreakdownCard 
-                          feeAmount={fee}
-                          variant="compact"
-                        />
+                        <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10">
+                          <FeeBreakdownCard feeAmount={fee} variant="compact" />
+                        </div>
                       )}
 
-                      <div className="flex items-center gap-2 text-[0.65rem] text-gray-400 p-2 bg-white/5 rounded">
-                        <Zap className="w-3.5 h-3.5 text-brand-green flex-shrink-0" />
+                      <div className="flex items-start gap-3 text-sm text-gray-300 p-4 bg-white/5 rounded-xl border border-white/10">
+                        <Zap className="w-5 h-5 text-brand-green flex-shrink-0 mt-0.5" />
                         <div>
-                          <p>Transaction on BASE</p>
-                          <p>Estimated gas: ~$0.001</p>
+                          <p className="font-medium text-white">Transazione su Base</p>
+                          <p className="text-gray-400 mt-0.5">Gas stimato ~$0.001</p>
                         </div>
                       </div>
 
-                      <div className="flex gap-2 mt-3">
+                      <div className="flex flex-col-reverse sm:flex-row gap-3 mt-2 pt-2">
                         <button
                           type="button"
                           onClick={onClose}
-                          className="flex-1 py-1.5 border border-white/20 rounded-lg hover:bg-white/5 transition-colors font-semibold text-xs"
+                          className="flex-1 min-h-[48px] py-3 px-4 border border-white/25 rounded-xl hover:bg-white/10 transition-colors font-semibold text-base text-white"
                         >
-                          Cancel
+                          Annulla
                         </button>
                         <button
                           type="button"
                           onClick={onConfirm}
-                          className="flex-1 py-1.5 bg-brand-green text-brand-bg font-bold rounded-lg hover:bg-brand-green/90 transition-colors text-xs"
+                          className="flex-1 min-h-[48px] py-3 px-4 bg-brand-green text-brand-bg font-bold rounded-xl hover:bg-brand-green/90 transition-colors text-base shadow-lg shadow-brand-green/20"
                         >
-                          Confirm & Predict
+                          Conferma acquisto
                         </button>
                       </div>
                     </div>
