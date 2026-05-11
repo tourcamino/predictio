@@ -1,16 +1,15 @@
-#!/bin/bash
-echo "🚀 Deploy Predictio su VPS..."
+#!/usr/bin/env bash
+# Deploy da macchina locale → VPS (richiede ssh verso il server).
+# Usa lo stesso flusso di produzione: compose prod, SQL deactivate, rebuild backend.
+set -euo pipefail
 
-# Pull ultimo codice
-ssh root@72.62.114.251 "cd /root/predictio && git pull origin main"
+HOST="${VPS_HOST:-root@72.62.114.251}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Rebuild e restart container backend
-ssh root@72.62.114.251 "cd /root/predictio && docker-compose build backend && docker-compose up -d backend"
+echo "==> Deploy su $HOST (stdin → bash -s sul server)"
+ssh -o BatchMode=yes "$HOST" "bash -s" <"$ROOT_DIR/scripts/vps-prod-reload-curation.sh"
 
-# Aspetta avvio
-sleep 10
-
-# Verifica health
-curl https://api.predictio.live/api/health
-
-echo "✅ Deploy completato"
+echo "==> Health pubblico"
+curl -fsS "https://api.predictio.live/api/v1/health"
+echo ""
+echo "OK: deploy completato"
