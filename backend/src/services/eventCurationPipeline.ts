@@ -509,6 +509,19 @@ function pickDistributedNineFromBuckets(source: ScoredItalian[], soon: ScoredIta
   return picked;
 }
 
+function curationGameId(it: ScoredItalian): string {
+  return String(it.raw.gameId || "").trim();
+}
+
+/** Tier 1: metti prima le partite “bilanciate” (unpred); se nessuna passa il filtro, usa tutto il tier 1; se solo alcune passano, accoda il resto della Serie A/Coppa così non resta solo tier 3. */
+function tier1OrderedForMerge(tier1: ScoredItalian[], t1u: ScoredItalian[]): ScoredItalian[] {
+  if (tier1.length === 0) return [];
+  if (t1u.length === 0) return tier1;
+  const seen = new Set(t1u.map(curationGameId).filter(Boolean));
+  const rest = tier1.filter((x) => !seen.has(curationGameId(x)));
+  return [...t1u, ...rest];
+}
+
 /**
  * Fetch Azuro Prematch games (no date in GraphQL `where`), filter in JS a football EU nei prossimi 30 giorni,
  * pool a 3 tier (Italia → coppe UE → top leghe, TEMP maggio–agosto), imprevedibilità, distribuzione SOON/MID/LATER, max 9.
@@ -625,7 +638,8 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     return out;
   }
 
-  let sourceForPick = mergeTiersUpToNine(t1u, t2u, t3u);
+  const t1Ordered = tier1OrderedForMerge(tier1, t1u);
+  let sourceForPick = mergeTiersUpToNine(t1Ordered, t2u, t3u);
   if (sourceForPick.length === 0) {
     sourceForPick = mergeTiersUpToNine(tier1, tier2, tier3);
   }

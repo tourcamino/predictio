@@ -12,8 +12,8 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=redis://redis:6379
       - AZURO_DATA_FEED_URL=https://thegraph-1.onchainfeed.org/subgraphs/name/azuro-protocol/azuro-data-feed-polygon
-      - AZURO_API_URL=${AZURO_API_URL}
-      - AZURO_API_KEY=${AZURO_API_KEY}
+      - AZURO_API_URL=${AZURO_API_URL:-}
+      - AZURO_API_KEY=${AZURO_API_KEY:-}
       - OPENROUTER_KEY=${OPENROUTER_KEY}
       - BOT_API_KEY=${BOT_API_KEY}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
