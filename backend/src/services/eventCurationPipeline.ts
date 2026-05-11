@@ -395,6 +395,16 @@ function sortParticipants(parts: unknown) {
   ) as Array<{ name?: string; image?: string | null }>;
 }
 
+function isEventUnpredictable(homeOdds: number | null, awayOdds: number | null): boolean {
+  if (homeOdds == null || awayOdds == null) return true;
+  if (!homeOdds || !awayOdds) return true;
+  const favorite = Math.min(homeOdds, awayOdds);
+  const gap = Math.abs(homeOdds - awayOdds);
+  if (favorite < 1.5) return false;
+  if (gap > 2.0) return false;
+  return true;
+}
+
 /**
  * Fetch Azuro Prematch games (no date in GraphQL), filter to EU football in the next 15 days,
  * rank by importanceScore, attach autoPublish.
@@ -433,8 +443,13 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     return parseInt(String(a.raw.startsAt), 10) - parseInt(String(b.raw.startsAt), 10);
   });
 
-  const topOver80 = rankedItalian.filter((x) => x.importanceScore > 80).length;
-  const picked = rankedItalian.slice(0, 9);
+  const rankedItalianUnpredictable = rankedItalian.filter(({ raw }) => {
+    const o = extract1x2DecimalOddsFromRawGame(raw);
+    return isEventUnpredictable(o.homeOdds, o.awayOdds);
+  });
+
+  const topOver80 = rankedItalianUnpredictable.filter((x) => x.importanceScore > 80).length;
+  const picked = rankedItalianUnpredictable.slice(0, 9);
 
   const games: CurationGamePayload[] = picked.map(({ raw: g, importanceScore }) => {
     const sorted = sortParticipants(g.participants);

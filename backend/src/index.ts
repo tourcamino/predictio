@@ -140,13 +140,13 @@ function isAllowedCorsOrigin(origin: string | undefined): boolean {
 }
 
 /**
- * If there are no active curated events (empty catalog), pull top Serie A games from Azuro
- * via `buildEuropeanCurationGamesPayload` and upsert them. Does nothing when any active row exists.
+ * Se ci sono meno di 9 eventi curated attivi, upsert fino a 9 partite Serie A da Azuro.
+ * Esce solo quando il catalogo attivo è già pieno (BOOT_SEED_MAX).
  */
 async function autoSeedEventsOnBoot() {
   try {
     const activeCount = await prisma.curatedEvent.count({ where: { isActive: true } });
-    if (activeCount > 0) return;
+    if (activeCount >= BOOT_SEED_MAX) return;
 
     const { games } = await buildEuropeanCurationGamesPayload(new Set());
     const serieA = games
@@ -215,12 +215,11 @@ async function autoSeedEventsOnBoot() {
   }
 }
 
-/** Aggiorna quote 1X2 da Azuro per eventi curated attivi ancora senza odds (es. creati prima del backfill). */
+/** Aggiorna quote 1X2 da Azuro per ogni curated con almeno una quota mancante (attivi o meno). */
 async function backfillCuratedOddsOnBoot() {
   try {
     const rows = await prisma.curatedEvent.findMany({
       where: {
-        isActive: true,
         OR: [{ homeOdds: null }, { drawOdds: null }, { awayOdds: null }],
       },
       select: { gameId: true },
@@ -243,7 +242,7 @@ async function backfillCuratedOddsOnBoot() {
       updated += 1;
     }
     if (updated > 0) {
-      console.log(`[boot] backfillCuratedOddsOnBoot: aggiornate quote per ${updated} evento/i attivi`);
+      console.log(`[boot] backfillCuratedOddsOnBoot: aggiornate quote per ${updated} evento/i`);
     }
   } catch (e) {
     console.warn("[boot] backfillCuratedOddsOnBoot failed:", e instanceof Error ? e.message : e);
