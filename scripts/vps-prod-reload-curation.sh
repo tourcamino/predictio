@@ -5,7 +5,8 @@
 # Disattiva tutti i curated → pull → rebuild backend prod → log tail.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Da pipe (ssh … bash -s) BASH_SOURCE non è usabile; default path VPS.
+ROOT="${VPS_REPO_DIR:-/root/predictio}"
 cd "$ROOT"
 COMPOSE_FILE="docker-compose.prod.yml"
 
