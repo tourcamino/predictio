@@ -26,24 +26,18 @@ export function getLocalDevAdminSecretFallback(): string | undefined {
 }
 
 export function getApiBaseUrl(): string {
-  const envUrl = (import.meta as any)?.env?.VITE_API_URL as string | undefined;
-  let fromEnv = envUrl?.trim();
-  if (fromEnv) fromEnv = fromEnv.replace(/\/$/, '');
-
   if (typeof window !== 'undefined') {
-    if (isLocalFrontendDevOrigin()) {
-      return VPS_API_BASE;
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      const envUrl = ((import.meta as any)?.env?.VITE_API_URL as string | undefined)
+        ?.trim()
+        ?.replace(/\/$/, '');
+      return envUrl || 'http://localhost:3001';
     }
-    const origin = window.location.origin.replace(/\/$/, '');
-    // Common mistake: VITE_API_URL=http://localhost:5173 — that is the SPA, not Express.
-    if (fromEnv && fromEnv === origin) {
-      return VPS_API_BASE;
-    }
-    if (fromEnv) return fromEnv;
-    return window.location.origin;
+    return VPS_API_BASE;
   }
-
-  return fromEnv || VPS_API_BASE;
+  // SSR / build: sempre API produzione (mai origin Vercel)
+  return VPS_API_BASE;
 }
 
 async function readJsonSafe(res: Response): Promise<any> {
