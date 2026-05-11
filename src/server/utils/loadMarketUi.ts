@@ -4,7 +4,6 @@ import { normalizeMarketIdParam } from "~/utils/marketId";
 import { db } from "~/server/db";
 import { azuroDetailToMarket } from "~/server/utils/azuroDetailToMarket";
 import { prismaMarketToUi } from "~/server/utils/prismaMarket";
-import { fetchAzuroGameDetail } from "~/services/azuro";
 import { seedMarketToUiMarket } from "~/server/utils/seedMarketToUi";
 
 /**
@@ -31,6 +30,7 @@ export async function loadMarketUiById(rawMarketId: string): Promise<Market | nu
 
   if (marketId.startsWith("azuro-")) {
     try {
+      const { fetchAzuroGameDetail } = await import("~/services/azuro");
       const gameId = marketId.replace(/^azuro-/, "");
       const detail = await fetchAzuroGameDetail(gameId);
       if (detail) return azuroDetailToMarket(detail);

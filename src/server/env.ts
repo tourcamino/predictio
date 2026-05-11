@@ -1,8 +1,11 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  // Core
-  NODE_ENV: z.enum(["development", "production"]).default("production"),
+  // Core — coerce odd NODE_ENV values (some hosts set "" or "staging")
+  NODE_ENV: z.preprocess(
+    (v) => (v === "development" || v === "production" ? v : "production"),
+    z.enum(["development", "production"]),
+  ),
   BASE_URL: z.string().optional(),
   BASE_URL_OTHER_PORT: z.string().optional(),
   FRONTEND_URL: z.string().optional().default("http://localhost:5173"),

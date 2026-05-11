@@ -3,7 +3,6 @@ import { TRPCError } from "@trpc/server";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
 import { minioClient, minioBaseUrl } from "~/server/minio";
-import { createCanvas } from "@napi-rs/canvas";
 import { Readable } from "stream";
 
 export const generateTraderOGImage = baseProcedure
@@ -114,6 +113,7 @@ export const generateTraderOGImage = baseProcedure
   });
 
 async function generateTraderCardImage(trader: any): Promise<Buffer> {
+  const { createCanvas } = await import("@napi-rs/canvas");
   const width = 1200;
   const height = 630;
   const canvas = createCanvas(width, height);

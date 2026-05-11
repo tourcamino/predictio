@@ -2,9 +2,21 @@ import { Client } from "minio";
 import { env } from "./env";
 import { getBaseUrl } from "./utils/base-url";
 
-const minioUrl = new URL(getBaseUrl({ port: 9000 }));
+function computeMinioOrigin(): string {
+  try {
+    return new URL(getBaseUrl({ port: 9000 })).origin;
+  } catch {
+    const raw = env.BASE_URL?.trim() || "https://predictio.live";
+    try {
+      const withScheme = raw.startsWith("http") ? raw : `https://${raw}`;
+      return new URL(withScheme).origin;
+    } catch {
+      return "https://predictio.live";
+    }
+  }
+}
 
-export const minioBaseUrl = minioUrl.origin;
+export const minioBaseUrl = computeMinioOrigin();
 
 /**
  * Optional in local dev. When unset, features that depend on object storage should

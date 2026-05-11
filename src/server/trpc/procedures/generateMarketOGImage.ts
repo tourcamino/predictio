@@ -3,8 +3,9 @@ import { TRPCError } from "@trpc/server";
 import { baseProcedure } from "~/server/trpc/main";
 import { minioClient, minioBaseUrl } from "~/server/minio";
 import { loadMarketUiById } from "~/server/utils/loadMarketUi";
-import { createCanvas, loadImage, GlobalFonts } from "@napi-rs/canvas";
 import { Readable } from "stream";
+
+/** Dynamic import: @napi-rs/canvas native addon crashes many serverless runtimes if loaded at cold-start. */
 
 export const generateMarketOGImage = baseProcedure
   .input(z.object({ marketId: z.string() }))
@@ -68,6 +69,7 @@ export const generateMarketOGImage = baseProcedure
   });
 
 async function generateMarketCardImage(market: any): Promise<Buffer> {
+  const { createCanvas } = await import("@napi-rs/canvas");
   const width = 1200;
   const height = 630;
   const canvas = createCanvas(width, height);
