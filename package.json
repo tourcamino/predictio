@@ -25,7 +25,8 @@
     "smoke:e2e": "node ./scripts/smoke-e2e.mjs",
     "smoke:ws": "node ./scripts/smoke-ws.mjs",
     "vps:verify": "node ./scripts/vps-verify-remote.mjs",
-    "env:validate": "node ./scripts/validate-env.mjs .env"
+    "env:validate": "node ./scripts/validate-env.mjs .env",
+    "autonomous-copy-analysts:tick": "tsx ./src/server/scripts/runAutonomousCopyAnalystTick.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",

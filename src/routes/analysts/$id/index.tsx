@@ -804,7 +804,9 @@ function PredictionHistoryTable({ predictions }: { predictions: any[] }) {
               <td className="py-3 px-4 font-mono">{pred.odds}x</td>
               <td className="py-3 px-4 font-mono">${pred.stake}</td>
               <td className="py-3 px-4">
-                {pred.outcome === "Won" ? (
+                {pred.outcome === "Open" ? (
+                  <span className="flex items-center gap-1 text-gray-400">Open</span>
+                ) : pred.outcome === "Won" ? (
                   <span className="flex items-center gap-1 text-brand-green">
                     <CheckCircle className="w-4 h-4" />
                     Won
@@ -818,10 +820,16 @@ function PredictionHistoryTable({ predictions }: { predictions: any[] }) {
               </td>
               <td
                 className={`py-3 px-4 font-mono font-bold ${
-                  pred.profit > 0 ? "text-brand-green" : "text-red-400"
+                  pred.outcome === "Open"
+                    ? "text-gray-500"
+                    : pred.profit > 0
+                      ? "text-brand-green"
+                      : "text-red-400"
                 }`}
               >
-                {pred.profit > 0 ? "+" : ""}${pred.profit}
+                {pred.outcome === "Open"
+                  ? "—"
+                  : `${pred.profit > 0 ? "+" : ""}$${pred.profit}`}
               </td>
               <td className="py-3 px-4 text-gray-400">{pred.copiedBy}</td>
               <td className="py-3 px-4 text-gray-400 text-sm">

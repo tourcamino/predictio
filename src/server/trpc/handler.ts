@@ -5,6 +5,9 @@ import {
 } from "vinxi/http";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./root";
+import { startAutonomousCopyAnalystScheduler } from "~/server/services/autonomousCopyAnalystScheduler";
+
+startAutonomousCopyAnalystScheduler();
 
 export default defineEventHandler((event: H3Event) => {
   const request = toWebRequest(event);

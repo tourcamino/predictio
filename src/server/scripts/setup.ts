@@ -4,45 +4,51 @@ import { mockAnalysts } from "../../data/mockAffiliates";
 import { cleanupOldNotifications } from "./cleanupOldNotifications";
 import { createCaller } from "../trpc/root";
 import { env } from "../env";
+import { seedCopyTradingExperience } from "./seedCopyTrading";
 
 async function seedAnalysts() {
   console.log("Seeding analyst data...");
   
   for (const mockAnalyst of mockAnalysts) {
     try {
-      // Check if analyst already exists
-      const existing = await db.analyst.findUnique({
-        where: { wallet: mockAnalyst.wallet },
+      const wallet = mockAnalyst.wallet.toLowerCase();
+      await db.analyst.upsert({
+        where: { wallet },
+        create: {
+          wallet,
+          displayName: mockAnalyst.displayName,
+          avatar: mockAnalyst.avatar,
+          bio: mockAnalyst.bio,
+          sport: mockAnalyst.sport,
+          verificationTier: mockAnalyst.verificationTier ?? null,
+          roi: mockAnalyst.roi,
+          winRate: mockAnalyst.winRate,
+          totalPredictions: mockAnalyst.totalPredictions,
+          avgOdds: mockAnalyst.avgOdds,
+          followersCount: mockAnalyst.followersCount,
+          volumeGenerated: mockAnalyst.volumeGenerated,
+          pendingRewards: mockAnalyst.pendingRewards,
+          totalEarned: mockAnalyst.totalEarned,
+          autoCompound: mockAnalyst.autoCompound,
+          activityDays: mockAnalyst.activityDays,
+          validFollowers: mockAnalyst.validFollowers,
+          onchainRegistered: mockAnalyst.onchainRegistered,
+          referralCode: mockAnalyst.referralCode,
+        },
+        update: {
+          displayName: mockAnalyst.displayName,
+          avatar: mockAnalyst.avatar,
+          bio: mockAnalyst.bio,
+          sport: mockAnalyst.sport,
+          verificationTier: mockAnalyst.verificationTier ?? null,
+          avgOdds: mockAnalyst.avgOdds,
+          pendingRewards: mockAnalyst.pendingRewards,
+          totalEarned: mockAnalyst.totalEarned,
+          autoCompound: mockAnalyst.autoCompound,
+          activityDays: mockAnalyst.activityDays,
+        },
       });
-      
-      if (!existing) {
-        await db.analyst.create({
-          data: {
-            wallet: mockAnalyst.wallet,
-            displayName: mockAnalyst.displayName,
-            avatar: mockAnalyst.avatar,
-            bio: mockAnalyst.bio,
-            sport: mockAnalyst.sport,
-            verificationTier: mockAnalyst.verificationTier ?? null,
-            roi: mockAnalyst.roi,
-            winRate: mockAnalyst.winRate,
-            totalPredictions: mockAnalyst.totalPredictions,
-            avgOdds: mockAnalyst.avgOdds,
-            followersCount: 0, // Start with 0, will be incremented as users follow
-            volumeGenerated: mockAnalyst.volumeGenerated,
-            pendingRewards: mockAnalyst.pendingRewards,
-            totalEarned: mockAnalyst.totalEarned,
-            autoCompound: mockAnalyst.autoCompound,
-            activityDays: mockAnalyst.activityDays,
-            validFollowers: 0, // Start with 0
-            onchainRegistered: mockAnalyst.onchainRegistered,
-            referralCode: mockAnalyst.referralCode,
-          },
-        });
-        console.log(`Created analyst: ${mockAnalyst.displayName}`);
-      } else {
-        console.log(`Analyst already exists: ${mockAnalyst.displayName}`);
-      }
+      console.log(`Upserted analyst: ${mockAnalyst.displayName}`);
     } catch (error) {
       console.error(`Error seeding analyst ${mockAnalyst.displayName}:`, error);
     }
@@ -1064,6 +1070,9 @@ async function initializeMockAMM() {
 async function setup() {
   // Seed analyst data
   await seedAnalysts();
+
+  // Copy-trading demo orders + copiers (uses live Market rows when available)
+  await seedCopyTradingExperience();
   
   // Seed blog posts
   await seedBlogPosts();

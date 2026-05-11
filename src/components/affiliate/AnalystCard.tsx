@@ -8,7 +8,9 @@ import { useWalletStore } from "~/store/useWalletStore";
 import { VerificationBadge } from "~/components/analyst/VerificationBadge";
 
 interface AnalystCardProps {
-  analyst: Analyst;
+  analyst: Analyst & {
+    latestTradeLabel?: string | null;
+  };
 }
 
 export function AnalystCard({ analyst }: AnalystCardProps) {
@@ -173,11 +175,15 @@ export function AnalystCard({ analyst }: AnalystCardProps) {
         </div>
       </div>
 
-      {/* Latest Prediction */}
+      {/* Latest activity — real label from leaderboard when orders exist */}
       <div className="bg-white/5 rounded p-3 mb-4">
-        <div className="text-xs text-gray-500 mb-1">Latest</div>
-        <div className="text-sm font-semibold">Real Madrid Win</div>
-        <div className="text-xs text-gray-400 mt-1">124 copied</div>
+        <div className="text-xs text-gray-500 mb-1">Latest activity</div>
+        <div className="text-sm font-semibold truncate" title={analyst.latestTradeLabel ?? undefined}>
+          {analyst.latestTradeLabel ?? "No recent paper trades"}
+        </div>
+        <div className="text-xs text-gray-400 mt-1">
+          {analyst.followersCount} active copiers
+        </div>
       </div>
 
       {/* Actions */}

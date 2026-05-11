@@ -40,15 +40,29 @@ export const getAnalystLeaderboard = baseProcedure
       take: limit,
     });
     
-    // Add rank and check if current user
-    const rankedLeaderboard = analysts.map((analyst, index) => ({
-      ...analyst,
-      rank: index + 1,
-      isCurrentUser: currentUserWallet 
-        ? analyst.wallet.toLowerCase() === currentUserWallet.toLowerCase() 
-        : false,
-    }));
-    
+    // Add rank, latest activity label (real orders when present), and current-user flag
+    const rankedLeaderboard = await Promise.all(
+      analysts.map(async (analyst, index) => {
+        const latest = await db.order.findFirst({
+          where: { wallet: analyst.wallet.toLowerCase() },
+          orderBy: { createdAt: "desc" },
+          include: { market: { select: { event: true } } },
+        });
+        const latestTradeLabel = latest
+          ? `${latest.market.event} · ${latest.outcome}`
+          : null;
+
+        return {
+          ...analyst,
+          rank: index + 1,
+          isCurrentUser: currentUserWallet
+            ? analyst.wallet.toLowerCase() === currentUserWallet.toLowerCase()
+            : false,
+          latestTradeLabel,
+        };
+      }),
+    );
+
     return {
       leaderboard: rankedLeaderboard,
       updatedAt: new Date(),

@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
 import { mockAnalysts } from "~/data/mockAffiliates";
+import { parseYesNoPrices } from "~/server/utils/prismaMarket";
 
 export const getAnalystDetail = baseProcedure
   .input(z.object({ analystId: z.string() }))
@@ -33,8 +34,43 @@ export const getAnalystDetail = baseProcedure
       });
     }
 
-    // Generate mock prediction history
-    const predictionHistory = generateMockPredictionHistory(analyst);
+    const orderRows = await db.order.findMany({
+      where: { wallet: analyst.wallet.toLowerCase() },
+      include: { market: true },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+    });
+
+    const predictionHistory =
+      orderRows.length > 0
+        ? orderRows.map((order) => {
+            const { yesPrice, noPrice } = parseYesNoPrices(order.market.outcomes);
+            const unit =
+              order.outcome.toUpperCase() === "YES" ? yesPrice : noPrice;
+            const decimalOdds = unit > 0 ? 1 / unit : 2;
+            const resolved = order.status === "resolved";
+            const won = resolved && (order.pnl ?? 0) > 0;
+            const fc = analyst.followersCount ?? 0;
+            const copiedEstimate = Math.min(
+              14,
+              Math.max(0, Math.floor(fc * 0.35 + (order.id.length % 3))),
+            );
+            return {
+              id: order.id,
+              event: order.market.event,
+              sport: order.market.sport,
+              odds: Number(decimalOdds.toFixed(2)),
+              stake: Math.round(order.amount * 100) / 100,
+              outcome: !resolved ? "Open" : won ? "Won" : "Lost",
+              profit:
+                resolved ? Math.round((order.pnl ?? 0) * 100) / 100 : 0,
+              copiedBy: copiedEstimate,
+              timestamp:
+                order.resolvedAt?.getTime() ??
+                order.heldSince.getTime(),
+            };
+          })
+        : generateMockPredictionHistory(analyst);
     
     // Generate mock follower growth data
     const followerGrowth = generateMockFollowerGrowth(analyst);
