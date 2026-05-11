@@ -113,7 +113,7 @@ export function MarketCardCompact({ market, onClick, variant = 'card' }: MarketC
           
           {/* Right: Outcomes */}
           <div className="flex-shrink-0 space-y-2">
-            {market.outcomes.slice(0, 2).map((outcome) => (
+            {market.outcomes.slice(0, 3).map((outcome) => (
               <div key={outcome.id} className="flex items-center gap-3">
                 <div className="text-right min-w-[80px]">
                   <div className="text-xs text-gray-400 mb-0.5">{outcome.label}</div>
