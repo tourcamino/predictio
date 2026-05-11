@@ -538,12 +538,14 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
    */
   function curationTier(g: RawAzuroGame, importanceScore: number): 0 | 1 | 2 | 3 {
     const ln = leagueNameLower(g);
+    const cn = countryNorm(g);
     const sorted = sortParticipants(g.participants);
     const homeTeam = String(sorted[0]?.name || "").trim();
     const awayTeam = String(sorted[1]?.name || "").trim();
 
     const tier1SerieA =
       ln.includes("serie a") &&
+      !ln.includes("serie b") &&
       !ln.includes("brasileir") &&
       !ln.includes("brasil") &&
       !ln.includes("brazil");
@@ -558,14 +560,17 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
       return teamLineHasItalianClub(homeTeam, awayTeam) ? 2 : 0;
     }
 
+    /** Premier / La Liga / Bundes / Ligue 1 solo nel paese corretto (esclude Bahrain PL, Ucraina PL, …). */
     const isEnglishPl =
       ln.includes("premier league") &&
       !ln.includes("scottish") &&
       !ln.includes("welsh") &&
-      !ln.includes("northern ireland");
-    const isLaliga = ln.includes("la liga") || ln.includes("laliga");
-    const isBundes = ln.includes("bundesliga");
-    const isLigue1 = ln.includes("ligue 1");
+      !ln.includes("northern ireland") &&
+      (cn.includes("england") || cn.includes("united kingdom"));
+    const isLaliga =
+      (ln.includes("la liga") || ln.includes("laliga")) && cn.includes("spain");
+    const isBundes = ln.includes("bundesliga") && cn.includes("germany");
+    const isLigue1 = ln.includes("ligue 1") && cn.includes("france");
     if (isEnglishPl || isLaliga || isBundes || isLigue1) {
       return importanceScore > 80 ? 3 : 0;
     }
