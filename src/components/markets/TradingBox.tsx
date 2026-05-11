@@ -18,13 +18,15 @@ import {
   invalidateWalletNotifications,
   invalidateWalletPointsSummary,
 } from '~/utils/invalidateWalletNotifications';
+import { useWalletGate } from '~/hooks/useWalletGate';
+import { WalletGateModal } from '~/components/WalletGateModal';
 
 interface TradingBoxProps {
   market: Market;
 }
 
 type TabType = 'buy' | 'sell';
-type OutcomeType = 'YES' | 'NO';
+type OutcomeType = 'YES' | 'NO' | 'DRAW';
 
 const buySchema = z.object({
   amount: z
@@ -50,6 +52,13 @@ interface UserPosition {
   outcome: OutcomeType;
   shares: number;
   avgPrice: number;
+}
+
+function normalizePositionOutcome(raw: string): OutcomeType {
+  const u = raw.toUpperCase();
+  if (u === 'DRAW') return 'DRAW';
+  if (u === 'NO') return 'NO';
+  return 'YES';
 }
 
 function Tooltip({ children, content }: { children: React.ReactNode; content: string }) {
@@ -80,6 +89,7 @@ export function TradingBox({ market }: TradingBoxProps) {
   const queryClient = useQueryClient();
   const { isConnected: isWalletConnected, address: walletAddress, updateBalance, balance: walletBalance } = useWallet();
   const { isActive: isDemoActive, executeDemoTrade, balance: demoBalance, activateDemo } = useDemoAccount();
+  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   
   // Use demo balance when wallet is not connected
   const currentBalance = isWalletConnected ? walletBalance : demoBalance;
@@ -109,7 +119,7 @@ export function TradingBox({ market }: TradingBoxProps) {
     .filter(p => p.marketId === market.id)
     .map(p => ({
       id: p.id,
-      outcome: p.outcome.toUpperCase() as OutcomeType,
+      outcome: normalizePositionOutcome(p.outcome),
       shares: p.shares || 0,
       avgPrice: p.avgPrice || 0,
     }));
@@ -139,9 +149,25 @@ export function TradingBox({ market }: TradingBoxProps) {
   const buyAmount = buyForm.watch('amount') || 0;
   const sellShares = sellForm.watch('shares') || 0;
 
-  // Get current prices
-  const currentPrice = selectedOutcome === 'YES' ? market.yesPrice : market.noPrice;
-  const oppositePrice = selectedOutcome === 'YES' ? market.noPrice : market.yesPrice;
+  const hasDraw = market.percentDraw != null && market.percentDraw > 0;
+  const drawPrice = hasDraw ? market.percentDraw! / 100 : undefined;
+  const drawDecimalOdds =
+    market.drawOdds ??
+    (drawPrice != null && drawPrice > 0 ? (1 / drawPrice).toFixed(2) : undefined);
+
+  // Get current prices (1X2 when draw is active)
+  const currentPrice =
+    selectedOutcome === 'YES'
+      ? market.yesPrice
+      : selectedOutcome === 'DRAW' && drawPrice != null
+        ? drawPrice
+        : market.noPrice;
+  const oppositePrice =
+    selectedOutcome === 'YES'
+      ? market.noPrice
+      : selectedOutcome === 'DRAW'
+        ? market.yesPrice
+        : market.yesPrice;
 
   // Buy calculations
   const sharesFromBuy = buyAmount > 0 ? buyAmount / currentPrice : 0;
@@ -312,8 +338,11 @@ export function TradingBox({ market }: TradingBoxProps) {
       return;
     }
     
-    // Always use demo mode if wallet is not connected
     if (!isWalletConnected) {
+      if (isDemoActive) {
+        requireWallet();
+        return;
+      }
       const result = await executeDemoTrade({
         marketId: market.id,
         outcome: selectedOutcome,
@@ -321,7 +350,7 @@ export function TradingBox({ market }: TradingBoxProps) {
         amount: data.amount,
         price: currentPrice,
       });
-      
+
       if (result.success) {
         toast.success(result.message);
         buyForm.reset();
@@ -330,27 +359,7 @@ export function TradingBox({ market }: TradingBoxProps) {
       }
       return;
     }
-    
-    // If wallet is connected and demo is active, use demo trade
-    if (isDemoActive) {
-      const result = await executeDemoTrade({
-        marketId: market.id,
-        outcome: selectedOutcome,
-        type: 'BUY',
-        amount: data.amount,
-        price: currentPrice,
-      });
-      
-      if (result.success) {
-        toast.success(result.message);
-        buyForm.reset();
-      } else {
-        toast.error(result.message);
-      }
-      return;
-    }
-    
-    // Only show transaction modal for real wallet trades
+
     setTxModalState('review');
     setShowTxModal(true);
   };
@@ -361,8 +370,11 @@ export function TradingBox({ market }: TradingBoxProps) {
       return;
     }
     
-    // Always use demo mode if wallet is not connected
     if (!isWalletConnected) {
+      if (isDemoActive) {
+        requireWallet();
+        return;
+      }
       const result = await executeDemoTrade({
         marketId: market.id,
         outcome: selectedOutcome,
@@ -370,7 +382,7 @@ export function TradingBox({ market }: TradingBoxProps) {
         amount: data.shares * currentPrice,
         price: currentPrice,
       });
-      
+
       if (result.success) {
         toast.success(result.message);
         sellForm.reset();
@@ -379,27 +391,7 @@ export function TradingBox({ market }: TradingBoxProps) {
       }
       return;
     }
-    
-    // If wallet is connected and demo is active, use demo trade
-    if (isDemoActive) {
-      const result = await executeDemoTrade({
-        marketId: market.id,
-        outcome: selectedOutcome,
-        type: 'SELL',
-        amount: data.shares * currentPrice,
-        price: currentPrice,
-      });
-      
-      if (result.success) {
-        toast.success(result.message);
-        sellForm.reset();
-      } else {
-        toast.error(result.message);
-      }
-      return;
-    }
-    
-    // Only show transaction modal for real wallet trades
+
     setTxModalState('review');
     setShowTxModal(true);
   };
@@ -531,8 +523,11 @@ export function TradingBox({ market }: TradingBoxProps) {
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 You're buying
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div
+                className={`grid gap-3 ${hasDraw ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}
+              >
                 <button
+                  type="button"
                   onClick={() => setSelectedOutcome('YES')}
                   className={`p-5 sm:p-4 rounded-lg border-2 transition-all min-h-[120px] sm:min-h-0 ${
                     selectedOutcome === 'YES'
@@ -549,7 +544,28 @@ export function TradingBox({ market }: TradingBoxProps) {
                     {(market.yesPrice * 100).toFixed(0)}% probability
                   </div>
                 </button>
+                {hasDraw && drawPrice != null && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOutcome('DRAW')}
+                    className={`p-5 sm:p-4 rounded-lg border-2 transition-all min-h-[120px] sm:min-h-0 ${
+                      selectedOutcome === 'DRAW'
+                        ? 'border-gray-400 bg-gray-500/20 shadow-lg shadow-gray-500/20'
+                        : 'border-white/10 bg-white/5 hover:border-gray-500/50 hover:bg-gray-500/10 active:scale-95'
+                    }`}
+                  >
+                    <div className="font-bold text-xl sm:text-lg mb-1 text-gray-300">Draw</div>
+                    <div className="text-sm sm:text-xs text-gray-400 mb-2">X</div>
+                    <div className="font-mono text-3xl sm:text-2xl text-gray-200 font-bold">
+                      {drawDecimalOdds != null ? `${drawDecimalOdds}x` : `$${drawPrice.toFixed(2)}`}
+                    </div>
+                    <div className="text-sm sm:text-xs text-gray-400 mt-1">
+                      {(drawPrice * 100).toFixed(0)}% probability
+                    </div>
+                  </button>
+                )}
                 <button
+                  type="button"
                   onClick={() => setSelectedOutcome('NO')}
                   className={`p-5 sm:p-4 rounded-lg border-2 transition-all min-h-[120px] sm:min-h-0 ${
                     selectedOutcome === 'NO'
@@ -705,7 +721,12 @@ export function TradingBox({ market }: TradingBoxProps) {
                   <div className="flex justify-between">
                     <span className="text-gray-400">Shares received</span>
                     <span className="font-mono font-semibold">
-                      {sharesReceived.toFixed(1)} {selectedOutcome === 'YES' ? market.teamA : market.teamB}
+                      {sharesReceived.toFixed(1)}{' '}
+                      {selectedOutcome === 'YES'
+                        ? market.teamA
+                        : selectedOutcome === 'DRAW'
+                          ? 'Draw'
+                          : market.teamB}
                     </span>
                   </div>
                 </div>
@@ -827,7 +848,9 @@ export function TradingBox({ market }: TradingBoxProps) {
                 className={`w-full py-5 sm:py-4 font-bold text-xl sm:text-lg rounded-lg transition-all disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 active:scale-95 ${
                   selectedOutcome === 'YES'
                     ? 'bg-green-500 text-white hover:bg-green-600'
-                    : 'bg-cyan-500 text-white hover:bg-cyan-600'
+                    : selectedOutcome === 'DRAW'
+                      ? 'bg-gray-500 text-white hover:bg-gray-600'
+                      : 'bg-cyan-500 text-white hover:bg-cyan-600'
                 }`}
               >
                 {buyAmount <= 0
@@ -835,10 +858,28 @@ export function TradingBox({ market }: TradingBoxProps) {
                   : orderType === 'LIMIT'
                   ? `Place limit order · 0% fee`
                   : !isWalletConnected
-                  ? `Buy ${selectedOutcome === 'YES' ? market.teamA : market.teamB} Wins (Demo)`
+                  ? `Buy ${
+                      selectedOutcome === 'YES'
+                        ? `${market.teamA} Wins`
+                        : selectedOutcome === 'DRAW'
+                          ? 'Draw (X)'
+                          : `${market.teamB} Wins`
+                    } (Demo)`
                   : isDemoActive
-                  ? `Buy ${selectedOutcome === 'YES' ? market.teamA : market.teamB} Wins (DEMO)`
-                  : `Buy ${selectedOutcome === 'YES' ? market.teamA : market.teamB} Wins`}
+                  ? `Buy ${
+                      selectedOutcome === 'YES'
+                        ? `${market.teamA} Wins`
+                        : selectedOutcome === 'DRAW'
+                          ? 'Draw (X)'
+                          : `${market.teamB} Wins`
+                    } (DEMO)`
+                  : `Buy ${
+                      selectedOutcome === 'YES'
+                        ? `${market.teamA} Wins`
+                        : selectedOutcome === 'DRAW'
+                          ? 'Draw (X)'
+                          : `${market.teamB} Wins`
+                    }`}
               </button>
               
               {/* Demo Mode Info */}
@@ -889,7 +930,13 @@ export function TradingBox({ market }: TradingBoxProps) {
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Select position to sell
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div
+                    className={`grid gap-3 ${
+                      hasDraw && userPositions.length > 2
+                        ? 'grid-cols-1 sm:grid-cols-3'
+                        : 'grid-cols-1 sm:grid-cols-2'
+                    }`}
+                  >
                     {userPositions.map((pos) => (
                       <button
                         key={pos.outcome}
@@ -974,10 +1021,28 @@ export function TradingBox({ market }: TradingBoxProps) {
                     {sellShares <= 0
                       ? 'Enter Shares'
                       : !isWalletConnected
-                      ? `Sell ${selectedOutcome === 'YES' ? market.teamA : market.teamB} Wins (Demo)`
+                      ? `Sell ${
+                          selectedOutcome === 'YES'
+                            ? `${market.teamA} Wins`
+                            : selectedOutcome === 'DRAW'
+                              ? 'Draw (X)'
+                              : `${market.teamB} Wins`
+                        } (Demo)`
                       : isDemoActive
-                      ? `Sell ${selectedOutcome === 'YES' ? market.teamA : market.teamB} Wins (DEMO)`
-                      : `Sell ${selectedOutcome === 'YES' ? market.teamA : market.teamB} Wins`}
+                      ? `Sell ${
+                          selectedOutcome === 'YES'
+                            ? `${market.teamA} Wins`
+                            : selectedOutcome === 'DRAW'
+                              ? 'Draw (X)'
+                              : `${market.teamB} Wins`
+                        } (DEMO)`
+                      : `Sell ${
+                          selectedOutcome === 'YES'
+                            ? `${market.teamA} Wins`
+                            : selectedOutcome === 'DRAW'
+                              ? 'Draw (X)'
+                              : `${market.teamB} Wins`
+                        }`}
                   </button>
                 </form>
               </>
@@ -1052,6 +1117,8 @@ export function TradingBox({ market }: TradingBoxProps) {
           )}
         </div>
       </div>
+
+      <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
 
       <TransactionModal
         isOpen={showTxModal}

@@ -171,7 +171,7 @@ export function PositionCard({ position, isSelected, onClick }: PositionCardProp
         onClose={() => setIsShareModalOpen(false)}
         marketId={position.marketId}
         userPosition={{
-          outcome: position.outcome.toUpperCase() as 'YES' | 'NO',
+          outcome: position.side,
           entryPrice: position.entryPrice,
           currentPrice: position.currentValue / position.shares,
           pnl: position.unrealizedPnl,

@@ -44,22 +44,24 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
     }
   }, [step, balanceCounter]);
   
-  const handleComplete = async () => {
-    if (address) {
-      await completeOnboardingMutation.mutateAsync({
-        walletAddress: address,
-      });
-    }
-    onComplete();
+  const persistOnboardingDone = () => {
+    if (!address) return;
+    completeOnboardingMutation.mutate(
+      { walletAddress: address },
+      {
+        onError: (e) => console.error('[OnboardingModal] completeOnboarding failed:', e),
+      },
+    );
   };
-  
-  const handleSkip = async () => {
-    if (address) {
-      await completeOnboardingMutation.mutateAsync({
-        walletAddress: address,
-      });
-    }
+
+  const handleComplete = () => {
+    onComplete();
+    persistOnboardingDone();
+  };
+
+  const handleSkip = () => {
     onSkip();
+    persistOnboardingDone();
   };
   
   if (!isOpen) return null;
@@ -73,60 +75,61 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
       />
       
       {/* Modal content - responsive and centered */}
-      <div className="relative w-full max-w-lg md:max-w-2xl bg-brand-navy border-2 border-brand-green/30 rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+      <div className="relative w-full max-w-[15.65rem] md:max-w-[20.6rem] bg-brand-navy border-2 border-brand-green/30 rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
         {/* Close button */}
         <button
+          type="button"
           onClick={handleSkip}
-          className="absolute top-4 right-4 z-10 p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
+          className="absolute top-3 right-3 z-10 p-1.5 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
           aria-label="Close onboarding"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
         {/* Step 1: Welcome */}
         {step === 1 && (
-          <div className="p-6 md:p-10">
+          <div className="p-2.5 md:p-5">
             {/* Logo */}
             <div className="text-center mb-6">
-              <h1 className="font-syne text-3xl md:text-4xl font-bold mb-2">
+              <h1 className="font-syne text-xl md:text-2xl font-bold mb-2">
                 <span className="text-brand-green">Predictio</span>
                 <span className="text-white">.live</span>
               </h1>
             </div>
             
             {/* Title */}
-            <h2 className="font-syne text-2xl md:text-3xl font-bold text-white text-center mb-3">
+            <h2 className="font-syne text-lg md:text-xl font-bold text-white text-center mb-3">
               Welcome to Predictio
             </h2>
             
             {/* Subtitle */}
-            <p className="text-gray-400 text-center text-base md:text-lg mb-6">
+            <p className="text-gray-400 text-center text-xs md:text-sm mb-6">
               The first sports prediction market on Base
             </p>
             
             {/* Features */}
             <div className="space-y-3 mb-6">
-              <div className="flex items-start gap-3 p-3 md:p-4 bg-white/5 rounded-lg">
-                <Target className="w-5 h-5 md:w-6 md:h-6 text-brand-green flex-shrink-0 mt-1" />
+              <div className="flex items-start gap-3 p-2 md:p-3 bg-white/5 rounded-lg">
+                <Target className="w-4 h-4 md:w-5 md:h-5 text-brand-green flex-shrink-0 mt-1" />
                 <div>
-                  <h3 className="font-semibold text-white text-sm md:text-base mb-1">Trade YES/NO tokens on sports outcomes</h3>
-                  <p className="text-xs md:text-sm text-gray-400">Buy and sell prediction tokens based on real sports events</p>
+                  <h3 className="font-semibold text-white text-xs md:text-sm mb-1">Trade YES/NO tokens on sports outcomes</h3>
+                  <p className="text-[0.65rem] md:text-xs text-gray-400">Buy and sell prediction tokens based on real sports events</p>
                 </div>
               </div>
               
-              <div className="flex items-start gap-3 p-3 md:p-4 bg-white/5 rounded-lg">
-                <DollarSign className="w-5 h-5 md:w-6 md:h-6 text-brand-green flex-shrink-0 mt-1" />
+              <div className="flex items-start gap-3 p-2 md:p-3 bg-white/5 rounded-lg">
+                <DollarSign className="w-4 h-4 md:w-5 md:h-5 text-brand-green flex-shrink-0 mt-1" />
                 <div>
-                  <h3 className="font-semibold text-white text-sm md:text-base mb-1">Start with $1,000 virtual USDC — no risk</h3>
-                  <p className="text-xs md:text-sm text-gray-400">Practice with paper trading before using real funds</p>
+                  <h3 className="font-semibold text-white text-xs md:text-sm mb-1">Start with $1,000 virtual USDC — no risk</h3>
+                  <p className="text-[0.65rem] md:text-xs text-gray-400">Practice with paper trading before using real funds</p>
                 </div>
               </div>
               
-              <div className="flex items-start gap-3 p-3 md:p-4 bg-white/5 rounded-lg">
-                <Trophy className="w-5 h-5 md:w-6 md:h-6 text-brand-green flex-shrink-0 mt-1" />
+              <div className="flex items-start gap-3 p-2 md:p-3 bg-white/5 rounded-lg">
+                <Trophy className="w-4 h-4 md:w-5 md:h-5 text-brand-green flex-shrink-0 mt-1" />
                 <div>
-                  <h3 className="font-semibold text-white text-sm md:text-base mb-1">Compete on the global leaderboard</h3>
-                  <p className="text-xs md:text-sm text-gray-400">Track your performance against other traders</p>
+                  <h3 className="font-semibold text-white text-xs md:text-sm mb-1">Compete on the global leaderboard</h3>
+                  <p className="text-[0.65rem] md:text-xs text-gray-400">Track your performance against other traders</p>
                 </div>
               </div>
             </div>
@@ -141,8 +144,9 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
             
             {/* CTA */}
             <button
+              type="button"
               onClick={() => setStep(2)}
-              className="w-full py-3 md:py-4 bg-brand-green text-brand-bg font-bold text-base md:text-lg rounded-lg hover:bg-brand-green/90 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 md:py-3 bg-brand-green text-brand-bg font-bold text-sm md:text-base rounded-lg hover:bg-brand-green/90 transition-colors flex items-center justify-center gap-2"
             >
               Let's start
               <ArrowRight className="w-5 h-5" />
@@ -150,8 +154,9 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
             
             {/* Skip link */}
             <button
+              type="button"
               onClick={handleSkip}
-              className="w-full mt-3 text-xs md:text-sm text-gray-500 hover:text-gray-300 transition-colors"
+              className="w-full mt-3 text-[0.65rem] md:text-xs text-gray-500 hover:text-gray-300 transition-colors"
             >
               Skip tutorial
             </button>
@@ -160,14 +165,14 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
         
         {/* Step 2: How it Works */}
         {step === 2 && (
-          <div className="p-6 md:p-10">
-            <h2 className="font-syne text-2xl md:text-3xl font-bold text-white text-center mb-5">
+          <div className="p-2.5 md:p-5">
+            <h2 className="font-syne text-lg md:text-xl font-bold text-white text-center mb-5">
               How prediction markets work
             </h2>
             
             {/* Visual example */}
-            <div className="bg-white/5 rounded-xl p-4 md:p-6 mb-6">
-              <h3 className="font-semibold text-white text-base md:text-lg mb-4 text-center">
+            <div className="bg-white/5 rounded-xl p-3 md:p-4 mb-6">
+              <h3 className="font-semibold text-white text-sm md:text-base mb-4 text-center">
                 Will Real Madrid win the Champions League?
               </h3>
               
@@ -204,15 +209,17 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
             {/* Navigation */}
             <div className="flex gap-3 md:gap-4">
               <button
+                type="button"
                 onClick={() => setStep(1)}
-                className="flex-1 py-2.5 md:py-3 bg-white/5 text-white font-semibold text-sm md:text-base rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+                className="flex-1 py-2 md:py-2.5 bg-white/5 text-white font-semibold text-xs md:text-sm rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4 md:w-5 md:h-5" />
                 Back
               </button>
               <button
+                type="button"
                 onClick={() => setStep(3)}
-                className="flex-1 py-2.5 md:py-3 bg-brand-green text-brand-bg font-bold text-sm md:text-base rounded-lg hover:bg-brand-green/90 transition-colors flex items-center justify-center gap-2"
+                className="flex-1 py-2 md:py-2.5 bg-brand-green text-brand-bg font-bold text-xs md:text-sm rounded-lg hover:bg-brand-green/90 transition-colors flex items-center justify-center gap-2"
               >
                 Got it
                 <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />
@@ -223,21 +230,21 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
         
         {/* Step 3: Your Balance */}
         {step === 3 && (
-          <div className="p-6 md:p-10">
+          <div className="p-2.5 md:p-5">
             <div className="text-center mb-6 md:mb-8">
               {/* Animated balance counter */}
               <div className="mb-4 md:mb-6">
-                <div className="text-xs md:text-sm text-gray-400 mb-2">YOUR VIRTUAL BALANCE</div>
-                <div className="font-mono text-5xl md:text-6xl lg:text-7xl font-bold text-brand-green">
+                <div className="text-[0.6rem] md:text-[0.65rem] text-gray-400 mb-2">YOUR VIRTUAL BALANCE</div>
+                <div className="font-mono text-2xl md:text-4xl lg:text-5xl font-bold text-brand-green">
                   ${balanceCounter.toFixed(2)}
                 </div>
               </div>
               
-              <h2 className="font-syne text-2xl md:text-3xl font-bold text-white mb-3 md:mb-4">
+              <h2 className="font-syne text-lg md:text-xl font-bold text-white mb-3 md:mb-4">
                 You're ready to trade
               </h2>
               
-              <p className="text-gray-400 text-sm md:text-base lg:text-lg max-w-md mx-auto">
+              <p className="text-gray-400 text-[0.65rem] md:text-xs max-w-md mx-auto">
                 Your $1,000 virtual USDC is loaded. Trade on real sports markets, climb the leaderboard, risk nothing.
               </p>
             </div>
@@ -263,8 +270,9 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
             
             {/* Back button */}
             <button
+              type="button"
               onClick={() => setStep(2)}
-              className="w-full mt-4 md:mt-6 py-2 text-xs md:text-sm text-gray-500 hover:text-gray-300 transition-colors flex items-center justify-center gap-2"
+              className="w-full mt-4 md:mt-6 py-2 text-[0.65rem] md:text-xs text-gray-500 hover:text-gray-300 transition-colors flex items-center justify-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
               Back
@@ -273,7 +281,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
         )}
         
         {/* Step indicators */}
-        <div className="flex items-center justify-center gap-2 pb-4 md:pb-6">
+        <div className="flex items-center justify-center gap-2 pb-2 md:pb-3">
           {[1, 2, 3].map((s) => (
             <div
               key={s}

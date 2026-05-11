@@ -88,10 +88,14 @@ export const placePrediction = baseProcedure
       });
     }
 
-    // Validate outcome
-    const validOutcomes = ["YES", "NO"];
-    
-    if (!validOutcomes.includes(input.outcome.toUpperCase())) {
+    const upperOutcome = input.outcome.toUpperCase();
+    const allowDraw = market.percentDraw != null && market.percentDraw > 0;
+    const outcomeOk =
+      upperOutcome === "YES" ||
+      upperOutcome === "NO" ||
+      (allowDraw && upperOutcome === "DRAW");
+
+    if (!outcomeOk) {
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: "Invalid outcome",
@@ -124,7 +128,12 @@ export const placePrediction = baseProcedure
     const balanceBefore = user.virtualBalance;
 
     // Calculate shares and price
-    const currentPrice = input.outcome.toUpperCase() === 'YES' ? market.yesPrice : market.noPrice;
+    const currentPrice =
+      upperOutcome === "YES"
+        ? market.yesPrice
+        : upperOutcome === "DRAW" && market.percentDraw != null
+          ? market.percentDraw / 100
+          : market.noPrice;
     const effectivePrice = input.orderType === 'LIMIT' && input.limitPrice ? input.limitPrice : currentPrice;
     const shares = input.amount / effectivePrice;
 
@@ -157,10 +166,13 @@ export const placePrediction = baseProcedure
 
     // Calculate odds for metadata
     let odds = 1.0;
-    if (input.outcome.toUpperCase() === 'YES') {
+    if (upperOutcome === "YES") {
       odds = 1 / market.yesPrice;
-    } else if (input.outcome.toUpperCase() === 'NO') {
+    } else if (upperOutcome === "NO") {
       odds = 1 / market.noPrice;
+    } else if (upperOutcome === "DRAW" && market.percentDraw != null) {
+      const p = market.percentDraw / 100;
+      odds = p > 0 ? 1 / p : 1;
     }
 
     // Record bet transaction in database
@@ -196,7 +208,7 @@ export const placePrediction = baseProcedure
         id: predictionId,
         marketId: input.marketId,
         wallet: input.walletAddress.toLowerCase(),
-        outcome: input.outcome.toUpperCase(),
+        outcome: upperOutcome,
         amount: input.amount,
         shares,
         avgPrice: effectivePrice,

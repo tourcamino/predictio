@@ -6,7 +6,7 @@ export interface Position {
   marketId: string;
   marketName: string;
   outcome: string; // "Inter wins"
-  side: 'YES' | 'NO';
+  side: 'YES' | 'NO' | 'DRAW';
   shares: number;
   entryPrice: number; // avg entry price
   costBasis: number;

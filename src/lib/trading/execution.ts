@@ -12,7 +12,7 @@ export interface SellParams {
 
 export interface BuyParams {
   marketId: string;
-  outcome: 'YES' | 'NO';
+  outcome: 'YES' | 'NO' | 'DRAW';
   amountUSDC: number;
   price: number;
   slippageBps: number;

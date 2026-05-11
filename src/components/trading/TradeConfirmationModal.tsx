@@ -15,7 +15,7 @@ interface TradeConfirmationModalProps {
   // Position info
   marketName: string;
   outcome: string;
-  side: 'YES' | 'NO';
+  side: 'YES' | 'NO' | 'DRAW';
   
   // Trade details
   shares?: number;
@@ -99,7 +99,7 @@ export function TradeConfirmationModal({
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
+          <div className="flex min-h-full items-center justify-center p-3">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-250"
@@ -109,7 +109,7 @@ export function TradeConfirmationModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-xl bg-brand-navy border border-brand-green/30 shadow-2xl transition-all">
+              <Dialog.Panel className="w-full max-w-[19.6rem] transform overflow-hidden rounded-xl bg-brand-navy border border-brand-green/30 shadow-2xl transition-all">
                 {/* Close button */}
                 {state !== 'pending' && state !== 'mining' && (
                   <button
@@ -120,26 +120,26 @@ export function TradeConfirmationModal({
                   </button>
                 )}
 
-                <div className="p-6">
-                  <Dialog.Title className="font-syne text-2xl font-bold mb-6 text-center">
+                <div className="p-4">
+                  <Dialog.Title className="font-syne text-xl font-bold mb-4 text-center">
                     {getTitle()}
                   </Dialog.Title>
 
                   {/* Review State - Sell */}
                   {state === 'review' && type === 'sell' && (
-                    <div className="space-y-4">
-                      <div className="p-4 bg-white/5 rounded-lg">
-                        <p className="text-sm text-gray-400 mb-1">Market</p>
+                    <div className="space-y-3">
+                      <div className="p-3 bg-white/5 rounded-lg">
+                        <p className="text-xs text-gray-400 mb-1">Market</p>
                         <p className="font-semibold">{marketName}</p>
-                        <p className="text-sm text-gray-400 mt-1">{outcome}</p>
+                        <p className="text-xs text-gray-400 mt-1">{outcome}</p>
                       </div>
 
-                      <div className="p-5 bg-gradient-to-br from-red-500/20 to-red-500/5 border-2 border-red-500/40 rounded-lg">
+                      <div className="p-3 bg-gradient-to-br from-red-500/20 to-red-500/5 border-2 border-red-500/40 rounded-lg">
                         <div className="flex items-center justify-center gap-2 mb-3">
                           <TrendingDown className="w-5 h-5 text-red-500" />
                           <div className="text-center">
                             <div className="text-xs text-gray-400 mb-1">Selling</div>
-                            <div className="text-2xl font-bold">
+                            <div className="text-xl font-bold">
                               {shares.toLocaleString()} shares
                             </div>
                           </div>
@@ -148,20 +148,20 @@ export function TradeConfirmationModal({
                         <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/10">
                           <div className="text-center">
                             <div className="text-xs text-gray-400 mb-1">You'll receive</div>
-                            <div className="text-lg font-bold text-brand-green">
+                            <div className="text-base font-bold text-brand-green">
                               ${proceeds.toFixed(2)}
                             </div>
                           </div>
                           <div className="text-center">
                             <div className="text-xs text-gray-400 mb-1">Realized P&L</div>
-                            <div className={`text-lg font-bold ${pnlFormatted.colorClass}`}>
+                            <div className={`text-base font-bold ${pnlFormatted.colorClass}`}>
                               {pnlFormatted.text}
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="p-4 bg-white/5 rounded-lg space-y-2 font-mono text-sm">
+                      <div className="p-3 bg-white/5 rounded-lg space-y-2 font-mono text-xs">
                         <div className="flex justify-between">
                           <span className="text-gray-400">Shares:</span>
                           <span className="font-bold">{shares.toLocaleString()}</span>
@@ -183,16 +183,16 @@ export function TradeConfirmationModal({
                         </div>
                       </div>
 
-                      <div className="flex gap-3 mt-6">
+                      <div className="flex gap-2 mt-4">
                         <button
                           onClick={onClose}
-                          className="flex-1 py-3 border border-white/20 rounded-lg hover:bg-white/5 transition-colors font-semibold"
+                          className="flex-1 py-2 border border-white/20 rounded-lg hover:bg-white/5 transition-colors font-semibold text-sm"
                         >
                           Cancel
                         </button>
                         <button
                           onClick={onConfirm}
-                          className="flex-1 py-3 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 transition-colors"
+                          className="flex-1 py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 transition-colors text-sm"
                         >
                           Confirm Sale
                         </button>
@@ -202,19 +202,19 @@ export function TradeConfirmationModal({
 
                   {/* Review State - Buy/Add */}
                   {state === 'review' && (type === 'buy' || type === 'add') && (
-                    <div className="space-y-4">
-                      <div className="p-4 bg-white/5 rounded-lg">
-                        <p className="text-sm text-gray-400 mb-1">Market</p>
+                    <div className="space-y-3">
+                      <div className="p-3 bg-white/5 rounded-lg">
+                        <p className="text-xs text-gray-400 mb-1">Market</p>
                         <p className="font-semibold">{marketName}</p>
-                        <p className="text-sm text-gray-400 mt-1">{outcome}</p>
+                        <p className="text-xs text-gray-400 mt-1">{outcome}</p>
                       </div>
 
-                      <div className="p-5 bg-gradient-to-br from-brand-green/20 to-brand-green/5 border-2 border-brand-green/40 rounded-lg">
+                      <div className="p-3 bg-gradient-to-br from-brand-green/20 to-brand-green/5 border-2 border-brand-green/40 rounded-lg">
                         <div className="flex items-center justify-center gap-2 mb-3">
                           <TrendingUp className="w-5 h-5 text-brand-green" />
                           <div className="text-center">
                             <div className="text-xs text-gray-400 mb-1">{type === 'add' ? 'Adding' : 'Buying'}</div>
-                            <div className="text-2xl font-bold text-brand-green">
+                            <div className="text-xl font-bold text-brand-green">
                               {shares.toLocaleString()} shares
                             </div>
                           </div>
@@ -224,13 +224,13 @@ export function TradeConfirmationModal({
                           <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/10">
                             <div className="text-center">
                               <div className="text-xs text-gray-400 mb-1">New avg entry</div>
-                              <div className="text-lg font-bold">
+                              <div className="text-base font-bold">
                                 ${newAvgEntry.toFixed(2)}
                               </div>
                             </div>
                             <div className="text-center">
                               <div className="text-xs text-gray-400 mb-1">Total shares</div>
-                              <div className="text-lg font-bold">
+                              <div className="text-base font-bold">
                                 {totalShares.toLocaleString()}
                               </div>
                             </div>
@@ -238,7 +238,7 @@ export function TradeConfirmationModal({
                         )}
                       </div>
 
-                      <div className="p-4 bg-white/5 rounded-lg space-y-2 font-mono text-sm">
+                      <div className="p-3 bg-white/5 rounded-lg space-y-2 font-mono text-xs">
                         <div className="flex justify-between">
                           <span className="text-gray-400">Amount:</span>
                           <span className="font-bold">${amount.toFixed(2)} USDC</span>
@@ -257,16 +257,16 @@ export function TradeConfirmationModal({
                         </div>
                       </div>
 
-                      <div className="flex gap-3 mt-6">
+                      <div className="flex gap-2 mt-4">
                         <button
                           onClick={onClose}
-                          className="flex-1 py-3 border border-white/20 rounded-lg hover:bg-white/5 transition-colors font-semibold"
+                          className="flex-1 py-2 border border-white/20 rounded-lg hover:bg-white/5 transition-colors font-semibold text-sm"
                         >
                           Cancel
                         </button>
                         <button
                           onClick={onConfirm}
-                          className="flex-1 py-3 bg-brand-green text-brand-bg font-bold rounded-lg hover:bg-brand-green/90 transition-colors"
+                          className="flex-1 py-2 bg-brand-green text-brand-bg font-bold rounded-lg hover:bg-brand-green/90 transition-colors text-sm"
                         >
                           Confirm Purchase
                         </button>

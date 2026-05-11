@@ -41,7 +41,7 @@ function Portfolio() {
     isOpen: boolean;
     marketId?: string;
     position?: {
-      outcome: 'YES' | 'NO';
+      outcome: 'YES' | 'NO' | 'DRAW';
       entryPrice: number;
       currentPrice: number;
       pnl: number;
@@ -94,11 +94,11 @@ function Portfolio() {
   const positionMarketIds = useMemo(() => {
     const ids = new Set<string>();
     positionsEarly.forEach((p) => ids.add(p.marketId));
-    if (isDemoActive) {
+    if (isDemoActive && !isConnected) {
       demoPositions.forEach((p) => ids.add(p.marketId));
     }
     return [...ids];
-  }, [positionsEarly, isDemoActive, demoPositions]);
+  }, [positionsEarly, isDemoActive, isConnected, demoPositions]);
 
   const marketSummariesQuery = useQuery({
     ...trpc.getMarketSummaries.queryOptions({
@@ -200,17 +200,15 @@ function Portfolio() {
   let totalValue = 0;
   let totalCost = 0;
 
-  if (isDemoActive) {
-    // Use demo positions
-    demoPositions.forEach(position => {
+  if (!isConnected && isDemoActive) {
+    demoPositions.forEach((position) => {
       const value = position.shares * position.currentPrice;
       const cost = position.shares * position.avgPrice;
       totalValue += value;
       totalCost += cost;
     });
   } else {
-    // Use real positions
-    openPositions.forEach(position => {
+    openPositions.forEach((position) => {
       const market = marketById[position.marketId];
       if (!market) return;
 
@@ -294,7 +292,7 @@ function Portfolio() {
                 ${totalValue.toFixed(2)}
               </div>
               <div className="text-xs text-gray-500 mt-1">
-                {isDemoActive ? demoBalance.toLocaleString() : balance.toLocaleString()} USDC available
+                {(isDemoActive && !isConnected ? demoBalance : balance).toLocaleString()} USDC available
               </div>
             </div>
             
@@ -503,7 +501,7 @@ function Portfolio() {
           )}
 
           {/* Open Positions */}
-          {isDemoActive && demoPositions.length > 0 && (
+          {isDemoActive && !isConnected && demoPositions.length > 0 && (
             <div className="mb-8">
               <h2 className="font-syne font-bold text-2xl mb-4 flex items-center gap-3">
                 Open Positions (Demo)
@@ -561,11 +559,15 @@ function Portfolio() {
                           >
                             <Share2 className="w-4 h-4 text-gray-400 hover:text-brand-green" />
                           </button>
-                          <div className={`flex items-center gap-1 px-3 py-1 rounded ${
-                            position.outcome === 'YES' 
-                              ? 'bg-brand-green/20 text-brand-green' 
-                              : 'bg-red-500/20 text-red-500'
-                          }`}>
+                          <div
+                            className={`flex items-center gap-1 px-3 py-1 rounded ${
+                              position.outcome === 'YES'
+                                ? 'bg-brand-green/20 text-brand-green'
+                                : position.outcome === 'DRAW'
+                                  ? 'bg-gray-500/20 text-gray-300'
+                                  : 'bg-red-500/20 text-red-500'
+                            }`}
+                          >
                             <span className="font-bold">{position.outcome}</span>
                           </div>
                         </div>
@@ -617,7 +619,7 @@ function Portfolio() {
             </div>
           )}
           
-          {!isDemoActive && openPositions.length > 0 && (
+          {openPositions.length > 0 && (
             <div className="mb-8">
               <h2 className="font-syne font-bold text-2xl mb-4">Open Positions</h2>
               <div className="space-y-4">
@@ -664,7 +666,7 @@ function Portfolio() {
                                 isOpen: true,
                                 marketId: position.marketId,
                                 position: {
-                                  outcome: position.outcome.toUpperCase() as 'YES' | 'NO',
+                                  outcome: position.outcome.toUpperCase() as 'YES' | 'NO' | 'DRAW',
                                   entryPrice: avgPrice,
                                   currentPrice: currentPrice,
                                   pnl: pnl,
@@ -677,11 +679,15 @@ function Portfolio() {
                           >
                             <Share2 className="w-4 h-4 text-gray-400 hover:text-brand-green" />
                           </button>
-                          <div className={`flex items-center gap-1 px-3 py-1 rounded ${
-                            position.outcome.toUpperCase() === 'YES' 
-                              ? 'bg-brand-green/20 text-brand-green' 
-                              : 'bg-red-500/20 text-red-500'
-                          }`}>
+                          <div
+                            className={`flex items-center gap-1 px-3 py-1 rounded ${
+                              position.outcome.toUpperCase() === 'YES'
+                                ? 'bg-brand-green/20 text-brand-green'
+                                : position.outcome.toUpperCase() === 'DRAW'
+                                  ? 'bg-gray-500/20 text-gray-300'
+                                  : 'bg-red-500/20 text-red-500'
+                            }`}
+                          >
                             <span className="font-bold">{position.outcome.toUpperCase()}</span>
                           </div>
                         </div>
@@ -823,7 +829,7 @@ function Portfolio() {
           )}
 
           {/* Empty State */}
-          {!isDemoActive && openPositions.length === 0 && resolvedPositions.length === 0 && (
+          {openPositions.length === 0 && resolvedPositions.length === 0 && (
             <div className="bg-white/5 border border-white/10 rounded-lg p-12 text-center">
               <Wallet className="w-16 h-16 text-gray-500 mx-auto mb-4" />
               <h3 className="font-syne font-bold text-xl mb-2">No Positions Yet</h3>
@@ -840,22 +846,6 @@ function Portfolio() {
             </div>
           )}
           
-          {isDemoActive && demoPositions.length === 0 && (
-            <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-12 text-center">
-              <Wallet className="w-16 h-16 text-purple-400 mx-auto mb-4" />
-              <h3 className="font-syne font-bold text-xl mb-2">No Demo Positions Yet</h3>
-              <p className="text-gray-400 mb-6">
-                Start trading in demo mode to practice without risking real funds.
-              </p>
-              <Link
-                to="/markets"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-all"
-              >
-                Browse Markets
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          )}
           </>
           )}
         </div>

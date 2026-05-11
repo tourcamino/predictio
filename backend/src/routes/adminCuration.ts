@@ -10,7 +10,7 @@ import {
 } from "../services/eventCurationPipeline";
 
 const CACHE_KEY = "admin:azuro:football:14d:v2";
-const MAX_ACTIVE = 12;
+const MAX_ACTIVE = 9;
 
 /** Avoid hanging requests when Postgres is down or TCP stalls (default Prisma can wait a long time). */
 const DB_READ_TIMEOUT_MS = 8_000;

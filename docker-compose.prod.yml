@@ -11,12 +11,14 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=redis://redis:6379
-      - AZURO_DATA_FEED_URL=${AZURO_DATA_FEED_URL}
+      - AZURO_DATA_FEED_URL=https://thegraph-1.onchainfeed.org/subgraphs/name/azuro-protocol/azuro-data-feed-polygon
       - AZURO_API_URL=${AZURO_API_URL}
       - AZURO_API_KEY=${AZURO_API_KEY}
       - OPENROUTER_KEY=${OPENROUTER_KEY}
       - BOT_API_KEY=${BOT_API_KEY}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ADMIN_SECRET=dev_bot_key_change_in_production
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
       - WRITE_AUTH_REQUIRED=${WRITE_AUTH_REQUIRED:-0}
       - WS_AUTH_REQUIRED=${WS_AUTH_REQUIRED:-0}
       - WS_MAX_CONNECTIONS_PER_IP=${WS_MAX_CONNECTIONS_PER_IP:-30}
@@ -39,6 +41,24 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  # One-shot / manuale: `docker compose --profile tools run --rm publish-events`
+  publish-events:
+    build: ./backend
+    profiles: ["tools"]
+    restart: "no"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - AZURO_DATA_FEED_URL=https://thegraph-1.onchainfeed.org/subgraphs/name/azuro-protocol/azuro-data-feed-polygon
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
+      - REDIS_URL=redis://redis:6379
+    command: ["npx", "tsx", "src/scripts/publishEvents.ts"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   market-maker-bot:
     build: ./bots/marketMaker

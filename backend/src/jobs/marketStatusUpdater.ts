@@ -3,7 +3,7 @@ import { buildEuropeanCurationGamesPayload } from "../services/eventCurationPipe
 
 const prisma = new PrismaClient();
 
-const MAX_ACTIVE_CURATED = 12;
+const MAX_ACTIVE_CURATED = 9;
 
 async function checkAzuroResolution(gameId: string) {
   try {

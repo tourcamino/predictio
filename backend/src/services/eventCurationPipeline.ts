@@ -405,26 +405,34 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
   };
 }> {
   const now = Math.floor(Date.now() / 1000);
-  const fifteenDays = now + 15 * 24 * 60 * 60;
+  const fifteenDays = now + 30 * 24 * 60 * 60;
 
   const allGames = await fetchAzuroGames();
   const { footballGames, europeanGames } = filterEuropeanUpcoming(allGames, now, fifteenDays);
 
-  const rankedEuropean = europeanGames.map((g) => ({
-    raw: g,
-    importanceScore: getImportanceScore(g),
-  }));
+  const leagueNameLower = (g: RawAzuroGame) => String(g.league?.name || "").toLowerCase();
 
-  rankedEuropean.sort((a, b) => {
+  // Italy-only: Serie A / Coppa Italia by league name (no generic country — excludes Eccellenza, etc.)
+  const isItalianAllowed = (g: RawAzuroGame) => {
+    const ln = leagueNameLower(g);
+    return ln.includes("serie a") || ln.includes("coppa italia");
+  };
+
+  const rankedItalian = europeanGames
+    .filter(isItalianAllowed)
+    .map((g) => ({ raw: g, importanceScore: getImportanceScore(g) }));
+
+  rankedItalian.sort((a, b) => {
     if (b.importanceScore !== a.importanceScore) {
       return b.importanceScore - a.importanceScore;
     }
     return parseInt(String(a.raw.startsAt), 10) - parseInt(String(b.raw.startsAt), 10);
   });
 
-  const topOver80 = rankedEuropean.filter((x) => x.importanceScore > 80).length;
+  const topOver80 = rankedItalian.filter((x) => x.importanceScore > 80).length;
+  const picked = rankedItalian.slice(0, 9);
 
-  const games: CurationGamePayload[] = rankedEuropean.map(({ raw: g, importanceScore }) => {
+  const games: CurationGamePayload[] = picked.map(({ raw: g, importanceScore }) => {
     const sorted = sortParticipants(g.participants);
     const kickoff = parseInt(String(g.startsAt), 10);
     const gid = String(g.gameId || "").trim();
@@ -463,7 +471,7 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     diagnostics: {
       totalFromAzuro: allGames.length,
       footballGames: footballGames.length,
-      footballInWindowCount: rankedEuropean.length,
+      footballInWindowCount: games.length,
       topMatchScoreOver80: topOver80,
     },
   };

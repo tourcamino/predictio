@@ -1,6 +1,10 @@
 import { useEffect } from 'react';
 import { getTradingSocket } from '~/lib/realtime/tradingSocket';
+import type { Trade } from '~/store/tradingStore';
 import { useTradingStore } from '~/store/tradingStore';
+
+/** Stable fallback — `|| []` in Zustand selectors returns a new array every run → infinite re-renders. */
+const EMPTY_TRADES: Trade[] = [];
 
 export function usePositionRealtime(marketId: string | null) {
   const marketPrice = useTradingStore((state) =>
@@ -10,7 +14,7 @@ export function usePositionRealtime(marketId: string | null) {
     marketId ? state.orderbooks[marketId] : null
   );
   const recentTrades = useTradingStore((state) =>
-    marketId ? state.recentTrades[marketId] || [] : []
+    marketId ? (state.recentTrades[marketId] ?? EMPTY_TRADES) : EMPTY_TRADES
   );
   const wsStatus = useTradingStore((state) => state.wsStatus);
 

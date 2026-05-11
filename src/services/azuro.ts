@@ -1,6 +1,15 @@
-import { SEED_MARKETS, SeedMarket } from "~/data/seedMarkets";
+import { SeedMarket } from "~/data/seedMarkets";
 import { MAX_FOOTBALL_MARKETS } from "~/constants/azuro";
 import { env } from "~/server/env";
+import {
+  getFootballSeedMarketsAsAzuro,
+  pickTieredFootballMarkets,
+} from "~/utils/footballSeedMarkets";
+
+export {
+  hoursUntilStartMarket,
+  pickTieredFootballMarkets,
+} from "~/utils/footballSeedMarkets";
 
 export { MAX_FOOTBALL_MARKETS };
 
@@ -124,93 +133,8 @@ export interface AzuroMarket extends SeedMarket {
   azuroResult?: string;
   /** From curated API — higher = more editorial priority (UCL, WC, etc.). */
   importanceScore?: number;
-}
-
-const PRIORITY_LEAGUE_MARKERS = [
-  "champions league",
-  "premier league",
-  "serie a",
-  "la liga",
-  "bundesliga",
-  "ligue 1",
-  "europa league",
-  "eredivisie",
-] as const;
-
-function leaguePriorityScore(competition: string): number {
-  const n = competition.toLowerCase();
-  let best = 0;
-  PRIORITY_LEAGUE_MARKERS.forEach((marker, i) => {
-    if (n.includes(marker)) {
-      best = Math.max(best, (PRIORITY_LEAGUE_MARKERS.length - i) * 1_000_000);
-    }
-  });
-  return best;
-}
-
-function interestScore(m: AzuroMarket): number {
-  return leaguePriorityScore(m.competition) + m.volume24h;
-}
-
-/** Hours until kickoff from normalized market payload */
-export function hoursUntilStartMarket(m: AzuroMarket): number {
-  const t = new Date(m.event.startsAt).getTime();
-  return (t - Date.now()) / (1000 * 60 * 60);
-}
-
-/**
- * Exactly {@link MAX_FOOTBALL_MARKETS}: 3 imminent (≤48h), 3 medium (48h–7d), 3 long (7–14d),
- * prioritising major leagues + volume; backfills if a bucket is short.
- */
-export function pickTieredFootballMarkets(markets: AzuroMarket[]): AzuroMarket[] {
-  const valid = markets.filter((m) => {
-    if (m.sport !== "football") return false;
-    const h = hoursUntilStartMarket(m);
-    return h > 0 && h <= 336;
-  });
-
-  const byInterest = (a: AzuroMarket, b: AzuroMarket) =>
-    interestScore(b) - interestScore(a);
-
-  const imminent = valid
-    .filter((m) => {
-      const h = hoursUntilStartMarket(m);
-      return h > 0 && h <= 48;
-    })
-    .sort(byInterest);
-
-  const medium = valid
-    .filter((m) => {
-      const h = hoursUntilStartMarket(m);
-      return h > 48 && h <= 168;
-    })
-    .sort(byInterest);
-
-  const longT = valid
-    .filter((m) => {
-      const h = hoursUntilStartMarket(m);
-      return h > 168 && h <= 336;
-    })
-    .sort(byInterest);
-
-  const picked: AzuroMarket[] = [
-    ...imminent.slice(0, 3),
-    ...medium.slice(0, 3),
-    ...longT.slice(0, 3),
-  ];
-
-  const used = new Set(picked.map((p) => p.id));
-  if (picked.length < MAX_FOOTBALL_MARKETS) {
-    for (const m of [...valid].sort(byInterest)) {
-      if (picked.length >= MAX_FOOTBALL_MARKETS) break;
-      if (!used.has(m.id)) {
-        picked.push(m);
-        used.add(m.id);
-      }
-    }
-  }
-
-  return picked.slice(0, MAX_FOOTBALL_MARKETS);
+  /** Azuro decimal odds for draw (1X2 middle outcome), when available */
+  drawOdds?: string | null;
 }
 
 const AZURO_GAMES_QUERY = `
@@ -335,6 +259,55 @@ export function transformAzuroOdds(homeOdds: string, awayOdds: string): {
   };
 }
 
+/** Azuro V3 1X2: outcomes[0]=home, [1]=draw, [2]=away — decimal odds → implied probs summing to 1 */
+export function transformAzuroThreeWayOdds(
+  homeOdds: string,
+  drawOdds: string,
+  awayOdds: string,
+): { home: number; draw: number; away: number } {
+  const oh = parseFloat(homeOdds);
+  const od = parseFloat(drawOdds);
+  const oa = parseFloat(awayOdds);
+  if (![oh, od, oa].every((x) => Number.isFinite(x) && x > 0)) {
+    return { home: 1 / 3, draw: 1 / 3, away: 1 / 3 };
+  }
+  let h = 1 / oh;
+  let d = 1 / od;
+  let a = 1 / oa;
+  const t = h + d + a;
+  if (!(t > 0)) return { home: 1 / 3, draw: 1 / 3, away: 1 / 3 };
+  h /= t;
+  d /= t;
+  a /= t;
+  return {
+    home: Math.max(0.01, Math.min(0.98, h)),
+    draw: Math.max(0.01, Math.min(0.98, d)),
+    away: Math.max(0.01, Math.min(0.98, a)),
+  };
+}
+
+function moneylineFromCondition(outcomes: Array<{ currentOdds?: string | null } | undefined>): {
+  yesPrice: number;
+  drawPrice: number;
+  noPrice: number;
+  drawOdds: string | null;
+} {
+  if (outcomes.length >= 3) {
+    const h = outcomes[0]?.currentOdds ?? "3.0";
+    const d = outcomes[1]?.currentOdds ?? "3.0";
+    const a = outcomes[2]?.currentOdds ?? "3.0";
+    const t = transformAzuroThreeWayOdds(String(h), String(d), String(a));
+    return { yesPrice: t.home, drawPrice: t.draw, noPrice: t.away, drawOdds: String(d) };
+  }
+  if (outcomes.length >= 2) {
+    const h = outcomes[0]?.currentOdds ?? "2.0";
+    const a = outcomes[1]?.currentOdds ?? "2.0";
+    const p = transformAzuroOdds(String(h), String(a));
+    return { yesPrice: p.yesPrice, drawPrice: 0, noPrice: p.noPrice, drawOdds: null };
+  }
+  return { yesPrice: 0.5, drawPrice: 0, noPrice: 0.5, drawOdds: null };
+}
+
 /**
  * Map Azuro sport names to our internal sport slugs
  */
@@ -401,7 +374,7 @@ export async function fetchAzuroGames(
         response.statusText,
         errText.slice(0, 400),
       );
-      return mapMockMarketsToAzuroFormat();
+      return getFootballSeedMarketsAsAzuro();
     }
 
     const raw = await readAzuroGraphqlJson(response);
@@ -412,7 +385,7 @@ export async function fetchAzuroGames(
 
     if (data.errors) {
       console.error('[Azuro] GraphQL errors:', data.errors);
-      return mapMockMarketsToAzuroFormat();
+      return getFootballSeedMarketsAsAzuro();
     }
 
     const games: AzuroGame[] = data.data?.games || [];
@@ -431,16 +404,9 @@ export async function fetchAzuroGames(
       
       // Get main match winner condition (usually the first one)
       const mainCondition = game.conditions[0];
-      let yesPrice = 0.5;
-      let noPrice = 0.5;
-      
-      if (mainCondition && mainCondition.outcomes.length >= 2) {
-        const homeOdds = mainCondition.outcomes[0]?.currentOdds || '2.0';
-        const awayOdds = mainCondition.outcomes[1]?.currentOdds || '2.0';
-        const prices = transformAzuroOdds(homeOdds, awayOdds);
-        yesPrice = prices.yesPrice;
-        noPrice = prices.noPrice;
-      }
+      const { yesPrice, drawPrice, noPrice, drawOdds } = moneylineFromCondition(
+        mainCondition?.outcomes ?? [],
+      );
       
       const startsAt = new Date(parseInt(game.startsAt) * 1000);
       const endsAt = new Date(startsAt.getTime() + 2.5 * 60 * 60 * 1000); // 2.5 hours after start
@@ -477,10 +443,37 @@ export async function fetchAzuroGames(
           teams: [homeTeam, awayTeam],
           location: game.league.country?.name,
         },
-        outcomes: [
-          { id: 'home-win', label: `${homeTeam} wins`, price: yesPrice, volume24h: volume24h * yesPrice },
-          { id: 'away-win', label: `${awayTeam} wins`, price: noPrice, volume24h: volume24h * noPrice },
-        ],
+        outcomes:
+          drawOdds != null && drawPrice > 0
+            ? [
+                {
+                  id: "home-win",
+                  label: `${homeTeam} wins`,
+                  price: yesPrice,
+                  volume24h: volume24h * yesPrice,
+                },
+                { id: "draw", label: "Draw", price: drawPrice, volume24h: volume24h * drawPrice },
+                {
+                  id: "away-win",
+                  label: `${awayTeam} wins`,
+                  price: noPrice,
+                  volume24h: volume24h * noPrice,
+                },
+              ]
+            : [
+                {
+                  id: "home-win",
+                  label: `${homeTeam} wins`,
+                  price: yesPrice,
+                  volume24h: volume24h * yesPrice,
+                },
+                {
+                  id: "away-win",
+                  label: `${awayTeam} wins`,
+                  price: noPrice,
+                  volume24h: volume24h * noPrice,
+                },
+              ],
         volume24h,
         liquidity,
         traders: Math.floor(volume24h / 150),
@@ -496,6 +489,7 @@ export async function fetchAzuroGames(
         azuroGameId: game.gameId,
         azuroConditionId: mainCondition?.conditionId,
         azuroStatus: game.state ?? game.status,
+        drawOdds: drawOdds ?? undefined,
       };
     });
 
@@ -510,7 +504,7 @@ export async function fetchAzuroGames(
 
     if (tiered.length === 0) {
       console.warn("[Azuro] No tiered football markets from indexer, using seed fallback");
-      return mapMockMarketsToAzuroFormat();
+      return getFootballSeedMarketsAsAzuro();
     }
 
     console.log(
@@ -520,7 +514,7 @@ export async function fetchAzuroGames(
     
   } catch (error) {
     console.error('[Azuro] Failed to fetch games:', error);
-    return mapMockMarketsToAzuroFormat();
+    return getFootballSeedMarketsAsAzuro();
   }
 }
 
@@ -566,23 +560,20 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
     const awayTeam = ordered[1]?.name || 'Team B';
     
     const mainCondition = game.conditions[0];
-    let yesPrice = 0.5;
-    let noPrice = 0.5;
+    const { yesPrice, drawPrice, noPrice, drawOdds } = moneylineFromCondition(
+      mainCondition?.outcomes ?? [],
+    );
     let result: string | undefined;
-    
-    if (mainCondition) {
-      if (mainCondition.outcomes.length >= 2) {
-        const homeOdds = mainCondition.outcomes[0]?.currentOdds || '2.0';
-        const awayOdds = mainCondition.outcomes[1]?.currentOdds || '2.0';
-        const prices = transformAzuroOdds(homeOdds, awayOdds);
-        yesPrice = prices.yesPrice;
-        noPrice = prices.noPrice;
-      }
-      
-      // Check if resolved
-      if (mainCondition.wonOutcomeIds && mainCondition.wonOutcomeIds.length > 0) {
-        const wonId = mainCondition.wonOutcomeIds[0];
-        result = wonId === mainCondition.outcomes[0]?.outcomeId ? 'home' : 'away';
+
+    if (mainCondition?.wonOutcomeIds && mainCondition.wonOutcomeIds.length > 0) {
+      const wonId = mainCondition.wonOutcomeIds[0];
+      const outs = mainCondition.outcomes;
+      if (outs.length >= 3) {
+        if (wonId === outs[0]?.outcomeId) result = "home";
+        else if (wonId === outs[1]?.outcomeId) result = "draw";
+        else if (wonId === outs[2]?.outcomeId) result = "away";
+      } else if (outs.length >= 2) {
+        result = wonId === outs[0]?.outcomeId ? "home" : "away";
       }
     }
     
@@ -621,10 +612,37 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
         teams: [homeTeam, awayTeam],
         location: game.league.country?.name,
       },
-      outcomes: [
-        { id: 'home-win', label: `${homeTeam} wins`, price: yesPrice, volume24h: volume24h * yesPrice },
-        { id: 'away-win', label: `${awayTeam} wins`, price: noPrice, volume24h: volume24h * noPrice },
-      ],
+      outcomes:
+        drawOdds != null && drawPrice > 0
+          ? [
+              {
+                id: "home-win",
+                label: `${homeTeam} wins`,
+                price: yesPrice,
+                volume24h: volume24h * yesPrice,
+              },
+              { id: "draw", label: "Draw", price: drawPrice, volume24h: volume24h * drawPrice },
+              {
+                id: "away-win",
+                label: `${awayTeam} wins`,
+                price: noPrice,
+                volume24h: volume24h * noPrice,
+              },
+            ]
+          : [
+              {
+                id: "home-win",
+                label: `${homeTeam} wins`,
+                price: yesPrice,
+                volume24h: volume24h * yesPrice,
+              },
+              {
+                id: "away-win",
+                label: `${awayTeam} wins`,
+                price: noPrice,
+                volume24h: volume24h * noPrice,
+              },
+            ],
       volume24h,
       liquidity,
       traders: Math.floor(volume24h / 150),
@@ -638,6 +656,7 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
       azuroConditionId: mainCondition?.conditionId,
       azuroStatus: gState,
       azuroResult: result,
+      drawOdds: drawOdds ?? undefined,
     };
     
   } catch (error) {
@@ -651,26 +670,9 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
   }
 }
 
-/**
- * Map SEED_MARKETS to AzuroMarket format for fallback
- */
-function mapMockMarketsToAzuroFormat(): AzuroMarket[] {
-  const mapped = SEED_MARKETS.filter((m) => m.sport === "football").map(
-    (market) => ({
-      ...market,
-      azuroGameId: undefined,
-      azuroConditionId: undefined,
-      azuroStatus: undefined,
-    }),
-  );
-  const tiered = pickTieredFootballMarkets(mapped);
-  if (tiered.length > 0) return tiered;
-  return mapped.slice(0, MAX_FOOTBALL_MARKETS);
-}
-
 /** Used when Azuro returns nothing or UI filters would show an empty grid */
 export function getSeedMarketsAsAzuro(): AzuroMarket[] {
-  return mapMockMarketsToAzuroFormat();
+  return getFootballSeedMarketsAsAzuro();
 }
 
 /**

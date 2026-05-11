@@ -22,7 +22,7 @@ interface ShareModalProps {
     isLive: boolean;
   };
   userPosition?: {
-    outcome: 'YES' | 'NO';
+    outcome: 'YES' | 'NO' | 'DRAW';
     entryPrice: number;
     currentPrice: number;
     pnl: number;

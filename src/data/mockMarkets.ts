@@ -30,7 +30,9 @@ export interface Market {
   start_time: Date; // Kickoff time - when trading locks
   /** Full event line when available (matches DB `event`, Azuro question, etc.). */
   event?: string;
-  result?: 'yes' | 'no'; // Only set when market is resolved
+  result?: 'yes' | 'no' | 'draw'; // Only set when market is resolved
+  /** Decimal odds string from indexer (e.g. Azuro), for display. */
+  drawOdds?: string | null;
   resolved_at?: Date; // Only set when market is resolved
   // Liquidity & Market Making fields
   liquidity?: {

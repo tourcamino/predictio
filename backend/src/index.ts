@@ -17,6 +17,8 @@ import adminWalletKeysRouter from "./routes/adminWalletKeys";
 import adminKeysRouter from "./routes/adminKeys";
 import developerKeysRouter from "./routes/developerKeys";
 import { registerAdminCurationRoutes } from "./routes/adminCuration";
+import { buildEuropeanCurationGamesPayload } from "./services/eventCurationPipeline";
+import { cacheDel } from "./services/redisCache";
 import { referralCookieMiddleware } from "./middleware/referral";
 import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
@@ -35,6 +37,9 @@ import { requireAdminKey } from "./middleware/auth";
 
 // Market lifecycle updater (OPEN → LOCKED → RESOLVED)
 import "./jobs/marketStatusUpdater";
+
+const BOOT_CURATION_CACHE_KEY = "admin:azuro:football:14d:v2";
+const BOOT_SEED_MAX = 9;
 
 function requireEnv(name: string): string | undefined {
   const v = process.env[name];
@@ -131,6 +136,76 @@ function isAllowedCorsOrigin(origin: string | undefined): boolean {
   if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) return true;
 
   return false;
+}
+
+/**
+ * If there are no active curated events (empty catalog), pull top Serie A games from Azuro
+ * via `buildEuropeanCurationGamesPayload` and upsert them. Does nothing when any active row exists.
+ */
+async function autoSeedEventsOnBoot() {
+  try {
+    const activeCount = await prisma.curatedEvent.count({ where: { isActive: true } });
+    if (activeCount > 0) return;
+
+    const { games } = await buildEuropeanCurationGamesPayload(new Set());
+    const serieA = games
+      .filter((g) => g.leagueName.toLowerCase().includes("serie a"))
+      .slice(0, BOOT_SEED_MAX);
+
+    if (serieA.length === 0) {
+      console.warn("[boot] autoSeedEventsOnBoot: no Serie A games in payload");
+      return;
+    }
+
+    for (const event of serieA) {
+      const startsAt = new Date(event.startsAt);
+      const lockedAt = new Date(startsAt.getTime() - 5 * 60 * 1000);
+
+      await prisma.curatedEvent.upsert({
+        where: { gameId: event.gameId },
+        create: {
+          gameId: event.gameId,
+          title: event.title,
+          leagueName: event.leagueName,
+          country: event.country,
+          startsAt,
+          lockedAt,
+          homeTeam: event.homeTeam,
+          awayTeam: event.awayTeam,
+          homeImage: event.homeImage ?? undefined,
+          awayImage: event.awayImage ?? undefined,
+          status: "OPEN",
+          isActive: true,
+          selectedBy: "BOOT",
+          importanceScore: event.importanceScore,
+          autoPublish: event.autoPublish,
+        },
+        update: {
+          title: event.title,
+          leagueName: event.leagueName,
+          country: event.country,
+          startsAt,
+          lockedAt,
+          homeTeam: event.homeTeam,
+          awayTeam: event.awayTeam,
+          homeImage: event.homeImage ?? undefined,
+          awayImage: event.awayImage ?? undefined,
+          status: "OPEN",
+          resolvedAt: null,
+          result: null,
+          isActive: true,
+          selectedBy: "BOOT",
+          importanceScore: event.importanceScore,
+          autoPublish: event.autoPublish,
+        },
+      });
+    }
+
+    await cacheDel(BOOT_CURATION_CACHE_KEY);
+    console.log(`✅ Auto-seeded ${serieA.length} eventi italiani al boot`);
+  } catch (e) {
+    console.warn("[boot] autoSeedEventsOnBoot failed:", e instanceof Error ? e.message : e);
+  }
 }
 
 async function ensureFounderAffiliate() {
@@ -926,6 +1001,7 @@ function calculateOrderbook(orders: any[]) {
 app.listen(PORT, () => {
   console.log(`🚀 API server running on port ${PORT}`);
   console.log(`📡 CORS origin: ${CORS_ORIGIN}`);
+  void autoSeedEventsOnBoot();
 });
 
 ensureFounderAffiliate().catch(() => null);

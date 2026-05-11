@@ -7,10 +7,10 @@ export type ApiErrorShape = {
   };
 };
 
-/** Express REST (`/api/v1/*`, `/api/admin/*`, …). In local dev the backend runs on a separate port from Vinxi (see backend `PORT`, default 3001). */
-const DEFAULT_DEV_BACKEND = 'http://127.0.0.1:3001';
+/** Produzione + dev locale: API sul VPS (nessun Express su localhost:3001 in questo workflow). */
+const VPS_API_BASE = 'https://api.predictio.live';
 
-/** Vinxi/Vite dev + preview: SPA runs on these ports while Express stays on 3001. Do not rely on `import.meta.env.DEV` — it is often false in Vinxi client bundles. */
+/** Vinxi/Vite dev + preview: SPA su queste porte; `getApiBaseUrl` punta all’API remota in quel contesto. */
 export function isLocalFrontendDevOrigin(): boolean {
   if (typeof window === 'undefined') return false;
   const { hostname, port } = window.location;
@@ -31,23 +31,19 @@ export function getApiBaseUrl(): string {
   if (fromEnv) fromEnv = fromEnv.replace(/\/$/, '');
 
   if (typeof window !== 'undefined') {
+    if (isLocalFrontendDevOrigin()) {
+      return VPS_API_BASE;
+    }
     const origin = window.location.origin.replace(/\/$/, '');
     // Common mistake: VITE_API_URL=http://localhost:5173 — that is the SPA, not Express.
-    if (fromEnv && fromEnv === origin && isLocalFrontendDevOrigin()) {
-      return DEFAULT_DEV_BACKEND;
+    if (fromEnv && fromEnv === origin) {
+      return VPS_API_BASE;
     }
     if (fromEnv) return fromEnv;
-
-    // `npm run dev`: Vite proxies `/api/*` → Express (see app.config.ts). Same-origin when Vite HMR is active.
-    const viteMeta = import.meta as { hot?: unknown };
-    if (isLocalFrontendDevOrigin() && viteMeta.hot) {
-      return window.location.origin.replace(/\/$/, "");
-    }
-    if (isLocalFrontendDevOrigin()) return DEFAULT_DEV_BACKEND;
     return window.location.origin;
   }
 
-  return fromEnv || DEFAULT_DEV_BACKEND;
+  return fromEnv || VPS_API_BASE;
 }
 
 async function readJsonSafe(res: Response): Promise<any> {

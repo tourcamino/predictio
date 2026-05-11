@@ -164,18 +164,19 @@ export function HeaderInner() {
           <div data-tour="header-balance">
             {!isConnected ? (
               <div className="hidden md:flex items-center gap-3">
-                {/* Show demo balance */}
-                <div className="flex items-center gap-3 px-4 py-2.5 bg-white/5 border border-purple-500/30 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-                    <span className="font-bold text-purple-400">
-                      ${demoBalance.toFixed(0)} USDC
-                    </span>
-                    <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs font-semibold rounded">
-                      DEMO
-                    </span>
+                {isDemoActive && (
+                  <div className="flex items-center gap-3 px-4 py-2.5 bg-white/5 border border-purple-500/30 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+                      <span className="font-bold text-purple-400">
+                        ${demoBalance.toFixed(0)} USDC
+                      </span>
+                      <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs font-semibold rounded">
+                        DEMO
+                      </span>
+                    </div>
                   </div>
-                </div>
+                )}
                 {/* Optional connect wallet button */}
                 <button
                   onClick={() => (wrongNetwork ? switchNetwork() : openWalletModal())}
@@ -209,9 +210,10 @@ export function HeaderInner() {
                     )}
                   </div>
                   
-                  {/* Points Display */}
+                  {/* Points Display — opens Account → Points tab */}
                   <Link 
                     to="/account"
+                    search={{ tab: 'points' }}
                     className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 rounded hover:bg-white/10 transition-colors"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -317,18 +319,22 @@ export function HeaderInner() {
               {/* Mobile wallet button */}
               {!isConnected ? (
                 <div className="mt-2 space-y-3">
-                  <div className="p-3 sm:p-4 bg-white/5 border border-purple-500/30 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse flex-shrink-0"></div>
-                      <span className="font-bold text-purple-400 text-sm sm:text-base">${demoBalance.toFixed(0)} USDC</span>
-                      <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs font-semibold rounded">
-                        DEMO
-                      </span>
+                  {isDemoActive && (
+                    <div className="p-3 sm:p-4 bg-white/5 border border-purple-500/30 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse flex-shrink-0"></div>
+                        <span className="font-bold text-purple-400 text-sm sm:text-base">
+                          ${demoBalance.toFixed(0)} USDC
+                        </span>
+                        <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs font-semibold rounded">
+                          DEMO
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 mb-3">
+                        Trading with virtual balance · No wallet required
+                      </p>
                     </div>
-                    <p className="text-xs text-gray-400 mb-3">
-                      Trading with virtual balance · No wallet required
-                    </p>
-                  </div>
+                  )}
                   <button
                     onClick={() => {
                       if (wrongNetwork) switchNetwork();
@@ -364,8 +370,13 @@ export function HeaderInner() {
                     )}
                   </div>
                   
-                  {/* Mobile Points Display */}
-                  <div className="flex items-center gap-2 mb-3 p-2 bg-white/5 rounded">
+                  {/* Mobile Points — tap opens Account → Points */}
+                  <Link
+                    to="/account"
+                    search={{ tab: 'points' }}
+                    className="flex items-center gap-2 mb-3 p-2 bg-white/5 rounded hover:bg-white/10 transition-colors"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
                     <Hexagon className="w-3.5 h-3.5 text-brand-green flex-shrink-0" />
                     <span className="font-mono text-sm font-semibold">{userPoints.toLocaleString()} pts</span>
                     <div 
@@ -373,7 +384,7 @@ export function HeaderInner() {
                       style={{ backgroundColor: getTierColor(userTier) }}
                     />
                     <span className="text-xs text-gray-400">{userTier}</span>
-                  </div>
+                  </Link>
                   
                   <p className="font-mono text-xs text-gray-400 mb-3 break-all">
                     {address?.slice(0, 10)}...{address?.slice(-8)}

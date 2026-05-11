@@ -64,7 +64,7 @@ export async function fetchAzuroGames(): Promise<RawAzuroGame[]> {
   const query = `
     query Games {
       games(
-        first: 200
+        first: 1000
         where: {
           state: Prematch
           activeConditionsCount_gt: 0
@@ -97,11 +97,19 @@ export async function fetchAzuroGames(): Promise<RawAzuroGame[]> {
     }
   `;
 
-  const response = await fetch(AZURO_FEED_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10_000);
+  let response: Response;
+  try {
+    response = await fetch(AZURO_FEED_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const json = (await response.json()) as {
     data?: { games?: RawAzuroGame[] };
@@ -229,7 +237,7 @@ export async function fetchFootballGamesNext14Days(): Promise<{
 
     // ── 4. Filtra calcio europeo ──
     const now = Math.floor(Date.now() / 1000);
-    const fifteenDays = now + 15 * 24 * 60 * 60;
+    const fifteenDays = now + 30 * 24 * 60 * 60;
 
     const europeanFootball = allGames.filter((game) => {
       // solo calcio

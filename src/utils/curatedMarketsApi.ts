@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from "~/lib/predictioApi";
-import { SEED_MARKETS, type SeedMarket } from "~/data/seedMarkets";
+import type { SeedMarket } from "~/data/seedMarkets";
 import type { AzuroMarket } from "~/services/azuro";
+import { getFootballSeedMarketsAsAzuro } from "~/utils/footballSeedMarkets";
 
 /** Row shape from Express `GET /api/markets` (see `backend/src/routes/adminCuration.ts`). */
 export type CuratedMarketApiRow = {
@@ -96,22 +97,8 @@ export function curatedApiRowToAzuroMarket(row: CuratedMarketApiRow): AzuroMarke
 export async function fetchCuratedMarketsFromApi(): Promise<{
   markets: AzuroMarket[];
   total: number;
-  source: "curated-api" | "seed-fallback";
+  source: "curated-api" | "fallback";
 }> {
-  // Local dev fast-path: when API base is same-origin, requests are proxied to Express.
-  // If Express/DB isn't running, that proxy can hang; seed markets keep the UI usable.
-  if (typeof window !== "undefined") {
-    const base = getApiBaseUrl().replace(/\/$/, "");
-    const origin = window.location.origin.replace(/\/$/, "");
-    if (base === origin) {
-      return {
-        markets: SEED_MARKETS as unknown as AzuroMarket[],
-        total: SEED_MARKETS.length,
-        source: "seed-fallback",
-      };
-    }
-  }
-
   try {
     const base = getApiBaseUrl().replace(/\/$/, "");
     const ac = new AbortController();
@@ -126,12 +113,13 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
       total: number;
     };
     const markets = (data.markets ?? []).map(curatedApiRowToAzuroMarket);
-    // If backend is up but DB is empty/offline, keep the page usable in local dev.
+    // Backend OK but no curated rows / DB empty — same as fetch failure: show demo seeds.
     if (markets.length === 0) {
+      const fallback = getFootballSeedMarketsAsAzuro();
       return {
-        markets: SEED_MARKETS as unknown as AzuroMarket[],
-        total: SEED_MARKETS.length,
-        source: "seed-fallback",
+        markets: fallback,
+        total: fallback.length,
+        source: "fallback",
       };
     }
     return {
@@ -140,10 +128,11 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
       source: "curated-api",
     };
   } catch {
+    const fallback = getFootballSeedMarketsAsAzuro();
     return {
-      markets: SEED_MARKETS as unknown as AzuroMarket[],
-      total: SEED_MARKETS.length,
-      source: "seed-fallback",
+      markets: fallback,
+      total: fallback.length,
+      source: "fallback",
     };
   }
 }

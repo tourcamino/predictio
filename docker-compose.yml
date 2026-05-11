@@ -1,0 +1,4 @@
+# Default per `docker compose` sulla VPS: include la stack definita in `docker-compose.prod.yml`.
+# Richiede Docker Compose v2.20+ (supporto `include`). Altrimenti: `docker compose -f docker-compose.prod.yml ...`
+include:
+  - path: docker-compose.prod.yml

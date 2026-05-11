@@ -19,7 +19,8 @@ export function curatedEventRowToUiMarket(
   row: CuratedEvent,
   canonicalId: string,
 ): Market {
-  const yesPrice = 0.5;
+  const yesPrice = 0.34;
+  const noPrice = 0.33;
   const closesAt = row.lockedAt;
   const status = curatedStatusToUi(row);
 
@@ -33,7 +34,7 @@ export function curatedEventRowToUiMarket(
     teamB: row.awayTeam,
     marketType: "moneyline",
     yesPrice,
-    noPrice: 1 - yesPrice,
+    noPrice,
     volume: 25_000,
     closesAt,
     traders: 150,
@@ -41,8 +42,11 @@ export function curatedEventRowToUiMarket(
     status,
     start_time: row.startsAt,
     event: row.title,
-    percentA: 50,
-    percentB: 50,
+    percentA: 34,
+    percentB: 33,
+    /** DB has no draw odds yet — stable default so 1X2 UI always shows Draw */
+    percentDraw: 33,
+    drawOdds: null,
     predictions: 200,
   };
 }

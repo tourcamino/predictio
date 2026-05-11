@@ -11,8 +11,12 @@ import {
   type DemoPosition,
   type DemoTrade,
 } from "~/lib/demoStorage";
+import type { Market } from "~/data/mockMarkets";
 import { calcFee } from "~/utils/marketUtils";
 import { useTRPC, useTRPCClient } from "~/trpc/react";
+
+/** Stable fallback — `?? {}` is a new object every render and retriggers effects that list `marketMap` as a dependency. */
+const EMPTY_MARKET_MAP: Record<string, Market | null> = {};
 
 interface UseDemoAccountReturn {
   demoState: DemoState;
@@ -23,7 +27,7 @@ interface UseDemoAccountReturn {
   stats: ReturnType<typeof calculateDemoStats>;
   executeDemoTrade: (params: {
     marketId: string;
-    outcome: "YES" | "NO";
+    outcome: "YES" | "NO" | "DRAW";
     type: "BUY" | "SELL";
     amount: number;
     price: number;
@@ -39,12 +43,7 @@ export function useDemoAccount(): UseDemoAccountReturn {
   const client = useTRPCClient();
 
   const [demoState, setDemoState] = useState<DemoState>(() => {
-    const state = getDemoState();
-    if (!state.active) {
-      state.active = true;
-      saveDemoState(state);
-    }
-    return state;
+    return getDemoState();
   });
 
   const positionIds = useMemo(
@@ -60,15 +59,10 @@ export function useDemoAccount(): UseDemoAccountReturn {
     staleTime: 20_000,
   });
 
-  const marketMap = summariesQuery.data ?? {};
+  const marketMap = summariesQuery.data ?? EMPTY_MARKET_MAP;
 
   const refreshState = () => {
-    const state = getDemoState();
-    if (!state.active) {
-      state.active = true;
-      saveDemoState(state);
-    }
-    setDemoState(state);
+    setDemoState(getDemoState());
   };
 
   useEffect(() => {
@@ -78,7 +72,11 @@ export function useDemoAccount(): UseDemoAccountReturn {
       const market = marketMap[position.marketId];
       if (market) {
         const currentPrice =
-          position.outcome === "YES" ? market.yesPrice : market.noPrice;
+          position.outcome === "YES"
+            ? market.yesPrice
+            : position.outcome === "DRAW" && market.percentDraw != null
+              ? market.percentDraw / 100
+              : market.noPrice;
         return { ...position, currentPrice };
       }
       return position;
@@ -93,7 +91,7 @@ export function useDemoAccount(): UseDemoAccountReturn {
 
   const executeDemoTrade = async (params: {
     marketId: string;
-    outcome: "YES" | "NO";
+    outcome: "YES" | "NO" | "DRAW";
     type: "BUY" | "SELL";
     amount: number;
     price: number;
@@ -231,9 +229,7 @@ export function useDemoAccount(): UseDemoAccountReturn {
   };
 
   const deactivateDemo = () => {
-    const state = getDemoState();
-    state.active = true;
-    saveDemoState(state);
+    const state = deactivateDemoMode();
     setDemoState(state);
   };
 

@@ -1,0 +1,34 @@
+# PREDICTIO.LIVE — REGOLE CURSOR (NON MODIFICARE)
+
+## ARCHITETTURA
+- Frontend: React/Vite → gira in locale su localhost:5173
+- Backend: Node/Express → gira su VPS Hostinger → api.predictio.live
+- Database: PostgreSQL → gira sul VPS (porta 5432)
+- NO Docker locale — Docker non è disponibile su questo laptop
+
+## REGOLA CRITICA — DATABASE
+Il database NON è locale. È sul VPS Hostinger.
+DATABASE_URL punta sempre al VPS, MAI a localhost.
+NON suggerire mai docker-compose per il DB.
+NON suggerire mai localhost:5432 o localhost:5433.
+
+## REGOLA CRITICA — BACKEND
+Il backend NON gira in locale durante lo sviluppo.
+L'API è sempre su https://api.predictio.live
+Il frontend chiama sempre api.predictio.live, mai localhost:3001.
+
+## REGOLA CRITICA — EVENTI
+Gli eventi mostrati devono essere REALI da Azuro Protocol.
+MAI usare SEED_MARKETS o mock come dati primari.
+SEED_MARKETS = [] — i fallback restituiscono sempre array vuoto.
+
+## REGOLA CRITICA — MODIFICHE
+- NON fare refactor non richiesti
+- NON riscrivere architettura
+- NON cambiare il sistema wallet (usa Zustand custom, NON wagmi)
+- Modifiche MINIMALI e MIRATE sempre
+
+## WORKFLOW SVILUPPO
+1. Modifiche codice → in locale con Cursor
+2. Deploy → git push → Vercel (frontend) / VPS (backend)
+3. Test → su predictio.live (non localhost)

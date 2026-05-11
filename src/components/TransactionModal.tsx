@@ -86,8 +86,8 @@ export function TransactionModal({
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
         </Transition.Child>
 
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-0 sm:p-4">
+          <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-0 sm:p-2">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-250"
@@ -97,19 +97,20 @@ export function TransactionModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full h-full sm:h-auto sm:max-w-md transform overflow-hidden sm:rounded-xl bg-brand-navy border-0 sm:border border-brand-green/30 shadow-2xl transition-all">
+              <Dialog.Panel className="w-full h-full sm:h-auto sm:max-w-[14rem] transform overflow-hidden sm:rounded-xl bg-brand-navy border-0 sm:border border-brand-green/30 shadow-2xl transition-all">
                 {/* Close button */}
                 {state !== 'pending' && state !== 'mining' && (
                   <button
+                    type="button"
                     onClick={onClose}
-                    className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
+                    className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4" />
                   </button>
                 )}
 
-                <div className="p-6">
-                  <Dialog.Title className="font-syne text-2xl font-bold mb-6 text-center">
+                <div className="p-3">
+                  <Dialog.Title className="font-syne text-lg font-bold mb-3 text-center">
                     {getTitle()}
                   </Dialog.Title>
 
@@ -119,46 +120,46 @@ export function TransactionModal({
                       {(type === 'deposit' || type === 'withdraw') && children ? (
                         children
                       ) : type === 'bet' ? (
-                    <div className="space-y-4">
-                      <div className="p-4 bg-white/5 rounded-lg">
-                        <p className="text-sm text-gray-400 mb-1">Market</p>
-                        <p className="font-semibold">{marketName}</p>
+                    <div className="space-y-2">
+                      <div className="p-2 bg-white/5 rounded-lg">
+                        <p className="text-[0.65rem] text-gray-400 mb-1">Market</p>
+                        <p className="font-semibold text-sm">{marketName}</p>
                       </div>
 
-                      <div className="p-4 bg-white/5 rounded-lg">
-                        <p className="text-sm text-gray-400 mb-1">Your Prediction</p>
-                        <p className="font-syne text-lg font-bold text-brand-green">{outcome}</p>
+                      <div className="p-2 bg-white/5 rounded-lg">
+                        <p className="text-[0.65rem] text-gray-400 mb-1">Your Prediction</p>
+                        <p className="font-syne text-sm font-bold text-brand-green">{outcome}</p>
                       </div>
 
                       {/* Enhanced profit display with ROI */}
-                      <div className="p-5 bg-gradient-to-br from-brand-green/20 to-brand-green/5 border-2 border-brand-green/40 rounded-lg">
-                        <div className="text-center mb-3">
-                          <div className="text-xs text-gray-400 mb-1">If you win</div>
-                          <div className="text-3xl font-bold text-brand-green">
+                      <div className="p-2 bg-gradient-to-br from-brand-green/20 to-brand-green/5 border-2 border-brand-green/40 rounded-lg">
+                        <div className="text-center mb-2">
+                          <div className="text-[0.6rem] text-gray-400 mb-1">If you win</div>
+                          <div className="text-xl font-bold text-brand-green">
                             ${potentialWin.toFixed(2)}
                           </div>
                         </div>
-                        <div className="text-center text-sm text-gray-400 mb-4">
+                        <div className="text-center text-xs text-gray-400 mb-3">
                           Deposit <span className="font-semibold text-white">${amount.toFixed(2)}</span> → Win <span className="font-semibold text-brand-green">${potentialWin.toFixed(2)}</span>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/10">
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10">
                           <div className="text-center">
-                            <div className="text-xs text-gray-400 mb-1">Net Profit</div>
-                            <div className="text-lg font-bold text-brand-green">
+                            <div className="text-[0.65rem] text-gray-400 mb-1">Net Profit</div>
+                            <div className="text-sm font-bold text-brand-green">
                               +${netProfit.toFixed(2)}
                             </div>
                           </div>
                           <div className="text-center">
-                            <div className="text-xs text-gray-400 mb-1">ROI</div>
-                            <div className="text-lg font-bold text-brand-green">
+                            <div className="text-[0.65rem] text-gray-400 mb-1">ROI</div>
+                            <div className="text-sm font-bold text-brand-green">
                               +{((netProfit / amount) * 100).toFixed(1)}%
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="p-4 bg-white/5 rounded-lg space-y-2 font-mono text-sm">
+                      <div className="p-2 bg-white/5 rounded-lg space-y-1.5 font-mono text-[0.65rem]">
                         <div className="flex justify-between">
                           <span className="text-gray-400">Your stake:</span>
                           <span className="font-bold">${amount.toFixed(2)} USDC</span>
@@ -181,24 +182,26 @@ export function TransactionModal({
                         />
                       )}
 
-                      <div className="flex items-center gap-2 text-xs text-gray-400 p-3 bg-white/5 rounded">
-                        <Zap className="w-4 h-4 text-brand-green" />
+                      <div className="flex items-center gap-2 text-[0.65rem] text-gray-400 p-2 bg-white/5 rounded">
+                        <Zap className="w-3.5 h-3.5 text-brand-green flex-shrink-0" />
                         <div>
                           <p>Transaction on BASE</p>
                           <p>Estimated gas: ~$0.001</p>
                         </div>
                       </div>
 
-                      <div className="flex gap-3 mt-6">
+                      <div className="flex gap-2 mt-3">
                         <button
+                          type="button"
                           onClick={onClose}
-                          className="flex-1 py-3 border border-white/20 rounded-lg hover:bg-white/5 transition-colors font-semibold"
+                          className="flex-1 py-1.5 border border-white/20 rounded-lg hover:bg-white/5 transition-colors font-semibold text-xs"
                         >
                           Cancel
                         </button>
                         <button
+                          type="button"
                           onClick={onConfirm}
-                          className="flex-1 py-3 bg-brand-green text-brand-bg font-bold rounded-lg hover:bg-brand-green/90 transition-colors"
+                          className="flex-1 py-1.5 bg-brand-green text-brand-bg font-bold rounded-lg hover:bg-brand-green/90 transition-colors text-xs"
                         >
                           Confirm & Predict
                         </button>

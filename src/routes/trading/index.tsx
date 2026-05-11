@@ -29,7 +29,7 @@ function TradingPage() {
     id: `demo-${index}`,
     marketId: demoPos.marketId,
     marketName: demoPos.marketTitle,
-    outcome: `${demoPos.outcome} wins`,
+    outcome: demoPos.outcome === 'DRAW' ? 'Draw (X)' : `${demoPos.outcome} wins`,
     side: demoPos.outcome,
     shares: demoPos.shares,
     entryPrice: demoPos.avgPrice,

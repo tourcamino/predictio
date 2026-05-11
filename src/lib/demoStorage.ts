@@ -1,7 +1,7 @@
 export interface DemoPosition {
   marketId: string;
   marketTitle: string;
-  outcome: 'YES' | 'NO';
+  outcome: 'YES' | 'NO' | 'DRAW';
   shares: number;
   avgPrice: number;
   currentPrice: number;
@@ -12,7 +12,7 @@ export interface DemoTrade {
   id: string;
   marketId: string;
   type: 'BUY' | 'SELL';
-  outcome: 'YES' | 'NO';
+  outcome: 'YES' | 'NO' | 'DRAW';
   shares: number;
   price: number;
   total: number;
@@ -29,11 +29,13 @@ export interface DemoState {
 }
 
 const DEMO_STATE_KEY = 'predictio_demo_state';
+const DEMO_OPT_IN_KEY = 'predictio_demo_opt_in';
 const INITIAL_BALANCE = 1000;
 
 function createInitialDemoState(): DemoState {
   return {
-    active: true, // Demo mode is now always active by default
+    // Demo mode must be explicitly enabled; without wallet connection we should not show a spendable balance.
+    active: false,
     balance: INITIAL_BALANCE,
     positions: [],
     tradeHistory: [],
@@ -49,7 +51,14 @@ export function getDemoState(): DemoState {
   }
   
   try {
-    return JSON.parse(stored) as DemoState;
+    const parsed = JSON.parse(stored) as DemoState;
+    // Backward-compat: older builds had demo "always on". For this phase, demo must be explicit opt-in.
+    const optIn = localStorage.getItem(DEMO_OPT_IN_KEY) === 'true';
+    if (!optIn && parsed.active) {
+      parsed.active = false;
+      saveDemoState(parsed);
+    }
+    return parsed;
   } catch (error) {
     console.error('Failed to parse demo state:', error);
     return createInitialDemoState();
@@ -66,7 +75,6 @@ export function saveDemoState(state: DemoState): void {
 
 export function resetDemoAccount(): DemoState {
   const newState = createInitialDemoState();
-  newState.active = true; // Ensure demo mode stays active after reset
   saveDemoState(newState);
   return newState;
 }
@@ -79,10 +87,8 @@ export function activateDemoMode(): DemoState {
 }
 
 export function deactivateDemoMode(): DemoState {
-  // Demo mode is now permanent - this function no longer deactivates
-  // Just return the current state to maintain compatibility
   const state = getDemoState();
-  state.active = true;
+  state.active = false;
   saveDemoState(state);
   return state;
 }

@@ -2,7 +2,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Market } from "~/data/mockMarkets";
-import { SEED_MARKETS } from "~/data/seedMarkets";
 import { MarketCard } from "./MarketCard";
 import { seedMarketToLiveMarket } from "~/utils/seedMarketToLiveMarket";
 import { fetchCuratedMarketsFromApi } from "~/utils/curatedMarketsApi";
@@ -31,13 +30,7 @@ export function RelatedMarkets({ currentMarket }: RelatedMarketsProps) {
     if (rows && rows.length > 0) {
       adapted = rows.map(seedMarketToLiveMarket);
     } else {
-      adapted = SEED_MARKETS.filter(
-        (s) =>
-          s.sport === currentMarket.sport ||
-          (currentMarket.sport === "all" && s.sport === "football"),
-      )
-        .slice(0, 12)
-        .map(seedMarketToLiveMarket);
+      adapted = [];
     }
 
     return adapted

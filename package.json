@@ -2,6 +2,7 @@
   "name": "predictio",
   "scripts": {
     "postinstall": "prisma generate && tsr generate",
+    "start:dev": "powershell -ExecutionPolicy Bypass -File start-dev.ps1",
     "dev": "node --import ./scripts/ensure-dev-port.mjs --env-file=.env node_modules/vinxi/bin/cli.mjs dev",
     "build": "vinxi build",
     "start": "vinxi start",

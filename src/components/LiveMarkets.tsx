@@ -2,15 +2,14 @@ import { ArrowRight, TrendingUp, Activity, DollarSign, Users, Calendar, Zap } fr
 import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { SEED_MARKETS } from '~/data/seedMarkets';
 import { LiveMarketCard } from './markets/LiveMarketCard';
 import { isFootballFocusEnabled } from '~/config/footballFocus';
 import { seedMarketToLiveMarket } from '~/utils/seedMarketToLiveMarket';
 import { fetchCuratedMarketsFromApi } from '~/utils/curatedMarketsApi';
 import type { Market } from '~/data/mockMarkets';
 
-/** Match curated cap (12) / football grid expectations — same pool as `/markets`. */
-const HOME_MARKET_CARD_COUNT = 12;
+/** Match curated cap (9) — same pool as `/markets`. */
+const HOME_MARKET_CARD_COUNT = 9;
 
 export function LiveMarkets() {
   const navigate = useNavigate();
@@ -33,7 +32,7 @@ export function LiveMarkets() {
     if (rows && rows.length > 0) {
       return rows;
     }
-    return SEED_MARKETS.filter((s) => s.sport === "football").slice(0, HOME_MARKET_CARD_COUNT);
+    return [];
   }, [marketsQuery.isPending, marketsQuery.data]);
 
   const allMarketsLive = useMemo(
@@ -41,11 +40,8 @@ export function LiveMarkets() {
     [baseSeeds],
   );
 
-  // Same IDs as /markets — exclude featured seeds when flagged
-  const allMarkets = useMemo(
-    () => allMarketsLive.filter((m) => !m.isFeatured),
-    [allMarketsLive],
-  );
+  /** Show all markets from the pool — excluding `isFeatured` hid almost every football seed (featured flag is editorial, not “duplicate”). */
+  const allMarkets = allMarketsLive;
   
   // Filter by category (copy before sort to avoid mutating memoized arrays)
   let filteredMarkets =
