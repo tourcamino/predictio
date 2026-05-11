@@ -47,9 +47,12 @@ function expressDevApiProxy(): Record<
   );
 }
 
+/** Vercel sets `VERCEL=1` during build/runtime — Nitro must use the `vercel` preset (not `node-server`). */
+const nitroPreset = process.env.VERCEL ? "vercel" : "node-server";
+
 export default createApp({
   server: {
-    preset: "node-server", // change to 'netlify' or 'bun' or anyof the supported presets for nitro (nitro.unjs.io)
+    preset: nitroPreset,
     experimental: {
       asyncContext: true,
     },
