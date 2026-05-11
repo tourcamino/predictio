@@ -21,7 +21,8 @@ import { CollapsibleSection } from '~/components/markets/CollapsibleSection';
 import { MarketCountdown } from '~/components/MarketCountdown';
 import { getMarketStatus } from '~/utils/marketLifecycle';
 import { getMarketDetailLoadIssue } from '~/utils/marketDetailErrors';
-import { useTRPC } from '~/trpc/react';
+import { fetchMarketDetailWithRestFallback } from '~/utils/fetchMarketDetailWithRestFallback';
+import { useTRPC, useTRPCClient } from '~/trpc/react';
 
 export const Route = createFileRoute('/markets/$marketId/')({
   component: MarketDetailPage,
@@ -30,12 +31,12 @@ export const Route = createFileRoute('/markets/$marketId/')({
 function MarketDetailPage() {
   const { marketId } = Route.useParams();
   const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
 
-  const marketQuery = useQuery(
-    trpc.getMarketDetail.queryOptions({
-      marketId,
-    })
-  );
+  const marketQuery = useQuery({
+    queryKey: trpc.getMarketDetail.queryKey({ marketId }),
+    queryFn: () => fetchMarketDetailWithRestFallback(trpcClient, marketId),
+  });
 
   // Generate OG image in the background for social sharing
   const ogImageQuery = useQuery(
@@ -151,7 +152,7 @@ function MarketDetailPage() {
     );
   }
 
-  const { market, predictionHistory } = marketQuery.data;
+  const { market } = marketQuery.data;
   
   // Calculate lifecycle status
   const lifecycleStatus = getMarketStatus(market);
