@@ -448,8 +448,11 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     return isEventUnpredictable(o.homeOdds, o.awayOdds);
   });
 
-  const topOver80 = rankedItalianUnpredictable.filter((x) => x.importanceScore > 80).length;
-  const picked = rankedItalianUnpredictable.slice(0, 9);
+  const sourceForPick =
+    rankedItalianUnpredictable.length > 0 ? rankedItalianUnpredictable : rankedItalian;
+
+  const topOver80 = sourceForPick.filter((x) => x.importanceScore > 80).length;
+  const picked = sourceForPick.slice(0, 9);
 
   const games: CurationGamePayload[] = picked.map(({ raw: g, importanceScore }) => {
     const sorted = sortParticipants(g.participants);

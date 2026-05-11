@@ -149,16 +149,14 @@ async function autoSeedEventsOnBoot() {
     if (activeCount >= BOOT_SEED_MAX) return;
 
     const { games } = await buildEuropeanCurationGamesPayload(new Set());
-    const serieA = games
-      .filter((g) => g.leagueName.toLowerCase().includes("serie a"))
-      .slice(0, BOOT_SEED_MAX);
+    const toSeed = games.slice(0, BOOT_SEED_MAX);
 
-    if (serieA.length === 0) {
-      console.warn("[boot] autoSeedEventsOnBoot: no Serie A games in payload");
+    if (toSeed.length === 0) {
+      console.warn("[boot] autoSeedEventsOnBoot: no Italian-league games in payload");
       return;
     }
 
-    for (const event of serieA) {
+    for (const event of toSeed) {
       const startsAt = new Date(event.startsAt);
       const lockedAt = new Date(startsAt.getTime() - 5 * 60 * 1000);
 
@@ -209,7 +207,7 @@ async function autoSeedEventsOnBoot() {
     }
 
     await cacheDel(BOOT_CURATION_CACHE_KEY);
-    console.log(`✅ Auto-seeded ${serieA.length} eventi italiani al boot`);
+    console.log(`✅ Auto-seeded ${toSeed.length} eventi italiani al boot`);
   } catch (e) {
     console.warn("[boot] autoSeedEventsOnBoot failed:", e instanceof Error ? e.message : e);
   }
