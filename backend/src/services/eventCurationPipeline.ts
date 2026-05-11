@@ -137,13 +137,16 @@ export function getImportanceScoreFromNormalized(meta: NormalizedCuratorGame): n
   });
 }
 
-/** UNICO filtro leghe per la curation (Serie A IT + Coppa Italia + coppe UEFA). */
+/** Leghe prioritarie (Italia + coppe UEFA). */
 export function isAllowedLeague(leagueName: string, country: string): boolean {
   const league = leagueName.toLowerCase();
   const cnt = country.toLowerCase();
 
   if (league.includes("serie a") && cnt.includes("ital")) return true;
+  if (league.includes("serie b") && cnt.includes("ital") && !league.includes("brasileir") && !league.includes("brazil"))
+    return true;
   if (league.includes("coppa italia")) return true;
+  if (league.includes("supercoppa") && league.includes("ital")) return true;
   /** Es. "AFC Champions League" contiene "champions league" ma non è UEFA. */
   if (league.includes("champions league") && !league.includes("afc") && !league.includes("caf"))
     return true;
@@ -151,6 +154,23 @@ export function isAllowedLeague(leagueName: string, country: string): boolean {
   if (league.includes("conference league")) return true;
 
   return false;
+}
+
+/** Solo se serve arrivare a 9 eventi: top 5 leghe con paese corretto (no PL “fake”). */
+function isFallbackTopFiveLeague(g: RawAzuroGame, importanceScore: number, minScore: number): boolean {
+  if (importanceScore < minScore) return false;
+  const ln = String(g.league?.name || "").toLowerCase();
+  const cn = String(g.league?.country?.name || "").toLowerCase();
+  const pl =
+    ln.includes("premier league") &&
+    !ln.includes("scottish") &&
+    !ln.includes("welsh") &&
+    !ln.includes("northern ireland") &&
+    (cn.includes("england") || cn.includes("united kingdom"));
+  const laliga = (ln.includes("la liga") || ln.includes("laliga")) && cn.includes("spain");
+  const bundes = ln.includes("bundesliga") && cn.includes("germany");
+  const ligue1 = ln.includes("ligue 1") && cn.includes("france");
+  return pl || laliga || bundes || ligue1;
 }
 
 function filterEuropeanUpcoming(rawGames: RawAzuroGame[], nowSec: number, windowEndSec: number) {
@@ -168,6 +188,14 @@ function filterEuropeanUpcoming(rawGames: RawAzuroGame[], nowSec: number, window
   });
 
   return { footballGames, upcoming, europeanGames };
+}
+
+/** Nomi display (Azuro spesso usa “Inter Milan”). */
+function displayTeamName(raw: string): string {
+  const t = raw.trim();
+  if (/^inter milan$/i.test(t)) return "Inter";
+  if (/^fc internazionale milano$/i.test(t)) return "Inter";
+  return t;
 }
 
 function sortParticipants(parts: unknown) {
@@ -188,7 +216,8 @@ function isEventUnpredictable(homeOdds: number | null, awayOdds: number | null):
   return true;
 }
 
-const LOOKAHEAD_SEC_30D = 30 * 24 * 60 * 60;
+/** Finestra fino a ~60 giorni così entrano partite “tra un mese” e si riempie il catalogo. */
+const LOOKAHEAD_SEC_60D = 60 * 24 * 60 * 60;
 const BUCKET_SOON_SEC = 3 * 24 * 60 * 60;
 const BUCKET_MID_SEC = 14 * 24 * 60 * 60;
 
@@ -265,12 +294,17 @@ function pickDistributedNineFromBuckets(source: ScoredItalian[], soon: ScoredIta
   return picked;
 }
 
-function buildSourceUpToNine(pool: ScoredItalian[], passUnpred: (x: ScoredItalian) => boolean): ScoredItalian[] {
+/** Ordine imprevedibilità prima, poi il resto; nessun cap a 9 (serve per bucket + fill fino a 9). */
+function buildSourceOrdered(
+  pool: ScoredItalian[],
+  passUnpred: (x: ScoredItalian) => boolean,
+  maxCandidates: number,
+): ScoredItalian[] {
   const seen = new Set<string>();
   const out: ScoredItalian[] = [];
   const take = (arr: ScoredItalian[]) => {
     for (const it of arr) {
-      if (out.length >= 9) return;
+      if (out.length >= maxCandidates) return;
       const gid = String(it.raw.gameId || "").trim();
       if (!gid || seen.has(gid)) continue;
       seen.add(gid);
@@ -283,8 +317,8 @@ function buildSourceUpToNine(pool: ScoredItalian[], passUnpred: (x: ScoredItalia
 }
 
 /**
- * Fetch Azuro Prematch games (no date in GraphQL `where`), filter in JS a football nei prossimi 30 giorni,
- * solo leghe consentite (Serie A IT, Coppa Italia, Champions/Europa/Conference), imprevedibilità, SOON/MID/LATER, max 9.
+ * Fetch Azuro Prematch games (no date in GraphQL `where`), filter in JS a football nei prossimi ~60 giorni,
+ * leghe prioritarie + fallback top-5 se serve arrivare a 9, imprevedibilità, SOON/MID/LATER, max 9.
  */
 export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<string>): Promise<{
   games: CurationGamePayload[];
@@ -296,10 +330,10 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
   };
 }> {
   const nowSec = Math.floor(Date.now() / 1000);
-  const windowEndSec = nowSec + LOOKAHEAD_SEC_30D;
+  const windowEndSec = nowSec + LOOKAHEAD_SEC_60D;
 
   const allGames = await fetchAzuroGames();
-  const { footballGames, europeanGames } = filterEuropeanUpcoming(allGames, nowSec, windowEndSec);
+  const { footballGames, upcoming, europeanGames } = filterEuropeanUpcoming(allGames, nowSec, windowEndSec);
 
   const allowedPool: ScoredItalian[] = [];
   for (const g of europeanGames) {
@@ -308,14 +342,34 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
   }
   allowedPool.sort(byImportanceThenKickoff);
 
-  console.log(`[curation] allowed leagues pool: ${allowedPool.length} eventi`);
+  const seenGid = (it: ScoredItalian) => String(it.raw.gameId || "").trim();
+  const combinedPool: ScoredItalian[] = [...allowedPool];
+  const seen = new Set(combinedPool.map(seenGid).filter(Boolean));
+  const fillFallback = (minScore: number) => {
+    for (const g of upcoming) {
+      if (combinedPool.length >= 9) break;
+      const importanceScore = getImportanceScore(g);
+      if (!isFallbackTopFiveLeague(g, importanceScore, minScore)) continue;
+      const gid = String(g.gameId || "").trim();
+      if (!gid || seen.has(gid)) continue;
+      seen.add(gid);
+      combinedPool.push({ raw: g, importanceScore });
+    }
+    combinedPool.sort(byImportanceThenKickoff);
+  };
+  if (combinedPool.length < 9) fillFallback(72);
+  if (combinedPool.length < 9) fillFallback(60);
+
+  console.log(
+    `[curation] primary pool: ${allowedPool.length}, con fallback top-5: ${combinedPool.length} eventi`,
+  );
 
   const passUnpred = (x: ScoredItalian) => {
     const o = extract1x2DecimalOddsFromRawGame(x.raw);
     return isEventUnpredictable(o.homeOdds, o.awayOdds);
   };
 
-  const sourceForPick = buildSourceUpToNine(allowedPool, passUnpred);
+  const sourceForPick = buildSourceOrdered(combinedPool, passUnpred, 72);
 
   const { soon: soonEvents, mid: midEvents, later: laterEvents } = partitionItalianTemporal(
     nowSec,
@@ -341,11 +395,14 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     const sorted = sortParticipants(g.participants);
     const kickoff = parseInt(String(g.startsAt), 10);
     const gid = String(g.gameId || "").trim();
-    const homeTeam = sorted[0]?.name?.trim() || "TBD";
-    const awayTeam = sorted[1]?.name?.trim() || "TBD";
+    const homeTeam = displayTeamName(sorted[0]?.name?.trim() || "TBD");
+    const awayTeam = displayTeamName(sorted[1]?.name?.trim() || "TBD");
+    const rawTitle = typeof g.title === "string" ? g.title.trim() : "";
     const title =
-      typeof g.title === "string" && g.title.trim().length > 0
-        ? g.title.trim()
+      rawTitle.length > 0
+        ? rawTitle
+            .replace(/Inter\s+Milan/gi, "Inter")
+            .replace(/FC\s+Internazionale\s+Milano/gi, "Inter")
         : `${homeTeam} vs ${awayTeam}`;
     const autoP = isAutoPublish(g, importanceScore);
     const odds = extract1x2DecimalOddsFromRawGame(g);
