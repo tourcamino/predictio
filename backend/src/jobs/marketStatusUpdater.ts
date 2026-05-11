@@ -82,6 +82,9 @@ async function runAutoPublishImportant() {
           selectedBy: "AUTO",
           importanceScore: event.importanceScore,
           autoPublish: true,
+          homeOdds: event.homeOdds ?? undefined,
+          drawOdds: event.drawOdds ?? undefined,
+          awayOdds: event.awayOdds ?? undefined,
         },
       });
 

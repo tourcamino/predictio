@@ -1,4 +1,5 @@
 import {
+  extract1x2DecimalOddsFromRawGame,
   fetchAzuroGames,
   type NormalizedCuratorGame,
   type RawAzuroGame,
@@ -23,6 +24,9 @@ export type CurationGamePayload = {
   isSelected: boolean;
   importanceScore: number;
   autoPublish: boolean;
+  homeOdds: number | null;
+  drawOdds: number | null;
+  awayOdds: number | null;
 };
 
 type RawForScore = {
@@ -443,6 +447,7 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
         ? g.title.trim()
         : `${homeTeam} vs ${awayTeam}`;
     const autoP = isAutoPublish(g, importanceScore);
+    const odds = extract1x2DecimalOddsFromRawGame(g);
 
     return {
       id: gid,
@@ -463,6 +468,9 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
       isSelected: selectedGameIds.has(gid),
       importanceScore,
       autoPublish: autoP,
+      homeOdds: odds.homeOdds,
+      drawOdds: odds.drawOdds,
+      awayOdds: odds.awayOdds,
     };
   });
 

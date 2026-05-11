@@ -54,6 +54,10 @@ export type RawAzuroGame = {
   league?: { name?: string; country?: { name?: string } };
   participants?: Array<{ name?: string; image?: string | null; sortOrder?: number }>;
   activeConditionsCount?: number;
+  conditions?: Array<{
+    state?: string;
+    outcomes?: Array<{ currentOdds?: string | null }>;
+  }>;
 };
 
 export async function fetchAzuroGames(): Promise<RawAzuroGame[]> {
@@ -93,6 +97,12 @@ export async function fetchAzuroGames(): Promise<RawAzuroGame[]> {
           sortOrder
         }
         activeConditionsCount
+        conditions(where: { state: Active }) {
+          state
+          outcomes {
+            currentOdds
+          }
+        }
       }
     }
   `;
@@ -314,6 +324,76 @@ export async function fetchFootballGamesNext14Days(): Promise<{
       },
     };
   }
+}
+
+function parseDecimalOdd(s: unknown): number | null {
+  const n = parseFloat(String(s ?? "").trim());
+  return Number.isFinite(n) && n > 1 ? n : null;
+}
+
+/** European decimal odds from first Active condition (V3: outcomes[0] home, [1] draw, [2] away). */
+export function extract1x2DecimalOddsFromRawGame(g: RawAzuroGame): {
+  homeOdds: number | null;
+  drawOdds: number | null;
+  awayOdds: number | null;
+} {
+  const conds = Array.isArray(g.conditions) ? g.conditions : [];
+  const outs = conds[0]?.outcomes;
+  if (!Array.isArray(outs) || outs.length < 2) {
+    return { homeOdds: null, drawOdds: null, awayOdds: null };
+  }
+  if (outs.length >= 3) {
+    return {
+      homeOdds: parseDecimalOdd(outs[0]?.currentOdds),
+      drawOdds: parseDecimalOdd(outs[1]?.currentOdds),
+      awayOdds: parseDecimalOdd(outs[2]?.currentOdds),
+    };
+  }
+  return {
+    homeOdds: parseDecimalOdd(outs[0]?.currentOdds),
+    drawOdds: null,
+    awayOdds: parseDecimalOdd(outs[1]?.currentOdds),
+  };
+}
+
+/** Single-game 1X2 odds (lighter than loading the full games list). */
+export async function fetchAzuro1x2DecimalOddsByGameId(
+  gameId: string,
+): Promise<{ homeOdds: number | null; drawOdds: number | null; awayOdds: number | null } | null> {
+  if (!AZURO_FEED_URL) return null;
+  const query = `
+    query Odds($gameId: String!) {
+      games(where: { gameId: $gameId }, first: 1) {
+        conditions(where: { state: Active }, first: 1) {
+          outcomes {
+            currentOdds
+          }
+        }
+      }
+    }
+  `;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10_000);
+  let response: Response;
+  try {
+    response = await fetch(AZURO_FEED_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables: { gameId } }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+  const json = (await response.json()) as {
+    data?: { games?: Array<{ conditions?: RawAzuroGame["conditions"] }> };
+    errors?: unknown;
+  };
+  if ((json as any).errors) return null;
+  const stub: RawAzuroGame = { conditions: json.data?.games?.[0]?.conditions };
+  const odds = extract1x2DecimalOddsFromRawGame(stub);
+  if (!odds.homeOdds && !odds.drawOdds && !odds.awayOdds) return null;
+  return odds;
 }
 
 export async function fetchGameByGameId(gameId: string): Promise<NormalizedCuratorGame | null> {

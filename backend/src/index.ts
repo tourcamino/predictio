@@ -179,6 +179,9 @@ async function autoSeedEventsOnBoot() {
           selectedBy: "BOOT",
           importanceScore: event.importanceScore,
           autoPublish: event.autoPublish,
+          homeOdds: event.homeOdds ?? undefined,
+          drawOdds: event.drawOdds ?? undefined,
+          awayOdds: event.awayOdds ?? undefined,
         },
         update: {
           title: event.title,
@@ -197,6 +200,9 @@ async function autoSeedEventsOnBoot() {
           selectedBy: "BOOT",
           importanceScore: event.importanceScore,
           autoPublish: event.autoPublish,
+          homeOdds: event.homeOdds ?? undefined,
+          drawOdds: event.drawOdds ?? undefined,
+          awayOdds: event.awayOdds ?? undefined,
         },
       });
     }

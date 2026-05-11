@@ -649,6 +649,10 @@ model CuratedEvent {
   selectedBy  String
   importanceScore Int     @default(0)
   autoPublish     Boolean @default(false)
+  /// Decimal odds (European) from Azuro 1X2 — home / draw / away
+  homeOdds    Float?
+  drawOdds    Float?
+  awayOdds    Float?
 
   @@index([isActive])
   @@index([startsAt])

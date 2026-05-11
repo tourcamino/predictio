@@ -2,7 +2,12 @@ import type { Express, RequestHandler } from "express";
 import type { PrismaClient } from "@prisma/client";
 import { requireXAdminKey } from "../middleware/auth";
 import { cacheDel } from "../services/redisCache";
-import { fetchGameByGameId, normalizeAzuroGraphqlUrl, type RawAzuroGame } from "../services/azuroCuratorGraphql";
+import {
+  fetchAzuro1x2DecimalOddsByGameId,
+  fetchGameByGameId,
+  normalizeAzuroGraphqlUrl,
+  type RawAzuroGame,
+} from "../services/azuroCuratorGraphql";
 import {
   buildEuropeanCurationGamesPayload,
   getImportanceScoreFromNormalized,
@@ -276,6 +281,12 @@ export function registerAdminCurationRoutes(
         const importanceScore = getImportanceScoreFromNormalized(meta);
         const autoPublishVal = isAutoPublish(rawForAuto, importanceScore);
 
+        const oddsAz = (await fetchAzuro1x2DecimalOddsByGameId(gameId)) ?? {
+          homeOdds: null as number | null,
+          drawOdds: null as number | null,
+          awayOdds: null as number | null,
+        };
+
         await prisma.curatedEvent.upsert({
           where: { gameId },
           create: {
@@ -294,6 +305,9 @@ export function registerAdminCurationRoutes(
             selectedBy,
             importanceScore,
             autoPublish: autoPublishVal,
+            homeOdds: oddsAz.homeOdds ?? undefined,
+            drawOdds: oddsAz.drawOdds ?? undefined,
+            awayOdds: oddsAz.awayOdds ?? undefined,
           },
           update: {
             title: meta.title,
@@ -313,6 +327,9 @@ export function registerAdminCurationRoutes(
             selectedAt: new Date(),
             importanceScore,
             autoPublish: autoPublishVal,
+            homeOdds: oddsAz.homeOdds ?? undefined,
+            drawOdds: oddsAz.drawOdds ?? undefined,
+            awayOdds: oddsAz.awayOdds ?? undefined,
           },
         });
       } else {

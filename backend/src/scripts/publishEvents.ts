@@ -44,6 +44,9 @@ async function main() {
         selectedBy: "SCRIPT",
         importanceScore: event.importanceScore,
         autoPublish: event.autoPublish,
+        homeOdds: event.homeOdds ?? undefined,
+        drawOdds: event.drawOdds ?? undefined,
+        awayOdds: event.awayOdds ?? undefined,
       },
       update: {
         title: event.title,
@@ -62,6 +65,9 @@ async function main() {
         selectedBy: "SCRIPT",
         importanceScore: event.importanceScore,
         autoPublish: event.autoPublish,
+        homeOdds: event.homeOdds ?? undefined,
+        drawOdds: event.drawOdds ?? undefined,
+        awayOdds: event.awayOdds ?? undefined,
       },
     });
   }
