@@ -106,7 +106,10 @@ function MarketDetailPage() {
         : null;
 
     return (
-      <div className="min-h-screen bg-brand-navy">
+      <div
+        className="min-h-screen bg-brand-navy"
+        data-predictio-market-error="v3-rest-first"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
           <div className="text-center py-20 max-w-lg mx-auto">
             <h2

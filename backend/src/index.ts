@@ -130,6 +130,12 @@ function isAllowedCorsOrigin(origin: string | undefined): boolean {
     "http://127.0.0.1:3000",
   );
 
+  // Production SPA (Vercel): allow even if CORS_ORIGIN env on VPS is misconfigured
+  allowList.push(
+    "https://predictio.live",
+    "https://www.predictio.live",
+  );
+
   // Exact matches
   if (allowList.includes(origin)) return true;
 

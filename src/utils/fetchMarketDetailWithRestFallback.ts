@@ -10,56 +10,52 @@ import {
 
 type GetMarketDetailResult = inferRouterOutputs<AppRouter>["getMarketDetail"];
 
+async function fetchCuratedMarketFromRest(
+  normalized: string,
+): Promise<GetMarketDetailResult | null> {
+  const base = getApiBaseUrl().replace(/\/$/, "");
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), 12_000);
+  try {
+    const res = await fetch(`${base}/api/markets/${encodeURIComponent(normalized)}`, {
+      signal: ac.signal,
+      credentials: "omit",
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { market?: RestCuratedEventPayload };
+    if (!data.market) return null;
+    const market = restCuratedEventToUiMarket(data.market, normalized);
+    const gameId = normalized.replace(/^azuro-/, "");
+    return {
+      market,
+      predictionHistory: [],
+      azuroData: {
+        gameId,
+        conditionId: undefined,
+        status: undefined,
+        result: undefined,
+      },
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 /**
- * Prefer tRPC (full detail + history). If the browser cannot reach `/trpc` but REST
- * `GET /api/markets/:id` works (split deploy: SPA vs api.predictio.live), load the
- * curated row from Express and map it to the same UI market shape.
+ * Curated catalog rows come from Express `GET /api/markets` — load detail from the same
+ * API first so the page works even when `/trpc` is unreachable. Falls back to tRPC for
+ * mocks, DB-only markets, and Azuro enrichments.
  */
 export async function fetchMarketDetailWithRestFallback(
   trpcClient: TRPCClient<AppRouter>,
   marketId: string,
 ): Promise<GetMarketDetailResult> {
-  try {
-    return await trpcClient.getMarketDetail.query({ marketId });
-  } catch {
-    /* try REST below */
-  }
-
   const normalized = normalizeMarketIdParam(marketId.trim());
-  const base = getApiBaseUrl().replace(/\/$/, "");
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), 12_000);
-  let res: Response;
-  try {
-    res = await fetch(`${base}/api/markets/${encodeURIComponent(normalized)}`, {
-      signal: ac.signal,
-    });
-  } finally {
-    clearTimeout(t);
-  }
 
-  if (!res.ok) {
-    if (res.status === 404) {
-      throw new Error("Market not found");
-    }
-    throw new Error(`Impossibile caricare il mercato (API ${res.status})`);
-  }
+  const fromRest = await fetchCuratedMarketFromRest(normalized);
+  if (fromRest) return fromRest;
 
-  const data = (await res.json()) as { market?: RestCuratedEventPayload };
-  if (!data.market) {
-    throw new Error("Risposta mercato non valida");
-  }
-
-  const market = restCuratedEventToUiMarket(data.market, normalized);
-  const gameId = normalized.replace(/^azuro-/, "");
-  return {
-    market,
-    predictionHistory: [],
-    azuroData: {
-      gameId,
-      conditionId: undefined,
-      status: undefined,
-      result: undefined,
-    },
-  };
+  return await trpcClient.getMarketDetail.query({ marketId });
 }
