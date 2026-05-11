@@ -411,6 +411,31 @@ const LOOKAHEAD_SEC_30D = 30 * 24 * 60 * 60;
 const BUCKET_SOON_SEC = 3 * 24 * 60 * 60;
 const BUCKET_MID_SEC = 14 * 24 * 60 * 60;
 
+/** Squadre italiane note — TIER 2 (coppe UE) solo se una delle due è italiana. */
+const ITALIAN_CLUBS = [
+  "inter",
+  "milan",
+  "juventus",
+  "napoli",
+  "roma",
+  "lazio",
+  "atalanta",
+  "fiorentina",
+  "torino",
+  "bologna",
+  "udinese",
+  "sassuolo",
+  "monza",
+  "lecce",
+  "genoa",
+  "cagliari",
+];
+
+function teamLineHasItalianClub(homeTeam: string, awayTeam: string): boolean {
+  const blob = `${homeTeam} ${awayTeam}`.toLowerCase();
+  return ITALIAN_CLUBS.some((club) => blob.includes(club));
+}
+
 /** Fascia temporale rispetto a `nowSec` (kickoff in secondi). */
 export function getTemporalBandForUnix(nowSec: number, kickoffSec: number): "SOON" | "MID" | "LATER" {
   const d = kickoffSec - nowSec;
@@ -506,39 +531,45 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
   const leagueNameLower = (g: RawAzuroGame) => String(g.league?.name || "").toLowerCase();
   const countryNorm = (g: RawAzuroGame) => normLeague(String(g.league?.country?.name || ""));
 
-  /** TEMP maggio–agosto: 3 tier — prima Italia, poi coppe UE, poi top leghe (fill fino a 9). */
-  function curationTier(g: RawAzuroGame): 0 | 1 | 2 | 3 {
+  /**
+   * TIER 1 = solo Serie A + Coppa Italia (niente “tutta Italia” per country).
+   * TIER 2 = Champions + Europa + Conference, solo se una squadra è italiana nota.
+   * TIER 3 = Premier + La Liga + Bundesliga + Ligue 1, solo se importanceScore > 80.
+   */
+  function curationTier(g: RawAzuroGame, importanceScore: number): 0 | 1 | 2 | 3 {
     const ln = leagueNameLower(g);
-    const cn = countryNorm(g);
-    if (
-      ln.includes("serie a") ||
-      ln.includes("coppa italia") ||
-      cn.includes("italy") ||
-      cn.includes("italia")
-    ) {
-      return 1;
+    const sorted = sortParticipants(g.participants);
+    const homeTeam = String(sorted[0]?.name || "").trim();
+    const awayTeam = String(sorted[1]?.name || "").trim();
+
+    const tier1SerieA =
+      ln.includes("serie a") &&
+      !ln.includes("brasileir") &&
+      !ln.includes("brasil") &&
+      !ln.includes("brazil");
+    const tier1Coppa = ln.includes("coppa italia");
+    if (tier1SerieA || tier1Coppa) return 1;
+
+    const uefaConference = ln.includes("conference league");
+    const uefaCl =
+      ln.includes("champions league") || (ln.includes("champions") && ln.includes("uefa"));
+    const uefaEl = ln.includes("europa league") && !uefaConference;
+    if (uefaConference || uefaCl || uefaEl) {
+      return teamLineHasItalianClub(homeTeam, awayTeam) ? 2 : 0;
     }
-    if (ln.includes("conference league")) return 2;
-    if (ln.includes("champions league") || (ln.includes("champions") && ln.includes("uefa"))) return 2;
-    if (ln.includes("europa league")) return 2;
-    if (
-      ln.includes("nations league") ||
-      ln.includes("euro qualifying") ||
-      ln.includes("european qualification") ||
-      ln.includes("euro qualif")
-    ) {
-      return 2;
+
+    const isEnglishPl =
+      ln.includes("premier league") &&
+      !ln.includes("scottish") &&
+      !ln.includes("welsh") &&
+      !ln.includes("northern ireland");
+    const isLaliga = ln.includes("la liga") || ln.includes("laliga");
+    const isBundes = ln.includes("bundesliga");
+    const isLigue1 = ln.includes("ligue 1");
+    if (isEnglishPl || isLaliga || isBundes || isLigue1) {
+      return importanceScore > 80 ? 3 : 0;
     }
-    if (
-      ln.includes("premier league") ||
-      ln.includes("premiership") ||
-      ln.includes("la liga") ||
-      ln.includes("laliga") ||
-      ln.includes("bundesliga") ||
-      ln.includes("ligue 1")
-    ) {
-      return 3;
-    }
+
     return 0;
   }
 
@@ -546,9 +577,10 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
   const tier2: ScoredItalian[] = [];
   const tier3: ScoredItalian[] = [];
   for (const g of europeanGames) {
-    const t = curationTier(g);
+    const importanceScore = getImportanceScore(g);
+    const t = curationTier(g, importanceScore);
     if (t === 0) continue;
-    const item: ScoredItalian = { raw: g, importanceScore: getImportanceScore(g) };
+    const item: ScoredItalian = { raw: g, importanceScore };
     if (t === 1) tier1.push(item);
     else if (t === 2) tier2.push(item);
     else tier3.push(item);
