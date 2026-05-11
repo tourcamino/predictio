@@ -1,8 +1,11 @@
 import { getApiBaseUrl } from "~/lib/predictioApi";
 import type { SeedMarket } from "~/data/seedMarkets";
 import type { AzuroMarket } from "~/services/azuro";
-import { transformAzuroThreeWayOdds } from "~/services/azuro";
+import { transformAzuroThreeWayOdds } from "~/utils/azuroThreeWayOdds";
 import { getFootballSeedMarketsAsAzuro } from "~/utils/footballSeedMarkets";
+
+/** Quota pareggio sintetica se Azuro/API non espone draw (calcio 1X2 sempre 3 esiti in UI). */
+const SYNTHETIC_DRAW_DECIMAL = 3.35;
 
 /** Row shape from Express `GET /api/markets` (see `backend/src/routes/adminCuration.ts`). */
 export type CuratedMarketApiRow = {
@@ -57,40 +60,28 @@ export function curatedApiRowToAzuroMarket(row: CuratedMarketApiRow): AzuroMarke
   const doo = row.drawOdds;
   const ao = row.awayOdds;
 
-  let outcomes: SeedMarket["outcomes"];
-  let drawOddsField: string | null | undefined = undefined;
+  const homeOk = ho != null && ho > 0;
+  const awayOk = ao != null && ao > 0;
+  const drawOk = doo != null && doo > 0;
 
-  if (ho != null && doo != null && ao != null && ho > 0 && doo > 0 && ao > 0) {
-    const t = transformAzuroThreeWayOdds(String(ho), String(doo), String(ao));
-    drawOddsField = doo.toFixed(2);
+  let outcomes: SeedMarket["outcomes"];
+  let drawOddsField: string;
+
+  if (homeOk && awayOk) {
+    const drawDec = drawOk ? doo! : SYNTHETIC_DRAW_DECIMAL;
+    const t = transformAzuroThreeWayOdds(String(ho), String(drawDec), String(ao));
+    drawOddsField = drawOk ? doo!.toFixed(2) : SYNTHETIC_DRAW_DECIMAL.toFixed(2);
     outcomes = [
       { id: `${row.gameId}-home`, label: row.homeTeam, price: t.home, volume24h: 0 },
       { id: `${row.gameId}-draw`, label: "Pareggio", price: t.draw, volume24h: 0 },
       { id: `${row.gameId}-away`, label: row.awayTeam, price: t.away, volume24h: 0 },
     ];
-  } else if (ho != null && ao != null && ho > 0 && ao > 0) {
-    const ih = 1 / ho;
-    const ia = 1 / ao;
-    const s = ih + ia;
-    outcomes = [
-      {
-        id: `${row.gameId}-home`,
-        label: row.homeTeam,
-        price: Math.max(0.01, Math.min(0.99, ih / s)),
-        volume24h: 0,
-      },
-      {
-        id: `${row.gameId}-away`,
-        label: row.awayTeam,
-        price: Math.max(0.01, Math.min(0.99, ia / s)),
-        volume24h: 0,
-      },
-    ];
-    drawOddsField = null;
   } else {
+    drawOddsField = "3.00";
     outcomes = [
-      { id: `${row.gameId}-home`, label: row.homeTeam, price: 0.5, volume24h: 0 },
-      { id: `${row.gameId}-away`, label: row.awayTeam, price: 0.5, volume24h: 0 },
+      { id: `${row.gameId}-home`, label: row.homeTeam, price: 1 / 3, volume24h: 0 },
+      { id: `${row.gameId}-draw`, label: "Pareggio", price: 1 / 3, volume24h: 0 },
+      { id: `${row.gameId}-away`, label: row.awayTeam, price: 1 / 3, volume24h: 0 },
     ];
   }
 
