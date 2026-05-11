@@ -1,16 +1,14 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, Home, ChevronRight, Clock, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Loader2, Home, ChevronRight, Clock, TrendingUp, RefreshCw } from 'lucide-react';
 import { AIInsightBadge } from '~/components/AIInsightBadge';
-import { EventHero } from '~/components/markets/EventHero';
 import { PriceChart } from '~/components/markets/PriceChart';
 import { RecentTradesFeed } from '~/components/markets/RecentTradesFeed';
 import { TradingBox } from '~/components/markets/TradingBox';
 import { MarketStatsBar } from '~/components/markets/MarketStatsBar';
 import { OrderBook } from '~/components/markets/OrderBook';
 import { LiquidityDepth } from '~/components/markets/LiquidityDepth';
-import { OrderBookVisual } from '~/components/markets/OrderBookVisual';
 import { CommunitySentiment } from '~/components/markets/CommunitySentiment';
 import { RelatedMarkets } from '~/components/markets/RelatedMarkets';
 import { ResolutionInfo } from '~/components/markets/ResolutionInfo';
@@ -22,6 +20,7 @@ import { MicroHook } from '~/components/markets/MicroHook';
 import { CollapsibleSection } from '~/components/markets/CollapsibleSection';
 import { MarketCountdown } from '~/components/MarketCountdown';
 import { getMarketStatus } from '~/utils/marketLifecycle';
+import { getMarketDetailLoadIssue } from '~/utils/marketDetailErrors';
 import { useTRPC } from '~/trpc/react';
 
 export const Route = createFileRoute('/markets/$marketId/')({
@@ -83,44 +82,69 @@ function MarketDetailPage() {
     );
   }
 
-  if (marketQuery.isError) {
-    return (
-      <div className="min-h-screen bg-brand-navy">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-          <div className="text-center py-20">
-            <h2 className="text-2xl font-bold text-red-500 mb-4">Market Not Found</h2>
-            <p className="text-gray-400 mb-6">
-              The market you're looking for doesn't exist or has been removed.
-            </p>
-            <Link
-              to="/markets"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-brand-green text-brand-bg font-semibold rounded hover:bg-brand-green/90 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Markets
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (marketQuery.isError || !marketQuery.data) {
+    const issue = marketQuery.isError
+      ? getMarketDetailLoadIssue(marketQuery.error)
+      : 'server';
+    const title =
+      issue === 'network'
+        ? 'Connessione non riuscita'
+        : issue === 'not_found'
+          ? 'Mercato non trovato'
+          : 'Impossibile caricare il mercato';
+    const description =
+      issue === 'network'
+        ? 'Non riusciamo a contattare il server (rete assente, timeout o server non raggiungibile). Controlla la connessione e riprova.'
+        : issue === 'not_found'
+          ? 'Questo mercato non esiste più o è stato rimosso dalla piattaforma.'
+          : 'Si è verificato un errore durante il caricamento. Puoi riprovare o tornare alla lista.';
 
-  if (!marketQuery.data) {
+    const errMsg =
+      marketQuery.isError && marketQuery.error instanceof Error
+        ? marketQuery.error.message
+        : null;
+
     return (
       <div className="min-h-screen bg-brand-navy">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-          <div className="text-center py-20">
-            <h2 className="text-2xl font-bold text-gray-300 mb-4">Impossibile caricare il mercato</h2>
-            <p className="text-gray-400 mb-6">
-              Riprova tra qualche secondo o torna alla lista mercati.
-            </p>
-            <Link
-              to="/markets"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-brand-green text-brand-bg font-semibold rounded hover:bg-brand-green/90 transition-colors"
+          <div className="text-center py-20 max-w-lg mx-auto">
+            <h2
+              className={`text-2xl font-bold mb-4 ${
+                issue === 'not_found' ? 'text-amber-400' : 'text-red-400'
+              }`}
             >
-              <ArrowLeft className="w-4 h-4" />
-              Torna ai mercati
-            </Link>
+              {title}
+            </h2>
+            <p className="text-gray-400 mb-6 text-sm sm:text-base leading-relaxed">
+              {description}
+            </p>
+            {issue === 'server' && errMsg && (
+              <p className="text-xs font-mono text-gray-500 mb-6 break-words px-2">
+                {errMsg}
+              </p>
+            )}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => void marketQuery.refetch()}
+                disabled={marketQuery.isFetching}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 min-w-[200px] bg-brand-green text-brand-bg font-semibold rounded hover:bg-brand-green/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {marketQuery.isFetching ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Riprova
+              </button>
+              <Link
+                to="/markets"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 min-w-[200px] border border-white/20 text-gray-200 font-semibold rounded hover:bg-white/5 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Torna ai mercati
+              </Link>
+            </div>
           </div>
         </div>
       </div>

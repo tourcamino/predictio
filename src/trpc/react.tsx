@@ -13,7 +13,6 @@ import SuperJSON from "superjson";
 
 import { AppRouter } from "~/server/trpc/root";
 import { getQueryClient } from "./query-client";
-import { isLocalFrontendDevOrigin } from "~/lib/predictioApi";
 
 // Now, with the newer @trpc/tanstack-react-query package, we no longer need createTRPCReact.
 // We use createTRPCContext instead.
@@ -22,21 +21,22 @@ const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>();
 export { useTRPC, useTRPCClient };
 
 /**
- * tRPC HTTP batch URL origin. Prefer `VITE_API_URL` when the UI is hosted separately
- * from the API (avoids fetching `/trpc` and receiving SPA HTML). In the browser,
- * default is same-origin. SSR fallback matches Vinxi dev (`VITE_APP_URL` / port 5173).
+ * tRPC HTTP batch URL. Vinxi serves `/trpc` on the SPA origin.
  *
- * Local dev exception: `VITE_API_URL` is also used by the REST helper to point at the
- * Express backend (default `http://127.0.0.1:3001`), but Express does not host `/trpc`.
- * When the SPA is running on a localhost dev port (Vinxi serves `/trpc` same-origin),
- * ignore a cross-origin `VITE_API_URL` and use the current origin instead.
+ * `VITE_API_URL` targets the REST Express app (`/api/*`, see `getApiBaseUrl`) and does not
+ * expose tRPC. If we pointed the tRPC client at that host (e.g. api.predictio.live or
+ * localhost:3001), market detail and every other procedure would fail while `/api/markets`
+ * still worked — exactly the split-API vs SPA pattern this repo uses.
+ *
+ * So in the browser, whenever `VITE_API_URL` is a different origin than the page, use
+ * `window.location.origin` for tRPC (same rule as local dev, extended to production).
  */
 function getBaseUrl() {
   const viteApi = import.meta.env.VITE_API_URL as string | undefined;
   const apiTrimmed = viteApi?.trim().replace(/\/$/, "");
   if (typeof window !== "undefined") {
     const origin = window.location.origin.replace(/\/$/, "");
-    if (apiTrimmed && apiTrimmed !== origin && isLocalFrontendDevOrigin()) {
+    if (apiTrimmed && apiTrimmed !== origin) {
       return origin;
     }
     if (apiTrimmed) return apiTrimmed;
