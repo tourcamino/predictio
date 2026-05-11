@@ -18,6 +18,7 @@ import adminKeysRouter from "./routes/adminKeys";
 import developerKeysRouter from "./routes/developerKeys";
 import { registerAdminCurationRoutes } from "./routes/adminCuration";
 import { buildEuropeanCurationGamesPayload } from "./services/eventCurationPipeline";
+import { fetchAzuro1x2DecimalOddsByGameId } from "./services/azuroCuratorGraphql";
 import { cacheDel } from "./services/redisCache";
 import { referralCookieMiddleware } from "./middleware/referral";
 import { requestContext } from "./middleware/requestContext";
@@ -211,6 +212,41 @@ async function autoSeedEventsOnBoot() {
     console.log(`✅ Auto-seeded ${serieA.length} eventi italiani al boot`);
   } catch (e) {
     console.warn("[boot] autoSeedEventsOnBoot failed:", e instanceof Error ? e.message : e);
+  }
+}
+
+/** Aggiorna quote 1X2 da Azuro per eventi curated attivi ancora senza odds (es. creati prima del backfill). */
+async function backfillCuratedOddsOnBoot() {
+  try {
+    const rows = await prisma.curatedEvent.findMany({
+      where: {
+        isActive: true,
+        OR: [{ homeOdds: null }, { drawOdds: null }, { awayOdds: null }],
+      },
+      select: { gameId: true },
+    });
+    let updated = 0;
+    for (const { gameId } of rows) {
+      const odds = await fetchAzuro1x2DecimalOddsByGameId(gameId);
+      if (!odds) continue;
+      if (odds.homeOdds == null && odds.drawOdds == null && odds.awayOdds == null) continue;
+      const data: {
+        homeOdds?: number;
+        drawOdds?: number | null;
+        awayOdds?: number;
+      } = {};
+      if (odds.homeOdds != null) data.homeOdds = odds.homeOdds;
+      if (odds.drawOdds != null) data.drawOdds = odds.drawOdds;
+      if (odds.awayOdds != null) data.awayOdds = odds.awayOdds;
+      if (Object.keys(data).length === 0) continue;
+      await prisma.curatedEvent.updateMany({ where: { gameId }, data });
+      updated += 1;
+    }
+    if (updated > 0) {
+      console.log(`[boot] backfillCuratedOddsOnBoot: aggiornate quote per ${updated} evento/i attivi`);
+    }
+  } catch (e) {
+    console.warn("[boot] backfillCuratedOddsOnBoot failed:", e instanceof Error ? e.message : e);
   }
 }
 
@@ -1007,7 +1043,10 @@ function calculateOrderbook(orders: any[]) {
 app.listen(PORT, () => {
   console.log(`🚀 API server running on port ${PORT}`);
   console.log(`📡 CORS origin: ${CORS_ORIGIN}`);
-  void autoSeedEventsOnBoot();
+  void (async () => {
+    await autoSeedEventsOnBoot();
+    await backfillCuratedOddsOnBoot();
+  })();
 });
 
 ensureFounderAffiliate().catch(() => null);
