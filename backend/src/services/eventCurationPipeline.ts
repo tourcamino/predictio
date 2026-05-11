@@ -144,7 +144,9 @@ export function isAllowedLeague(leagueName: string, country: string): boolean {
 
   if (league.includes("serie a") && cnt.includes("ital")) return true;
   if (league.includes("coppa italia")) return true;
-  if (league.includes("champions league")) return true;
+  /** Es. "AFC Champions League" contiene "champions league" ma non è UEFA. */
+  if (league.includes("champions league") && !league.includes("afc") && !league.includes("caf"))
+    return true;
   if (league.includes("europa league")) return true;
   if (league.includes("conference league")) return true;
 

@@ -21,7 +21,7 @@ echo "==> [2/5] Disattiva curated_events (re-seed al boot)"
 PGU="$(dc exec -T postgres printenv POSTGRES_USER | tr -d '\r\n')"
 PGD="$(dc exec -T postgres printenv POSTGRES_DB | tr -d '\r\n')"
 if [[ -f scripts/vps-deactivate-all-curated.sql ]]; then
-  dc exec -T postgres psql -U "$PGU" -d "$PGD" -v ON_ERROR_STOP=1 < scripts/vps-deactivate-all-curated.sql
+  cat scripts/vps-deactivate-all-curated.sql | dc exec -T postgres psql -U "$PGU" -d "$PGD" -v ON_ERROR_STOP=1
 else
   printf '%s\n' 'UPDATE "curated_events" SET "isActive" = false;' | dc exec -T postgres psql -U "$PGU" -d "$PGD" -v ON_ERROR_STOP=1
 fi
