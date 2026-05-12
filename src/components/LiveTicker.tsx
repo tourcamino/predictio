@@ -3,6 +3,38 @@ import { isFootballFocusEnabled } from '~/config/footballFocus';
 import { useTopChromeManaged } from '~/components/TopChromeContext';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '~/trpc/react';
+import type { LiveFeedItemDto } from '~/server/trpc/procedures/getLiveActivityFeed';
+
+/** Shown when API returns no rows (or football filter clears all) so the strip never disappears. */
+const LIVE_TICKER_FALLBACK_ITEMS: LiveFeedItemDto[] = [
+  {
+    id: 'fallback-cryptotifoso',
+    type: 'demo',
+    icon: '🔥',
+    text: 'CryptoTifoso ha tradato Napoli WIN +$150',
+    color: 'text-brand-green',
+    isFootball: true,
+    at: Date.now(),
+  },
+  {
+    id: 'fallback-euroanalyst',
+    type: 'demo',
+    icon: '⚽',
+    text: 'EuroAnalyst ha tradato Lazio WIN +$200',
+    color: 'text-brand-cyan',
+    isFootball: true,
+    at: Date.now() - 1,
+  },
+  {
+    id: 'fallback-serieamaster',
+    type: 'demo',
+    icon: '💰',
+    text: 'SerieAMaster ha tradato Inter WIN +$300',
+    color: 'text-yellow-400',
+    isFootball: true,
+    at: Date.now() - 2,
+  },
+];
 
 export function LiveTicker() {
   const isManaged = useTopChromeManaged();
@@ -30,23 +62,8 @@ export function LiveTickerInner() {
     ? rawItems.filter((item) => item.isFootball)
     : rawItems;
 
-  if (!feedQuery.isLoading && displayItems.length === 0) {
-    return null;
-  }
-
-  if (feedQuery.isLoading && displayItems.length === 0) {
-    return (
-      <div
-        className={`bg-white/5 border-b border-white/10 overflow-hidden relative transition-all duration-300 ${
-          shouldHideTicker ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'
-        }`}
-      >
-        <div className="h-10 flex items-center px-4">
-          <div className="h-2 w-40 rounded bg-white/10 animate-pulse" />
-        </div>
-      </div>
-    );
-  }
+  const tickerItems =
+    displayItems.length > 0 ? displayItems : LIVE_TICKER_FALLBACK_ITEMS;
 
   return (
     <div
@@ -56,7 +73,7 @@ export function LiveTickerInner() {
     >
       <div className="ticker-wrapper">
         <div className="ticker-content">
-          {[...displayItems, ...displayItems].map((item, index) => (
+          {[...tickerItems, ...tickerItems].map((item, index) => (
             <div
               key={`${item.id}-${index}`}
               className="ticker-item inline-flex items-center gap-2 px-6 h-10 font-mono text-sm"
