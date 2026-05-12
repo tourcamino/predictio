@@ -84,7 +84,15 @@ export const getAnalystLeaderboard = baseProcedure
 
     const combined = [...dbAnalysts, ...mockExtras];
     sortCombined(combined, sortBy);
-    const analysts = combined.slice(0, limit);
+
+    /** Always surface the three copy-seed personas first (guests + /copy UX), then everyone else by sort. */
+    const pinWallets = new Set(mockAnalysts.map((m) => m.wallet.toLowerCase()));
+    const byWallet = new Map(combined.map((a) => [a.wallet.toLowerCase(), a]));
+    const pinned = mockAnalysts
+      .map((m) => byWallet.get(m.wallet.toLowerCase()))
+      .filter((a): a is (typeof combined)[number] => a != null);
+    const others = combined.filter((a) => !pinWallets.has(a.wallet.toLowerCase()));
+    const analysts = [...pinned, ...others].slice(0, limit);
 
     const copySeedWallets = new Set(
       mockAnalysts.map((m) => m.wallet.toLowerCase()),

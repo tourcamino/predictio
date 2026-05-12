@@ -52,11 +52,17 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
 
   // Filter analysts
   const filteredAnalysts = analysts.filter((analyst) => {
+    const sports = Array.isArray(analyst.sport) ? analyst.sport : [];
     const matchesSearch =
       searchQuery === '' ||
       analyst.displayName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSport =
-      sportFilter === 'all' || analyst.sport.includes(sportFilter);
+      sportFilter === 'all' ||
+      sports.some(
+        (s) =>
+          s === sportFilter ||
+          s.toLowerCase() === sportFilter.toLowerCase(),
+      );
     const matchesWinRate = analyst.winRate >= minWinRate;
     return matchesSearch && matchesSport && matchesWinRate;
   });
