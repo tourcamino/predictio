@@ -58,9 +58,12 @@ export function LiveTickerInner() {
 
   const rawItems = feedQuery.data?.items ?? [];
 
-  const displayItems = isFootballFocusEnabled()
+  /** Server already balances sports via `applyNonFootballCap`. If football-only filter leaves almost nothing, show full feed so the strip reflects real platform activity. */
+  const footballOnly = isFootballFocusEnabled()
     ? rawItems.filter((item) => item.isFootball)
     : rawItems;
+  const displayItems =
+    footballOnly.length >= 3 ? footballOnly : rawItems.length > 0 ? rawItems : footballOnly;
 
   const tickerItems =
     displayItems.length > 0 ? displayItems : LIVE_TICKER_FALLBACK_ITEMS;

@@ -329,10 +329,44 @@ export const getLiveActivityFeed = baseProcedure
         });
       }
 
+      const recentResolvedTrades = await db.order.findMany({
+        where: {
+          status: "resolved",
+          resolvedAt: { gte: msAgo(10 * 24 * 60 * 60 * 1000) },
+        },
+        orderBy: { resolvedAt: "desc" },
+        take: 12,
+        include: {
+          market: {
+            select: { event: true, sport: true, league: true },
+          },
+        },
+      });
+      for (const o of recentResolvedTrades) {
+        const fb = marketIsFootball(o.market.sport, o.market.league);
+        const wshort = `${o.wallet.slice(0, 6)}…${o.wallet.slice(-4)}`;
+        const pnl = o.pnl ?? 0;
+        const won = pnl > 0.005;
+        items.push({
+          id: `trade-res-${o.id}`,
+          type: "resolved_trade",
+          icon: sportEmojiFromLabel(o.market.sport),
+          text: won
+            ? `${wshort} won ${o.outcome} on ${o.market.event} (+${fmtUsd(pnl)})`
+            : `${wshort} settled ${o.outcome} on ${o.market.event}`,
+          color: won ? "text-brand-green" : "text-gray-400",
+          isFootball: fb,
+          at: (o.resolvedAt ?? o.createdAt).getTime(),
+        });
+      }
+
       const copyGrouped = await db.order.groupBy({
         by: ["marketId"],
         where: {
-          id: { startsWith: "copy-" },
+          OR: [
+            { id: { startsWith: "copy-" } },
+            { id: { startsWith: "seed-copy" } },
+          ],
           createdAt: { gte: msAgo(14 * 24 * 60 * 60 * 1000) },
         },
         _count: { id: true },
