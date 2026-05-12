@@ -186,6 +186,11 @@ export default createApp({
       handler: "./index.html",
       target: "browser",
       plugins: () => [
+        config("build-chunk-limit", {
+          build: {
+            chunkSizeWarningLimit: 2500,
+          },
+        }),
         config("allowedHosts", {
           // @ts-ignore
           server: {
