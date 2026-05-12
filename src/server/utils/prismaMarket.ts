@@ -128,7 +128,7 @@ export function prismaMarketToUi(row: PrismaMarketRow): Market {
     volume: row.volume,
     closesAt: row.closesAt,
     traders: row.predictions,
-    isFeatured: row.tags.includes("featured"),
+    isFeatured: (row.tags ?? []).includes("featured"),
     status: mapDbStatusToUi(row.status, row.closesAt),
     resolutionReason: row.resolutionReason ?? undefined,
     disputeReason: row.disputeReason ?? undefined,
