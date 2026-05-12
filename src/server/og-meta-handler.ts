@@ -1,30 +1,10 @@
-import { defineEventHandler, setResponseHeader, type H3Event } from "h3";
+import { defineEventHandler, setResponseHeader } from "h3";
 import { loadMarketUiById } from "~/server/utils/loadMarketUi";
 import { minioBaseUrl } from "./minio";
 import { getBaseUrl } from "./utils/base-url";
 import { db } from "./db";
 
-/** Preview bots / scrapers — short `WhatsApp/x.y` is Meta link-preview fetcher, not the in-app WebView. */
-function isOgCrawlerUserAgent(userAgent: string): boolean {
-  const ua = userAgent.trim();
-  if (/^WhatsApp\/[\d.]+$/i.test(ua)) {
-    return true;
-  }
-  return /facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|telegrambot|discordbot|pinterest|googlebot|bingbot|embedly|quora link preview|vkshare|redditbot/i.test(
-    userAgent,
-  );
-}
-
 export default defineEventHandler(async (event) => {
-  try {
-    return await handleOgMeta(event);
-  } catch (error) {
-    console.error("[OG Meta] Unhandled error (falling through to SPA):", error);
-    return;
-  }
-});
-
-async function handleOgMeta(event: H3Event) {
   const req = event.node?.req;
   if (!req) {
     return;
@@ -32,57 +12,64 @@ async function handleOgMeta(event: H3Event) {
 
   const url = req.url || "";
   const userAgent = req.headers["user-agent"] || "";
-  const isCrawler = isOgCrawlerUserAgent(userAgent);
+
+  // Check if this is a social media crawler
+  const isCrawler =
+    /facebookexternalhit|twitterbot|linkedinbot|slackbot|telegrambot|whatsapp|discordbot/i.test(
+      userAgent
+    );
 
   // Extract blog slug from URL (e.g., /blog/my-article-slug)
   const blogSlugMatch = url.match(/\/blog\/([^/?]+)/);
-
+  
   if (blogSlugMatch) {
-    if (!isCrawler) {
-      return;
-    }
-
     const slug = blogSlugMatch[1];
-
+    
     try {
       const post = await db.blogPost.findUnique({
         where: { slug },
       });
 
       if (!post || !post.published) {
-        setResponseHeader(event, "Content-Type", "text/html");
-        return generateBasicHTML();
+        // Post not found or not published
+        if (isCrawler) {
+          setResponseHeader(event, "Content-Type", "text/html");
+          return generateBasicHTML();
+        }
+        return;
       }
 
       const baseUrl = getBaseUrl();
       const pageUrl = `${baseUrl}/blog/${slug}`;
       const imageUrl = post.featuredImage || `${baseUrl}/og-default.png`;
 
-      setResponseHeader(event, "Content-Type", "text/html");
-      return generateBlogMetaHTML({
-        title: post.metaTitle || post.title,
-        description: post.metaDescription || post.excerpt,
-        imageUrl,
-        url: pageUrl,
-        post,
-      });
+      if (isCrawler) {
+        setResponseHeader(event, "Content-Type", "text/html");
+        return generateBlogMetaHTML({
+          title: post.metaTitle || post.title,
+          description: post.metaDescription || post.excerpt,
+          imageUrl,
+          url: pageUrl,
+          post,
+        });
+      }
     } catch (error) {
       console.error("[OG Meta] Error fetching blog post:", error);
     }
-
-    setResponseHeader(event, "Content-Type", "text/html");
-    return generateBasicHTML();
+    
+    return;
   }
 
   // Extract market ID from URL (e.g., /markets/market-1)
   const marketIdMatch = url.match(/\/markets\/([^/?]+)/);
-
+  
   if (!marketIdMatch) {
+    // Not a market or blog URL, pass through to SPA
     if (isCrawler) {
       setResponseHeader(event, "Content-Type", "text/html");
       return generateBasicHTML();
     }
-    return;
+    return; // Let SPA handle it
   }
 
   const marketId = marketIdMatch[1];
@@ -94,39 +81,44 @@ async function handleOgMeta(event: H3Event) {
     return;
   }
 
-  // Real users: never run Prisma/Azuro in this middleware — it caused cold-start timeouts and 500s on mobile.
-  if (!isCrawler) {
-    return;
-  }
-
   const market = await loadMarketUiById(marketId);
 
   if (!market) {
-    setResponseHeader(event, "Content-Type", "text/html");
-    return generateBasicHTML();
+    // Market not found
+    if (isCrawler) {
+      setResponseHeader(event, "Content-Type", "text/html");
+      return generateBasicHTML();
+    }
+    return; // Let SPA handle 404
   }
 
+  // Generate OG image URL
   const ogImageUrl = `${minioBaseUrl}/og-images/market-${marketId}.png`;
   const baseUrl = getBaseUrl();
   const pageUrl = `${baseUrl}/markets/${marketId}`;
 
-  const vol = Number(market.volume);
-  const volumeK = Number.isFinite(vol) ? (vol / 1000).toFixed(0) : "0";
+  // Generate title and description
   const title = `${market.sportEmoji} ${market.teamA} vs ${market.teamB} - ${market.league}`;
   const predictionCount = market.predictions ?? market.traders ?? 0;
   const pctA = market.percentA ?? Math.round(market.yesPrice * 100);
   const pctB = market.percentB ?? Math.round(market.noPrice * 100);
-  const description = `Predict the outcome on Predictio! ${pctA}% ${market.teamA} / ${pctB}% ${market.teamB}. $${volumeK}K volume, ${predictionCount.toLocaleString()} predictions.`;
+  const description = `Predict the outcome on Predictio! ${pctA}% ${market.teamA} / ${pctB}% ${market.teamB}. $${(market.volume / 1000).toFixed(0)}K volume, ${predictionCount.toLocaleString()} predictions.`;
 
-  setResponseHeader(event, "Content-Type", "text/html");
-  return generateMetaHTML({
-    title,
-    description,
-    imageUrl: ogImageUrl,
-    url: pageUrl,
-    market,
-  });
-}
+  if (isCrawler) {
+    // Return HTML with meta tags for crawlers
+    setResponseHeader(event, "Content-Type", "text/html");
+    return generateMetaHTML({
+      title,
+      description,
+      imageUrl: ogImageUrl,
+      url: pageUrl,
+      market,
+    });
+  }
+  
+  // For regular browsers, let the SPA handle it
+  return;
+});
 
 function generateBasicHTML() {
   const baseUrl = getBaseUrl();
@@ -226,8 +218,7 @@ interface BlogMetaHTMLOptions {
 
 function generateBlogMetaHTML(options: BlogMetaHTMLOptions) {
   const { title, description, imageUrl, url, post } = options;
-  const postTags = Array.isArray(post.tags) ? post.tags : [];
-
+  
   // Generate JSON-LD structured data for BlogPosting
   const jsonLd = {
     "@context": "https://schema.org",
@@ -254,9 +245,9 @@ function generateBlogMetaHTML(options: BlogMetaHTMLOptions) {
       "@type": "WebPage",
       "@id": url,
     },
-    "keywords": postTags.join(", "),
+    "keywords": post.tags.join(", "),
   };
-
+  
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -276,7 +267,7 @@ function generateBlogMetaHTML(options: BlogMetaHTMLOptions) {
   <meta property="og:site_name" content="Predictio.live">
   <meta property="article:published_time" content="${post.createdAt.toISOString()}">
   <meta property="article:modified_time" content="${post.updatedAt.toISOString()}">
-  ${postTags.map((tag: string) => `<meta property="article:tag" content="${escapeHtml(tag)}">`).join('\n  ')}
+  ${post.tags.map((tag: string) => `<meta property="article:tag" content="${escapeHtml(tag)}">`).join('\n  ')}
   
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
