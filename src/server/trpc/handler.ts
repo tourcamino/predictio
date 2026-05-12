@@ -7,7 +7,11 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./root";
 import { startAutonomousCopyAnalystScheduler } from "~/server/services/autonomousCopyAnalystScheduler";
 
-startAutonomousCopyAnalystScheduler();
+try {
+  startAutonomousCopyAnalystScheduler();
+} catch (e) {
+  console.error("[trpc] autonomous copy scheduler init failed:", e);
+}
 
 export default defineEventHandler((event: H3Event) => {
   const request = toWebRequest(event);

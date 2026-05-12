@@ -3,20 +3,18 @@
 ## ARCHITETTURA
 - Frontend: React/Vite → gira in locale su localhost:5173
 - Backend: Node/Express → gira su VPS Hostinger → api.predictio.live
-- Database: PostgreSQL → gira sul VPS (porta 5432)
+- Database: PostgreSQL **Neon** (cloud) per app Vinxi/tRPC su **Vercel**; VPS può usare lo stesso Neon o un Postgres separato
 - NO Docker locale — Docker non è disponibile su questo laptop
 
 ## REGOLA CRITICA — DATABASE
-Il database NON è locale. È sul VPS Hostinger.
-DATABASE_URL punta sempre al VPS, MAI a localhost.
-NON suggerire mai docker-compose per il DB.
-NON suggerire mai localhost:5432 o localhost:5433.
+Il database per **Vercel + Prisma + tRPC** è **Neon** (connection string dalla console). Non usare placeholder `npg_xxxxxxxxx` in `.env` reale.
+`DATABASE_URL` in prod è solo su Vercel env + `.env` locale (gitignored), mai in commit.
 
 ## DATABASE — REGOLA PERMANENTE (PROD / VERCEL / CONDIVISO)
 - In produzione e su Vercel, `DATABASE_URL` va impostato **solo** nelle Environment Variables del progetto (Dashboard o `vercel env`), **mai** in `vercel.json` o in commit: non versionare credenziali.
-- Host Postgres condiviso: **72.62.114.251**, porta **5432**, database **predictio**. Usa utente/password reali del VPS (non committare la stringa completa).
+- **Neon:** host `*.neon.tech`, `?sslmode=require`; per serverless preferisci l’URL **pooled** (-pooler) se Neon lo fornisce.
 - **MAI** `localhost`, **MAI** `127.0.0.1` come host in prod/Vercel; **MAI** hostname Docker `postgres` come host se il client gira fuori dalla rete Compose (es. serverless Vercel).
-- Vercel, backend sul VPS e sviluppo locale possono usare lo stesso URL **solo** se la porta 5432 è esposta e consentita dal firewall (verifica con `Test-NetConnection` / telnet dall’ambiente che deve connettersi).
+- Dopo aver cambiato DB: `npx prisma migrate deploy` (con stringa valida) e redeploy Vercel.
 
 ## REGOLA CRITICA — BACKEND
 Il backend NON gira in locale durante lo sviluppo.

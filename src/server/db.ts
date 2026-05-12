@@ -40,4 +40,7 @@ const globalForPrisma = globalThis as unknown as {
 
 export const db = globalForPrisma.prisma ?? createPrismaClient();
 
-if (env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+// Reuse one client per serverless isolate (Vercel) to avoid engine churn; dev keeps HMR-friendly singleton.
+if (env.NODE_ENV !== "production" || process.env.VERCEL === "1") {
+  globalForPrisma.prisma = db;
+}
