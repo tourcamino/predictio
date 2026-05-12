@@ -109,7 +109,7 @@ export async function updateMarketStatuses() {
         status: "OPEN",
         lockedAt: { lte: now },
       },
-      data: { status: "LOCKED" },
+      data: { status: "LOCKED", isActive: false },
     });
 
     if (toLock.count > 0) {
@@ -133,6 +133,7 @@ export async function updateMarketStatuses() {
           status: "RESOLVED",
           resolvedAt: now,
           result: resolved.result,
+          isActive: false,
         },
       });
 

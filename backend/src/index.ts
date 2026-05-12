@@ -151,7 +151,9 @@ function isAllowedCorsOrigin(origin: string | undefined): boolean {
  */
 async function autoSeedEventsOnBoot() {
   try {
-    const activeCount = await prisma.curatedEvent.count({ where: { isActive: true } });
+    const activeCount = await prisma.curatedEvent.count({
+      where: { isActive: true, status: "OPEN" },
+    });
     if (activeCount >= BOOT_SEED_MAX) return;
 
     const { games } = await buildEuropeanCurationGamesPayload(new Set());

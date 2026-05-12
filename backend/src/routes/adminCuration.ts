@@ -356,7 +356,7 @@ export function registerAdminCurationRoutes(
         rows = await withDbTimeout(
           "curatedEvent.findMany",
           prisma.curatedEvent.findMany({
-            where: { isActive: true },
+            where: { isActive: true, status: "OPEN" },
           }),
         );
       } catch (dbErr) {
