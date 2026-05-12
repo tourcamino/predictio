@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { TRPCClientError } from '@trpc/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useTRPC } from '~/trpc/react';
@@ -29,14 +30,23 @@ export function WalletSync() {
   
   // Track the last synced address to prevent duplicate syncs
   const lastSyncedAddress = useRef<string | null>(null);
+  /** Avoid overlapping sync calls (e.g. React Strict Mode double effect in dev). */
+  const syncInFlightRef = useRef(false);
   
   const syncMutation = useMutation(trpc.syncUserAccount.mutationOptions());
   
   useEffect(() => {
     // Sync account when wallet connects or address changes
     // Only sync if we haven't already synced this address
-    if (isConnected && address && address !== lastSyncedAddress.current && !syncMutation.isPending) {
+    if (
+      isConnected &&
+      address &&
+      address !== lastSyncedAddress.current &&
+      !syncMutation.isPending &&
+      !syncInFlightRef.current
+    ) {
       lastSyncedAddress.current = address;
+      syncInFlightRef.current = true;
       setSyncing(true);
       
       // Read referral code from cookie
@@ -90,11 +100,24 @@ export function WalletSync() {
           onError: (error) => {
             console.error('[Paper Trading] Failed to sync account:', error);
             setSyncing(false);
-            toast.error('Failed to sync wallet. Please try reconnecting.', {
-              duration: 4000,
+            let detail = '';
+            if (error instanceof TRPCClientError) {
+              detail = error.message?.trim() ?? '';
+            } else if (error instanceof Error) {
+              detail = error.message.trim();
+            }
+            const suffix =
+              detail && detail.length > 0
+                ? ` ${detail.length > 180 ? `${detail.slice(0, 180)}…` : detail}`
+                : '';
+            toast.error(`Failed to sync wallet.${suffix} Try reconnecting if this persists.`, {
+              duration: 6000,
             });
             // Reset the last synced address on error so we can retry
             lastSyncedAddress.current = null;
+          },
+          onSettled: () => {
+            syncInFlightRef.current = false;
           },
         }
       );
@@ -103,6 +126,7 @@ export function WalletSync() {
     // Reset the last synced address when disconnected
     if (!isConnected) {
       lastSyncedAddress.current = null;
+      syncInFlightRef.current = false;
       setSyncing(false);
     }
     // syncMutation / updateBalance omitted on purpose to avoid feedback loops when deps update.

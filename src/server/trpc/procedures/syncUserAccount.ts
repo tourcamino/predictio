@@ -19,39 +19,38 @@ export const syncUserAccount = baseProcedure
     
     // Normalize wallet address to lowercase for consistency
     const normalizedAddress = walletAddress.toLowerCase();
-    
-    // Check if user already exists
-    let user = await db.user.findUnique({
+
+    // Snapshot before write — referral attribution only for first-time accounts.
+    // Parallel syncs (e.g. React Strict Mode double effect) must not race on `create`:
+    // a second `create` hits unique(`wallet`) and would fail the whole mutation.
+    const existingBefore = await db.user.findUnique({
       where: { wallet: normalizedAddress },
     });
-    
-    // Track if this is a new user for referral attribution
-    const isNewUser = !user;
-    
-    // If user doesn't exist, create with initial $1,000 balance
-    if (!user) {
-      user = await db.user.create({
-        data: {
-          wallet: normalizedAddress,
-          virtualBalance: 1000.00,
-          totalPnl: 0,
-          tradesCount: 0,
-          firstSeen: new Date(),
-          lastActive: new Date(),
-          totalVolume: 0,
-          predictions: 0,
-          wins: 0,
-          losses: 0,
-        },
-      });
-      
-      console.log(`[Paper Trading] New account created for ${normalizedAddress} with $1,000 virtual balance`);
-    } else {
-      // Update last active timestamp
-      user = await db.user.update({
-        where: { wallet: normalizedAddress },
-        data: { lastActive: new Date() },
-      });
+    const isNewUser = !existingBefore;
+
+    const user = await db.user.upsert({
+      where: { wallet: normalizedAddress },
+      create: {
+        wallet: normalizedAddress,
+        virtualBalance: 1000.0,
+        totalPnl: 0,
+        tradesCount: 0,
+        firstSeen: new Date(),
+        lastActive: new Date(),
+        totalVolume: 0,
+        predictions: 0,
+        wins: 0,
+        losses: 0,
+      },
+      update: {
+        lastActive: new Date(),
+      },
+    });
+
+    if (isNewUser) {
+      console.log(
+        `[Paper Trading] New account created for ${normalizedAddress} with $1,000 virtual balance`,
+      );
     }
     
     // Handle referral attribution
@@ -196,6 +195,5 @@ export const syncUserAccount = baseProcedure
       totalPnl: user.totalPnl,
       tradesCount: user.tradesCount,
       onboardingCompleted: user.onboardingCompleted,
-      user,
     };
   });

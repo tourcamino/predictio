@@ -47,6 +47,37 @@ function getBaseUrl() {
   return "http://127.0.0.1:5173";
 }
 
+/**
+ * tRPC expects JSON (SuperJSON). Proxies, timeouts, and platform error pages often return
+ * plain text/HTML — `response.json()` then throws `Unexpected token 'A'` on bodies like
+ * "An error occurred...". Fail fast with a readable message instead.
+ */
+function fetchExpectingTrpcJson(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  return fetch(input, init).then(async (res) => {
+    const ct = res.headers.get("content-type") ?? "";
+    if (ct.includes("text/event-stream")) {
+      return res;
+    }
+    const text = await res.clone().text();
+    if (!text.length) {
+      return res;
+    }
+    try {
+      JSON.parse(text);
+      return res;
+    } catch {
+      const snippet = text.trim().replace(/\s+/g, " ").slice(0, 220);
+      throw new Error(
+        snippet ||
+          `Trade API returned non-JSON (HTTP ${res.status} ${res.statusText})`,
+      );
+    }
+  });
+}
+
 export function TRPCReactProvider(props: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
 
@@ -66,6 +97,7 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
             transformer: SuperJSON,
             url: getBaseUrl() + "/trpc",
             maxURLLength: Infinity,
+            fetch: fetchExpectingTrpcJson,
           }),
           true: httpSubscriptionLink({
             transformer: SuperJSON,

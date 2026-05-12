@@ -134,8 +134,42 @@ export const placePrediction = baseProcedure
         : upperOutcome === "DRAW" && market.percentDraw != null
           ? market.percentDraw / 100
           : market.noPrice;
-    const effectivePrice = input.orderType === 'LIMIT' && input.limitPrice ? input.limitPrice : currentPrice;
+
+    if (
+      !Number.isFinite(currentPrice) ||
+      currentPrice <= 0 ||
+      currentPrice >= 1
+    ) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Invalid market price — cannot execute trade.",
+      });
+    }
+
+    const effectivePrice =
+      input.orderType === "LIMIT" && input.limitPrice
+        ? input.limitPrice
+        : currentPrice;
+
+    if (
+      !Number.isFinite(effectivePrice) ||
+      effectivePrice <= 0 ||
+      effectivePrice >= 1
+    ) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Invalid execution price — cannot execute trade.",
+      });
+    }
+
     const shares = input.amount / effectivePrice;
+
+    if (!Number.isFinite(shares) || shares <= 0) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Could not compute share size for this trade.",
+      });
+    }
 
     // Calculate fee - Fixed 1% for takers, 0% for makers
     const fee = input.orderType === 'LIMIT' ? 0 : input.amount * TAKER_FEE_RATE;
