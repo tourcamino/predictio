@@ -4,7 +4,6 @@ import { Eye, Zap, DollarSign } from "lucide-react";
 import { SocialTradingDashboard } from "~/components/trading/SocialTradingDashboard";
 import { useWalletGate } from "~/hooks/useWalletGate";
 import { WalletGateModal } from "~/components/WalletGateModal";
-import { GuestPageState } from "~/components/GuestPageState";
 
 export const Route = createFileRoute("/copy/")({
   component: CopyTradingPage,
@@ -32,17 +31,23 @@ function CopyTradingPage() {
           {/* How It Works Section */}
           <HowItWorksSection />
 
-          {/* Social Trading Dashboard */}
-          <div className="mt-16">
-            {isConnected ? (
-              <SocialTradingDashboard userWallet={address || ''} />
-            ) : (
-              <GuestPageState
-                title="👀 Watching as guest"
-                description="Connect wallet to copy traders and save your allocations"
-                onConnect={() => requireWallet()}
-              />
+          {/* Social Trading Dashboard — visible to guests; connect only needed to copy/follow */}
+          <div className="mt-16 space-y-6">
+            {!isConnected && (
+              <div className="rounded-xl border border-brand-green/30 bg-brand-green/10 px-4 py-3 text-sm text-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <span>
+                  Browse traders below as a guest. Connect your wallet to follow or start copy trading.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => requireWallet()}
+                  className="shrink-0 px-4 py-2 rounded-lg bg-brand-green text-brand-bg font-semibold hover:bg-brand-green/90"
+                >
+                  Connect wallet
+                </button>
+              </div>
             )}
+            <SocialTradingDashboard userWallet={address ?? ''} />
           </div>
         </div>
       </div>

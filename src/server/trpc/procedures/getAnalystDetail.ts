@@ -2,7 +2,10 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
-import { mockAnalysts } from "~/data/mockAffiliates";
+import {
+  mockAnalysts,
+  getCopySeedPredictionHistoryRows,
+} from "~/data/mockAffiliates";
 import { parseYesNoPrices } from "~/server/utils/prismaMarket";
 
 export const getAnalystDetail = baseProcedure
@@ -41,6 +44,14 @@ export const getAnalystDetail = baseProcedure
       take: 40,
     });
 
+    const sport0 = Array.isArray(analyst.sport)
+      ? analyst.sport[0] ?? "Football"
+      : (analyst.sport as string) || "Football";
+    const seedHistory = getCopySeedPredictionHistoryRows(
+      analyst.wallet,
+      sport0,
+    );
+
     const predictionHistory =
       orderRows.length > 0
         ? orderRows.map((order) => {
@@ -70,7 +81,9 @@ export const getAnalystDetail = baseProcedure
                 order.heldSince.getTime(),
             };
           })
-        : generateMockPredictionHistory(analyst);
+        : seedHistory.length > 0
+          ? seedHistory
+          : generateMockPredictionHistory(analyst);
     
     // Generate mock follower growth data
     const followerGrowth = generateMockFollowerGrowth(analyst);
