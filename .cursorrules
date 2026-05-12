@@ -12,6 +12,12 @@ DATABASE_URL punta sempre al VPS, MAI a localhost.
 NON suggerire mai docker-compose per il DB.
 NON suggerire mai localhost:5432 o localhost:5433.
 
+## DATABASE — REGOLA PERMANENTE (PROD / VERCEL / CONDIVISO)
+- In produzione e su Vercel, `DATABASE_URL` va impostato **solo** nelle Environment Variables del progetto (Dashboard o `vercel env`), **mai** in `vercel.json` o in commit: non versionare credenziali.
+- Host Postgres condiviso: **72.62.114.251**, porta **5432**, database **predictio**. Usa utente/password reali del VPS (non committare la stringa completa).
+- **MAI** `localhost`, **MAI** `127.0.0.1` come host in prod/Vercel; **MAI** hostname Docker `postgres` come host se il client gira fuori dalla rete Compose (es. serverless Vercel).
+- Vercel, backend sul VPS e sviluppo locale possono usare lo stesso URL **solo** se la porta 5432 è esposta e consentita dal firewall (verifica con `Test-NetConnection` / telnet dall’ambiente che deve connettersi).
+
 ## REGOLA CRITICA — BACKEND
 Il backend NON gira in locale durante lo sviluppo.
 L'API è sempre su https://api.predictio.live
