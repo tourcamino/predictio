@@ -1,10 +1,61 @@
 import { minioClient } from "../minio";
 import { db } from "../db";
 import { mockAnalysts } from "../../data/mockAffiliates";
+import { mockMarkets } from "../../data/mockMarkets";
 import { cleanupOldNotifications } from "./cleanupOldNotifications";
 import { createCaller } from "../trpc/root";
 import { env } from "../env";
 import { seedCopyTradingExperience } from "./seedCopyTrading";
+import { ensureMarketRowForPaperTrade } from "../utils/paperMarketPersistence";
+
+/** Upsert `Market` rows from `mockMarkets` (required before copy-seed / live feed / AMM mock). */
+async function seedMarketsFromMocks() {
+  console.log(
+    `[Setup] Upserting ${mockMarkets.length} paper markets from mockMarkets...`,
+  );
+  let ok = 0;
+  for (const m of mockMarkets) {
+    try {
+      await ensureMarketRowForPaperTrade(m.id, m);
+      ok++;
+    } catch (e) {
+      console.error(`[Setup] market ${m.id} upsert failed:`, e);
+    }
+  }
+  console.log(`[Setup] Paper markets done: ${ok}/${mockMarkets.length}`);
+}
+
+async function logTableCounts() {
+  const [
+    users,
+    markets,
+    orders,
+    analysts,
+    affiliates,
+    vaultAllocations,
+    pointsTotals,
+  ] = await Promise.all([
+    db.user.count(),
+    db.market.count(),
+    db.order.count(),
+    db.analyst.count(),
+    db.affiliate.count(),
+    db.vaultAllocation.count(),
+    db.pointsTotal.count(),
+  ]);
+  console.log(
+    "[DB COUNTS]",
+    JSON.stringify({
+      users,
+      markets,
+      orders,
+      analysts,
+      affiliates,
+      vaultAllocations,
+      pointsTotals,
+    }),
+  );
+}
 
 async function seedAnalysts() {
   console.log("Seeding analyst data...");
@@ -1068,6 +1119,8 @@ async function initializeMockAMM() {
 }
 
 async function setup() {
+  await seedMarketsFromMocks();
+
   // Seed analyst data
   await seedAnalysts();
 
@@ -1094,10 +1147,12 @@ async function setup() {
   
   // Clean up old notifications (older than 7 days)
   await cleanupOldNotifications();
-  
+
+  await logTableCounts();
+
   // Create og-images bucket for social media preview cards
   const ogImagesBucket = "og-images";
-  
+
   if (!minioClient) {
     console.warn("Skipping MinIO bucket setup (ADMIN_PASSWORD unset)");
     return;
@@ -1132,8 +1187,10 @@ async function setup() {
       console.log(`Bucket already exists: ${ogImagesBucket}`);
     }
   } catch (error) {
-    console.error(`Error setting up ${ogImagesBucket} bucket:`, error);
-    throw error;
+    console.warn(
+      `[Setup] MinIO bucket '${ogImagesBucket}' skipped (optional — run MinIO locally or configure S3-compatible storage):`,
+      error,
+    );
   }
 }
 
