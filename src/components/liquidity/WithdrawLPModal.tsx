@@ -6,6 +6,7 @@ import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { AlertCircle } from 'lucide-react';
 import type { LPPosition } from '~/data/mockLP';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 
@@ -18,6 +19,7 @@ interface WithdrawLPModalProps {
 
 export function WithdrawLPModal({ isOpen, onClose, position, onSuccess }: WithdrawLPModalProps) {
   const { balance, address, updateBalance } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const [amount, setAmount] = useState('');
   const [claimFees, setClaimFees] = useState(true);
   const [transactionState, setTransactionState] = useState<TransactionState>('review');
@@ -46,7 +48,7 @@ export function WithdrawLPModal({ isOpen, onClose, position, onSuccess }: Withdr
   const isFullWithdrawal = amountNum >= position.currentValue;
 
   const handleConfirm = async () => {
-    if (!isValidAmount || !address) return;
+    if (!isValidAmount || !walletKey) return;
 
     setTransactionState('pending');
     setError('');
@@ -56,7 +58,7 @@ export function WithdrawLPModal({ isOpen, onClose, position, onSuccess }: Withdr
         positionId: position.id,
         amount: amountNum,
         claimFees,
-        walletAddress: address,
+        walletAddress: walletKey,
       });
 
       setTxHash(result.txHash);

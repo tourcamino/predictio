@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { AlertCircle, TrendingUp } from 'lucide-react';
 import { calculatePoolShare, calculateDailyEarnings, calculateMonthlyEarnings, getLPRiskBadge } from '~/utils/lpUtils';
 import type { LPMarket } from '~/data/mockLP';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 
@@ -19,6 +20,7 @@ interface AddLiquidityModalProps {
 
 export function AddLiquidityModal({ isOpen, onClose, market, onSuccess }: AddLiquidityModalProps) {
   const { balance, address, updateBalance } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const [amount, setAmount] = useState('');
   const [riskAccepted, setRiskAccepted] = useState(false);
   const [transactionState, setTransactionState] = useState<TransactionState>('review');
@@ -49,7 +51,7 @@ export function AddLiquidityModal({ isOpen, onClose, market, onSuccess }: AddLiq
   const riskBadge = getLPRiskBadge(market.risk);
 
   const handleConfirm = async () => {
-    if (!isValidAmount || !address || !riskAccepted) return;
+    if (!isValidAmount || !walletKey || !riskAccepted) return;
 
     setTransactionState('pending');
     setError('');
@@ -58,7 +60,7 @@ export function AddLiquidityModal({ isOpen, onClose, market, onSuccess }: AddLiq
       const result = await provideLiquidityMutation.mutateAsync({
         marketId: market.id,
         amount: amountNum,
-        walletAddress: address,
+        walletAddress: walletKey,
         currentBalance: balance,
       });
 

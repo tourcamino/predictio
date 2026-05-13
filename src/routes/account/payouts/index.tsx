@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { DollarSign, ChevronDown, ChevronUp, RefreshCw, TrendingUp, Clock } from 'lucide-react';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 export const Route = createFileRoute('/account/payouts/')({
   component: PayoutHistoryPage,
@@ -14,17 +15,18 @@ function PayoutHistoryPage() {
   const { isConnected, address, openWalletModal } = useWallet();
   const navigate = useNavigate();
   const trpc = useTRPC();
+  const walletKey = normalizeWalletForQuery(address);
   const [offset, setOffset] = useState(0);
   const [expandedPayoutId, setExpandedPayoutId] = useState<string | null>(null);
   const limit = 10;
 
   const payoutsQuery = useQuery({
     ...trpc.getPayoutHistory.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
       limit,
       offset,
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletKey && isConnected,
   });
 
   useEffect(() => {

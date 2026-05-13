@@ -13,6 +13,7 @@ import {
   invalidateWalletNotifications,
   invalidateWalletPointsSummary,
 } from '~/utils/invalidateWalletNotifications';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 interface PredictionFormProps {
   market: Market;
@@ -32,6 +33,7 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { address, updateBalance } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
 
   const {
@@ -57,15 +59,15 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
         queryClient.invalidateQueries({
           queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
         });
-        if (address) {
+        if (walletKey) {
           queryClient.invalidateQueries({
-            queryKey: trpc.getUserPositions.queryKey({ walletAddress: address, status: 'all' }),
+            queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
           });
           queryClient.invalidateQueries({
-            queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: address }),
+            queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
           });
-          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, address);
-          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, address);
+          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
+          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
         }
       },
       onError: (error) => {
@@ -86,7 +88,7 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
       marketId: market.id,
       outcome: selectedOutcome,
       amount: data.amount,
-      walletAddress: address,
+      walletAddress: walletKey,
     });
   };
 

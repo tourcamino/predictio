@@ -31,6 +31,19 @@ export function invalidateWalletNotifications(
   for (const input of variants) {
     queryClient.invalidateQueries({ queryKey: getNotificationsQueryKey(input) });
   }
+  const raw = walletAddress.trim();
+  if (raw && raw !== w) {
+    const legacyVariants: Parameters<GetNotificationsKey>[0][] = [
+      { walletAddress: raw, limit: 1, offset: 0 },
+      { walletAddress: raw, limit: 50, offset: 0 },
+      { walletAddress: raw, limit: 100, offset: 0 },
+      { walletAddress: raw, limit: 100, offset: 0, unreadOnly: true },
+      { walletAddress: raw, limit: 100, offset: 0, unreadOnly: false },
+    ];
+    for (const input of legacyVariants) {
+      queryClient.invalidateQueries({ queryKey: getNotificationsQueryKey(input) });
+    }
+  }
 }
 
 type GetPointsSummaryKey = (input: { walletAddress: string }) => readonly unknown[];

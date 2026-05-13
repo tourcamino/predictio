@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -20,6 +20,7 @@ import {
 } from '~/utils/invalidateWalletNotifications';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 interface TradingBoxProps {
   market: Market;
@@ -88,16 +89,23 @@ export function TradingBox({ market }: TradingBoxProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { isConnected: isWalletConnected, address: walletAddress, updateBalance, balance: walletBalance } = useWallet();
-  const { isActive: isDemoActive, executeDemoTrade, balance: demoBalance, activateDemo } = useDemoAccount();
+  const walletKey = normalizeWalletForQuery(walletAddress);
+  const {
+    isActive: isDemoActive,
+    executeDemoTrade,
+    balance: demoBalance,
+    positions: demoPositions,
+  } = useDemoAccount();
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   
-  // Use demo balance when wallet is not connected
-  const currentBalance = isWalletConnected ? walletBalance : demoBalance;
+  // In DEMO mode always use virtual balance; otherwise wallet when connected.
+  const currentBalance = isDemoActive ? demoBalance : isWalletConnected ? walletBalance : demoBalance;
   
   const [activeTab, setActiveTab] = useState<TabType>('buy');
   const [selectedOutcome, setSelectedOutcome] = useState<OutcomeType>('YES');
   const [orderType, setOrderType] = useState<'MARKET' | 'LIMIT'>('MARKET');
   const [txModalState, setTxModalState] = useState<'review' | 'pending' | 'mining' | 'success' | 'error'>('review');
+  const [txError, setTxError] = useState<string | undefined>(undefined);
   const [showTxModal, setShowTxModal] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [aiQuestion, setAiQuestion] = useState('');
@@ -108,21 +116,39 @@ export function TradingBox({ market }: TradingBoxProps) {
   // Fetch user positions for this market
   const positionsQuery = useQuery({
     ...trpc.getUserPositions.queryOptions({
-      walletAddress: walletAddress || '',
+      walletAddress: walletKey,
       status: 'open',
     }),
-    enabled: !!walletAddress && isWalletConnected,
+    enabled: !!walletKey && isWalletConnected && !isDemoActive,
   });
 
-  // Filter positions for the current market and map to UserPosition format
-  const userPositions: UserPosition[] = (positionsQuery.data?.positions || [])
-    .filter(p => p.marketId === market.id)
-    .map(p => ({
-      id: p.id,
-      outcome: normalizePositionOutcome(p.outcome),
-      shares: p.shares || 0,
-      avgPrice: p.avgPrice || 0,
-    }));
+  const apiUserPositions: UserPosition[] = useMemo(
+    () =>
+      (positionsQuery.data?.positions || [])
+        .filter((p) => p.marketId === market.id)
+        .map((p) => ({
+          id: p.id,
+          outcome: normalizePositionOutcome(p.outcome),
+          shares: p.shares || 0,
+          avgPrice: p.avgPrice || 0,
+        })),
+    [positionsQuery.data?.positions, market.id],
+  );
+
+  const demoUserPositions: UserPosition[] = useMemo(
+    () =>
+      demoPositions
+        .filter((p) => p.marketId === market.id)
+        .map((p) => ({
+          id: `demo-${p.marketId}-${p.outcome}`,
+          outcome: p.outcome,
+          shares: p.shares,
+          avgPrice: p.avgPrice,
+        })),
+    [demoPositions, market.id],
+  );
+
+  const userPositions: UserPosition[] = isDemoActive ? demoUserPositions : apiUserPositions;
 
   const userPosition = userPositions.find(p => p.outcome === selectedOutcome);
   const hasPosition = !!userPosition;
@@ -211,6 +237,7 @@ export function TradingBox({ market }: TradingBoxProps) {
   const placeTradeMutation = useMutation(
     trpc.placePrediction.mutationOptions({
       onSuccess: (data) => {
+        setTxError(undefined);
         setTxModalState('success');
         
         // Update wallet balance
@@ -232,19 +259,17 @@ export function TradingBox({ market }: TradingBoxProps) {
           queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
         });
         queryClient.invalidateQueries({
-          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletAddress || '', status: 'all' }),
+          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
         });
         queryClient.invalidateQueries({
-          queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletAddress || '' }),
+          queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
         });
-        if (walletAddress) {
-          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletAddress);
-          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletAddress);
+        if (walletKey) {
+          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
+          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
         }
       },
       onError: (error) => {
-        setTxModalState('error');
-        
         // Provide user-friendly error messages
         let errorMessage = 'Trade failed. Please try again.';
         
@@ -258,6 +283,9 @@ export function TradingBox({ market }: TradingBoxProps) {
           errorMessage = error.message;
         }
         
+        setTxError(errorMessage);
+        setTxModalState('error');
+        
         toast.error(errorMessage, {
           duration: 5000,
           icon: '❌',
@@ -269,6 +297,7 @@ export function TradingBox({ market }: TradingBoxProps) {
   const closePositionMutation = useMutation(
     trpc.closePosition.mutationOptions({
       onSuccess: (data) => {
+        setTxError(undefined);
         setTxModalState('success');
         
         // Update wallet balance
@@ -287,19 +316,17 @@ export function TradingBox({ market }: TradingBoxProps) {
         }, 2000);
         
         queryClient.invalidateQueries({
-          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletAddress || '', status: 'all' }),
+          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
         });
         queryClient.invalidateQueries({
-          queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletAddress || '' }),
+          queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
         });
-        if (walletAddress) {
-          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletAddress);
-          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletAddress);
+        if (walletKey) {
+          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
+          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
         }
       },
       onError: (error) => {
-        setTxModalState('error');
-        
         let errorMessage = 'Failed to close position. Please try again.';
         
         if (error.message.includes('not found')) {
@@ -309,6 +336,9 @@ export function TradingBox({ market }: TradingBoxProps) {
         } else if (error.message) {
           errorMessage = error.message;
         }
+        
+        setTxError(errorMessage);
+        setTxModalState('error');
         
         toast.error(errorMessage, {
           duration: 5000,
@@ -338,11 +368,7 @@ export function TradingBox({ market }: TradingBoxProps) {
       return;
     }
     
-    if (!isWalletConnected) {
-      if (isDemoActive) {
-        requireWallet();
-        return;
-      }
+    if (isDemoActive) {
       const result = await executeDemoTrade({
         marketId: market.id,
         outcome: selectedOutcome,
@@ -360,6 +386,12 @@ export function TradingBox({ market }: TradingBoxProps) {
       return;
     }
 
+    if (!isWalletConnected) {
+      requireWallet();
+      return;
+    }
+
+    setTxError(undefined);
     setTxModalState('review');
     setShowTxModal(true);
   };
@@ -370,11 +402,7 @@ export function TradingBox({ market }: TradingBoxProps) {
       return;
     }
     
-    if (!isWalletConnected) {
-      if (isDemoActive) {
-        requireWallet();
-        return;
-      }
+    if (isDemoActive) {
       const result = await executeDemoTrade({
         marketId: market.id,
         outcome: selectedOutcome,
@@ -392,11 +420,18 @@ export function TradingBox({ market }: TradingBoxProps) {
       return;
     }
 
+    if (!isWalletConnected) {
+      requireWallet();
+      return;
+    }
+
+    setTxError(undefined);
     setTxModalState('review');
     setShowTxModal(true);
   };
 
   const handleConfirmTransaction = () => {
+    setTxError(undefined);
     setTxModalState('pending');
     setTimeout(() => {
       setTxModalState('mining');
@@ -410,7 +445,7 @@ export function TradingBox({ market }: TradingBoxProps) {
           marketId: market.id,
           outcome: selectedOutcome.toLowerCase(),
           amount: buyAmount,
-          walletAddress: walletAddress || '',
+          walletAddress: walletKey,
           orderType,
           limitPrice,
         });
@@ -419,11 +454,12 @@ export function TradingBox({ market }: TradingBoxProps) {
         if (userPosition && userPosition.id) {
           closePositionMutation.mutate({
             orderId: userPosition.id,
-            walletAddress: walletAddress || '',
+            walletAddress: walletKey,
             sharesToSell: sellShares,
             currentPrice,
           });
         } else {
+          setTxError('Position not found');
           setTxModalState('error');
           toast.error('Position not found');
         }
@@ -1122,7 +1158,11 @@ export function TradingBox({ market }: TradingBoxProps) {
 
       <TransactionModal
         isOpen={showTxModal}
-        onClose={() => setShowTxModal(false)}
+        onClose={() => {
+          setShowTxModal(false);
+          setTxError(undefined);
+          setTxModalState('review');
+        }}
         state={txModalState}
         type="bet"
         marketName={market.teamA + ' vs ' + market.teamB}
@@ -1133,8 +1173,12 @@ export function TradingBox({ market }: TradingBoxProps) {
         fee={0}
         netProfit={activeTab === 'buy' ? potentialProfit : profitFromSell}
         txHash="0x1234567890abcdef"
+        error={txError}
         onConfirm={handleConfirmTransaction}
-        onRetry={() => setTxModalState('review')}
+        onRetry={() => {
+          setTxError(undefined);
+          setTxModalState('review');
+        }}
         sportEmoji={market.sportEmoji}
         league={market.league}
         teamA={market.teamA}

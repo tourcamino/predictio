@@ -4,20 +4,22 @@ import { useWallet } from '~/store/useWalletStore';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 export function NotificationBell() {
   const { unreadCount, toggleOpen, setUnreadCount } = useNotificationStore();
   const { address, isConnected } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const trpc = useTRPC();
 
   // Fetch unread count from DB
   const notificationsQuery = useQuery({
     ...trpc.getNotifications.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
       limit: 1, // We only need the count, not the actual notifications
       unreadOnly: true,
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletKey && isConnected,
     refetchInterval: 90_000,
   });
 

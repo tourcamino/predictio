@@ -5,6 +5,7 @@ import { useTRPC } from '~/trpc/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { invalidateWalletPointsSummary } from '~/utils/invalidateWalletNotifications';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 interface JoinWaitlistModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface JoinWaitlistModalProps {
 
 export function JoinWaitlistModal({ isOpen, onClose }: JoinWaitlistModalProps) {
   const { address, isConnected, openWalletModal } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const trpc = useTRPC();
@@ -20,7 +22,7 @@ export function JoinWaitlistModal({ isOpen, onClose }: JoinWaitlistModalProps) {
   const registerMutation = useMutation(trpc.registerLPWaitlist.mutationOptions());
 
   const handleRegister = async () => {
-    if (!isConnected || !address) {
+    if (!isConnected || !walletKey) {
       openWalletModal();
       return;
     }
@@ -29,7 +31,7 @@ export function JoinWaitlistModal({ isOpen, onClose }: JoinWaitlistModalProps) {
 
     try {
       const result = await registerMutation.mutateAsync({
-        walletAddress: address,
+        walletAddress: walletKey,
       });
 
       if (result.alreadyRegistered) {
@@ -41,7 +43,7 @@ export function JoinWaitlistModal({ isOpen, onClose }: JoinWaitlistModalProps) {
         invalidateWalletPointsSummary(
           queryClient,
           trpc.getPointsSummary.queryKey,
-          address,
+          walletKey,
         );
       }
 

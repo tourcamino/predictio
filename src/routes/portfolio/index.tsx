@@ -23,6 +23,7 @@ import { DemoBadge } from '~/components/demo/DemoBadge';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { GuestPageState } from '~/components/GuestPageState';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 export const Route = createFileRoute('/portfolio/')({
   component: Portfolio,
@@ -33,6 +34,7 @@ function Portfolio() {
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const { isActive: isDemoActive, positions: demoPositions, balance: demoBalance, tradeHistory: demoTradeHistory } = useDemoAccount();
   const trpc = useTRPC();
+  const walletKey = normalizeWalletForQuery(address);
   const [timeRange, setTimeRange] = useState<'7D' | '30D' | '90D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM'>('1M');
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>();
   const [customEndDate, setCustomEndDate] = useState<Date | undefined>();
@@ -54,38 +56,38 @@ function Portfolio() {
   // Fetch user positions
   const positionsQuery = useQuery({
     ...trpc.getUserPositions.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
       status: 'all',
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletKey && isConnected,
   });
 
   // Fetch portfolio summary
   const summaryQuery = useQuery({
     ...trpc.getPortfolioSummary.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletKey && isConnected,
   });
 
   // Fetch portfolio performance history
   const performanceQuery = useQuery({
     ...trpc.getPortfolioPerformanceHistory.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
       timeRange,
       startDate: customStartDate,
       endDate: customEndDate,
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletKey && isConnected,
   });
 
   // Fetch user's LP positions
   const lpPositionsQuery = useQuery({
     ...trpc.getUserLPPositions.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
       status: 'active',
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletKey && isConnected,
   });
 
   const claimAllLPFeesMutation = useMutation(trpc.claimLPFees.mutationOptions());
@@ -116,11 +118,11 @@ function Portfolio() {
   };
 
   const handleClaimAllLPFees = async () => {
-    if (!address) return;
+    if (!walletKey) return;
 
     try {
       const result = await claimAllLPFeesMutation.mutateAsync({
-        walletAddress: address,
+        walletAddress: walletKey,
         claimAll: true,
       });
 

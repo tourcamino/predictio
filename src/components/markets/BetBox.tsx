@@ -9,6 +9,7 @@ import { useTRPC } from '~/trpc/react';
 import { Market } from '~/data/mockMarkets';
 import { useWallet } from '~/store/useWalletStore';
 import { useWalletGate } from '~/hooks/useWalletGate';
+import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { TransactionModal } from '../TransactionModal';
 import { calcFee } from '~/utils/marketUtils';
@@ -16,6 +17,7 @@ import {
   invalidateWalletNotifications,
   invalidateWalletPointsSummary,
 } from '~/utils/invalidateWalletNotifications';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 interface BetBoxProps {
   market: Market;
@@ -36,8 +38,11 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { isConnected: isWalletConnected, address, updateBalance } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
+  const { isActive: isDemoActive, executeDemoTrade } = useDemoAccount();
   const [txModalState, setTxModalState] = useState<'review' | 'pending' | 'mining' | 'success' | 'error'>('review');
+  const [txError, setTxError] = useState<string | undefined>(undefined);
   const [showTxModal, setShowTxModal] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [aiQuestion, setAiQuestion] = useState('');
@@ -74,18 +79,19 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
         });
-        if (address) {
+        if (walletKey) {
           queryClient.invalidateQueries({
-            queryKey: trpc.getUserPositions.queryKey({ walletAddress: address, status: 'all' }),
+            queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
           });
           queryClient.invalidateQueries({
-            queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: address }),
+            queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
           });
-          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, address);
-          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, address);
+          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
+          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
         }
       },
       onError: (error) => {
+        setTxError(error.message || 'Trade failed. Please try again.');
         setTxModalState('error');
       },
     })
@@ -123,34 +129,85 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
   const fee = amount * dynamicFeeRate;
   const netProfit = profit - fee;
 
-  const onSubmit = (data: PredictionFormData) => {
+  const mapOutcomeToSide = (): 'YES' | 'NO' | 'DRAW' | null => {
+    if (selectedOutcome === 'teamA') return 'YES';
+    if (selectedOutcome === 'teamB') return 'NO';
+    if (selectedOutcome === 'draw') return 'DRAW';
+    return null;
+  };
+
+  const onSubmit = (_data: PredictionFormData) => {
     if (!selectedOutcome) {
       toast.error('Please select an outcome first');
       return;
     }
 
+    if (isDemoActive) {
+      setTxError(undefined);
+      setTxModalState('review');
+      setShowTxModal(true);
+      return;
+    }
+
     if (!requireWallet()) return;
 
-    // Show transaction modal for review
+    setTxError(undefined);
     setTxModalState('review');
     setShowTxModal(true);
   };
 
   const handleConfirmTransaction = () => {
+    setTxError(undefined);
+
+    if (isDemoActive) {
+      const side = mapOutcomeToSide();
+      if (!side) {
+        setTxError('Invalid outcome');
+        setTxModalState('error');
+        return;
+      }
+
+      const stake = watch('amount');
+      const price = currentPrice;
+
+      setTxModalState('pending');
+      void (async () => {
+        await new Promise((r) => setTimeout(r, 600));
+        setTxModalState('mining');
+        const result = await executeDemoTrade({
+          marketId: market.id,
+          outcome: side,
+          type: 'BUY',
+          amount: stake,
+          price,
+        });
+        if (result.success) {
+          setTxModalState('success');
+          setTimeout(() => {
+            setShowTxModal(false);
+            reset();
+          }, 2000);
+        } else {
+          setTxError(result.message);
+          setTxModalState('error');
+        }
+      })();
+      return;
+    }
+
     if (!requireWallet()) return;
     if (!address) return;
     setTxModalState('pending');
-    
+
     // Simulate wallet approval
     setTimeout(() => {
       setTxModalState('mining');
-      
-      // Actually place the prediction
+
       placePredictionMutation.mutate({
         marketId: market.id,
         outcome: selectedOutcome!,
         amount: watch('amount'),
-        walletAddress: address,
+        walletAddress: walletKey,
       });
     }, 1500);
   };
@@ -172,7 +229,7 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
   const quickAmounts = [10, 50, 100, 500];
 
   const getButtonContent = () => {
-    if (!isWalletConnected) {
+    if (!isWalletConnected && !isDemoActive) {
       return 'Connect Wallet to Predict';
     }
     if (!selectedOutcome) {
@@ -180,6 +237,9 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
     }
     if (amount <= 0) {
       return 'Enter Amount';
+    }
+    if (isDemoActive) {
+      return `Place Prediction (DEMO) · $${amount.toLocaleString()} virtual USDC`;
     }
     return `Place Prediction · $${amount.toLocaleString()} USDC`;
   };
@@ -401,7 +461,10 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
 
       <TransactionModal
         isOpen={showTxModal}
-        onClose={() => setShowTxModal(false)}
+        onClose={() => {
+          setShowTxModal(false);
+          setTxError(undefined);
+        }}
         state={txModalState}
         type="bet"
         marketName={market.teamA + ' vs ' + market.teamB}
@@ -411,9 +474,12 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
         potentialWin={potentialWin}
         fee={fee}
         netProfit={netProfit}
-        txHash="0x1234567890abcdef"
+        error={txError}
         onConfirm={handleConfirmTransaction}
-        onRetry={() => setTxModalState('review')}
+        onRetry={() => {
+          setTxError(undefined);
+          setTxModalState('review');
+        }}
         sportEmoji={market.sportEmoji}
         league={market.league}
         teamA={market.teamA}

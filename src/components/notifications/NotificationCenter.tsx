@@ -6,6 +6,7 @@ import { useWallet } from '~/store/useWalletStore';
 import { useTRPC } from '~/trpc/react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 function getNotificationIcon(type: string): string {
   switch (type) {
@@ -47,16 +48,17 @@ export function NotificationCenter() {
     setLoading,
   } = useNotificationStore();
   const { address } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const trpc = useTRPC();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Fetch notifications from DB
   const notificationsQuery = useQuery({
     ...trpc.getNotifications.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
       limit: 50,
     }),
-    enabled: !!address && isOpen,
+    enabled: !!walletKey && isOpen,
     refetchInterval: 90_000,
   });
 
@@ -98,14 +100,14 @@ export function NotificationCenter() {
   const hasNotifications = notifications.length > 0;
 
   const handleNotificationClick = async (notif: any) => {
-    if (!notif.read && address) {
+    if (!notif.read && walletKey) {
       // Optimistic update
       markReadLocally(notif.id);
       
       // Update in DB
       await markReadMutation.mutateAsync({
         notificationId: notif.id,
-        walletAddress: address,
+        walletAddress: walletKey,
       });
     }
     
@@ -124,14 +126,14 @@ export function NotificationCenter() {
   };
 
   const handleMarkAllRead = async () => {
-    if (!address) return;
+    if (!walletKey) return;
     
     // Optimistic update
     markAllReadLocally();
     
     // Update in DB
     await markAllReadMutation.mutateAsync({
-      walletAddress: address,
+      walletAddress: walletKey,
     });
   };
 

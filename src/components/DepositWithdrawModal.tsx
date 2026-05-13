@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { AlertCircle } from 'lucide-react';
 import { invalidateWalletPointsSummary } from '~/utils/invalidateWalletNotifications';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 
@@ -17,6 +18,7 @@ interface DepositWithdrawModalProps {
 
 export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawModalProps) {
   const { balance, address, updateBalance } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const [amount, setAmount] = useState('');
   const [transactionState, setTransactionState] = useState<TransactionState>('review');
   const [txHash, setTxHash] = useState<string>('');
@@ -45,7 +47,7 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
   const netAmount = type === 'deposit' ? amountNum - fee : amountNum - fee;
 
   const handleConfirm = async () => {
-    if (!isValidAmount || !address) return;
+    if (!isValidAmount || !walletKey) return;
 
     setTransactionState('pending');
     setError('');
@@ -55,12 +57,12 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
         type === 'withdraw'
           ? await withdrawMutation.mutateAsync({
               amount: amountNum,
-              walletAddress: address,
+              walletAddress: walletKey,
               currentBalance: balance ?? 0,
             })
           : await depositMutation.mutateAsync({
               amount: amountNum,
-              walletAddress: address,
+              walletAddress: walletKey,
               currentBalance: balance,
             });
 
@@ -77,11 +79,11 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
 
       setTransactionState('success');
       toast.success(`${type === 'deposit' ? 'Deposit' : 'Withdrawal'} successful!`);
-      if (address) {
+      if (walletKey) {
         invalidateWalletPointsSummary(
           queryClient,
           trpc.getPointsSummary.queryKey,
-          address,
+          walletKey,
         );
       }
     } catch (err: any) {

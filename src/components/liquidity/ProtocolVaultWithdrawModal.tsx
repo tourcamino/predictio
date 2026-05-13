@@ -5,6 +5,7 @@ import { useTRPC } from '~/trpc/react';
 import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { AlertCircle, Droplet } from 'lucide-react';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 
@@ -33,6 +34,7 @@ export function ProtocolVaultWithdrawModal({
   onSuccess 
 }: ProtocolVaultWithdrawModalProps) {
   const { balance, address, updateBalance } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const [amount, setAmount] = useState('');
   const [claimFees, setClaimFees] = useState(true);
   const [transactionState, setTransactionState] = useState<TransactionState>('review');
@@ -61,7 +63,7 @@ export function ProtocolVaultWithdrawModal({
   const isFullWithdrawal = amountNum >= position.currentValue;
 
   const handleConfirm = async () => {
-    if (!isValidAmount || !address) return;
+    if (!isValidAmount || !walletKey) return;
 
     setTransactionState('pending');
     setError('');
@@ -71,7 +73,7 @@ export function ProtocolVaultWithdrawModal({
         positionId: position.id,
         amount: amountNum,
         claimFees,
-        walletAddress: address,
+        walletAddress: walletKey,
       });
 
       setTxHash(result.txHash);

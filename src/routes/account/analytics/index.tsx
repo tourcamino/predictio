@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Users, TrendingUp, DollarSign, Target, BarChart3, Share2, Copy, ExternalLink, RefreshCw } from 'lucide-react';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart } from 'recharts';
 import toast from 'react-hot-toast';
 
@@ -15,19 +16,20 @@ function AnalyticsPage() {
   const { isConnected, address, openWalletModal } = useWallet();
   const navigate = useNavigate();
   const trpc = useTRPC();
+  const walletKey = normalizeWalletForQuery(address);
 
   const analyticsQuery = useQuery({
     ...trpc.getReferralAnalytics.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletKey && isConnected,
   });
 
   const earningsQuery = useQuery({
     ...trpc.getReferralEarnings.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletKey && isConnected,
   });
 
   useEffect(() => {

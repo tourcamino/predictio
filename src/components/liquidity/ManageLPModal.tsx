@@ -12,6 +12,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useWallet } from '~/store/useWalletStore';
 import toast from 'react-hot-toast';
 import type { LPPosition } from '~/data/mockLP';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 interface ManageLPModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export function ManageLPModal({ isOpen, onClose, position, onSuccess }: ManageLP
   const [apyTimeRange, setApyTimeRange] = useState<'7D' | '30D' | '90D' | 'ALL'>('30D');
   
   const { address, updateBalance, balance } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const trpc = useTRPC();
   const claimFeesMutation = useMutation(trpc.claimLPFees.mutationOptions());
 
@@ -43,12 +45,12 @@ export function ManageLPModal({ isOpen, onClose, position, onSuccess }: ManageLP
   const duration = formatLPDuration(position.openSince);
 
   const handleClaimFees = async () => {
-    if (!address || position.feesPending <= 0) return;
+    if (!walletKey || position.feesPending <= 0) return;
 
     try {
       await claimFeesMutation.mutateAsync({
         positionId: position.id,
-        walletAddress: address,
+        walletAddress: walletKey,
       });
 
       // Update balance
@@ -275,9 +277,11 @@ export function ManageLPModal({ isOpen, onClose, position, onSuccess }: ManageLP
                               
                               // Parse date from string format "MMM DD"
                               const currentYear = new Date().getFullYear();
-                              const [month, day] = feeEntry.date.split(' ');
+                              const [monthRaw, dayRaw] = feeEntry.date.split(' ');
+                              const month = monthRaw ?? 'Jan';
+                              const dayStr = dayRaw ?? '1';
                               const monthIndex = new Date(`${month} 1, 2000`).getMonth();
-                              const timestamp = new Date(currentYear, monthIndex, parseInt(day));
+                              const timestamp = new Date(currentYear, monthIndex, parseInt(dayStr, 10));
                               
                               performanceData.push({
                                 timestamp,

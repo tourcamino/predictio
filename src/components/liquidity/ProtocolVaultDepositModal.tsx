@@ -7,6 +7,7 @@ import { useTRPC } from '~/trpc/react';
 import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { AlertCircle, TrendingUp, Droplet } from 'lucide-react';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 
@@ -28,6 +29,7 @@ export function ProtocolVaultDepositModal({
   onSuccess 
 }: ProtocolVaultDepositModalProps) {
   const { balance, address, isConnected, updateBalance } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const [amount, setAmount] = useState('');
   const [riskAccepted, setRiskAccepted] = useState(false);
@@ -66,7 +68,7 @@ export function ProtocolVaultDepositModal({
   const estimatedDailyEarnings = estimatedMonthlyEarnings / 30;
 
   const handleConfirm = async () => {
-    if (!isValidAmount || !address || !riskAccepted) return;
+    if (!isValidAmount || !walletKey || !riskAccepted) return;
 
     setTransactionState('pending');
     setError('');
@@ -76,7 +78,7 @@ export function ProtocolVaultDepositModal({
       const result = await provideLiquidityMutation.mutateAsync({
         marketId: 'protocol-vault',
         amount: amountNum,
-        walletAddress: address,
+        walletAddress: walletKey,
         currentBalance: balance,
       });
 

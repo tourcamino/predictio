@@ -6,6 +6,7 @@ import { useTRPC } from '~/trpc/react';
 import { useWallet, useWalletStore } from '~/store/useWalletStore';
 import { OnboardingModal } from '~/components/onboarding/OnboardingModal';
 import { invalidateWalletPointsSummary } from '~/utils/invalidateWalletNotifications';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 const SYNC_DEBOUNCE_MS = 280;
 const MAX_SILENT_RETRIES = 6;
@@ -103,7 +104,12 @@ export function WalletSync() {
       return;
     }
 
-    if (lastSyncedAddressRef.current === address) {
+    const addressKey = normalizeWalletForQuery(address);
+    if (!addressKey) {
+      return;
+    }
+
+    if (lastSyncedAddressRef.current === addressKey) {
       return;
     }
 
@@ -116,7 +122,9 @@ export function WalletSync() {
         const live = useWalletStore.getState();
         if (!live.isConnected || !live.address) return;
         const addr = live.address;
-        if (lastSyncedAddressRef.current === addr) return;
+        const walletKey = normalizeWalletForQuery(addr);
+        if (!walletKey) return;
+        if (lastSyncedAddressRef.current === walletKey) return;
         if (syncInFlightRef.current) return;
 
         syncInFlightRef.current = true;
@@ -129,12 +137,12 @@ export function WalletSync() {
 
         syncMutation.mutate(
           {
-            walletAddress: addr,
+            walletAddress: walletKey,
             referralCode: refCodeFromCookie || undefined,
           },
           {
             onSuccess: (data) => {
-              lastSyncedAddressRef.current = addr;
+              lastSyncedAddressRef.current = walletKey;
               silentRetryCountRef.current = 0;
               clearRetry();
 
@@ -144,7 +152,7 @@ export function WalletSync() {
               invalidateWalletPointsSummary(
                 queryClient,
                 trpc.getPointsSummary.queryKey,
-                addr,
+                walletKey,
               );
 
               if (refCodeFromCookie) {

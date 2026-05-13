@@ -4,6 +4,7 @@ import { useTRPC } from '~/trpc/react';
 import { useWallet } from '~/store/useWalletStore';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 interface WatchlistButtonProps {
   marketId: string;
@@ -15,14 +16,15 @@ export function WatchlistButton({ marketId, variant = 'icon', size = 'md' }: Wat
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { address, isConnected, openWalletModal } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const [isHovered, setIsHovered] = useState(false);
 
   // Check if market is in watchlist
   const watchlistQuery = useQuery({
     ...trpc.getWatchlist.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletKey && isConnected,
   });
 
   const isInWatchlist = watchlistQuery.data?.marketIds.includes(marketId) || false;
@@ -32,7 +34,7 @@ export function WatchlistButton({ marketId, variant = 'icon', size = 'md' }: Wat
       onSuccess: () => {
         toast.success('Added to watchlist');
         queryClient.invalidateQueries({
-          queryKey: trpc.getWatchlist.queryKey({ walletAddress: address || '' }),
+          queryKey: trpc.getWatchlist.queryKey({ walletAddress: walletKey }),
         });
       },
       onError: (error: any) => {
@@ -50,7 +52,7 @@ export function WatchlistButton({ marketId, variant = 'icon', size = 'md' }: Wat
       onSuccess: () => {
         toast.success('Removed from watchlist');
         queryClient.invalidateQueries({
-          queryKey: trpc.getWatchlist.queryKey({ walletAddress: address || '' }),
+          queryKey: trpc.getWatchlist.queryKey({ walletAddress: walletKey }),
         });
       },
       onError: () => {
@@ -69,12 +71,12 @@ export function WatchlistButton({ marketId, variant = 'icon', size = 'md' }: Wat
 
     if (isInWatchlist) {
       removeMutation.mutate({
-        walletAddress: address || '',
+        walletAddress: walletKey,
         marketId,
       });
     } else {
       addMutation.mutate({
-        walletAddress: address || '',
+        walletAddress: walletKey,
         marketId,
       });
     }

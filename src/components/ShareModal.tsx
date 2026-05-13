@@ -7,6 +7,7 @@ import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -36,14 +37,15 @@ export function ShareModal({ isOpen, onClose, marketId, marketData, userPosition
   
   const trpc = useTRPC();
   const { isConnected, address } = useWalletStore();
+  const walletKey = normalizeWalletForQuery(address);
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   
   // Fetch user's referral code if they're an affiliate
   const affiliateQuery = useQuery({
     ...trpc.getReferralEarnings.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletKey && isConnected,
   });
   
   const userRefCode = affiliateQuery.data?.referralCode;

@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router';
 import { useMutation } from '@tanstack/react-query';
 import { useTRPC } from '~/trpc/react';
 import { useWallet } from '~/store/useWalletStore';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 interface OnboardingModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
   const [balanceCounter, setBalanceCounter] = useState(0);
   const trpc = useTRPC();
   const { address } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   
   const completeOnboardingMutation = useMutation(
     trpc.completeOnboarding.mutationOptions()
@@ -45,9 +47,9 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
   }, [step, balanceCounter]);
   
   const persistOnboardingDone = () => {
-    if (!address) return;
+    if (!walletKey) return;
     completeOnboardingMutation.mutate(
-      { walletAddress: address },
+      { walletAddress: walletKey },
       {
         onError: (e) => console.error('[OnboardingModal] completeOnboarding failed:', e),
       },

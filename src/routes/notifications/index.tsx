@@ -8,6 +8,7 @@ import { useTRPC } from '~/trpc/react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { useState } from 'react';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 export const Route = createFileRoute('/notifications/')({
   component: NotificationsPage,
@@ -32,6 +33,7 @@ function getNotificationIcon(type: string): string {
 
 function NotificationsPage() {
   const { address, isConnected } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const trpc = useTRPC();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
@@ -39,11 +41,11 @@ function NotificationsPage() {
   // Fetch notifications
   const notificationsQuery = useQuery({
     ...trpc.getNotifications.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
       limit: 100,
       unreadOnly: filter === 'unread',
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletKey && isConnected,
     refetchInterval: 90_000,
   });
 
@@ -53,10 +55,10 @@ function NotificationsPage() {
   );
 
   const handleNotificationClick = async (notif: any) => {
-    if (!notif.read && address) {
+    if (!notif.read && walletKey) {
       await markReadMutation.mutateAsync({
         notificationId: notif.id,
-        walletAddress: address,
+        walletAddress: walletKey,
       });
       
       // Refetch to update UI

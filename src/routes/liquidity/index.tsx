@@ -10,6 +10,7 @@ import { LPEarningsHistoryDashboard } from '~/components/liquidity/LPEarningsHis
 import { useWallet } from '~/store/useWalletStore';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 export const Route = createFileRoute('/liquidity/')({
   component: LiquidityPage,
@@ -18,6 +19,7 @@ export const Route = createFileRoute('/liquidity/')({
 function LiquidityPage() {
   const trpc = useTRPC();
   const { isConnected, address } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
@@ -32,9 +34,9 @@ function LiquidityPage() {
   // Fetch user's Protocol Vault position
   const userPositionQuery = useQuery({
     ...trpc.getProtocolVaultPosition.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletKey && isConnected,
   });
 
   const handleDepositSuccess = () => {
