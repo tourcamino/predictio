@@ -56,6 +56,11 @@ export default createApp({
     experimental: {
       asyncContext: true,
     },
+    // Prisma ships `require('.prisma/client/default')` inside `@prisma/client`; bundling it
+    // hits Rollup/Nitro "Invalid module '.prisma'" — keep the client external for the server bundle.
+    rollupConfig: {
+      external: ["@prisma/client", ".prisma/client"],
+    },
   },
   routers: [
     {
