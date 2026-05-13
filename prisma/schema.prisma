@@ -2,11 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider      = "prisma-client-js"
-  // Explicit output silences Prisma 7 deprecation; keeps default @prisma/client resolution.
-  output        = "../node_modules/.prisma/client"
-  // Vercel serverless (Node on Linux) needs a Linux engine; local dev keeps `native`.
-  binaryTargets = ["native", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+  provider = "prisma-client-js"
 }
 
 datasource db {

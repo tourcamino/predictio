@@ -56,15 +56,6 @@ export default createApp({
     experimental: {
       asyncContext: true,
     },
-    // Nitro/Rollup cannot bundle Prisma client (it imports ".prisma" internals).
-    // Keep Prisma external so node-server runs with the installed node_modules at runtime.
-    externals: {
-      external: ["@prisma/client", /\.prisma/],
-    },
-    rollupConfig: {
-      // Ensure Rollup never tries to resolve Prisma internals during server build.
-      external: ["@prisma/client", /\.prisma/],
-    },
   },
   routers: [
     {

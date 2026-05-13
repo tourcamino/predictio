@@ -1,10 +1,10 @@
 {
   "name": "predictio",
   "scripts": {
-    "postinstall": "prisma generate && tsr generate",
+    "postinstall": "prisma generate --no-engine && tsr generate",
     "start:dev": "powershell -ExecutionPolicy Bypass -File start-dev.ps1",
     "dev": "node --import ./scripts/ensure-dev-port.mjs --env-file=.env node_modules/vinxi/bin/cli.mjs dev",
-    "build": "vinxi build",
+    "build": "prisma generate --no-engine && vinxi build",
     "start": "vinxi start",
     "typecheck": "tsc --noEmit -p tsconfig.ci.json",
     "typecheck:backend": "tsc --noEmit -p backend/tsconfig.json",
