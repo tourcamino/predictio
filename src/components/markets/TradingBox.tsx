@@ -21,11 +21,7 @@ import {
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
-import {
-  expressPlacePrediction,
-  shouldUseExpressForWalletCritical,
-  walletCriticalExpressOr404Fallback,
-} from '~/lib/expressCriticalWalletApi';
+import { executePlacePredictionWithDiagnostics } from '~/lib/executePlacePredictionWithDiagnostics';
 
 interface TradingBoxProps {
   market: Market;
@@ -248,15 +244,11 @@ export function TradingBox({ market }: TradingBoxProps) {
       walletAddress: string;
       orderType: 'MARKET' | 'LIMIT';
       limitPrice?: number;
-    }) => {
-      if (shouldUseExpressForWalletCritical()) {
-        return walletCriticalExpressOr404Fallback(
-          () => expressPlacePrediction(input),
-          () => trpcClient.placePrediction.mutate(input),
-        );
-      }
-      return trpcClient.placePrediction.mutate(input);
-    },
+    }) =>
+      executePlacePredictionWithDiagnostics(
+        (i) => trpcClient.placePrediction.mutate(i),
+        input,
+      ),
     onSuccess: (data) => {
       setTxError(undefined);
       setTxModalState('success');

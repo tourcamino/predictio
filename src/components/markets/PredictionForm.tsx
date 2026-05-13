@@ -14,11 +14,7 @@ import {
   invalidateWalletPointsSummary,
 } from '~/utils/invalidateWalletNotifications';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
-import {
-  expressPlacePrediction,
-  shouldUseExpressForWalletCritical,
-  walletCriticalExpressOr404Fallback,
-} from '~/lib/expressCriticalWalletApi';
+import { executePlacePredictionWithDiagnostics } from '~/lib/executePlacePredictionWithDiagnostics';
 
 interface PredictionFormProps {
   market: Market;
@@ -67,17 +63,13 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
       outcome: string;
       amount: number;
       walletAddress: string;
-    }) => {
-      if (shouldUseExpressForWalletCritical()) {
-        return walletCriticalExpressOr404Fallback(
-          () => expressPlacePrediction(input),
-          () => trpcClient.placePrediction.mutate(input),
-        );
-      }
-      return trpcClient.placePrediction.mutate(input);
-    },
+    }) =>
+      executePlacePredictionWithDiagnostics(
+        (i) => trpcClient.placePrediction.mutate(i),
+        input,
+      ),
     onSuccess: (data) => {
-      toast.success(data.message);
+      toast.success(data.message ?? "Prediction placed");
       if (data.newBalance !== undefined) {
         updateBalance(data.newBalance);
       }

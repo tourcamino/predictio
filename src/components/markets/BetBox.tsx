@@ -18,11 +18,7 @@ import {
   invalidateWalletPointsSummary,
 } from '~/utils/invalidateWalletNotifications';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
-import {
-  expressPlacePrediction,
-  shouldUseExpressForWalletCritical,
-  walletCriticalExpressOr404Fallback,
-} from '~/lib/expressCriticalWalletApi';
+import { executePlacePredictionWithDiagnostics } from '~/lib/executePlacePredictionWithDiagnostics';
 
 interface BetBoxProps {
   market: Market;
@@ -77,15 +73,11 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
       outcome: string;
       amount: number;
       walletAddress: string;
-    }) => {
-      if (shouldUseExpressForWalletCritical()) {
-        return walletCriticalExpressOr404Fallback(
-          () => expressPlacePrediction(input),
-          () => trpcClient.placePrediction.mutate(input),
-        );
-      }
-      return trpcClient.placePrediction.mutate(input);
-    },
+    }) =>
+      executePlacePredictionWithDiagnostics(
+        (i) => trpcClient.placePrediction.mutate(i),
+        input,
+      ),
     onSuccess: (data) => {
       setTxModalState('success');
       if (data.newBalance !== undefined) {

@@ -17,7 +17,6 @@ import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import {
   expressGetPointsSummary,
   shouldUseExpressForWalletCritical,
-  walletCriticalExpressOr404Fallback,
 } from '~/lib/expressCriticalWalletApi';
 
 export function Header() {
@@ -54,21 +53,20 @@ export function HeaderInner() {
   const openPositionsCount = positionsQuery.data?.positions.length || 0;
 
   // Fetch user points
-  const pointsQuery = useQuery({
+  type HeaderPointsRow = { totalPoints: number; tier?: string };
+  const pointsQuery = useQuery<HeaderPointsRow>({
     queryKey: ['walletPointsSummary', walletQueryKey ?? ''] as const,
     enabled: !!walletQueryKey && isConnected,
     refetchInterval: 120_000,
     retry: 3,
     retryDelay: (attempt) => Math.min(2500, 400 * 2 ** attempt),
-    queryFn: async () => {
+    queryFn: async (): Promise<HeaderPointsRow> => {
       const w = walletQueryKey!;
       if (shouldUseExpressForWalletCritical()) {
-        return walletCriticalExpressOr404Fallback(
-          () => expressGetPointsSummary(w),
-          () => trpcClient.getPointsSummary.query({ walletAddress: w }),
-        );
+        return expressGetPointsSummary(w);
       }
-      return trpcClient.getPointsSummary.query({ walletAddress: w });
+      const r = await trpcClient.getPointsSummary.query({ walletAddress: w });
+      return { totalPoints: r.totalPoints, tier: r.tier };
     },
   });
 
@@ -77,7 +75,7 @@ export function HeaderInner() {
   const pointsLoading =
     !pointsLoadFailed &&
     !pointsQuery.data &&
-    (pointsQuery.isPending || pointsQuery.isFetching);
+    pointsQuery.isPending;
   const userPoints =
     !pointsLoadFailed && pointsQuery.data != null
       ? pointsQuery.data.totalPoints

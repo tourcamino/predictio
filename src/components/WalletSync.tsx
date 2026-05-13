@@ -13,7 +13,6 @@ import {
 import {
   expressSyncUserAccount,
   shouldUseExpressForWalletCritical,
-  walletCriticalExpressOr404Fallback,
 } from '~/lib/expressCriticalWalletApi';
 
 const SYNC_DEBOUNCE_MS = 280;
@@ -192,10 +191,7 @@ export function WalletSync() {
           };
           try {
             const data = shouldUseExpressForWalletCritical()
-              ? await walletCriticalExpressOr404Fallback(
-                  () => expressSyncUserAccount(payload),
-                  () => syncMutation.mutateAsync(payload),
-                )
+              ? await expressSyncUserAccount(payload)
               : await syncMutation.mutateAsync(payload);
             handleSyncSuccess(data);
           } catch (error: unknown) {
