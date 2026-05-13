@@ -21,6 +21,7 @@ import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import {
   expressPlacePrediction,
   shouldUseExpressForWalletCritical,
+  walletCriticalExpressOr404Fallback,
 } from '~/lib/expressCriticalWalletApi';
 
 interface BetBoxProps {
@@ -78,7 +79,10 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
       walletAddress: string;
     }) => {
       if (shouldUseExpressForWalletCritical()) {
-        return expressPlacePrediction(input);
+        return walletCriticalExpressOr404Fallback(
+          () => expressPlacePrediction(input),
+          () => trpcClient.placePrediction.mutate(input),
+        );
       }
       return trpcClient.placePrediction.mutate(input);
     },

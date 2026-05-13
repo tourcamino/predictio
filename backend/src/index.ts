@@ -546,6 +546,11 @@ app.post("/api/v1/bot/market-maker/provide-liquidity", authenticateApiKey, async
   }
 });
 
+/** Browser-critical paper flows — mount before generic `/api/*` so paths are not shadowed. */
+const paperWebPublicRouter = createWebPublicPaperRouter(prisma);
+app.use("/api/v1/web", paperWebPublicRouter);
+app.use("/api/web", paperWebPublicRouter);
+
 // Developer API routes
 if (process.env.DEVELOPER_API_ENABLED !== 'false') {
   app.use('/api', developerApiRouter);
@@ -565,9 +570,6 @@ app.use("/api", adminKeysRouter);
 app.use("/api", developerKeysRouter);
 
 registerAdminCurationRoutes(app, prisma, publicLimiter);
-
-/** Browser-critical paper flows (same DB as tRPC on Vercel) — avoids serverless FUNCTION_INVOCATION_FAILED. */
-app.use("/api/web", createWebPublicPaperRouter(prisma));
 
 // Same paths as Vinxi (`live-handler.ts`, `health-handler.ts`) — smoke / probes hitting Express only.
 app.get("/api/live", (_req, res) => {

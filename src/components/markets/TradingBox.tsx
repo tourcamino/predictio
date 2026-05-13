@@ -24,6 +24,7 @@ import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import {
   expressPlacePrediction,
   shouldUseExpressForWalletCritical,
+  walletCriticalExpressOr404Fallback,
 } from '~/lib/expressCriticalWalletApi';
 
 interface TradingBoxProps {
@@ -249,7 +250,10 @@ export function TradingBox({ market }: TradingBoxProps) {
       limitPrice?: number;
     }) => {
       if (shouldUseExpressForWalletCritical()) {
-        return expressPlacePrediction(input);
+        return walletCriticalExpressOr404Fallback(
+          () => expressPlacePrediction(input),
+          () => trpcClient.placePrediction.mutate(input),
+        );
       }
       return trpcClient.placePrediction.mutate(input);
     },

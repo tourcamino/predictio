@@ -17,6 +17,7 @@ import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import {
   expressGetPointsSummary,
   shouldUseExpressForWalletCritical,
+  walletCriticalExpressOr404Fallback,
 } from '~/lib/expressCriticalWalletApi';
 
 export function Header() {
@@ -62,7 +63,10 @@ export function HeaderInner() {
     queryFn: async () => {
       const w = walletQueryKey!;
       if (shouldUseExpressForWalletCritical()) {
-        return expressGetPointsSummary(w);
+        return walletCriticalExpressOr404Fallback(
+          () => expressGetPointsSummary(w),
+          () => trpcClient.getPointsSummary.query({ walletAddress: w }),
+        );
       }
       return trpcClient.getPointsSummary.query({ walletAddress: w });
     },

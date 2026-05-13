@@ -2,8 +2,8 @@ import { getApiBaseUrl } from "~/lib/predictioApi";
 
 /**
  * When the SPA origin differs from `VITE_API_URL` / API base (e.g. predictio.live vs api.predictio.live),
- * wallet sync, points, and paper buys are routed to Express `/api/web/*` instead of same-origin Vercel `/trpc`.
- * Express uses a long-lived Node process + Postgres — avoids Vercel `FUNCTION_INVOCATION_FAILED` for these paths.
+ * wallet sync, points, and paper buys hit Express under `/api/v1/web/*` (and legacy `/api/web/*`)
+ * instead of same-origin Vercel `/trpc` — avoids `FUNCTION_INVOCATION_FAILED` on cold serverless + DB.
  */
 export function shouldUseExpressForWalletCritical(): boolean {
   if (typeof window === "undefined") return false;
@@ -12,9 +12,40 @@ export function shouldUseExpressForWalletCritical(): boolean {
   return api !== origin;
 }
 
+/** Thrown when the Express paper API responds with a non-2xx status (includes HTTP status). */
+export class ExpressPaperApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ExpressPaperApiError";
+    this.status = status;
+  }
+}
+
+/**
+ * If the VPS is still on an older build without `/api/v1/web`, Express returns 404 "Not found".
+ * Fall back to same-origin tRPC so the app still works (may be flaky on Vercel until the API is redeployed).
+ */
+export async function walletCriticalExpressOr404Fallback<T>(
+  expressCall: () => Promise<T>,
+  trpcCall: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await expressCall();
+  } catch (e) {
+    if (e instanceof ExpressPaperApiError && e.status === 404) {
+      return trpcCall();
+    }
+    throw e;
+  }
+}
+
 export function expressPointsQueryKey(walletAddress: string) {
   return ["expressPointsSummary", walletAddress.toLowerCase()] as const;
 }
+
+const PAPER_WEB_PREFIX = "/api/v1/web";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -37,6 +68,12 @@ function errMessage(data: unknown, fallback: string): string {
   return fallback;
 }
 
+function assertOk(res: Response, data: unknown, fallback: string) {
+  if (res.ok) return;
+  const msg = errMessage(data, res.statusText || fallback);
+  throw new ExpressPaperApiError(msg, res.status);
+}
+
 export async function expressSyncUserAccount(input: {
   walletAddress: string;
   referralCode?: string;
@@ -48,28 +85,24 @@ export async function expressSyncUserAccount(input: {
   onboardingCompleted: boolean;
 }> {
   const base = getApiBaseUrl().replace(/\/$/, "");
-  const res = await fetch(`${base}/api/web/sync-user`, {
+  const res = await fetch(`${base}${PAPER_WEB_PREFIX}/sync-user`, {
     method: "POST",
     headers: JSON_HEADERS,
     body: JSON.stringify(input),
     credentials: "omit",
   });
   const data = await readJson(res);
-  if (!res.ok) {
-    throw new Error(errMessage(data, res.statusText || "Wallet sync failed"));
-  }
+  assertOk(res, data, "Wallet sync failed");
   return data as any;
 }
 
 export async function expressGetPointsSummary(walletAddress: string) {
   const base = getApiBaseUrl().replace(/\/$/, "");
-  const u = new URL(`${base}/api/web/points-summary`);
+  const u = new URL(`${base}${PAPER_WEB_PREFIX}/points-summary`);
   u.searchParams.set("walletAddress", walletAddress);
   const res = await fetch(u.toString(), { credentials: "omit" });
   const data = await readJson(res);
-  if (!res.ok) {
-    throw new Error(errMessage(data, res.statusText || "Failed to load points"));
-  }
+  assertOk(res, data, "Failed to load points");
   return data as any;
 }
 
@@ -82,15 +115,13 @@ export async function expressPlacePrediction(input: {
   limitPrice?: number;
 }) {
   const base = getApiBaseUrl().replace(/\/$/, "");
-  const res = await fetch(`${base}/api/web/place-prediction`, {
+  const res = await fetch(`${base}${PAPER_WEB_PREFIX}/place-prediction`, {
     method: "POST",
     headers: JSON_HEADERS,
     body: JSON.stringify(input),
     credentials: "omit",
   });
   const data = await readJson(res);
-  if (!res.ok) {
-    throw new Error(errMessage(data, res.statusText || "Trade failed"));
-  }
+  assertOk(res, data, "Trade failed");
   return data as any;
 }

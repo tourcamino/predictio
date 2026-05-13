@@ -17,6 +17,7 @@ import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import {
   expressPlacePrediction,
   shouldUseExpressForWalletCritical,
+  walletCriticalExpressOr404Fallback,
 } from '~/lib/expressCriticalWalletApi';
 
 interface PredictionFormProps {
@@ -68,7 +69,10 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
       walletAddress: string;
     }) => {
       if (shouldUseExpressForWalletCritical()) {
-        return expressPlacePrediction(input);
+        return walletCriticalExpressOr404Fallback(
+          () => expressPlacePrediction(input),
+          () => trpcClient.placePrediction.mutate(input),
+        );
       }
       return trpcClient.placePrediction.mutate(input);
     },

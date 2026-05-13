@@ -13,6 +13,7 @@ import {
 import {
   expressSyncUserAccount,
   shouldUseExpressForWalletCritical,
+  walletCriticalExpressOr404Fallback,
 } from '~/lib/expressCriticalWalletApi';
 
 const SYNC_DEBOUNCE_MS = 280;
@@ -184,31 +185,25 @@ export function WalletSync() {
           syncInFlightRef.current = false;
         };
 
-        if (shouldUseExpressForWalletCritical()) {
-          void expressSyncUserAccount({
+        void (async () => {
+          const payload = {
             walletAddress: walletKey,
             referralCode: refCodeFromCookie || undefined,
-          })
-            .then((data) => {
-              handleSyncSuccess(data);
-            })
-            .catch((error: unknown) => {
-              handleSyncError(error);
-            })
-            .finally(settle);
-        } else {
-          syncMutation.mutate(
-            {
-              walletAddress: walletKey,
-              referralCode: refCodeFromCookie || undefined,
-            },
-            {
-              onSuccess: handleSyncSuccess,
-              onError: handleSyncError,
-              onSettled: settle,
-            },
-          );
-        }
+          };
+          try {
+            const data = shouldUseExpressForWalletCritical()
+              ? await walletCriticalExpressOr404Fallback(
+                  () => expressSyncUserAccount(payload),
+                  () => syncMutation.mutateAsync(payload),
+                )
+              : await syncMutation.mutateAsync(payload);
+            handleSyncSuccess(data);
+          } catch (error: unknown) {
+            handleSyncError(error);
+          } finally {
+            settle();
+          }
+        })();
       };
 
       runSync();

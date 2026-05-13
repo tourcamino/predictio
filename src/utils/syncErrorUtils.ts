@@ -1,5 +1,7 @@
 import { TRPCClientError } from "@trpc/client";
 
+import { ExpressPaperApiError } from "~/lib/expressCriticalWalletApi";
+
 /**
  * Errors that often clear on retry (Vercel cold start, DB pool, transient 5xx).
  * Used by WalletSync so we do not toast immediately on first flaky response.
@@ -81,6 +83,10 @@ export function userFacingSyncFailureDetail(error: unknown): string {
     lower.includes("can't reach database")
   ) {
     return " Database temporarily unreachable.";
+  }
+
+  if (error instanceof ExpressPaperApiError && error.status === 404) {
+    return " The paper API is not deployed on this host (HTTP 404). Redeploy api.predictio.live with the latest backend, or retry in a moment.";
   }
 
   const max = 180;
