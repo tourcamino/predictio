@@ -1,8 +1,4 @@
-import {
-  defineEventHandler,
-  toWebRequest,
-  type H3Event,
-} from "vinxi/http";
+import { defineEventHandler, getRequestURL, type H3Event } from "vinxi/http";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./root";
 import { startAutonomousCopyAnalystScheduler } from "~/server/services/autonomousCopyAnalystScheduler";
@@ -14,10 +10,16 @@ try {
 }
 
 export default defineEventHandler((event: H3Event) => {
-  const request = toWebRequest(event);
-  if (!request) {
-    return new Response("No request", { status: 400 });
-  }
+  const url = getRequestURL(event);
+  const request = new Request(url, {
+    method: event.node.req.method ?? "GET",
+    headers: event.node.req.headers as HeadersInit,
+    body:
+      event.node.req.method !== "GET" && event.node.req.method !== "HEAD"
+        ? (event.node.req as unknown as ReadableStream)
+        : undefined,
+    duplex: "half",
+  } as RequestInit & { duplex: string });
 
   return fetchRequestHandler({
     endpoint: "/trpc",
