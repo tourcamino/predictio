@@ -69,6 +69,9 @@ export function userFacingSyncFailureDetail(error: unknown): string {
   if (lower.includes("function_invocation_failed")) {
     return " A temporary server error occurred (hosting). Retrying usually works.";
   }
+  if (lower.includes("database_url is not configured")) {
+    return " Server database URL is missing — contact support.";
+  }
   if (lower.includes("failed to fetch") || lower.includes("network")) {
     return " Network error while contacting the server.";
   }

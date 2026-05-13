@@ -41,6 +41,8 @@ export function HeaderInner() {
     }),
     enabled: !!walletQueryKey && isConnected,
     refetchInterval: 90_000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(2500, 400 * 2 ** attempt),
   });
 
   const openPositionsCount = positionsQuery.data?.positions.length || 0;
@@ -52,6 +54,8 @@ export function HeaderInner() {
     }),
     enabled: !!walletQueryKey && isConnected,
     refetchInterval: 120_000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(2500, 400 * 2 ** attempt),
   });
 
   const userPoints = pointsQuery.data?.totalPoints || 0;

@@ -6,6 +6,20 @@ This document lists all environment variables required for Predictio.live across
 
 ---
 
+## Vercel + Neon — wallet sync and points (`syncUserAccount`)
+
+The SPA on **https://predictio.live** calls **same-origin** `POST /trpc` (Vinxi/Nitro on Vercel). If users see *“Could not load your account from the server … (hosting)”*, the serverless function is failing—most often **Postgres connectivity** from Vercel to Neon.
+
+1. **Set `DATABASE_URL` on the Vercel project** (Production + Preview if you use DB there). It must be non-empty; the app now errors clearly if it is missing.
+2. **Use Neon’s pooled connection string** for serverless: host should include **`pooler`** (e.g. `…-pooler…neon.tech`) or the pooled URL from the Neon dashboard. Direct/non-pooled URLs often cause cold-start timeouts, `FUNCTION_INVOCATION_FAILED`, and Prisma `P1001` / connection errors.
+3. Optional query params Neon recommends for Prisma serverless: e.g. `?sslmode=require&connect_timeout=15` (see Neon docs for your stack).
+4. After changing env vars, **Redeploy** so runtime picks up the new `DATABASE_URL`.
+5. In **Vercel → Logs**, filter for `syncUserAccount` or `trpc_onError` to see the real error behind generic “hosting” messages.
+
+The REST API at **api.predictio.live** can still respond while tRPC fails if only the Vercel env is wrong—symptoms: markets load, wallet connect toast errors, points stay at 0 until sync succeeds.
+
+---
+
 ## 📦 FRONTEND (.env.local)
 
 Copy `.env.example` to `.env.local` and fill in values.
@@ -50,7 +64,7 @@ VITE_OPENROUTER_KEY=                           # Get from openrouter.ai (for AI 
   - `VITE_WALLETCONNECT_PROJECT_ID` — For real wallet connections
   - `VITE_AZURO_API_KEY` — For live sports data
   - `VITE_OPENROUTER_KEY` — For AI-generated insights
-  - `VITE_API_URL` — Must point to real backend (currently uses mock tRPC)
+  - `VITE_API_URL` — Express REST (`/api/*`) on **api.predictio.live**; tRPC stays on **same origin** as the page (`/trpc` on predictio.live — see `src/trpc/react.tsx`).
 
 ---
 

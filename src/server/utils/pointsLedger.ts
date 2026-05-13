@@ -192,7 +192,8 @@ export async function creditLoginStreakBonusesIfEligible(
       where: { walletAddress: w, actionType: "DAILY_LOGIN" },
       select: { createdAt: true },
       orderBy: { createdAt: "desc" },
-      take: 400,
+      // Enough rows for streak math (30 consecutive local days); keeps syncUserAccount lighter on Vercel.
+      take: 120,
     }),
     db.pointsLedger.findMany({
       where: {
