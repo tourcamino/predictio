@@ -57,12 +57,16 @@ export function invalidateWalletPointsSummary(
   if (!w) return;
   const key = getPointsSummaryQueryKey({ walletAddress: w });
   queryClient.invalidateQueries({ queryKey: key });
+  queryClient.invalidateQueries({ queryKey: ["expressPointsSummary", w] });
+  queryClient.invalidateQueries({ queryKey: ["walletPointsSummary", w] });
   // Legacy cache entries keyed with checksummed address (before normalization).
   const raw = walletAddress.trim();
   if (raw && raw !== w) {
     queryClient.invalidateQueries({
       queryKey: getPointsSummaryQueryKey({ walletAddress: raw }),
     });
+    queryClient.invalidateQueries({ queryKey: ["expressPointsSummary", raw.toLowerCase()] });
+    queryClient.invalidateQueries({ queryKey: ["walletPointsSummary", raw.toLowerCase()] });
   }
 }
 
@@ -71,7 +75,12 @@ export function invalidateAllPointsSummaryQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({
     predicate: (q) => {
       try {
-        return JSON.stringify(q.queryKey).includes("getPointsSummary");
+        const s = JSON.stringify(q.queryKey);
+        return (
+          s.includes("getPointsSummary") ||
+          s.includes("walletPointsSummary") ||
+          s.includes("expressPointsSummary")
+        );
       } catch {
         return false;
       }

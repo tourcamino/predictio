@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Loader2, Lock, CheckCircle, ChevronDown, TrendingUp, TrendingDown, HelpCircle, AlertTriangle } from 'lucide-react';
-import { useTRPC } from '~/trpc/react';
+import { useTRPC, useTRPCClient } from '~/trpc/react';
 import { Market } from '~/data/mockMarkets';
 import { useWallet } from '~/store/useWalletStore';
 import { TransactionModal } from '../TransactionModal';
@@ -21,6 +21,10 @@ import {
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import {
+  expressPlacePrediction,
+  shouldUseExpressForWalletCritical,
+} from '~/lib/expressCriticalWalletApi';
 
 interface TradingBoxProps {
   market: Market;
@@ -87,6 +91,7 @@ function Tooltip({ children, content }: { children: React.ReactNode; content: st
 
 export function TradingBox({ market }: TradingBoxProps) {
   const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
   const { isConnected: isWalletConnected, address: walletAddress, updateBalance, balance: walletBalance } = useWallet();
   const walletKey = normalizeWalletForQuery(walletAddress);
@@ -234,65 +239,74 @@ export function TradingBox({ market }: TradingBoxProps) {
   const positionPnL = positionValue - positionCost;
   const positionPnLPct = positionCost > 0 ? (positionPnL / positionCost) * 100 : 0;
 
-  const placeTradeMutation = useMutation(
-    trpc.placePrediction.mutationOptions({
-      onSuccess: (data) => {
-        setTxError(undefined);
-        setTxModalState('success');
-        
-        // Update wallet balance
-        if (data.newBalance !== undefined) {
-          updateBalance(data.newBalance);
-        }
-        
-        toast.success(`Trade executed successfully! ${selectedOutcome} shares purchased.`, {
-          duration: 4000,
-          icon: '✅',
-        });
-        
-        setTimeout(() => {
-          setShowTxModal(false);
-          buyForm.reset();
-        }, 2000);
-        
-        queryClient.invalidateQueries({
-          queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
-        });
-        queryClient.invalidateQueries({
-          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
-        });
-        queryClient.invalidateQueries({
-          queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
-        });
-        if (walletKey) {
-          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
-          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
-        }
-      },
-      onError: (error) => {
-        // Provide user-friendly error messages
-        let errorMessage = 'Trade failed. Please try again.';
-        
-        if (error.message.includes('insufficient')) {
-          errorMessage = 'Insufficient balance. Please reduce your trade amount.';
-        } else if (error.message.includes('network')) {
-          errorMessage = 'Network error. Please check your connection and try again.';
-        } else if (error.message.includes('market closed')) {
-          errorMessage = 'This market is now closed for trading.';
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-        
-        setTxError(errorMessage);
-        setTxModalState('error');
-        
-        toast.error(errorMessage, {
-          duration: 5000,
-          icon: '❌',
-        });
-      },
-    })
-  );
+  const placeTradeMutation = useMutation({
+    mutationFn: (input: {
+      marketId: string;
+      outcome: string;
+      amount: number;
+      walletAddress: string;
+      orderType: 'MARKET' | 'LIMIT';
+      limitPrice?: number;
+    }) => {
+      if (shouldUseExpressForWalletCritical()) {
+        return expressPlacePrediction(input);
+      }
+      return trpcClient.placePrediction.mutate(input);
+    },
+    onSuccess: (data) => {
+      setTxError(undefined);
+      setTxModalState('success');
+
+      if (data.newBalance !== undefined) {
+        updateBalance(data.newBalance);
+      }
+
+      toast.success(`Trade executed successfully! ${selectedOutcome} shares purchased.`, {
+        duration: 4000,
+        icon: '✅',
+      });
+
+      setTimeout(() => {
+        setShowTxModal(false);
+        buyForm.reset();
+      }, 2000);
+
+      queryClient.invalidateQueries({
+        queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
+      });
+      queryClient.invalidateQueries({
+        queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
+      });
+      queryClient.invalidateQueries({
+        queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
+      });
+      if (walletKey) {
+        invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
+        invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
+      }
+    },
+    onError: (error: Error) => {
+      let errorMessage = 'Trade failed. Please try again.';
+
+      if (error.message.includes('insufficient')) {
+        errorMessage = 'Insufficient balance. Please reduce your trade amount.';
+      } else if (error.message.includes('network')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.message.includes('market closed')) {
+        errorMessage = 'This market is now closed for trading.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setTxError(errorMessage);
+      setTxModalState('error');
+
+      toast.error(errorMessage, {
+        duration: 5000,
+        icon: '❌',
+      });
+    },
+  });
 
   const closePositionMutation = useMutation(
     trpc.closePosition.mutationOptions({

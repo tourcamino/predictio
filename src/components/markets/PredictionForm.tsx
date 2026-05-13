@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { DollarSign, TrendingUp } from 'lucide-react';
-import { useTRPC } from '~/trpc/react';
+import { useTRPC, useTRPCClient } from '~/trpc/react';
 import { Market } from '~/data/mockMarkets';
 import { useWallet } from '~/store/useWalletStore';
 import { useWalletGate } from '~/hooks/useWalletGate';
@@ -14,6 +14,10 @@ import {
   invalidateWalletPointsSummary,
 } from '~/utils/invalidateWalletNotifications';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import {
+  expressPlacePrediction,
+  shouldUseExpressForWalletCritical,
+} from '~/lib/expressCriticalWalletApi';
 
 interface PredictionFormProps {
   market: Market;
@@ -31,6 +35,7 @@ type PredictionFormData = z.infer<typeof predictionSchema>;
 
 export function PredictionForm({ market, selectedOutcome }: PredictionFormProps) {
   const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
   const { address, updateBalance } = useWallet();
   const walletKey = normalizeWalletForQuery(address);
@@ -48,33 +53,49 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
     },
   });
 
-  const placePredictionMutation = useMutation(
-    trpc.placePrediction.mutationOptions({
-      onSuccess: (data) => {
-        toast.success(data.message);
-        if (data.newBalance !== undefined) {
-          updateBalance(data.newBalance);
-        }
-        reset();
+  const mapOutcomeToSide = (): 'YES' | 'NO' | 'DRAW' | null => {
+    if (selectedOutcome === 'teamA') return 'YES';
+    if (selectedOutcome === 'teamB') return 'NO';
+    if (selectedOutcome === 'draw') return 'DRAW';
+    return null;
+  };
+
+  const placePredictionMutation = useMutation({
+    mutationFn: (input: {
+      marketId: string;
+      outcome: string;
+      amount: number;
+      walletAddress: string;
+    }) => {
+      if (shouldUseExpressForWalletCritical()) {
+        return expressPlacePrediction(input);
+      }
+      return trpcClient.placePrediction.mutate(input);
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
+      if (data.newBalance !== undefined) {
+        updateBalance(data.newBalance);
+      }
+      reset();
+      queryClient.invalidateQueries({
+        queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
+      });
+      if (walletKey) {
         queryClient.invalidateQueries({
-          queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
+          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
         });
-        if (walletKey) {
-          queryClient.invalidateQueries({
-            queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
-          });
-          queryClient.invalidateQueries({
-            queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
-          });
-          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
-          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
-        }
-      },
-      onError: (error) => {
-        toast.error(error.message || 'Failed to place prediction');
-      },
-    })
-  );
+        queryClient.invalidateQueries({
+          queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
+        });
+        invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
+        invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to place prediction');
+    },
+  });
 
   const onSubmit = (data: PredictionFormData) => {
     if (!selectedOutcome) {
@@ -84,9 +105,16 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
     if (!requireWallet()) return;
     if (!address) return;
 
+    const side = mapOutcomeToSide();
+    if (!side) {
+      toast.error('Please select an outcome first');
+      return;
+    }
+    if (!walletKey) return;
+
     placePredictionMutation.mutate({
       marketId: market.id,
-      outcome: selectedOutcome,
+      outcome: side.toLowerCase(),
       amount: data.amount,
       walletAddress: walletKey,
     });

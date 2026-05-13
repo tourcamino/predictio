@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Menu, X, LogOut, Loader2, Hexagon } from 'lucide-react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { useTRPC } from '~/trpc/react';
+import { useTRPC, useTRPCClient } from '~/trpc/react';
 import { useWallet } from '~/store/useWalletStore';
 import { WalletDropdown } from './WalletDropdown';
 import { Menu as HeadlessMenu } from '@headlessui/react';
@@ -14,6 +14,10 @@ import { NotificationCenter } from './notifications/NotificationCenter';
 import { useScrollDirection } from '~/hooks/useScrollDirection';
 import { useTopChromeManaged } from '~/components/TopChromeContext';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import {
+  expressGetPointsSummary,
+  shouldUseExpressForWalletCritical,
+} from '~/lib/expressCriticalWalletApi';
 
 export function Header() {
   const isManaged = useTopChromeManaged();
@@ -29,6 +33,7 @@ export function HeaderInner() {
   const { isActive: isDemoActive, balance: demoBalance } = useDemoAccount();
   const navigate = useNavigate();
   const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
   const { scrollDirection, isAtTop } = useScrollDirection();
 
   const walletQueryKey = normalizeWalletForQuery(address);
@@ -49,13 +54,18 @@ export function HeaderInner() {
 
   // Fetch user points
   const pointsQuery = useQuery({
-    ...trpc.getPointsSummary.queryOptions({
-      walletAddress: walletQueryKey,
-    }),
+    queryKey: ['walletPointsSummary', walletQueryKey ?? ''] as const,
     enabled: !!walletQueryKey && isConnected,
     refetchInterval: 120_000,
     retry: 3,
     retryDelay: (attempt) => Math.min(2500, 400 * 2 ** attempt),
+    queryFn: async () => {
+      const w = walletQueryKey!;
+      if (shouldUseExpressForWalletCritical()) {
+        return expressGetPointsSummary(w);
+      }
+      return trpcClient.getPointsSummary.query({ walletAddress: w });
+    },
   });
 
   /** When tRPC fails, `data` is undefined — do not show "0" (that looked like missing points for weeks). */

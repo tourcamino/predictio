@@ -10,6 +10,10 @@ import {
   isTransientSyncError,
   userFacingSyncFailureDetail,
 } from '~/utils/syncErrorUtils';
+import {
+  expressSyncUserAccount,
+  shouldUseExpressForWalletCritical,
+} from '~/lib/expressCriticalWalletApi';
 
 const SYNC_DEBOUNCE_MS = 280;
 const MAX_SILENT_RETRIES = 6;
@@ -100,87 +104,111 @@ export function WalletSync() {
           `[REFERRAL] Cookie check: ${refCodeFromCookie ? `Found code ${refCodeFromCookie}` : 'No cookie found'}`,
         );
 
-        syncMutation.mutate(
-          {
+        const handleSyncSuccess = (data: {
+          isNewUser: boolean;
+          virtualBalance: number;
+          onboardingCompleted: boolean;
+        }) => {
+          lastSyncedAddressRef.current = walletKey;
+          silentRetryCountRef.current = 0;
+          clearRetry();
+
+          updateBalance(data.virtualBalance);
+          setSyncing(false);
+
+          invalidateWalletPointsSummary(
+            queryClient,
+            trpc.getPointsSummary.queryKey,
+            walletKey,
+          );
+
+          if (refCodeFromCookie) {
+            document.cookie =
+              'predictio_ref=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax';
+            console.log('[REFERRAL] Referral cookie cleared after attribution');
+          }
+
+          if (data.isNewUser) {
+            console.log(
+              `[Paper Trading] New account created with $${data.virtualBalance} virtual balance`,
+            );
+            toast.success(
+              `Welcome! You've been credited with $${data.virtualBalance} USDC for trading.`,
+              { duration: 5000, icon: '🎉' },
+            );
+          } else {
+            console.log(
+              `[Paper Trading] Account synced — balance $${data.virtualBalance} USDC (no toast)`,
+            );
+          }
+
+          if (!data.onboardingCompleted) {
+            setShowOnboarding(true);
+          }
+        };
+
+        const handleSyncError = (error: unknown) => {
+          console.error('[Paper Trading] Failed to sync account:', error);
+          setSyncing(false);
+
+          const transient = isTransientSyncError(error);
+          if (transient && silentRetryCountRef.current < MAX_SILENT_RETRIES) {
+            silentRetryCountRef.current += 1;
+            const delay = Math.min(
+              10_000,
+              450 * 2 ** (silentRetryCountRef.current - 1),
+            );
+            console.warn(
+              `[Paper Trading] Sync retry ${silentRetryCountRef.current}/${MAX_SILENT_RETRIES} in ${delay}ms`,
+            );
+            clearRetry();
+            retryTimerRef.current = setTimeout(() => {
+              retryTimerRef.current = null;
+              syncInFlightRef.current = false;
+              runSync();
+            }, delay);
+            return;
+          }
+
+          silentRetryCountRef.current = 0;
+
+          const suffix = userFacingSyncFailureDetail(error);
+
+          toast.error(
+            `Could not load your account from the server.${suffix} Your wallet stays connected — try again in a moment or refresh the page.`,
+            { duration: 6500 },
+          );
+        };
+
+        const settle = () => {
+          syncInFlightRef.current = false;
+        };
+
+        if (shouldUseExpressForWalletCritical()) {
+          void expressSyncUserAccount({
             walletAddress: walletKey,
             referralCode: refCodeFromCookie || undefined,
-          },
-          {
-            onSuccess: (data) => {
-              lastSyncedAddressRef.current = walletKey;
-              silentRetryCountRef.current = 0;
-              clearRetry();
-
-              updateBalance(data.virtualBalance);
-              setSyncing(false);
-
-              invalidateWalletPointsSummary(
-                queryClient,
-                trpc.getPointsSummary.queryKey,
-                walletKey,
-              );
-
-              if (refCodeFromCookie) {
-                document.cookie =
-                  'predictio_ref=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax';
-                console.log('[REFERRAL] Referral cookie cleared after attribution');
-              }
-
-              if (data.isNewUser) {
-                console.log(
-                  `[Paper Trading] New account created with $${data.virtualBalance} virtual balance`,
-                );
-                toast.success(
-                  `Welcome! You've been credited with $${data.virtualBalance} USDC for trading.`,
-                  { duration: 5000, icon: '🎉' },
-                );
-              } else {
-                console.log(
-                  `[Paper Trading] Account synced — balance $${data.virtualBalance} USDC (no toast)`,
-                );
-              }
-
-              if (!data.onboardingCompleted) {
-                setShowOnboarding(true);
-              }
+          })
+            .then((data) => {
+              handleSyncSuccess(data);
+            })
+            .catch((error: unknown) => {
+              handleSyncError(error);
+            })
+            .finally(settle);
+        } else {
+          syncMutation.mutate(
+            {
+              walletAddress: walletKey,
+              referralCode: refCodeFromCookie || undefined,
             },
-            onError: (error) => {
-              console.error('[Paper Trading] Failed to sync account:', error);
-              setSyncing(false);
-
-              const transient = isTransientSyncError(error);
-              if (transient && silentRetryCountRef.current < MAX_SILENT_RETRIES) {
-                silentRetryCountRef.current += 1;
-                const delay = Math.min(
-                  10_000,
-                  450 * 2 ** (silentRetryCountRef.current - 1),
-                );
-                console.warn(
-                  `[Paper Trading] Sync retry ${silentRetryCountRef.current}/${MAX_SILENT_RETRIES} in ${delay}ms`,
-                );
-                clearRetry();
-                retryTimerRef.current = setTimeout(() => {
-                  retryTimerRef.current = null;
-                  syncInFlightRef.current = false;
-                  runSync();
-                }, delay);
-                return;
-              }
-
-              silentRetryCountRef.current = 0;
-
-              const suffix = userFacingSyncFailureDetail(error);
-
-              toast.error(
-                `Could not load your account from the server.${suffix} Your wallet stays connected — try again in a moment or refresh the page.`,
-                { duration: 6500 },
-              );
+            {
+              onSuccess: handleSyncSuccess,
+              onError: handleSyncError,
+              onSettled: settle,
             },
-            onSettled: () => {
-              syncInFlightRef.current = false;
-            },
-          },
-        );
+          );
+        }
       };
 
       runSync();

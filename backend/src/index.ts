@@ -7,6 +7,7 @@ import developerApiRouter from './developerApi';
 import { translateText } from "./services/translate";
 import { createClient } from "redis";
 import tradesRouter from "./routes/trades";
+import { createWebPublicPaperRouter } from "./routes/webPublicPaper";
 import copyRouter from "./routes/copy";
 import leaderboardRouter from "./routes/leaderboard";
 import affiliateRouter from "./routes/affiliate";
@@ -564,6 +565,9 @@ app.use("/api", adminKeysRouter);
 app.use("/api", developerKeysRouter);
 
 registerAdminCurationRoutes(app, prisma, publicLimiter);
+
+/** Browser-critical paper flows (same DB as tRPC on Vercel) — avoids serverless FUNCTION_INVOCATION_FAILED. */
+app.use("/api/web", createWebPublicPaperRouter(prisma));
 
 // Same paths as Vinxi (`live-handler.ts`, `health-handler.ts`) — smoke / probes hitting Express only.
 app.get("/api/live", (_req, res) => {

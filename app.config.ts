@@ -27,6 +27,7 @@ function expressDevApiProxy(): Record<
   { target: string; changeOrigin: boolean }
 > {
   const prefixes = [
+    "/api/web",
     "/api/v1",
     "/api/me",
     "/api/markets",

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Check, Loader2, Zap, Lock, CheckCircle, ChevronDown } from 'lucide-react';
-import { useTRPC } from '~/trpc/react';
+import { useTRPC, useTRPCClient } from '~/trpc/react';
 import { Market } from '~/data/mockMarkets';
 import { useWallet } from '~/store/useWalletStore';
 import { useWalletGate } from '~/hooks/useWalletGate';
@@ -18,6 +18,10 @@ import {
   invalidateWalletPointsSummary,
 } from '~/utils/invalidateWalletNotifications';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import {
+  expressPlacePrediction,
+  shouldUseExpressForWalletCritical,
+} from '~/lib/expressCriticalWalletApi';
 
 interface BetBoxProps {
   market: Market;
@@ -36,6 +40,7 @@ type PredictionFormData = z.infer<typeof predictionSchema>;
 
 export function BetBox({ market, selectedOutcome }: BetBoxProps) {
   const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
   const { isConnected: isWalletConnected, address, updateBalance } = useWallet();
   const walletKey = normalizeWalletForQuery(address);
@@ -65,37 +70,46 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
 
   const amount = watch('amount') || 0;
 
-  const placePredictionMutation = useMutation(
-    trpc.placePrediction.mutationOptions({
-      onSuccess: (data) => {
-        setTxModalState('success');
-        if (data.newBalance !== undefined) {
-          updateBalance(data.newBalance);
-        }
-        setTimeout(() => {
-          setShowTxModal(false);
-          reset();
-        }, 2000);
+  const placePredictionMutation = useMutation({
+    mutationFn: (input: {
+      marketId: string;
+      outcome: string;
+      amount: number;
+      walletAddress: string;
+    }) => {
+      if (shouldUseExpressForWalletCritical()) {
+        return expressPlacePrediction(input);
+      }
+      return trpcClient.placePrediction.mutate(input);
+    },
+    onSuccess: (data) => {
+      setTxModalState('success');
+      if (data.newBalance !== undefined) {
+        updateBalance(data.newBalance);
+      }
+      setTimeout(() => {
+        setShowTxModal(false);
+        reset();
+      }, 2000);
+      queryClient.invalidateQueries({
+        queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
+      });
+      if (walletKey) {
         queryClient.invalidateQueries({
-          queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
+          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
         });
-        if (walletKey) {
-          queryClient.invalidateQueries({
-            queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
-          });
-          queryClient.invalidateQueries({
-            queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
-          });
-          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
-          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
-        }
-      },
-      onError: (error) => {
-        setTxError(error.message || 'Trade failed. Please try again.');
-        setTxModalState('error');
-      },
-    })
-  );
+        queryClient.invalidateQueries({
+          queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
+        });
+        invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
+        invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
+      }
+    },
+    onError: (error: Error) => {
+      setTxError(error.message || 'Trade failed. Please try again.');
+      setTxModalState('error');
+    },
+  });
 
   const getOutcomeData = () => {
     if (!selectedOutcome) return null;
@@ -197,16 +211,23 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
     }
 
     if (!requireWallet()) return;
-    if (!address) return;
+    if (!address || !walletKey) return;
     setTxModalState('pending');
 
     // Simulate wallet approval
     setTimeout(() => {
       setTxModalState('mining');
 
+      const side = mapOutcomeToSide();
+      if (!side) {
+        setTxError('Invalid outcome');
+        setTxModalState('error');
+        return;
+      }
+
       placePredictionMutation.mutate({
         marketId: market.id,
-        outcome: selectedOutcome!,
+        outcome: side.toLowerCase(),
         amount: watch('amount'),
         walletAddress: walletKey,
       });
