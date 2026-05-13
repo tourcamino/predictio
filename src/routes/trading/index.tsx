@@ -8,6 +8,7 @@ import { OrderHistory } from '~/components/trading/OrderHistory';
 import { useTradingStore } from '~/store/tradingStore';
 import { Wallet, Users, Copy } from 'lucide-react';
 import { useEffect } from 'react';
+import { DEMO_TRADING_BADGE } from '~/lib/demoMarketingCopy';
 
 export const Route = createFileRoute('/trading/')({
   component: TradingPage,
@@ -82,7 +83,8 @@ function TradingPage() {
         },
       ];
       setPositions(mockPositions);
-      selectPosition(mockPositions[0].id);
+      const first = mockPositions[0];
+      if (first) selectPosition(first.id);
     }
     // setPositions / selectPosition are stable Zustand actions; omitting from deps avoids loops.
   }, [positions.length, isConnected]);
@@ -103,9 +105,7 @@ function TradingPage() {
               <p className="text-gray-400">Manage your active positions</p>
               {!isConnected && (
                 <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-purple-500/20 border border-purple-500/30 rounded-lg">
-                  <span className="text-xs text-purple-400 font-semibold">
-                    DEMO MODE · ${demoBalance.toFixed(0)} USDC virtual balance
-                  </span>
+                  <span className="text-xs text-purple-400 font-semibold">{DEMO_TRADING_BADGE}</span>
                 </div>
               )}
             </div>
@@ -144,9 +144,7 @@ function TradingPage() {
                 <p className="text-gray-400">Manage your active positions</p>
                 {!isConnected && (
                   <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-purple-500/20 border border-purple-500/30 rounded-lg">
-                    <span className="text-xs text-purple-400 font-semibold">
-                      DEMO MODE · Trading with virtual balance
-                    </span>
+                    <span className="text-xs text-purple-400 font-semibold">{DEMO_TRADING_BADGE}</span>
                   </div>
                 )}
               </div>

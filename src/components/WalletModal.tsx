@@ -46,7 +46,10 @@ export function WalletModal() {
       
       const interval = setInterval(() => {
         if (currentStage < stages.length) {
-          setConnectionStatus(stages[currentStage]);
+          const stage = stages[currentStage];
+          if (stage !== undefined) {
+            setConnectionStatus(stage);
+          }
           currentStage++;
         } else {
           clearInterval(interval);
@@ -195,7 +198,7 @@ export function WalletModal() {
                       Connect wallet
                     </Dialog.Title>
                     <p className="text-gray-400 mb-6">
-                      You can try simulated trading without a wallet; activity stays on this device and is not tied to an account. Connect a wallet to save your progress and persist trading data on your account.
+                      Trade live prediction markets with 1,000 demo USDC — no risk, no deposits required.
                     </p>
 
                     <div className="space-y-3 mb-6 max-h-[400px] overflow-y-auto pr-2">
@@ -256,9 +259,6 @@ export function WalletModal() {
                         <span>🔒</span>
                         <span>Non-custodial · We never hold your funds · No KYC required</span>
                       </div>
-                      <p className="text-xs text-center text-purple-400">
-                        💡 Demo balance ($1,000 virtual USDC) is local until you connect a wallet
-                      </p>
                     </div>
                   </div>
                 )}
