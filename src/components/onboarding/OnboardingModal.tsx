@@ -67,7 +67,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
   if (!isOpen) return null;
   
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 lg:p-6 animate-fade-in">
       {/* Backdrop with blur - allows seeing the interface behind */}
       <div 
         className="absolute inset-0 bg-brand-bg/80 backdrop-blur-md"
@@ -75,7 +75,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
       />
       
       {/* Modal content - responsive and centered */}
-      <div className="relative w-full max-w-[15.65rem] md:max-w-[20.6rem] bg-brand-navy border-2 border-brand-green/30 rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
+      <div className="relative w-full max-w-sm sm:max-w-lg lg:max-w-2xl max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] bg-brand-navy border-2 border-brand-green/30 rounded-2xl shadow-2xl overflow-y-auto animate-slide-up">
         {/* Close button */}
         <button
           type="button"
@@ -88,57 +88,57 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
 
         {/* Step 1: Welcome */}
         {step === 1 && (
-          <div className="p-2.5 md:p-5">
+          <div className="p-4 sm:p-6 lg:p-8">
             {/* Logo */}
-            <div className="text-center mb-6">
-              <h1 className="font-syne text-xl md:text-2xl font-bold mb-2">
+            <div className="text-center mb-5 sm:mb-6 lg:mb-8">
+              <h1 className="font-syne text-2xl sm:text-3xl lg:text-4xl font-bold mb-2">
                 <span className="text-brand-green">Predictio</span>
                 <span className="text-white">.live</span>
               </h1>
             </div>
             
             {/* Title */}
-            <h2 className="font-syne text-lg md:text-xl font-bold text-white text-center mb-3">
+            <h2 className="font-syne text-xl sm:text-2xl lg:text-3xl font-bold text-white text-center mb-3">
               Welcome to Predictio
             </h2>
             
             {/* Subtitle */}
-            <p className="text-gray-400 text-center text-xs md:text-sm mb-6">
+            <p className="text-gray-400 text-center text-sm sm:text-base mb-5 sm:mb-6 lg:mb-8">
               The first sports prediction market on Base
             </p>
             
             {/* Features */}
-            <div className="space-y-3 mb-6">
-              <div className="flex items-start gap-3 p-2 md:p-3 bg-white/5 rounded-lg">
-                <Target className="w-4 h-4 md:w-5 md:h-5 text-brand-green flex-shrink-0 mt-1" />
+            <div className="grid gap-3 lg:grid-cols-3 mb-5 sm:mb-6 lg:mb-8">
+              <div className="flex lg:flex-col items-start gap-3 p-3 sm:p-4 bg-white/5 rounded-lg">
+                <Target className="w-5 h-5 lg:w-6 lg:h-6 text-brand-green flex-shrink-0 mt-0.5 lg:mt-0" />
                 <div>
-                  <h3 className="font-semibold text-white text-xs md:text-sm mb-1">Trade YES/NO tokens on sports outcomes</h3>
-                  <p className="text-[0.65rem] md:text-xs text-gray-400">Buy and sell prediction tokens based on real sports events</p>
+                  <h3 className="font-semibold text-white text-sm lg:text-base mb-1">Trade YES/NO tokens on sports outcomes</h3>
+                  <p className="text-xs lg:text-sm text-gray-400">Buy and sell prediction tokens based on real sports events</p>
                 </div>
               </div>
               
-              <div className="flex items-start gap-3 p-2 md:p-3 bg-white/5 rounded-lg">
-                <DollarSign className="w-4 h-4 md:w-5 md:h-5 text-brand-green flex-shrink-0 mt-1" />
+              <div className="flex lg:flex-col items-start gap-3 p-3 sm:p-4 bg-white/5 rounded-lg">
+                <DollarSign className="w-5 h-5 lg:w-6 lg:h-6 text-brand-green flex-shrink-0 mt-0.5 lg:mt-0" />
                 <div>
-                  <h3 className="font-semibold text-white text-xs md:text-sm mb-1">Start with $1,000 virtual USDC — no risk</h3>
-                  <p className="text-[0.65rem] md:text-xs text-gray-400">Practice with paper trading before using real funds</p>
+                  <h3 className="font-semibold text-white text-sm lg:text-base mb-1">Start with $1,000 virtual USDC — no risk</h3>
+                  <p className="text-xs lg:text-sm text-gray-400">Practice with paper trading before using real funds</p>
                 </div>
               </div>
               
-              <div className="flex items-start gap-3 p-2 md:p-3 bg-white/5 rounded-lg">
-                <Trophy className="w-4 h-4 md:w-5 md:h-5 text-brand-green flex-shrink-0 mt-1" />
+              <div className="flex lg:flex-col items-start gap-3 p-3 sm:p-4 bg-white/5 rounded-lg">
+                <Trophy className="w-5 h-5 lg:w-6 lg:h-6 text-brand-green flex-shrink-0 mt-0.5 lg:mt-0" />
                 <div>
-                  <h3 className="font-semibold text-white text-xs md:text-sm mb-1">Compete on the global leaderboard</h3>
-                  <p className="text-[0.65rem] md:text-xs text-gray-400">Track your performance against other traders</p>
+                  <h3 className="font-semibold text-white text-sm lg:text-base mb-1">Compete on the global leaderboard</h3>
+                  <p className="text-xs lg:text-sm text-gray-400">Track your performance against other traders</p>
                 </div>
               </div>
             </div>
             
             {/* Demo badge */}
-            <div className="flex justify-center mb-6">
-              <div className="inline-flex items-center gap-2 px-3 md:px-4 py-2 bg-brand-green/20 border border-brand-green rounded-full">
+            <div className="flex justify-center mb-5 sm:mb-6">
+              <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-brand-green/20 border border-brand-green rounded-full">
                 <span className="w-2 h-2 bg-brand-green rounded-full animate-pulse" />
-                <span className="text-brand-green font-semibold text-xs md:text-sm">DEMO MODE — No real funds needed</span>
+                <span className="text-brand-green font-semibold text-xs sm:text-sm">DEMO MODE — No real funds needed</span>
               </div>
             </div>
             
@@ -146,7 +146,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="w-full py-2.5 md:py-3 bg-brand-green text-brand-bg font-bold text-sm md:text-base rounded-lg hover:bg-brand-green/90 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3 sm:py-3.5 bg-brand-green text-brand-bg font-bold text-sm sm:text-base rounded-lg hover:bg-brand-green/90 transition-colors flex items-center justify-center gap-2"
             >
               Let's start
               <ArrowRight className="w-5 h-5" />
@@ -156,7 +156,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
             <button
               type="button"
               onClick={handleSkip}
-              className="w-full mt-3 text-[0.65rem] md:text-xs text-gray-500 hover:text-gray-300 transition-colors"
+              className="w-full mt-3 text-xs text-gray-500 hover:text-gray-300 transition-colors"
             >
               Skip tutorial
             </button>
@@ -165,7 +165,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
         
         {/* Step 2: How it Works */}
         {step === 2 && (
-          <div className="p-2.5 md:p-5">
+          <div className="p-4 sm:p-6 lg:p-8">
             <h2 className="font-syne text-lg md:text-xl font-bold text-white text-center mb-5">
               How prediction markets work
             </h2>
@@ -230,7 +230,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
         
         {/* Step 3: Your Balance */}
         {step === 3 && (
-          <div className="p-2.5 md:p-5">
+          <div className="p-4 sm:p-6 lg:p-8">
             <div className="text-center mb-6 md:mb-8">
               {/* Animated balance counter */}
               <div className="mb-4 md:mb-6">

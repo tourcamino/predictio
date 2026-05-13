@@ -1,5 +1,4 @@
 import { defineEventHandler, setResponseHeader, sendRedirect } from "h3";
-import { loadMarketUiById } from "~/server/utils/loadMarketUi";
 import { minioBaseUrl } from "./minio";
 
 export default defineEventHandler(async (event) => {
@@ -21,13 +20,6 @@ export default defineEventHandler(async (event) => {
   }
 
   const marketId = marketIdMatch[1];
-  const market = await loadMarketUiById(marketId);
-
-  if (!market) {
-    setResponseHeader(event, "Content-Type", "text/plain");
-    res.statusCode = 404;
-    return "Market not found";
-  }
 
   // Redirect to the MinIO URL for the OG image
   const imageUrl = `${minioBaseUrl}/og-images/market-${marketId}.png`;

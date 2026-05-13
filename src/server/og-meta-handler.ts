@@ -1,8 +1,6 @@
 import { defineEventHandler, setResponseHeader } from "h3";
-import { loadMarketUiById } from "~/server/utils/loadMarketUi";
 import { minioBaseUrl } from "./minio";
 import { getBaseUrl } from "./utils/base-url";
-import { db } from "./db";
 
 export default defineEventHandler(async (event) => {
   const req = event.node?.req;
@@ -24,39 +22,12 @@ export default defineEventHandler(async (event) => {
   
   if (blogSlugMatch) {
     const slug = blogSlugMatch[1];
-    
-    try {
-      const post = await db.blogPost.findUnique({
-        where: { slug },
-      });
-
-      if (!post || !post.published) {
-        // Post not found or not published
-        if (isCrawler) {
-          setResponseHeader(event, "Content-Type", "text/html");
-          return generateBasicHTML();
-        }
-        return;
-      }
-
+    if (isCrawler) {
       const baseUrl = getBaseUrl();
-      const pageUrl = `${baseUrl}/blog/${slug}`;
-      const imageUrl = post.featuredImage || `${baseUrl}/og-default.png`;
-
-      if (isCrawler) {
-        setResponseHeader(event, "Content-Type", "text/html");
-        return generateBlogMetaHTML({
-          title: post.metaTitle || post.title,
-          description: post.metaDescription || post.excerpt,
-          imageUrl,
-          url: pageUrl,
-          post,
-        });
-      }
-    } catch (error) {
-      console.error("[OG Meta] Error fetching blog post:", error);
+      setResponseHeader(event, "Content-Type", "text/html");
+      return generateBasicBlogMetaHTML(`${baseUrl}/blog/${slug}`);
     }
-    
+
     return;
   }
 
@@ -81,7 +52,7 @@ export default defineEventHandler(async (event) => {
     return;
   }
 
-  const market = await loadMarketUiById(marketId);
+  const market = await fetchMarketMeta(marketId);
 
   if (!market) {
     // Market not found
@@ -151,6 +122,23 @@ function generateBasicHTML() {
 </html>`;
 }
 
+async function fetchMarketMeta(marketId: string): Promise<any | null> {
+  const apiBaseUrl =
+    process.env.API_BASE_URL || process.env.VITE_API_URL || "https://api.predictio.live";
+
+  try {
+    const res = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/api/markets/${marketId}`, {
+      headers: { accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.market ?? data ?? null;
+  } catch (error) {
+    console.warn("[OG Meta] Market REST lookup failed:", marketId, error);
+    return null;
+  }
+}
+
 interface MetaHTMLOptions {
   title: string;
   description: string;
@@ -204,6 +192,40 @@ function generateMetaHTML(options: MetaHTMLOptions) {
   <h1>${escapeHtml(metaTitle)}</h1>
   <p>${escapeHtml(metaDescription)}</p>
   <p>Redirecting to <a href="${escapeHtml(url)}">Predictio</a>...</p>
+</body>
+</html>`;
+}
+
+function generateBasicBlogMetaHTML(url: string) {
+  const baseUrl = getBaseUrl();
+  const title = "Predictio Blog";
+  const description =
+    "Insights, updates, and guides from Predictio.live.";
+  const imageUrl = `${baseUrl}/og-default.png`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="${escapeHtml(url)}">
+  <meta property="og:image" content="${escapeHtml(imageUrl)}">
+  <meta property="og:site_name" content="Predictio.live">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  <meta name="twitter:image" content="${escapeHtml(imageUrl)}">
+  <meta http-equiv="refresh" content="0;url=${escapeHtml(url)}">
+</head>
+<body>
+  <h1>${escapeHtml(title)}</h1>
+  <p>${escapeHtml(description)}</p>
+  <p>Redirecting to <a href="${escapeHtml(url)}">Predictio Blog</a>...</p>
 </body>
 </html>`;
 }

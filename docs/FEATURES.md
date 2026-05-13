@@ -826,6 +826,24 @@ These are not urgent but should be considered based on user feedback and tractio
    - User's portfolio performance
    - Recommended markets
 
+5. **AI-Assisted Localization (END OF PROJECT)**
+   - Keep English as the canonical source language for the dApp.
+   - Do not use live DOM translation in the browser; it loses product context and mistranslates crypto/trading terms.
+   - Introduce structured i18n keys for user-facing copy (`t("header.markets")`, `t("onboarding.welcome.title")`, etc.).
+   - Use AI offline/build-time to generate locale files (`it.json`, `es.json`, `fr.json`, etc.) from the English source.
+   - Maintain a locked glossary for terms that must stay in English or be translated consistently:
+     `Markets`, `Copy`, `Trading`, `Liquidity`, `YES`, `NO`, `USDC`, `Base`, `wallet`, `smart contract`, `prediction market`, `paper trading`, `odds`, `shares`, `vault`, `leaderboard`, `LP`, `AMM`, `DeFi`.
+   - Add a translation style guide: concise product language, crypto-native terminology, no literal translations that sound like generic finance.
+   - Add validation scripts to detect missing keys, extra keys, untranslated placeholders, and glossary violations.
+   - Suggested implementation path:
+     1. Add a lightweight i18n layer and browser-locale detection.
+     2. Convert high-impact surfaces first: header, onboarding, home, markets, trading box, wallet/modals.
+     3. Add `scripts/i18n-generate.*` to call an AI model with product context + glossary.
+     4. Store generated translations in reviewed JSON files, not in runtime DOM mutations.
+     5. Use runtime fallback: browser locale → supported locale file → English.
+   - Estimated effort: 12-20 hours for the i18n foundation + first locales, then incremental per page.
+   - Priority: 🟢 POST-LAUNCH / FINAL POLISH — important for international UX, but after core trading, backend, contracts, and launch stability.
+
 ### Phase 3 (With PRED Token)
 
 1. **Governance Voting**
@@ -898,6 +916,12 @@ These are not urgent but should be considered based on user feedback and tractio
    - Marketing/visibility
    - 5-10 hours
    - Low priority
+
+7. **🟢 AI-Assisted Localization** (END OF PROJECT / FINAL POLISH)
+   - Add structured i18n after product flows stabilize
+   - Generate translations with AI using a locked crypto/trading glossary
+   - Keep core dApp terms in English where that is clearer than literal local translation
+   - Avoid runtime DOM translation
 
 ---
 

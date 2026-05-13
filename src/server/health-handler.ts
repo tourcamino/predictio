@@ -1,8 +1,10 @@
 import { defineEventHandler, setResponseHeader } from "h3";
-import { db } from "~/server/db";
 
 /**
- * GET /api/health — liveness + PostgreSQL connectivity (for Nginx/VPS probes).
+ * GET /api/health — app liveness probe.
+ *
+ * Keep this route dependency-light: Nitro bundles all HTTP routers together, and pulling Prisma into
+ * this handler breaks local node-server builds when pnpm-style node_modules are present.
  */
 export default defineEventHandler(async (event) => {
   const res = event.node?.res;
@@ -12,20 +14,10 @@ export default defineEventHandler(async (event) => {
 
   setResponseHeader(event, "Content-Type", "application/json; charset=utf-8");
 
-  const payload = (ok: boolean, dbStatus: string) =>
-    JSON.stringify({
-      ok,
-      db: dbStatus,
-      timestamp: new Date().toISOString(),
-    });
-
-  try {
-    await db.$queryRaw`SELECT 1`;
-    res.statusCode = 200;
-    return payload(true, "up");
-  } catch (err) {
-    console.error("[health] database check failed:", err);
-    res.statusCode = 503;
-    return payload(false, "down");
-  }
+  res.statusCode = 200;
+  return JSON.stringify({
+    ok: true,
+    service: "predictio-web",
+    timestamp: new Date().toISOString(),
+  });
 });

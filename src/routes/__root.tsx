@@ -15,7 +15,6 @@ import { useAzuroResolutionPolling } from '~/hooks/useAzuroResolutionPolling';
 import { OnboardingTour } from '~/components/onboarding/OnboardingTour';
 import { useState, useEffect } from 'react';
 import { captureException } from '~/lib/errorMonitoring';
-import { BrowserLanguageTranslator } from '~/components/BrowserLanguageTranslator';
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -152,7 +151,6 @@ function RootComponent() {
           }}
         />
         <WalletSync />
-        <BrowserLanguageTranslator />
         <WalletModal />
         <TopStack />
         <Chatbot />
