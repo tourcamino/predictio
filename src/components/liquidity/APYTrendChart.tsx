@@ -108,6 +108,13 @@ export function APYTrendChart({
   const isPositive = summary.apyChange >= 0;
   const timeRanges: Array<'7D' | '30D' | '90D' | 'ALL'> = ['7D', '30D', '90D', 'ALL'];
 
+  const hoverPoint =
+    hoveredIndex !== null &&
+    hoveredIndex >= 0 &&
+    hoveredIndex < data.length
+      ? data[hoveredIndex]
+      : undefined;
+
   return (
     <div className="bg-white/5 border border-white/10 rounded-lg p-6">
       <div className="flex items-center justify-between mb-4">
@@ -229,7 +236,7 @@ export function APYTrendChart({
         </div>
 
         {/* Tooltip */}
-        {hoveredIndex !== null && (
+        {hoverPoint && hoveredIndex !== null && (
           <>
             {/* Vertical indicator line */}
             <div
@@ -249,7 +256,7 @@ export function APYTrendChart({
               }}
             >
               <div className="text-xs text-gray-400 mb-2">
-                {data[hoveredIndex].timestamp.toLocaleDateString('en-US', {
+                {hoverPoint.timestamp.toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
                   year: 'numeric',
@@ -259,19 +266,19 @@ export function APYTrendChart({
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-gray-400">APY:</span>
                   <span className="font-mono font-bold text-brand-green">
-                    {data[hoveredIndex].apy.toFixed(2)}%
+                    {hoverPoint.apy.toFixed(2)}%
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-gray-400">Pool Size:</span>
                   <span className="font-mono text-xs">
-                    ${(data[hoveredIndex].poolSize / 1000).toFixed(1)}K
+                    ${(hoverPoint.poolSize / 1000).toFixed(1)}K
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-gray-400">Volume 24h:</span>
                   <span className="font-mono text-xs">
-                    ${(data[hoveredIndex].volume24h / 1000).toFixed(1)}K
+                    ${(hoverPoint.volume24h / 1000).toFixed(1)}K
                   </span>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 import { Clock, TrendingUp, Activity } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Market, SPORT_METADATA } from '~/data/mockMarkets';
+import { Market, getSportMetadata } from '~/data/mockMarkets';
 
 interface MarketsSidebarProps {
   markets: Market[];
@@ -30,10 +30,13 @@ export function MarketsSidebar({ markets }: MarketsSidebarProps) {
       const outcomes = ['Win', 'Draw', 'Over', 'Under'];
       const teams = ['Real Madrid', 'Lakers', 'Djokovic', 'Poirier', 'India', 'Verstappen'];
       
+      const si = Math.floor(Math.random() * sports.length);
+      const ti = Math.floor(Math.random() * teams.length);
+      const oi = Math.floor(Math.random() * outcomes.length);
       const newItem = {
         id: Date.now().toString(),
-        icon: sports[Math.floor(Math.random() * sports.length)],
-        text: `${teams[Math.floor(Math.random() * teams.length)]} ${outcomes[Math.floor(Math.random() * outcomes.length)]} +$${Math.floor(Math.random() * 900) + 100}`,
+        icon: sports[si] ?? '⚽',
+        text: `${teams[ti] ?? 'Team'} ${outcomes[oi] ?? 'Win'} +$${Math.floor(Math.random() * 900) + 100}`,
         time: 'Just now',
       };
       
@@ -146,7 +149,7 @@ export function MarketsSidebar({ markets }: MarketsSidebarProps) {
         <h3 className="font-syne font-semibold text-lg mb-4">Sport Distribution</h3>
         <div className="space-y-3">
           {sportDistribution.map(({ sport, percentage }) => {
-            const sportMeta = SPORT_METADATA[sport];
+            const sportMeta = getSportMetadata(sport);
             return (
               <div key={sport}>
                 <div className="flex items-center justify-between text-sm mb-1.5">

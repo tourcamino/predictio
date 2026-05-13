@@ -138,20 +138,20 @@ export function FeeStructureAnalytics({ feeData }: FeeStructureAnalyticsProps) {
             <div>
               <div className="text-xs text-gray-500 mb-1">Markets with Low Fees (0.8-0.9%)</div>
               <div className="font-mono text-xl font-bold text-brand-cyan">
-                ${((feeDistribution[0].volume + feeDistribution[1].volume) / 1000000).toFixed(2)}M
+                ${(((feeDistribution[0]?.volume ?? 0) + (feeDistribution[1]?.volume ?? 0)) / 1000000).toFixed(2)}M
               </div>
               <div className="text-xs text-gray-400 mt-1">
-                {((feeDistribution[0].volume + feeDistribution[1].volume) / totalVolume * 100).toFixed(1)}% of total volume
+                {(((feeDistribution[0]?.volume ?? 0) + (feeDistribution[1]?.volume ?? 0)) / totalVolume * 100).toFixed(1)}% of total volume
               </div>
             </div>
             
             <div className="pt-3 border-t border-white/10">
               <div className="text-xs text-gray-500 mb-1">Markets with High Fees (1.1-1.2%)</div>
               <div className="font-mono text-xl font-bold text-brand-green">
-                ${((feeDistribution[3].volume + feeDistribution[4].volume) / 1000000).toFixed(2)}M
+                ${(((feeDistribution[3]?.volume ?? 0) + (feeDistribution[4]?.volume ?? 0)) / 1000000).toFixed(2)}M
               </div>
               <div className="text-xs text-gray-400 mt-1">
-                {((feeDistribution[3].volume + feeDistribution[4].volume) / totalVolume * 100).toFixed(1)}% of total volume
+                {(((feeDistribution[3]?.volume ?? 0) + (feeDistribution[4]?.volume ?? 0)) / totalVolume * 100).toFixed(1)}% of total volume
               </div>
             </div>
           </div>

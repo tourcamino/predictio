@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Clock } from 'lucide-react';
-import { Market, SPORT_METADATA } from '~/data/mockMarkets';
+import { Market, getSportMetadata } from '~/data/mockMarkets';
 import { useLiveCounter } from '~/hooks/useLiveCounter';
 import { AIInsightBadge } from '../AIInsightBadge';
 import { MiniSparkline } from './MiniSparkline';
@@ -16,7 +16,7 @@ interface MarketCardProps {
 }
 
 export function MarketCard({ market, onClick }: MarketCardProps) {
-  const sportMeta = SPORT_METADATA[market.sport];
+  const sportMeta = getSportMetadata(market.sport);
   const lifecycleStatus = getMarketStatus(market);
   const countryCode = getMarketCountryCode(market);
   const flag = countryCode ? COUNTRY_FLAG[countryCode] : null;

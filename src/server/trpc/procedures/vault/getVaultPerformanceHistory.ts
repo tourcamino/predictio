@@ -72,7 +72,7 @@ export const getVaultPerformanceHistory = baseProcedure
     // Aggregate fees by day
     const feesByDay = new Map<string, number>();
     feeEarnings.forEach(fee => {
-      const dateKey = fee.createdAt.toISOString().split('T')[0];
+      const dateKey = fee.createdAt.toISOString().slice(0, 10);
       feesByDay.set(dateKey, (feesByDay.get(dateKey) || 0) + fee.amount);
     });
 
@@ -92,7 +92,7 @@ export const getVaultPerformanceHistory = baseProcedure
 
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const dateKey = date.toISOString().split('T')[0];
+      const dateKey = date.toISOString().slice(0, 10);
       
       const dailyFees = feesByDay.get(dateKey) || 0;
       cumulativeFees += dailyFees;

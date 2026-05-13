@@ -128,6 +128,7 @@ function LaunchChecklist() {
     setChecklist((prev) => {
       const newChecklist = [...prev];
       const section = newChecklist[sectionIndex];
+      if (!section) return newChecklist;
       const item = section.items.find((i) => i.id === itemId);
       if (item) {
         item.checked = !item.checked;

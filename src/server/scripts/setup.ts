@@ -1,28 +1,16 @@
 import { minioClient } from "../minio";
 import { db } from "../db";
 import { mockAnalysts } from "../../data/mockAffiliates";
-import { mockMarkets } from "../../data/mockMarkets";
 import { cleanupOldNotifications } from "./cleanupOldNotifications";
 import { createCaller } from "../trpc/root";
 import { env } from "../env";
 import { seedCopyTradingExperience } from "./seedCopyTrading";
-import { ensureMarketRowForPaperTrade } from "../utils/paperMarketPersistence";
 
-/** Upsert `Market` rows from `mockMarkets` (required before copy-seed / live feed / AMM mock). */
-async function seedMarketsFromMocks() {
+/** Legacy `mockMarkets` DB seed removed — market rows are created from Azuro trades and curation only. */
+async function logAzuroOnlyMarketPolicy() {
   console.log(
-    `[Setup] Upserting ${mockMarkets.length} paper markets from mockMarkets...`,
+    "[Setup] Market rows: Azuro / curated catalog only (no static mock seed).",
   );
-  let ok = 0;
-  for (const m of mockMarkets) {
-    try {
-      await ensureMarketRowForPaperTrade(m.id, m);
-      ok++;
-    } catch (e) {
-      console.error(`[Setup] market ${m.id} upsert failed:`, e);
-    }
-  }
-  console.log(`[Setup] Paper markets done: ${ok}/${mockMarkets.length}`);
 }
 
 async function logTableCounts() {
@@ -862,7 +850,8 @@ async function migrateRetroactivePoints() {
         orderBy: { createdAt: 'asc' },
       });
       
-      if (userTrades.length > 0) {
+      const firstTrade = userTrades[0];
+      if (firstTrade) {
         // Check if FIRST_TRADE points already credited
         const firstTradeEntry = await db.pointsLedger.findFirst({
           where: {
@@ -878,7 +867,7 @@ async function migrateRetroactivePoints() {
               walletAddress,
               actionType: 'FIRST_TRADE',
               points: 500,
-              metadata: { retroactive: true, marketId: userTrades[0].marketId },
+              metadata: { retroactive: true, marketId: firstTrade.marketId },
             },
           });
           
@@ -1119,7 +1108,7 @@ async function initializeMockAMM() {
 }
 
 async function setup() {
-  await seedMarketsFromMocks();
+  await logAzuroOnlyMarketPolicy();
 
   // Seed analyst data
   await seedAnalysts();

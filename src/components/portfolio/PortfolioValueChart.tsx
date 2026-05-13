@@ -154,6 +154,13 @@ export function PortfolioValueChart({
 
   const isPositive = summary.totalReturn >= 0;
 
+  const hoverPoint =
+    hoveredIndex !== null &&
+    hoveredIndex >= 0 &&
+    hoveredIndex < data.length
+      ? data[hoveredIndex]
+      : undefined;
+
   return (
     <div className="bg-white/5 border border-white/10 rounded-lg p-6">
       <div className="flex items-center justify-between mb-6">
@@ -297,7 +304,7 @@ export function PortfolioValueChart({
         </div>
 
         {/* Tooltip */}
-        {hoveredIndex !== null && (
+        {hoverPoint && hoveredIndex !== null && (
           <>
             {/* Vertical indicator line */}
             <div
@@ -317,7 +324,7 @@ export function PortfolioValueChart({
               }}
             >
               <div className="text-xs text-gray-400 mb-2">
-                {data[hoveredIndex].timestamp.toLocaleDateString('en-US', {
+                {hoverPoint.timestamp.toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
                   year: 'numeric',
@@ -329,22 +336,22 @@ export function PortfolioValueChart({
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-gray-400">Portfolio Value:</span>
                   <span className="font-mono font-semibold text-sm">
-                    {formatCurrency(data[hoveredIndex].portfolioValue)}
+                    {formatCurrency(hoverPoint.portfolioValue)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-gray-400">Total P&L:</span>
                   <span className={`font-mono font-semibold text-sm ${
-                    data[hoveredIndex].cumulativePnL >= 0 ? 'text-brand-green' : 'text-red-500'
+                    hoverPoint.cumulativePnL >= 0 ? 'text-brand-green' : 'text-red-500'
                   }`}>
-                    {data[hoveredIndex].cumulativePnL >= 0 ? '+' : ''}
-                    {formatCurrency(data[hoveredIndex].cumulativePnL)}
+                    {hoverPoint.cumulativePnL >= 0 ? '+' : ''}
+                    {formatCurrency(hoverPoint.cumulativePnL)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-gray-400">Invested:</span>
                   <span className="font-mono text-sm">
-                    {formatCurrency(data[hoveredIndex].totalInvested)}
+                    {formatCurrency(hoverPoint.totalInvested)}
                   </span>
                 </div>
               </div>

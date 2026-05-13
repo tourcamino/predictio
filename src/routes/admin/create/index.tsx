@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { ChevronLeft, ChevronRight, Sparkles, Plus, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { mockMarkets } from '~/data/mockMarkets';
+import { useQuery } from '@tanstack/react-query';
+import { useTRPC } from '~/trpc/react';
 
 export const Route = createFileRoute('/admin/create/')({
   component: CreateMarket,
@@ -35,6 +36,12 @@ type FormData = {
 };
 
 function CreateMarket() {
+  const trpc = useTRPC();
+  const azuroList = useQuery({
+    ...trpc.getAzuroMarkets.queryOptions({}),
+    staleTime: 60_000,
+  });
+
   const [currentStep, setCurrentStep] = useState(1);
   const [aiAssist, setAiAssist] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -56,9 +63,8 @@ function CreateMarket() {
   const marketType = watch('marketType');
   const includeDraw = watch('includeDraw');
 
-  // Count open markets (active + closing-soon)
-  const openMarketsCount = mockMarkets.filter(
-    m => m.status === 'open' || m.status === 'closing-soon'
+  const openMarketsCount = (azuroList.data?.markets ?? []).filter(
+    (m) => m.status === 'upcoming' || m.status === 'ending-soon' || m.status === 'live',
   ).length;
   const maxMarkets = 15;
   const isAtLimit = openMarketsCount >= maxMarkets;

@@ -20,8 +20,9 @@ export function OrderBookVisual({ market }: OrderBookVisualProps) {
 
   useEffect(() => {
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting) {
           setIsVisible(true);
         }
       },
@@ -159,7 +160,9 @@ function generateTopPositions(market: Market): TopPosition[] {
   const positions: TopPosition[] = [];
   
   for (let i = 1; i <= 10; i++) {
-    const outcome = outcomes[Math.floor(Math.random() * outcomes.length)];
+    const oi = Math.floor(Math.random() * outcomes.length);
+    const outcome = outcomes[oi];
+    if (!outcome) continue;
     const amount = Math.floor(Math.random() * 10000) + 1000;
     
     positions.push({

@@ -48,8 +48,8 @@ for (let i = 6; i <= 50; i++) {
     winRate: Math.random() * 30 + 50,
     volume: Math.floor(Math.random() * 200000) + 50000,
     pnl: Math.floor(Math.random() * 40000) + 10000,
-    favoriteSport: ['⚽', '🏀', '🎾', '🥊', '🏏'][Math.floor(Math.random() * 5)],
-    avatar: ['🦁', '🐺', '🦅', '🐯', '🐻', '🦊', '🐉', '🦈'][Math.floor(Math.random() * 8)],
+    favoriteSport: ['⚽', '🏀', '🎾', '🥊', '🏏'][Math.floor(Math.random() * 5)] ?? '⚽',
+    avatar: ['🦁', '🐺', '🦅', '🐯', '🐻', '🦊', '🐉', '🦈'][Math.floor(Math.random() * 8)] ?? '🦁',
   });
 }
 
@@ -111,6 +111,9 @@ function LeaderboardPage() {
   const analystLeaderboard = analystLeaderboardQuery.data?.leaderboard || [];
   const lpLeaderboard = lpLeaderboardQuery.data?.leaderboard || [];
   const topThree = leaderboard.slice(0, 3);
+  const podium1 = topThree[0];
+  const podium2 = topThree[1];
+  const podium3 = topThree[2];
 
   const getPodiumColor = (rank: number) => {
     switch (rank) {
@@ -224,7 +227,7 @@ function LeaderboardPage() {
             </div>
 
             {/* Top 3 Podium */}
-            {!leaderboardQuery.isLoading && topThree.length >= 3 && activeTab !== 'analysts' && activeTab !== 'lps' && rankingType === 'pnl' && (
+            {!leaderboardQuery.isLoading && podium1 && podium2 && podium3 && activeTab !== 'analysts' && activeTab !== 'lps' && rankingType === 'pnl' && (
               <div className="grid grid-cols-3 gap-4 max-w-3xl mx-auto mb-12">
                 {/* 2nd Place */}
                 <div className="flex flex-col items-center pt-8">
@@ -237,10 +240,10 @@ function LeaderboardPage() {
                       <span className="font-mono text-sm text-gray-400">#2</span>
                     </div>
                     <div className="font-semibold text-sm mb-1">
-                      {topThree[1].wallet.slice(0, 6)}...{topThree[1].wallet.slice(-4)}
+                      {podium2.wallet.slice(0, 6)}...{podium2.wallet.slice(-4)}
                     </div>
                     <div className="font-mono text-xs text-brand-green">
-                      {topThree[1].totalPnl >= 0 ? '+' : ''}${topThree[1].totalPnl.toFixed(2)}
+                      {podium2.totalPnl >= 0 ? '+' : ''}${podium2.totalPnl.toFixed(2)}
                     </div>
                   </div>
                   <div className="w-full h-24 bg-gradient-to-t from-gray-600 to-gray-500 rounded-t-lg mt-4" />
@@ -257,10 +260,10 @@ function LeaderboardPage() {
                       <span className="font-mono text-sm text-gray-400">#1</span>
                     </div>
                     <div className="font-bold text-base mb-1">
-                      {topThree[0].wallet.slice(0, 6)}...{topThree[0].wallet.slice(-4)}
+                      {podium1.wallet.slice(0, 6)}...{podium1.wallet.slice(-4)}
                     </div>
                     <div className="font-mono text-sm text-brand-green font-bold">
-                      {topThree[0].totalPnl >= 0 ? '+' : ''}${topThree[0].totalPnl.toFixed(2)}
+                      {podium1.totalPnl >= 0 ? '+' : ''}${podium1.totalPnl.toFixed(2)}
                     </div>
                   </div>
                   <div className="w-full h-32 bg-gradient-to-t from-yellow-600 to-yellow-400 rounded-t-lg mt-4 shadow-lg shadow-yellow-400/30" />
@@ -277,10 +280,10 @@ function LeaderboardPage() {
                       <span className="font-mono text-sm text-gray-400">#3</span>
                     </div>
                     <div className="font-semibold text-sm mb-1">
-                      {topThree[2].wallet.slice(0, 6)}...{topThree[2].wallet.slice(-4)}
+                      {podium3.wallet.slice(0, 6)}...{podium3.wallet.slice(-4)}
                     </div>
                     <div className="font-mono text-xs text-brand-green">
-                      {topThree[2].totalPnl >= 0 ? '+' : ''}${topThree[2].totalPnl.toFixed(2)}
+                      {podium3.totalPnl >= 0 ? '+' : ''}${podium3.totalPnl.toFixed(2)}
                     </div>
                   </div>
                   <div className="w-full h-20 bg-gradient-to-t from-orange-600 to-orange-400 rounded-t-lg mt-4" />

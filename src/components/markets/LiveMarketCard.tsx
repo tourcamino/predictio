@@ -1,5 +1,5 @@
 import { TrendingUp, Users, ArrowRight } from 'lucide-react';
-import { Market, SPORT_METADATA } from '~/data/mockMarkets';
+import { Market, getSportMetadata } from '~/data/mockMarkets';
 import { PriceMovement } from './PriceMovement';
 import { MiniSparkline } from './MiniSparkline';
 import { MarketCountdown } from '../MarketCountdown';
@@ -11,7 +11,7 @@ interface LiveMarketCardProps {
 }
 
 export function LiveMarketCard({ market, onClick }: LiveMarketCardProps) {
-  const sportMeta = SPORT_METADATA[market.sport];
+  const sportMeta = getSportMetadata(market.sport);
   const lifecycleStatus = getMarketStatus(market);
 
   const formatVolume = (volume: number) => {

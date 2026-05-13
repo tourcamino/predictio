@@ -155,7 +155,7 @@ export const getLPEarningsChartData = baseProcedure
     let cumulativeFees = 0;
 
     events.forEach(event => {
-      const dateKey = event.timestamp.toISOString().split('T')[0];
+      const dateKey = event.timestamp.toISOString().slice(0, 10);
       
       if (!dailySnapshots.has(dateKey)) {
         dailySnapshots.set(dateKey, {

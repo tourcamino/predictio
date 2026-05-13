@@ -1,10 +1,7 @@
 import { SeedMarket } from "~/data/seedMarkets";
 import { MAX_FOOTBALL_MARKETS } from "~/constants/azuro";
 import { env } from "~/server/env";
-import {
-  getFootballSeedMarketsAsAzuro,
-  pickTieredFootballMarkets,
-} from "~/utils/footballSeedMarkets";
+import { pickTieredFootballMarkets } from "~/utils/footballSeedMarkets";
 
 export {
   hoursUntilStartMarket,
@@ -332,7 +329,7 @@ export type FetchAzuroGamesOptions = {
 /**
  * Fetch active games from Azuro Protocol
  * Filters for: Champions League, Serie A, Premier League, NBA, MMA
- * Falls back to mock data if Azuro is unavailable
+ * Returns an empty list if Azuro is unavailable (no synthetic seed markets).
  */
 export async function fetchAzuroGames(
   options?: FetchAzuroGamesOptions,
@@ -350,7 +347,7 @@ export async function fetchAzuroGames(
         response.statusText,
         errText.slice(0, 400),
       );
-      return getFootballSeedMarketsAsAzuro();
+      return [];
     }
 
     const raw = await readAzuroGraphqlJson(response);
@@ -361,7 +358,7 @@ export async function fetchAzuroGames(
 
     if (data.errors) {
       console.error('[Azuro] GraphQL errors:', data.errors);
-      return getFootballSeedMarketsAsAzuro();
+      return [];
     }
 
     const games: AzuroGame[] = data.data?.games || [];
@@ -479,8 +476,8 @@ export async function fetchAzuroGames(
     const tiered = pickTieredFootballMarkets(markets);
 
     if (tiered.length === 0) {
-      console.warn("[Azuro] No tiered football markets from indexer, using seed fallback");
-      return getFootballSeedMarketsAsAzuro();
+      console.warn("[Azuro] No tiered football markets from indexer");
+      return [];
     }
 
     console.log(
@@ -490,7 +487,7 @@ export async function fetchAzuroGames(
     
   } catch (error) {
     console.error('[Azuro] Failed to fetch games:', error);
-    return getFootballSeedMarketsAsAzuro();
+    return [];
   }
 }
 
@@ -644,11 +641,6 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
       return null;
     }
   }
-}
-
-/** Used when Azuro returns nothing or UI filters would show an empty grid */
-export function getSeedMarketsAsAzuro(): AzuroMarket[] {
-  return getFootballSeedMarketsAsAzuro();
 }
 
 /**

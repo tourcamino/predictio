@@ -2,7 +2,6 @@ import { getApiBaseUrl } from "~/lib/predictioApi";
 import type { SeedMarket } from "~/data/seedMarkets";
 import type { AzuroMarket } from "~/services/azuro";
 import { transformAzuroThreeWayOdds } from "~/utils/azuroThreeWayOdds";
-import { getFootballSeedMarketsAsAzuro } from "~/utils/footballSeedMarkets";
 
 /** Quota pareggio sintetica se Azuro/API non espone draw (calcio 1X2 sempre 3 esiti in UI). */
 const SYNTHETIC_DRAW_DECIMAL = 3.35;
@@ -121,7 +120,7 @@ export function curatedApiRowToAzuroMarket(row: CuratedMarketApiRow): AzuroMarke
 export async function fetchCuratedMarketsFromApi(): Promise<{
   markets: AzuroMarket[];
   total: number;
-  source: "curated-api" | "fallback";
+  source: "curated-api" | "empty";
 }> {
   try {
     const base = getApiBaseUrl().replace(/\/$/, "");
@@ -137,13 +136,11 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
       total: number;
     };
     const markets = (data.markets ?? []).map(curatedApiRowToAzuroMarket);
-    // Backend OK but no curated rows / DB empty — same as fetch failure: show demo seeds.
     if (markets.length === 0) {
-      const fallback = getFootballSeedMarketsAsAzuro();
       return {
-        markets: fallback,
-        total: fallback.length,
-        source: "fallback",
+        markets: [],
+        total: 0,
+        source: "empty",
       };
     }
     return {
@@ -152,11 +149,10 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
       source: "curated-api",
     };
   } catch {
-    const fallback = getFootballSeedMarketsAsAzuro();
     return {
-      markets: fallback,
-      total: fallback.length,
-      source: "fallback",
+      markets: [],
+      total: 0,
+      source: "empty",
     };
   }
 }

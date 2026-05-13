@@ -4,7 +4,9 @@ import { useMemo, useEffect } from 'react';
 import { useState } from 'react';
 import { z } from 'zod';
 import { fallback, zodValidator } from '@tanstack/zod-adapter';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { Sparkles, Loader2 } from 'lucide-react';
 import { fetchCuratedMarketsFromApi } from '~/utils/curatedMarketsApi';
 import { SportCategoriesRail } from '~/components/markets/SportCategoriesRail';
 import { FilterChips } from '~/components/markets/FilterChips';
@@ -13,7 +15,7 @@ import { MarketsGrid } from '~/components/markets/MarketsGrid';
 import { MarketsFilterSidebar } from '~/components/markets/MarketsFilterSidebar';
 import { MarketCardSkeleton } from '~/components/markets/MarketCardSkeleton';
 import { SeedMarket } from '~/data/seedMarkets';
-import { SPORT_METADATA } from '~/data/mockMarkets';
+import { SPORT_METADATA, getSportMetadata } from '~/data/mockMarkets';
 import { MetaTags } from "~/components/MetaTags";
 import { useMarketsUIStore } from '~/store/useMarketsUIStore';
 import { isFootballFocusEnabled, getDefaultSport, isSportAllowed, FOOTBALL_FOCUS_CONFIG } from '~/config/footballFocus';
@@ -22,6 +24,7 @@ import { getApiBaseUrl } from '~/lib/predictioApi';
 import { useUserCountry } from '~/hooks/useUserCountry';
 import { COUNTRY_FLAG, COUNTRY_LABEL, COUNTRY_OPTIONS, getMarketCountryCode, isEliteMarket, isMajorTournamentMarket } from '~/config/marketGeo';
 import { MarketsFilterDrawer } from '~/components/markets/MarketsFilterDrawer';
+import { useTRPC } from '~/trpc/react';
 import {
   getTradingLockMs,
   hoursUntilTradingLock,
@@ -195,6 +198,8 @@ function sortMarkets(markets: SeedMarket[], sortBy: string): SeedMarket[] {
 }
 
 function MarketsPage() {
+  const trpc = useTRPC();
+  const expandSearchMutation = useMutation(trpc.expandMarketSearch.mutationOptions());
   const search = Route.useSearch();
   const navigate = useNavigate({ from: '/markets' });
   const { isSidebarCollapsed } = useMarketsUIStore();
@@ -216,6 +221,24 @@ function MarketsPage() {
 
   const userCountry = useUserCountry();
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const handleAiRefineSearch = async () => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      toast.error('Enter at least 2 characters to refine');
+      return;
+    }
+    try {
+      const r = await expandSearchMutation.mutateAsync({ query: q });
+      navigate({ search: (prev) => ({ ...prev, search: r.expandedQuery }) });
+      if (r.note) toast(r.note, { duration: 5000 });
+      else if (r.expandedQuery.trim() !== q) {
+        toast.success('Search matched to teams & competitions');
+      }
+    } catch {
+      toast.error('AI refine failed — try again');
+    }
+  };
   
   // Redirect to football if user tries to access other sports in football focus mode
   useEffect(() => {
@@ -417,10 +440,10 @@ function MarketsPage() {
   // Filter chips
   const filterChips = [];
   if (selectedSport !== 'all') {
-    const sportMeta = SPORT_METADATA[selectedSport];
+    const sportMeta = getSportMetadata(selectedSport);
     filterChips.push({
       id: 'sport',
-      label: `${sportMeta?.emoji || ''} ${sportMeta?.name || selectedSport}`,
+      label: `${sportMeta.emoji} ${sportMeta.name}`,
       onRemove: () => navigate({ search: prev => ({ ...prev, sport: 'all' }) }),
     });
   }
@@ -557,20 +580,25 @@ function MarketsPage() {
       {/* Main Content Area with Sidebar */}
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {/* Azuro Status Indicator */}
-          {['azuro', 'mixed', 'fallback', 'curated-api'].includes(marketsQuery.data?.source ?? '') && (
+          {marketsQuery.isSuccess && allMarkets.length > 0 && marketsQuery.data?.source === 'curated-api' && (
             <div className="mb-6 px-4 py-3 bg-brand-green/10 border border-brand-green/30 rounded-lg flex items-center gap-3">
               <span className="text-brand-green text-xl">✓</span>
               <div className="flex-1">
                 <span className="text-brand-green font-semibold">
-                  {marketsQuery.data?.source === 'curated-api'
-                    ? 'Founder-curated markets (Predictio API)'
-                    : marketsQuery.data?.source === 'mixed'
-                    ? 'Predictio DB markets + Azuro Protocol'
-                    : marketsQuery.data?.source === 'fallback'
-                      ? 'Demo markets (live feed empty for current filters)'
-                      : 'Live data from Azuro Protocol'}
+                  Founder-curated catalog — odds from Azuro (Predictio API)
                 </span>
                 <span className="text-gray-400 text-sm ml-2">· Updates every 60 seconds</span>
+              </div>
+            </div>
+          )}
+          {marketsQuery.isSuccess && allMarkets.length === 0 && (
+            <div className="mb-6 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center gap-3">
+              <span className="text-amber-400 text-xl">!</span>
+              <div className="flex-1 text-sm">
+                <span className="text-amber-200 font-semibold">No events loaded.</span>
+                <span className="text-gray-400 ml-2">
+                  Ensure the curated API returns rows, Postgres has active curated events, and `AZURO_DATA_FEED_URL` / indexer is reachable.
+                </span>
               </div>
             </div>
           )}
@@ -580,15 +608,32 @@ function MarketsPage() {
             <div className="relative">
               <input
                 type="text"
-                placeholder="Search events, teams, athletes..."
+                placeholder="Teams, leagues, or natural language (e.g. Juve Champions) — AI refines to match names"
                 value={searchQuery}
                 onChange={(e) => navigate({ search: prev => ({ ...prev, search: e.target.value }) })}
-                className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent"
+                className="w-full pl-12 pr-28 sm:pr-32 py-4 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent"
               />
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" aria-hidden>
                 🔍
               </div>
+              <button
+                type="button"
+                title="Align search with your intent (teams, leagues, languages)"
+                onClick={() => void handleAiRefineSearch()}
+                disabled={expandSearchMutation.isPending || searchQuery.trim().length < 2}
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-semibold bg-brand-cyan/15 border border-brand-cyan/40 text-brand-cyan hover:bg-brand-cyan/25 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {expandSearchMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">Refine</span>
+              </button>
             </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Refine uses AI to map informal or mixed-language queries to team and competition names in the catalog.
+            </p>
           </div>
 
           {/* Mobile filters: compact bar + drawer */}

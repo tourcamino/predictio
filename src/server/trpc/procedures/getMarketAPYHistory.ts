@@ -77,7 +77,7 @@ export const getMarketAPYHistory = baseProcedure
 
     positions.forEach(position => {
       position.feeEarnings.forEach(earning => {
-        const dateKey = earning.createdAt.toISOString().split('T')[0];
+        const dateKey = earning.createdAt.toISOString().slice(0, 10);
         const existing = feesByDay.get(dateKey) || { fees: 0, volume: 0 };
         feesByDay.set(dateKey, {
           fees: existing.fees + earning.amount,
@@ -96,7 +96,7 @@ export const getMarketAPYHistory = baseProcedure
 
     for (let i = 0; i < days; i++) {
       const date = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
-      const dateKey = date.toISOString().split('T')[0];
+      const dateKey = date.toISOString().slice(0, 10);
 
       // Calculate pool size at this point in time
       const poolSize = positions

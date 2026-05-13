@@ -405,7 +405,22 @@ function MarketDetailPage() {
                 <span className="text-brand-cyan text-xl">🤖</span>
                 <h3 className="font-semibold text-brand-cyan">AI Market Insight</h3>
               </div>
-              <AIInsightBadge sport={market.sport} />
+              <AIInsightBadge
+                sport={market.sport}
+                marketSnapshot={{
+                  marketId: market.id,
+                  teamA: market.teamA,
+                  teamB: market.teamB,
+                  league: market.league,
+                  sport: market.sport,
+                  question: market.event,
+                  yesPrice: market.yesPrice,
+                  noPrice: market.noPrice,
+                  volume24h: market.liquidity?.volume24h ?? market.volume,
+                  status: market.status,
+                  lifecycle: lifecycleStatus,
+                }}
+              />
             </div>
 
             {/* Probability Chart */}

@@ -3,11 +3,7 @@ import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
 import { prismaMarketRowToAzuroMarket } from "~/server/utils/dbMarketToAzuroMarket";
 import { MAX_FOOTBALL_MARKETS } from "~/constants/azuro";
-import {
-  type AzuroMarket,
-  fetchAzuroGames,
-  getSeedMarketsAsAzuro,
-} from "~/services/azuro";
+import { type AzuroMarket, fetchAzuroGames } from "~/services/azuro";
 
 // Server-side football focus check
 // In production, this could be an environment variable
@@ -150,35 +146,10 @@ export const getAzuroMarkets = baseProcedure
       filteredMarkets = sortByCuratedMeta(filteredMarkets, curatedByGameId);
     }
 
-    let usedEmptyFallback = false;
     if (filteredMarkets.length === 0) {
-      console.warn(
-        "[getAzuroMarkets] No markets after filters — merging DB + seed demos",
-      );
-      const seedDemo = getSeedMarketsAsAzuro();
-      const dbIds = new Set(fromDb.map((m) => m.id));
-      const merged = [...fromDb, ...seedDemo.filter((m) => !dbIds.has(m.id))];
-      let emergency = merged;
-      if (FOOTBALL_FOCUS_ENABLED) {
-        emergency = merged.filter((m) => m.sport === "football");
-      }
-      if (input?.sport && input.sport !== "all") {
-        emergency = emergency.filter((m) => m.sport === input.sport);
-      }
-      if (input?.competition && input.competition !== "all") {
-        emergency = emergency.filter(
-          (m) => m.competitionSlug === input.competition,
-        );
-      }
-      if (input?.status && input.status !== "all") {
-        emergency = emergency.filter((m) => m.status === input.status);
-      }
-      if (emergency.length > 0) {
-        filteredMarkets = emergency;
-        usedEmptyFallback = true;
-      }
+      console.warn("[getAzuroMarkets] No markets after filters (Azuro + DB only).");
     }
-    
+
     const listCap =
       curatedByGameId && curatedByGameId.size > 0
         ? CURATED_MARKETS_CAP
@@ -186,13 +157,13 @@ export const getAzuroMarkets = baseProcedure
     const cappedMarkets = filteredMarkets.slice(0, listCap);
 
     const source =
-      mergedDbCount > 0
-        ? "mixed"
-        : cappedMarkets[0]?.azuroGameId
-          ? "azuro"
-          : usedEmptyFallback
-            ? "fallback"
-            : "mock";
+      cappedMarkets.length === 0
+        ? "empty"
+        : mergedDbCount > 0 && cappedMarkets.some((m) => m.azuroGameId)
+          ? "mixed"
+          : cappedMarkets.some((m) => m.azuroGameId)
+            ? "azuro"
+            : "db";
 
     return {
       markets: cappedMarkets,

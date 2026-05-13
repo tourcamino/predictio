@@ -3,7 +3,7 @@ import { baseProcedure } from "~/server/trpc/main";
 import { loadMarketUiById } from "~/server/utils/loadMarketUi";
 import type { Market } from "~/data/mockMarkets";
 
-/** Batch-resolve UI market rows for portfolio / demo / account (replaces client-only mock lookups). */
+/** Batch-resolve UI market rows for portfolio / account (Azuro-backed / DB only). */
 export const getMarketSummaries = baseProcedure
   .input(
     z.object({

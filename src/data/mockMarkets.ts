@@ -125,6 +125,18 @@ export const SPORT_METADATA: Record<string, SportMetadata> = {
   },
 };
 
+const FALLBACK_SPORT_META: SportMetadata = {
+  name: 'Sports',
+  emoji: '🏆',
+  color: '#888888',
+  bgColor: 'bg-gray-600',
+};
+
+/** Safe lookup for UI — unknown sports get a sensible default. */
+export function getSportMetadata(sport: string): SportMetadata {
+  return SPORT_METADATA[sport] ?? { ...FALLBACK_SPORT_META, name: sport };
+}
+
 const now = new Date();
 
 function hoursFromNow(hours: number): Date {

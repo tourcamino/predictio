@@ -80,9 +80,12 @@ export const getLPAnalytics = baseProcedure
     if (activePositions.length > 0) {
       const sorted = [...activePositions].sort((a, b) => a.depositedAmount - b.depositedAmount);
       const mid = Math.floor(sorted.length / 2);
-      medianDepositSize = sorted.length % 2 === 0
-        ? (sorted[mid - 1].depositedAmount + sorted[mid].depositedAmount) / 2
-        : sorted[mid].depositedAmount;
+      medianDepositSize =
+        sorted.length % 2 === 0
+          ? ((sorted[mid - 1]?.depositedAmount ?? 0) +
+              (sorted[mid]?.depositedAmount ?? 0)) /
+            2
+          : (sorted[mid]?.depositedAmount ?? 0);
     }
 
     return {

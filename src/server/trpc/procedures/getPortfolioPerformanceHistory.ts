@@ -116,7 +116,7 @@ export const getPortfolioPerformanceHistory = baseProcedure
 
     // Add daily checkpoints
     const dayMs = 24 * 60 * 60 * 1000;
-    const firstDate = allOrders[0].createdAt.getTime();
+    const firstDate = allOrders[0]?.createdAt.getTime() ?? now.getTime();
     for (let t = firstDate; t <= now.getTime(); t += dayMs) {
       allDates.add(t);
     }

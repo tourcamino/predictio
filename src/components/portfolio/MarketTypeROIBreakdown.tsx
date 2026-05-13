@@ -52,8 +52,18 @@ export function MarketTypeROIBreakdown({ marketTypeBreakdown }: MarketTypeROIBre
   }
 
   // Find best and worst performing market types
-  const bestMarketType = marketTypeBreakdown[0]; // Already sorted by ROI descending
+  const bestMarketType = marketTypeBreakdown[0];
   const worstMarketType = marketTypeBreakdown[marketTypeBreakdown.length - 1];
+  if (bestMarketType === undefined || worstMarketType === undefined) {
+    return (
+      <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+        <h2 className="font-syne font-bold text-xl mb-4">Performance by Market Type</h2>
+        <div className="text-center py-8 text-gray-400">
+          No data available yet
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white/5 border border-white/10 rounded-lg p-6">

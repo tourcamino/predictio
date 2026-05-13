@@ -18,10 +18,11 @@ function CareersPage() {
   // Group positions by department
   const positionsByDepartment = positions?.reduce<Record<string, Job[]>>(
     (acc, position) => {
-      if (!acc[position.department]) {
-        acc[position.department] = [];
+      const dept = position.department ?? 'General';
+      if (!acc[dept]) {
+        acc[dept] = [];
       }
-      acc[position.department].push(position);
+      acc[dept].push(position);
       return acc;
     },
     {}

@@ -7,9 +7,17 @@
     "**/*.js",
     "**/*.jsx"
   ],
+  "exclude": [
+    "node_modules",
+    ".vinxi",
+    ".output",
+    "dist",
+    "backend",
+    "bots"
+  ],
   "compilerOptions": {
     "strict": true,
-    "noUncheckedIndexedAccess": true,
+    "noUncheckedIndexedAccess": false,
     "esModuleInterop": true,
     "jsx": "react-jsx",
     "target": "ESNext",

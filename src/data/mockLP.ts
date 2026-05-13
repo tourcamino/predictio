@@ -324,7 +324,10 @@ export function generateMockAPYHistory(
   }
   
   // Ensure the last point matches the current APY
-  history[history.length - 1].apy = currentAPY;
+  const lastPoint = history[history.length - 1];
+  if (lastPoint) {
+    lastPoint.apy = currentAPY;
+  }
   
   return history;
 }

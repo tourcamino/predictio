@@ -13,6 +13,7 @@ export const creditPoints = baseProcedure
       walletAddress: z.string(),
       actionType: z.enum([
         "WALLET_CONNECTED",
+        "LP_WAITLIST_JOINED",
         "FIRST_TRADE",
         "TRADE_PLACED",
         "DAILY_LOGIN",

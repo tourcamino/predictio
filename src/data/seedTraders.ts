@@ -87,7 +87,10 @@ function generateRandomTrader(index: number): TraderProfile {
     'trade-lord.eth',
     'profit-seeker.eth',
   ];
-  const ensName = Math.random() < 0.2 ? ensNames[Math.floor(Math.random() * ensNames.length)] : null;
+  const ensName =
+    Math.random() < 0.2
+      ? (ensNames[Math.floor(Math.random() * ensNames.length)] ?? null)
+      : null;
 
   // ROI distribution: mean 10%, stddev 80%
   const roi30d = Math.max(-95, Math.min(500, 10 + (Math.random() - 0.5) * 160));

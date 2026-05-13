@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Clock, TrendingUp, Users, Zap } from 'lucide-react';
-import { Market, SPORT_METADATA } from '~/data/mockMarkets';
+import { Market, getSportMetadata } from '~/data/mockMarkets';
 import { MiniSparkline } from './MiniSparkline';
 import { PriceMovement } from './PriceMovement';
 import { getLiquidityLevel, formatCurrency } from '~/utils/marketUtils';
@@ -46,7 +46,7 @@ interface TrendingMarketCardProps {
 }
 
 export function TrendingMarketCard({ market, onClick }: TrendingMarketCardProps) {
-  const sportMeta = SPORT_METADATA[market.sport];
+  const sportMeta = getSportMetadata(market.sport);
   const countdown = useCountdown(market.closesAt);
 
   const formatVolume = (volume: number) => {

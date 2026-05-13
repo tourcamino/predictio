@@ -1,63 +1,106 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Loader2 } from 'lucide-react';
+import { useTRPCClient } from '~/trpc/react';
+import type { MarketLifecycleStatus } from '~/utils/marketLifecycle';
 
-interface AIInsight {
-  text: string;
+export type AiMarketSnapshot = {
+  marketId: string;
+  teamA: string;
+  teamB: string;
+  league: string;
+  sport: string;
+  question?: string;
+  yesPrice: number;
+  noPrice: number;
+  volume24h?: number;
+  status?: string;
+  lifecycle?: MarketLifecycleStatus;
+};
+
+interface AIInsightBadgeProps {
+  sport: string;
+  compact?: boolean;
+  /** When set (e.g. market detail), generates a match-coherent insight via OpenRouter. */
+  marketSnapshot?: AiMarketSnapshot | null;
 }
 
-const footballInsights: AIInsight[] = [
-  { text: 'Sharp money moved to Draw in the last 2h. Volume pattern suggests informed traders know something about lineup.' },
-  { text: 'Home advantage historically yields 67% win rate in this matchup. Current odds undervalue home team.' },
-  { text: 'Weather conditions favor defensive play. Over/Under market showing unusual activity.' },
+const footballInsights = [
+  'Sharp liquidity moves can tighten spreads — watch implied % vs your own read of form and fixtures.',
+  'Home pitch and rest matter in tight leagues; compare that to what the YES price embeds before sizing up.',
+  'Late news moves markets fast; confirm anything material in trusted sources — prices are not prophecies.',
 ];
 
-const basketballInsights: AIInsight[] = [
-  { text: 'Key player injury news leaked 15min ago. Smart money already repositioning on away team.' },
-  { text: 'Historical H2H data shows 73% away wins when home team on back-to-back. Market hasn\'t adjusted.' },
-  { text: 'Vegas line moved 2.5 points in last hour. Professional bettors loading up on underdog.' },
+const basketballInsights = [
+  'Back-to-backs and travel show up in efficiency stats; check whether the line already prices them in.',
+  'Injury reports shift probabilities quickly — implied % is a snapshot of the crowd, not a diagnosis.',
 ];
 
-const mmaInsights: AIInsight[] = [
-  { text: 'Fighter weigh-in data suggests weight cut issues. Late money flooding opposite side.' },
-  { text: 'Betting pattern matches previous upset. Volume surge on underdog past 3 hours.' },
-  { text: 'Historical finish rate 89% in this style matchup. Current odds don\'t reflect knockout probability.' },
+const mmaInsights = [
+  'Styles make fights — contrast grappling vs striking paths before leaning on the implied favorite.',
+  'Small liquidity pools can exaggerate swings; treat wide moves as volatility, not certainty.',
 ];
 
-const cricketInsights: AIInsight[] = [
-  { text: 'Pitch report indicates spin-friendly conditions. Market undervaluing team with stronger spin attack.' },
-  { text: 'Weather forecast changed. Rain probability now 60%. Draw odds represent value opportunity.' },
-  { text: 'Team selection leaked early. Key all-rounder out. Market hasn\'t fully adjusted yet.' },
+const cricketInsights = [
+  'Venue and surface tilt conditions — decide whether prices already bake that in.',
+  'Weather breaks can flip sessions; markets compress uncertainty into one YES/NO slice.',
 ];
 
-const defaultInsights: AIInsight[] = [
-  { text: 'Volume pattern suggests institutional money entering this market. Price discovery in progress.' },
-  { text: 'Historical accuracy of this market type: 68%. Current odds align with statistical model.' },
-  { text: 'Recent news sentiment shifted positive. Smart money following the narrative.' },
+const defaultInsights = [
+  'Implied probability prices consensus and incentives — pair it with your own research.',
+  'Higher volume usually means tighter discovery; thin books can gap around news.',
 ];
 
-const insightsBySport: Record<string, AIInsight[]> = {
+const insightsBySport: Record<string, string[]> = {
   football: footballInsights,
   basketball: basketballInsights,
   mma: mmaInsights,
   cricket: cricketInsights,
 };
 
-interface AIInsightBadgeProps {
-  sport: string;
-  compact?: boolean;
-}
+export function AIInsightBadge({
+  sport,
+  compact = false,
+  marketSnapshot,
+}: AIInsightBadgeProps) {
+  const trpcClient = useTRPCClient();
+  const fallbackPool = insightsBySport[sport] ?? defaultInsights;
+  const [rotating, setRotating] = useState(fallbackPool[0]);
 
-export function AIInsightBadge({ sport, compact = false }: AIInsightBadgeProps) {
-  const insights = insightsBySport[sport] || defaultInsights;
-  const [currentInsight, setCurrentInsight] = useState(insights[0]);
+  const insightReady =
+    Boolean(marketSnapshot?.marketId) &&
+    Boolean(marketSnapshot?.teamA) &&
+    Boolean(marketSnapshot?.teamB);
+
+  const insightQuery = useQuery({
+    queryKey: ['marketAiInsight', marketSnapshot?.marketId ?? 'idle'],
+    enabled: insightReady && !!marketSnapshot,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    queryFn: () =>
+      trpcClient.marketAiInsight.query({
+        snapshot: {
+          teamA: marketSnapshot!.teamA,
+          teamB: marketSnapshot!.teamB,
+          league: marketSnapshot!.league,
+          sport: marketSnapshot!.sport,
+          question: marketSnapshot!.question,
+          yesPrice: marketSnapshot!.yesPrice,
+          noPrice: marketSnapshot!.noPrice,
+          volume24h: marketSnapshot!.volume24h,
+          status: marketSnapshot!.status,
+          lifecycle: marketSnapshot!.lifecycle,
+        },
+      }),
+  });
 
   useEffect(() => {
-    // Rotate through insights every 15 seconds
+    if (marketSnapshot) return;
     const interval = setInterval(() => {
-      setCurrentInsight(insights[Math.floor(Math.random() * insights.length)]);
+      setRotating(fallbackPool[Math.floor(Math.random() * fallbackPool.length)]);
     }, 15000);
-
     return () => clearInterval(interval);
-  }, [insights]);
+  }, [fallbackPool, marketSnapshot]);
 
   if (compact) {
     return (
@@ -68,15 +111,39 @@ export function AIInsightBadge({ sport, compact = false }: AIInsightBadgeProps) 
     );
   }
 
+  const showLoader =
+    Boolean(marketSnapshot) &&
+    insightQuery.isFetching &&
+    !insightQuery.data?.insight;
+
+  const resolvedInsight = marketSnapshot
+    ? insightQuery.data?.insight
+    : rotating;
+
+  const displayBody = marketSnapshot
+    ? showLoader
+      ? 'Generating context-aware insight…'
+      : resolvedInsight ||
+        'Insight temporarily unavailable — prices and markets still load normally.'
+    : rotating;
+
   return (
     <div className="bg-brand-cyan/5 border border-brand-cyan/30 rounded-lg p-4">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-brand-cyan text-lg">🤖</span>
         <span className="text-brand-cyan font-semibold text-sm">AI INSIGHT</span>
+        {showLoader && (
+          <Loader2 className="w-4 h-4 animate-spin text-brand-cyan ml-auto" aria-hidden />
+        )}
       </div>
-      <p className="text-sm text-gray-300 leading-relaxed">
-        "{currentInsight.text}"
+      <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+        {displayBody}
       </p>
+      {marketSnapshot && (
+        <p className="text-[11px] text-gray-500 mt-3 leading-snug">
+          AI-generated from match context and live prices — not financial advice; verify fees and rules on Predictio.
+        </p>
+      )}
     </div>
   );
 }

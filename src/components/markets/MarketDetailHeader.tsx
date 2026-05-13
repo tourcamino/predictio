@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Clock, TrendingUp } from 'lucide-react';
-import { Market, SPORT_METADATA } from '~/data/mockMarkets';
+import { Market, getSportMetadata } from '~/data/mockMarkets';
 import { ShareButton } from '~/components/ShareButton';
 
 interface MarketDetailHeaderProps {
@@ -44,7 +44,7 @@ function useCountdown(targetDate: Date) {
 }
 
 export function MarketDetailHeader({ market }: MarketDetailHeaderProps) {
-  const sportMeta = SPORT_METADATA[market.sport];
+  const sportMeta = getSportMetadata(market.sport);
   const countdown = useCountdown(market.closesAt);
 
   const formatVolume = (volume: number) => {

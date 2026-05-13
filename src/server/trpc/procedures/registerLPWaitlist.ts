@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
-import { creditWalletPoints } from "~/server/utils/pointsLedger";
+import {
+  creditWalletPoints,
+  POINT_ACTION_VALUES,
+} from "~/server/utils/pointsLedger";
 
 export const registerLPWaitlist = baseProcedure
   .input(
@@ -38,7 +41,7 @@ export const registerLPWaitlist = baseProcedure
       const { newTotal } = await creditWalletPoints(
         normalizedAddress,
         "LP_WAITLIST_JOINED",
-        150,
+        POINT_ACTION_VALUES.LP_WAITLIST_JOINED,
         {
           source: "lp_waitlist",
           registeredAt: waitlistEntry.registeredAt.toISOString(),
@@ -46,7 +49,7 @@ export const registerLPWaitlist = baseProcedure
       );
 
       console.log(
-        `[LP Waitlist] ${normalizedAddress} registered. Credited 150 pts. New total: ${newTotal}`,
+        `[LP Waitlist] ${normalizedAddress} registered. Credited ${POINT_ACTION_VALUES.LP_WAITLIST_JOINED} pts. New total: ${newTotal}`,
       );
     } catch (error) {
       console.error("[LP Waitlist] Failed to credit points:", error);

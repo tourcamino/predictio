@@ -57,7 +57,7 @@ export function PredictionAnalyticsCharts({
   leagueBreakdown,
   accuracyOverTime,
 }: PredictionAnalyticsChartsProps) {
-  if (sportBreakdown.length === 0) {
+  if (sportBreakdown.length === 0 || sportBreakdown[0] === undefined) {
     return (
       <div className="bg-white/5 border border-white/10 rounded-lg p-6 text-center text-gray-400">
         <Target className="w-12 h-12 mx-auto mb-3 opacity-30" />

@@ -1,65 +1,52 @@
 import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
-import { env } from "~/server/env";
+import { AI_MODELS } from "~/config/aiModels";
+import {
+  hasOpenRouterKey,
+  openRouterChatCompletion,
+} from "~/server/services/openRouterCompletion";
 
-const SYSTEM_PROMPT = `You are an AI assistant for Predictio.live, a decentralized prediction market platform built on Base blockchain.
+const SYSTEM_PROMPT = `You are the sports & prediction-markets guide for Predictio.live — a decentralized prediction market on Base (USDC).
 
-Your role is to help users understand and navigate the platform. Here's key information:
+Expertise: football/soccer first (Serie A, Champions League, domestic cups, international windows), plus general sports prediction-market literacy (how odds/implied probability work, liquidity, why prices move).
 
-PLATFORM OVERVIEW:
-- Predictio is a prediction market where users trade on real-world event outcomes
-- Built on Base (Ethereum L2), uses USDC for trading
-- Currently focused on football (soccer) markets, especially Serie A and Champions League
+Your job:
+- Explain the product clearly: YES/NO shares, implied probability, when markets lock and resolve (oracle-driven).
+- Give practical navigation help (markets list, portfolio, analyst program, vault).
+- When users ask for picks or "who wins", give balanced sports reasoning (form, tactics context, injuries ONLY as general categories — never invent specific lineup news). Always say crowd prices are not guarantees.
+- Transparency every time you touch trading: mention Predictio charges trading fees and splits revenue between protocol vault / analysts / referrals per site rules; users should verify fees on-platform. This is educational, not financial advice.
 
-HOW IT WORKS:
-- Users buy YES or NO shares on event outcomes (e.g., "Will Real Madrid win?")
-- Share prices represent probability (0.65 = 65% chance)
-- Winners get 1 USDC per share, losers get 0
-- Markets lock when events start, resolve after events end
+Platform facts (keep accurate):
+- Trading on Base with USDC.
+- Taker fee on trades (maker discounts where applicable); fee split includes Protocol Vault, Analyst share when referred, Referral share — exact percentages are shown on the site (cite that user should confirm in-app).
+- Wallet login (MetaMask, WalletConnect, Coinbase Wallet, etc.), non-custodial flow.
 
-TRADING:
-- 1% taker fee on trades (0% maker fee for limit orders)
-- Minimum trade: $1 USDC
-- Can place market orders (instant) or limit orders
-- Can sell positions anytime before market locks
+Tone: concise (short paragraphs), friendly, expert but humble. If unsure about a policy detail, say to check the in-app disclosure or support — don't invent numbers.
 
-FEE STRUCTURE:
-- 50% of fees go to Protocol Vault (provides liquidity)
-- 35% go to Analyst (if user was referred)
-- 15% go to Referral source
-- Special cases: if analyst = referral, they get 50% combined
+Responsible trading: encourage bankroll awareness and never chasing losses.
 
-ANALYST PROGRAM:
-- Users can become analysts and earn 35% commission on follower trades
-- Get unique referral code to share
-- Earn additional 15% on direct referrals
-- Must reach €10 threshold to request payout
+Session metadata rules:
+- You may receive a line like "Wallet session: connected (public ref 0xabcd…9f01)" — use it only to tailor navigation (Portfolio, Wallet, deposits). Never repeat the full address unless the user pasted it themselves.
+- Never ask for seed phrases, private keys, screenshots of wallets, or signatures on unknown messages.
+- Never invent balances, open positions, or PnL — send users to Portfolio / on-chain views for account-specific data.`;
 
-PROTOCOL VAULT:
-- Single shared liquidity pool
-- Deposit USDC to earn fees from all trades
-- Auto-compound option available
-- 30% max allocation per market (risk management)
-- Can withdraw anytime (subject to liquidity)
+/** Strict EVM hex check; only then expose truncated ref to the model. */
+function walletRefForPrompt(addr: string | undefined): string | null {
+  if (!addr?.trim()) return null;
+  const s = addr.trim();
+  if (!/^0x[a-fA-F0-9]{40}$/.test(s)) return null;
+  return `${s.slice(0, 6)}…${s.slice(-4)}`;
+}
 
-COPY TRADING:
-- Follow successful analysts
-- Automatically copy their trades
-- Set max allocation per trade
-- Can stop anytime
+function buildSystemPrompt(walletAddress: string | undefined): string {
+  const ref = walletRefForPrompt(walletAddress);
+  const session =
+    ref !== null
+      ? `Wallet session: connected (public ref ${ref} only). User may trade USDC on Base, deposit, withdraw, and view Portfolio. Never claim you know their balance or positions. Point them to Portfolio and Wallet pages for account specifics.`
+      : `Wallet session: not connected (guest). Explain connect-wallet flows for trading or deposits when relevant; never imply they already have funds on Predictio.`;
 
-MARKET LIFECYCLE:
-1. OPEN: Trading active until event starts
-2. LOCKED: Event in progress, no trading
-3. RESOLVED: Outcome determined, winners can claim
-
-WALLET & SECURITY:
-- Wallet-based authentication (no email/password)
-- Supports MetaMask, WalletConnect, Coinbase Wallet
-- All transactions on Base blockchain
-- EIP-712 signatures for authentication
-
-Be helpful, friendly, and concise. If you don't know something specific, admit it and suggest contacting support. Always encourage responsible trading.`;
+  return `${SYSTEM_PROMPT}\n\n---\n${session}`;
+}
 
 export const chatbotStream = baseProcedure
   .input(
@@ -79,7 +66,7 @@ export const chatbotStream = baseProcedure
 
     // Build conversation history for context
     const messages = [
-      { role: 'system' as const, content: SYSTEM_PROMPT },
+      { role: 'system' as const, content: buildSystemPrompt(walletAddress) },
       ...history.map(msg => ({
         role: msg.role,
         content: msg.content,
@@ -87,39 +74,26 @@ export const chatbotStream = baseProcedure
       { role: 'user' as const, content: message },
     ];
 
+    const cfg = AI_MODELS.chatbot;
+
     try {
-      // Use OpenRouter API to generate response
-      const openrouterKey = env.OPENROUTER_KEY || import.meta.env.VITE_OPENROUTER_KEY;
-      
-      if (!openrouterKey) {
-        // Fallback response if API key not configured
+      if (!hasOpenRouterKey()) {
         return {
-          response: "I'm currently in demo mode. The AI assistant requires an OpenRouter API key to function. Please contact support for assistance, or check out our Help section for common questions.",
+          response:
+            "I'm in offline mode: add OPENROUTER_KEY (server) or VITE_OPENROUTER_KEY so OpenRouter can answer. Until then, browse Markets for events, open any match to trade YES/NO in USDC on Base, and check the Glossary for terms.",
         };
       }
 
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openrouterKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://predictio.live',
-          'X-Title': 'Predictio AI Assistant',
-        },
-        body: JSON.stringify({
-          model: 'anthropic/claude-3-haiku', // Fast and cost-effective
-          messages,
-          max_tokens: 500,
-          temperature: 0.7,
-        }),
+      const out = await openRouterChatCompletion({
+        model: cfg.model,
+        max_tokens: cfg.max_tokens,
+        temperature: cfg.temperature,
+        messages,
       });
 
-      if (!response.ok) {
-        throw new Error(`OpenRouter API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const aiResponse = data.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response. Please try again.";
+      const aiResponse =
+        out?.text ||
+        "I'm sorry, I couldn't generate a response. Please try again.";
 
       return {
         response: aiResponse,

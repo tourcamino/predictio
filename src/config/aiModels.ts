@@ -1,3 +1,4 @@
+/** Default routing: economical OpenRouter models with strong prompting for sport/markets. */
 export const AI_MODELS = {
   outreach: {
     model: "mistralai/mistral-7b-instruct",
@@ -28,11 +29,11 @@ export const AI_MODELS = {
     label: "Llama 3 8B"
   },
   insights: {
-    model: "microsoft/phi-3-mini-128k-instruct",
-    max_tokens: 200,
-    temperature: 0.5,
-    cost_per_1m_input: 0.05,
-    label: "Phi-3 Mini"
+    model: "meta-llama/llama-3.1-8b-instruct",
+    max_tokens: 220,
+    temperature: 0.35,
+    cost_per_1m_input: 0.02,
+    label: "Llama 3.1 8B"
   },
   analyst: {
     model: "mistralai/mistral-7b-instruct",
@@ -42,12 +43,20 @@ export const AI_MODELS = {
     label: "Mistral 7B"
   },
   chatbot: {
-    model: "anthropic/claude-3-haiku",
-    max_tokens: 500,
-    temperature: 0.7,
-    cost_per_1m_input: 0.25,
-    label: "Claude 3 Haiku"
-  }
+    model: "meta-llama/llama-3.1-8b-instruct",
+    max_tokens: 520,
+    temperature: 0.55,
+    cost_per_1m_input: 0.02,
+    label: "Llama 3.1 8B"
+  },
+  /** Short JSON / keyword extraction for search intent */
+  searchExpand: {
+    model: "meta-llama/llama-3.2-3b-instruct",
+    max_tokens: 120,
+    temperature: 0.15,
+    cost_per_1m_input: 0.015,
+    label: "Llama 3.2 3B"
+  },
 } as const;
 
 export const estimateCost = (
@@ -56,3 +65,5 @@ export const estimateCost = (
 ): number => {
   return (inputTokens / 1000000) * AI_MODELS[model].cost_per_1m_input;
 };
+
+export type AiModelKey = keyof typeof AI_MODELS;

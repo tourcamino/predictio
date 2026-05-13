@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import { TRPCClientError } from '@trpc/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useTRPC } from '~/trpc/react';
@@ -7,6 +6,10 @@ import { useWallet, useWalletStore } from '~/store/useWalletStore';
 import { OnboardingModal } from '~/components/onboarding/OnboardingModal';
 import { invalidateWalletPointsSummary } from '~/utils/invalidateWalletNotifications';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import {
+  isTransientSyncError,
+  userFacingSyncFailureDetail,
+} from '~/utils/syncErrorUtils';
 
 const SYNC_DEBOUNCE_MS = 280;
 const MAX_SILENT_RETRIES = 6;
@@ -19,44 +22,6 @@ function getCookie(name: string): string | null {
     return parts.pop()?.split(';').shift() || null;
   }
   return null;
-}
-
-/** Network / cold start / DB — retry without blaming the wallet. */
-function isTransientSyncError(error: unknown): boolean {
-  if (error instanceof TRPCClientError) {
-    const data = error.data as
-      | { code?: string; httpStatus?: number }
-      | undefined;
-    const code = data?.code;
-    if (
-      code === 'INTERNAL_SERVER_ERROR' ||
-      code === 'TIMEOUT' ||
-      code === 'SERVICE_UNAVAILABLE' ||
-      code === 'CLIENT_CLOSED_REQUEST'
-    ) {
-      return true;
-    }
-    const http = data?.httpStatus;
-    if (typeof http === 'number' && http >= 500) return true;
-  }
-  const msg = (
-    error instanceof Error ? error.message : String(error)
-  ).toLowerCase();
-  return (
-    msg.includes('failed to fetch') ||
-    msg.includes('fetch failed') ||
-    msg.includes('network') ||
-    msg.includes('load failed') ||
-    msg.includes('non-json') ||
-    msg.includes("can't reach database") ||
-    msg.includes('reach database') ||
-    msg.includes('econnrefused') ||
-    msg.includes('socket') ||
-    msg.includes('502') ||
-    msg.includes('503') ||
-    msg.includes('504') ||
-    msg.includes('timeout')
-  );
 }
 
 /**
@@ -204,16 +169,7 @@ export function WalletSync() {
 
               silentRetryCountRef.current = 0;
 
-              let detail = '';
-              if (error instanceof TRPCClientError) {
-                detail = error.message?.trim() ?? '';
-              } else if (error instanceof Error) {
-                detail = error.message.trim();
-              }
-              const suffix =
-                detail && detail.length > 0
-                  ? ` ${detail.length > 180 ? `${detail.slice(0, 180)}…` : detail}`
-                  : '';
+              const suffix = userFacingSyncFailureDetail(error);
 
               toast.error(
                 `Could not load your account from the server.${suffix} Your wallet stays connected — try again in a moment or refresh the page.`,

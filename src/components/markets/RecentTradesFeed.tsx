@@ -35,9 +35,21 @@ function generateMockTrade(market: Market): Trade {
     { id: 'teamB', label: `${market.teamB} Win` },
   ];
   
-  const outcome = outcomes[Math.floor(Math.random() * outcomes.length)];
+  const oi = Math.floor(Math.random() * outcomes.length);
+  const outcome = outcomes[oi];
   const amount = Math.floor(Math.random() * 2000) + 50;
-  
+
+  if (!outcome) {
+    return {
+      id: `${Date.now()}-${Math.random()}`,
+      wallet: generateWalletAddress(),
+      outcome: 'teamA',
+      outcomeLabel: `${market.teamA} Win`,
+      amount,
+      timestamp: new Date(),
+    };
+  }
+
   return {
     id: `${Date.now()}-${Math.random()}`,
     wallet: generateWalletAddress(),

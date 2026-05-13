@@ -108,6 +108,13 @@ export function LPPerformanceChart({
   const depositsPath = generatePath(data.map(d => d.cumulativeDeposits));
   const feesPath = generatePath(data.map(d => d.cumulativeFees));
 
+  const hoverPoint =
+    hoveredIndex !== null &&
+    hoveredIndex >= 0 &&
+    hoveredIndex < data.length
+      ? data[hoveredIndex]
+      : undefined;
+
   return (
     <div className="bg-white/5 border border-white/10 rounded-lg p-6">
       <div className="flex items-center justify-between mb-4">
@@ -267,7 +274,7 @@ export function LPPerformanceChart({
         </div>
 
         {/* Tooltip */}
-        {hoveredIndex !== null && (
+        {hoverPoint && hoveredIndex !== null && (
           <>
             {/* Vertical indicator line */}
             <div
@@ -287,7 +294,7 @@ export function LPPerformanceChart({
               }}
             >
               <div className="text-xs text-gray-400 mb-2">
-                {data[hoveredIndex].timestamp.toLocaleDateString('en-US', {
+                {hoverPoint.timestamp.toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
                   year: 'numeric',
@@ -297,20 +304,20 @@ export function LPPerformanceChart({
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-gray-400">Event:</span>
                   <span className="font-semibold text-xs capitalize">
-                    {data[hoveredIndex].type === 'fee' ? 'Fee Earned' : data[hoveredIndex].type}
-                    {data[hoveredIndex].type !== 'fee' && ` $${data[hoveredIndex].amount.toFixed(2)}`}
+                    {hoverPoint.type === 'fee' ? 'Fee Earned' : hoverPoint.type}
+                    {hoverPoint.type !== 'fee' && ` $${hoverPoint.amount.toFixed(2)}`}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-gray-400">Total Value:</span>
                   <span className="font-mono font-bold text-brand-green text-xs">
-                    ${data[hoveredIndex].totalValue.toFixed(2)}
+                    ${hoverPoint.totalValue.toFixed(2)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-gray-400">Cumulative Fees:</span>
                   <span className="font-mono text-xs text-brand-green">
-                    ${data[hoveredIndex].cumulativeFees.toFixed(2)}
+                    ${hoverPoint.cumulativeFees.toFixed(2)}
                   </span>
                 </div>
               </div>

@@ -68,7 +68,7 @@ export const getReferralAnalytics = baseProcedure
     
     recentRewards.forEach(reward => {
       const date = new Date(reward.createdAt);
-      const dateKey = date.toISOString().split('T')[0];
+      const dateKey = date.toISOString().slice(0, 10);
       
       const current = dailyVolume.get(dateKey) || { volume: 0, fees: 0, reward: 0 };
       dailyVolume.set(dateKey, {
@@ -82,7 +82,7 @@ export const getReferralAnalytics = baseProcedure
     const volumeChart = [];
     for (let i = 29; i >= 0; i--) {
       const date = new Date(now - i * 24 * 60 * 60 * 1000);
-      const dateKey = date.toISOString().split('T')[0];
+      const dateKey = date.toISOString().slice(0, 10);
       const data = dailyVolume.get(dateKey) || { volume: 0, fees: 0, reward: 0 };
       
       volumeChart.push({

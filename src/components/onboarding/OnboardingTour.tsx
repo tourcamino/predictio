@@ -152,7 +152,7 @@ export function OnboardingTour({ isActive, onComplete, onSkip }: OnboardingTourP
 
           {/* Step counter */}
           <div className="text-xs text-gray-400 mb-2">
-            Step {step.id} of {TOUR_STEPS[TOUR_STEPS.length - 1].id}
+            Step {step.id} of {TOUR_STEPS[TOUR_STEPS.length - 1]?.id ?? step.id}
           </div>
 
           {/* Title */}

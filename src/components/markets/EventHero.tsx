@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Clock, MapPin, TrendingUp } from 'lucide-react';
-import { Market, SPORT_METADATA } from '~/data/mockMarkets';
+import { Market, getSportMetadata } from '~/data/mockMarkets';
 
 interface EventHeroProps {
   market: Market;
@@ -42,7 +42,7 @@ function useCountdown(targetDate: Date) {
 }
 
 export function EventHero({ market, location }: EventHeroProps) {
-  const sportMeta = SPORT_METADATA[market.sport];
+  const sportMeta = getSportMetadata(market.sport);
   const countdown = useCountdown(market.closesAt);
 
   const formatVolume = (volume: number) => {

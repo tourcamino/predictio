@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { AdminTopBar } from '~/components/admin/AdminTopBar';
 import { useState } from 'react';
-import { mockMarkets } from '~/data/mockMarkets';
 import { mockDisputedMarkets } from '~/data/mockAdmin';
 import { AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -22,8 +21,18 @@ function ResolveMarkets() {
   const [disputeNotes, setDisputeNotes] = useState<Record<string, string>>({});
   const [disputeReasons, setDisputeReasons] = useState<Record<string, string>>({});
 
-  // Mock markets that need resolution (ended recently)
-  const needsResolution = mockMarkets.slice(0, 3);
+  /** Paper markets resolve via Azuro oracle — manual queue stays empty unless you add an internal workflow. */
+  const needsResolution: Array<{
+    id: string;
+    sportEmoji: string;
+    league: string;
+    teamA: string;
+    teamB: string;
+    volume: number;
+    predictions?: number;
+    percentA?: number;
+    percentB?: number;
+  }> = [];
 
   const handleResolve = (marketId: string, outcome: string) => {
     setSelectedOutcome({ marketId, outcome });
@@ -279,6 +288,12 @@ function ResolveMarkets() {
 
         {/* Markets List */}
         <div className="space-y-4">
+          {needsResolution.length === 0 && (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-8 text-center text-gray-400">
+              No markets in the manual resolution queue. Live outcomes are settled through the{' '}
+              <span className="text-white font-semibold">Azuro protocol oracle</span>.
+            </div>
+          )}
           {needsResolution.map((market, index) => (
             <div
               key={market.id}

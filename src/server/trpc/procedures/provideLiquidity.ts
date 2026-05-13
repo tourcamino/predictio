@@ -3,6 +3,11 @@ import { TRPCError } from "@trpc/server";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
 import { createCaller } from "~/server/trpc/root";
+import {
+  creditWalletPoints,
+  POINT_ACTION_VALUES,
+} from "~/server/utils/pointsLedger";
+import { liquidityPointsForUsdcDeposit } from "~/server/utils/pointsPure";
 
 export const provideLiquidity = baseProcedure
   .input(
@@ -140,9 +145,10 @@ export const provideLiquidity = baseProcedure
     }
 
     // Record transaction
+    const w = walletAddress.toLowerCase();
     await db.transaction.create({
       data: {
-        wallet: walletAddress,
+        wallet: w,
         type: 'deposit',
         amount,
         marketId: isProtocolVault ? null : marketId,
@@ -155,6 +161,27 @@ export const provideLiquidity = baseProcedure
         },
       },
     });
+
+    // Points: 10 pts per $10 USDC deposited (guide: LIQUIDITY_ADDED)
+    const liquidityPoints = liquidityPointsForUsdcDeposit(
+      amount,
+      POINT_ACTION_VALUES.LIQUIDITY_ADDED,
+    );
+    if (liquidityPoints > 0) {
+      const unitsOfTen = Math.floor(amount / 10);
+      try {
+        await creditWalletPoints(w, "LIQUIDITY_ADDED", liquidityPoints, {
+          marketId,
+          amount,
+          unitsOfTen,
+        });
+        console.log(
+          `[Points] Credited ${liquidityPoints} pts to ${w} for LIQUIDITY_ADDED (${unitsOfTen}×$10)`,
+        );
+      } catch (err) {
+        console.error("[Points] Failed to credit LIQUIDITY_ADDED:", err);
+      }
+    }
 
     return {
       success: true,

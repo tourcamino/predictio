@@ -113,7 +113,9 @@ function CumulativePnLChart({ data }: { data: PnLDataPoint[] }) {
   const maxPnl = Math.max(...data.map(d => d.cumulativePnl));
   const minPnl = Math.min(...data.map(d => d.cumulativePnl));
   const range = Math.max(Math.abs(maxPnl), Math.abs(minPnl), 1e-9);
-  const finalPnl = data[data.length - 1].cumulativePnl;
+  const lastPoint = data[data.length - 1];
+  if (lastPoint === undefined) return null;
+  const finalPnl = lastPoint.cumulativePnl;
   const isPositive = finalPnl >= 0;
   const xDenom = Math.max(1, data.length - 1);
 
@@ -309,7 +311,9 @@ function RoiChart({ data }: { data: RoiDataPoint[] }) {
   if (data.length === 0) return null;
 
   const maxRoi = Math.max(...data.map(d => Math.abs(d.roi)), 1e-9);
-  const finalRoi = data[data.length - 1].roi;
+  const lastRoi = data[data.length - 1];
+  if (lastRoi === undefined) return null;
+  const finalRoi = lastRoi.roi;
   const isPositive = finalRoi >= 0;
   const xDenom = Math.max(1, data.length - 1);
 

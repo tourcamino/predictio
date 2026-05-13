@@ -4,7 +4,6 @@ import { useWalletStore } from "~/store/useWalletStore";
 import {
   resolveMockTrader,
   getTraderOpenTrades,
-  getMarketById,
   MockTrader,
   MockOpenTrade
 } from "~/data/mockData";
@@ -350,10 +349,9 @@ function OpenPositionsTab({ trades }: { trades: MockOpenTrade[] }) {
         </thead>
         <tbody>
           {trades.map((trade) => {
-            const market = getMarketById(trade.market);
             return (
               <tr key={trade.id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="py-3 px-4 font-semibold">{market?.name || trade.market}</td>
+                <td className="py-3 px-4 font-semibold">{trade.market}</td>
                 <td className="py-3 px-4">
                   <span className={`px-2 py-1 rounded text-xs font-semibold ${
                     trade.direction === 'YES'

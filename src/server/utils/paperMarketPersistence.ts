@@ -180,8 +180,17 @@ export async function ensureMarketRowForPaperTrade(
   market: Market,
 ): Promise<void> {
   if (marketId.startsWith("azuro-")) {
-    await upsertAzuroMarketRow(marketId);
-    return;
+    try {
+      await upsertAzuroMarketRow(marketId);
+      return;
+    } catch (err) {
+      console.warn(
+        "[ensureMarketRowForPaperTrade] Azuro GraphQL upsert failed; persisting UI snapshot instead:",
+        marketId,
+        err,
+      );
+      // Fall through — same row shape as non-Azuro markets; FK for orders must exist.
+    }
   }
 
   try {

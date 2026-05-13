@@ -140,6 +140,13 @@ export function LPEarningsCharts({
 
   const timeRanges: Array<'7D' | '30D' | '90D' | 'ALL'> = ['7D', '30D', '90D', 'ALL'];
 
+  const hoverPoint =
+    hoveredIndex !== null &&
+    hoveredIndex >= 0 &&
+    hoveredIndex < data.length
+      ? data[hoveredIndex]
+      : undefined;
+
   return (
     <div className="bg-white/5 border border-white/10 rounded-lg p-6">
       {/* Header */}
@@ -302,7 +309,7 @@ export function LPEarningsCharts({
         </div>
 
         {/* Tooltip */}
-        {hoveredIndex !== null && (
+        {hoverPoint && hoveredIndex !== null && (
           <>
             {/* Vertical indicator line */}
             <div
@@ -322,7 +329,7 @@ export function LPEarningsCharts({
               }}
             >
               <div className="text-xs text-gray-400 mb-2">
-                {data[hoveredIndex].date.toLocaleDateString('en-US', {
+                {hoverPoint.date.toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
                   year: 'numeric',
@@ -334,13 +341,13 @@ export function LPEarningsCharts({
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-xs text-gray-400">Daily Fees:</span>
                       <span className="font-mono font-semibold text-brand-green text-xs">
-                        ${data[hoveredIndex].fees.toFixed(2)}
+                        ${hoverPoint.fees.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-xs text-gray-400">Cumulative:</span>
                       <span className="font-mono font-bold text-brand-green">
-                        ${data[hoveredIndex].cumulativeFees.toFixed(2)}
+                        ${hoverPoint.cumulativeFees.toFixed(2)}
                       </span>
                     </div>
                   </>
@@ -350,19 +357,19 @@ export function LPEarningsCharts({
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-xs text-gray-400">Deposits:</span>
                       <span className="font-mono font-semibold text-brand-cyan text-xs">
-                        ${data[hoveredIndex].cumulativeDeposits.toFixed(2)}
+                        ${hoverPoint.cumulativeDeposits.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-xs text-gray-400">Withdrawals:</span>
                       <span className="font-mono font-semibold text-red-400 text-xs">
-                        ${data[hoveredIndex].cumulativeWithdrawals.toFixed(2)}
+                        ${hoverPoint.cumulativeWithdrawals.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-xs text-gray-400">Net Flow:</span>
                       <span className="font-mono font-bold">
-                        ${(data[hoveredIndex].cumulativeDeposits - data[hoveredIndex].cumulativeWithdrawals).toFixed(2)}
+                        ${(hoverPoint.cumulativeDeposits - hoverPoint.cumulativeWithdrawals).toFixed(2)}
                       </span>
                     </div>
                   </>
@@ -372,13 +379,13 @@ export function LPEarningsCharts({
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-xs text-gray-400">Net Value:</span>
                       <span className="font-mono font-bold text-purple-400">
-                        ${data[hoveredIndex].netValue.toFixed(2)}
+                        ${hoverPoint.netValue.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-xs text-gray-400">Fees:</span>
                       <span className="font-mono text-xs text-brand-green">
-                        ${data[hoveredIndex].cumulativeFees.toFixed(2)}
+                        ${hoverPoint.cumulativeFees.toFixed(2)}
                       </span>
                     </div>
                   </>

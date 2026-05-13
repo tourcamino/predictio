@@ -40,6 +40,22 @@ const globalForPrisma = globalThis as unknown as {
 
 export const db = globalForPrisma.prisma ?? createPrismaClient();
 
+const globalWarn = globalThis as typeof globalThis & {
+  __predictioNeonPoolerWarned?: boolean;
+};
+if (
+  process.env.VERCEL === "1" &&
+  !globalWarn.__predictioNeonPoolerWarned &&
+  env.DATABASE_URL &&
+  env.DATABASE_URL.includes("neon.tech") &&
+  !env.DATABASE_URL.includes("-pooler")
+) {
+  globalWarn.__predictioNeonPoolerWarned = true;
+  console.warn(
+    "[db] Vercel + Neon: DATABASE_URL looks non-pooled (host without \"-pooler\"). Serverless + Prisma often need Neon \"Pooled connection\" to avoid intermittent DB errors and FUNCTION_INVOCATION_FAILED.",
+  );
+}
+
 // Reuse one client per serverless isolate (Vercel) to avoid engine churn; dev keeps HMR-friendly singleton.
 if (env.NODE_ENV !== "production" || process.env.VERCEL === "1") {
   globalForPrisma.prisma = db;

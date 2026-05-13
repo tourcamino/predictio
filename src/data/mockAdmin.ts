@@ -169,9 +169,12 @@ function randomAddress(): string {
 }
 
 export function generateActivityItem(): ActivityFeedItem {
-  const type = activityTypes[Math.floor(Math.random() * activityTypes.length)];
+  const type =
+    activityTypes[Math.floor(Math.random() * activityTypes.length)] ?? 'prediction';
   const messages = mockMessages[type];
-  let message = messages[Math.floor(Math.random() * messages.length)];
+  const pool = messages ?? mockMessages.prediction;
+  const tpl = pool[Math.floor(Math.random() * pool.length)] ?? pool[0] ?? 'Activity';
+  let message = tpl;
   
   const address = randomAddress();
   const amount = type === 'large-bet' 

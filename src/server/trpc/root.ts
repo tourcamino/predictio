@@ -104,6 +104,8 @@ import { stopCopyTrading } from "./procedures/stopCopyTrading";
 import { getCopyRelationship } from "./procedures/getCopyRelationship";
 import { getTraderPerformanceHistory } from "./procedures/getTraderPerformanceHistory";
 import { chatbotStream } from "./procedures/chatbotStream";
+import { marketAiInsight } from "./procedures/marketAiInsight";
+import { expandMarketSearch } from "./procedures/expandMarketSearch";
 import {
   verifyAnalyst,
   unverifyAnalyst,
@@ -217,8 +219,10 @@ export const appRouter = createTRPCRouter({
   stopCopyTrading,
   getCopyRelationship,
   getTraderPerformanceHistory,
-  // Chatbot
+  // Chatbot & AI helpers
   chatbotStream,
+  marketAiInsight,
+  expandMarketSearch,
   // Admin procedures
   verifyAnalyst,
   unverifyAnalyst,

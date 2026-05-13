@@ -7,7 +7,10 @@ import { loadMarketUiById } from "~/server/utils/loadMarketUi";
 import { ensureMarketRowForPaperTrade } from "~/server/utils/paperMarketPersistence";
 import { getOrderRole } from "~/utils/marketUtils";
 import { calculateFeeSplit, recordFeeDistribution, TAKER_FEE_RATE } from "~/server/services/feeCalculation";
-import { creditWalletPoints } from "~/server/utils/pointsLedger";
+import {
+  creditWalletPoints,
+  POINT_ACTION_VALUES,
+} from "~/server/utils/pointsLedger";
 
 function marketEventLabel(m: Market): string {
   return m.event ?? `${m.teamA} vs ${m.teamB}`;
@@ -41,11 +44,10 @@ export const placePrediction = baseProcedure
   )
   .mutation(async ({ input }) => {
     const market = await loadMarketUiById(input.marketId);
-
     if (!market) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: "Market not found",
+        message: "Market not found. Only Azuro-backed events can be traded.",
       });
     }
 
@@ -572,6 +574,50 @@ export const placePrediction = baseProcedure
         outcome: input.outcome,
       });
       totalPointsEarned += 50;
+
+      // Referrer points: first trade by a referred wallet (affiliate refCode tracking only).
+      if (!firstTradeEntry) {
+        try {
+          const refTrack = await db.referralTracking.findUnique({
+            where: { referredWallet: w },
+          });
+          if (refTrack?.isActive && refTrack.refCode) {
+            const affiliate = await db.affiliate.findUnique({
+              where: { refCode: refTrack.refCode },
+            });
+            const referrer = affiliate?.walletAddress?.toLowerCase();
+            if (referrer && referrer !== w) {
+              const dup = await db.pointsLedger.findFirst({
+                where: {
+                  walletAddress: referrer,
+                  actionType: "REFERRAL_CONVERTED",
+                  metadata: {
+                    path: ["referredWallet"],
+                    equals: w,
+                  },
+                },
+              });
+              if (!dup) {
+                await creditWalletPoints(
+                  referrer,
+                  "REFERRAL_CONVERTED",
+                  POINT_ACTION_VALUES.REFERRAL_CONVERTED,
+                  {
+                    referredWallet: w,
+                    refCode: refTrack.refCode,
+                    marketId: input.marketId,
+                  },
+                );
+                console.log(
+                  `[Points] Credited ${POINT_ACTION_VALUES.REFERRAL_CONVERTED} pts to ${referrer} for REFERRAL_CONVERTED (${w})`,
+                );
+              }
+            }
+          }
+        } catch (refPtsErr) {
+          console.error("[Points] Failed to credit REFERRAL_CONVERTED:", refPtsErr);
+        }
+      }
 
       console.log(`[Points] Credited ${totalPointsEarned} pts for trade`);
     } catch (error) {

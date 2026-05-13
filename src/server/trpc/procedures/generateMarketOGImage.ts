@@ -10,7 +10,6 @@ export const generateMarketOGImage = baseProcedure
   .input(z.object({ marketId: z.string() }))
   .query(async ({ input }) => {
     const market = await loadMarketUiById(input.marketId);
-
     if (!market) {
       return {
         url: `${minioBaseUrl}/og-default.png`,

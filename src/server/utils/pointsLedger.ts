@@ -1,5 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "~/server/db";
+import {
+  countConsecutiveLoginStreakDays,
+  localDayKey,
+} from "~/server/utils/pointsPure";
 
 export const TIER_THRESHOLDS = {
   BRONZE: 0,
@@ -18,6 +22,7 @@ export function calculateTier(points: number): string {
 /** Canonical amounts for documented actions (admin `creditPoints` uses the same where types overlap). */
 export const POINT_ACTION_VALUES = {
   WALLET_CONNECTED: 100,
+  LP_WAITLIST_JOINED: 150,
   FIRST_TRADE: 500,
   TRADE_PLACED: 50,
   DAILY_LOGIN: 25,
@@ -169,4 +174,67 @@ export async function creditWalletPoints(
   });
 
   return { newTotal, tier };
+}
+
+/**
+ * Counts consecutive calendar days (local midnight boundaries, same as `syncUserAccount` DAILY_LOGIN)
+ * ending on `todayStart` with a `DAILY_LOGIN` ledger row, then credits one-time streak bonuses.
+ * Call only after today's login row exists (just credited or from an earlier session today).
+ */
+export async function creditLoginStreakBonusesIfEligible(
+  walletAddress: string,
+  todayStart: Date,
+): Promise<void> {
+  const w = walletAddress.toLowerCase();
+
+  const [loginRows, existingStreak] = await Promise.all([
+    db.pointsLedger.findMany({
+      where: { walletAddress: w, actionType: "DAILY_LOGIN" },
+      select: { createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 400,
+    }),
+    db.pointsLedger.findMany({
+      where: {
+        walletAddress: w,
+        actionType: { in: ["STREAK_7_DAYS", "STREAK_30_DAYS"] },
+      },
+      select: { actionType: true },
+    }),
+  ]);
+
+  const loginDayKeys = new Set(loginRows.map((r) => localDayKey(r.createdAt)));
+  const streak = countConsecutiveLoginStreakDays(todayStart, loginDayKeys);
+  const has7 = existingStreak.some((x) => x.actionType === "STREAK_7_DAYS");
+  const has30 = existingStreak.some((x) => x.actionType === "STREAK_30_DAYS");
+
+  if (streak >= 7) {
+    if (!has7) {
+      try {
+        await creditWalletPoints(w, "STREAK_7_DAYS", POINT_ACTION_VALUES.STREAK_7_DAYS, {
+          streakDays: streak,
+        });
+        console.log(
+          `[Points] Credited ${POINT_ACTION_VALUES.STREAK_7_DAYS} pts to ${w} for STREAK_7_DAYS (streak=${streak})`,
+        );
+      } catch (e) {
+        console.error("[Points] Failed to credit STREAK_7_DAYS:", e);
+      }
+    }
+  }
+
+  if (streak >= 30) {
+    if (!has30) {
+      try {
+        await creditWalletPoints(w, "STREAK_30_DAYS", POINT_ACTION_VALUES.STREAK_30_DAYS, {
+          streakDays: streak,
+        });
+        console.log(
+          `[Points] Credited ${POINT_ACTION_VALUES.STREAK_30_DAYS} pts to ${w} for STREAK_30_DAYS (streak=${streak})`,
+        );
+      } catch (e) {
+        console.error("[Points] Failed to credit STREAK_30_DAYS:", e);
+      }
+    }
+  }
 }

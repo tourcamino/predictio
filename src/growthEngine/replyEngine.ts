@@ -39,7 +39,10 @@ export function generateReply(tweet: MockTweet, market: Market): string {
   ];
 
   const replies = isBullish ? contrarian : reinforcing;
-  return replies[Math.floor(Math.random() * replies.length)];
+  return (
+    replies[Math.floor(Math.random() * replies.length)] ??
+    `Market volume $${volumeK}K — check the live split on Predictio.`
+  );
 }
 
 export async function findTweets(market: Market): Promise<MockTweet[]> {

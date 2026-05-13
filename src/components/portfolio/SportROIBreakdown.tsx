@@ -44,8 +44,18 @@ export function SportROIBreakdown({ sportBreakdown }: SportROIBreakdownProps) {
   }
 
   // Find best and worst performing sports
-  const bestSport = sportBreakdown[0]; // Already sorted by ROI descending
+  const bestSport = sportBreakdown[0];
   const worstSport = sportBreakdown[sportBreakdown.length - 1];
+  if (bestSport === undefined || worstSport === undefined) {
+    return (
+      <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+        <h2 className="font-syne font-bold text-xl mb-4">Performance by Sport</h2>
+        <div className="text-center py-8 text-gray-400">
+          No data available yet
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white/5 border border-white/10 rounded-lg p-6">

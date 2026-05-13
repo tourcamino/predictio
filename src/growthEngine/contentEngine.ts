@@ -21,7 +21,7 @@ export async function generateContent(market: Market): Promise<MarketContent> {
   // First, check if we have pre-written content for this market
   if (mockContent[market.id]) {
     console.log(`[Content Engine] Using pre-written content for ${market.id}`);
-    return mockContent[market.id];
+    return mockContent[market.id]!;
   }
 
   // Try to use OpenRouter API if key is available

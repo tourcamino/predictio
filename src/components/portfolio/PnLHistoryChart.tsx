@@ -130,10 +130,17 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
   // Calculate zero line position
   const zeroY = 100 - ((0 - minValue) / range) * 100;
 
-  const latestData = data[data.length - 1];
+  const latestData = data[data.length - 1]!;
   const cumulativePnL = latestData.cumulativePnL;
   const realizedPnL = latestData.realizedPnL;
   const unrealizedPnL = latestData.unrealizedPnL;
+
+  const hoverPoint =
+    hoveredIndex !== null &&
+    hoveredIndex >= 0 &&
+    hoveredIndex < data.length
+      ? data[hoveredIndex]
+      : undefined;
 
   return (
     <div className="bg-white/5 border border-white/10 rounded-lg p-6">
@@ -285,7 +292,7 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
         </div>
 
         {/* Tooltip */}
-        {hoveredIndex !== null && (
+        {hoverPoint && hoveredIndex !== null && (
           <>
             {/* Vertical indicator line */}
             <div
@@ -305,7 +312,7 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
               }}
             >
               <div className="text-xs text-gray-400 mb-2">
-                {data[hoveredIndex].timestamp.toLocaleDateString('en-US', {
+                {hoverPoint.timestamp.toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
                   year: 'numeric',
@@ -320,10 +327,10 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
                     <span className="text-xs text-gray-400">Total P&L:</span>
                   </div>
                   <span className={`font-mono font-semibold text-sm ${
-                    data[hoveredIndex].cumulativePnL >= 0 ? 'text-brand-green' : 'text-red-500'
+                    hoverPoint.cumulativePnL >= 0 ? 'text-brand-green' : 'text-red-500'
                   }`}>
-                    {data[hoveredIndex].cumulativePnL >= 0 ? '+' : ''}
-                    {formatCurrency(data[hoveredIndex].cumulativePnL)}
+                    {hoverPoint.cumulativePnL >= 0 ? '+' : ''}
+                    {formatCurrency(hoverPoint.cumulativePnL)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
@@ -332,10 +339,10 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
                     <span className="text-xs text-gray-400">Realized:</span>
                   </div>
                   <span className={`font-mono font-semibold text-sm ${
-                    data[hoveredIndex].realizedPnL >= 0 ? 'text-brand-green' : 'text-red-500'
+                    hoverPoint.realizedPnL >= 0 ? 'text-brand-green' : 'text-red-500'
                   }`}>
-                    {data[hoveredIndex].realizedPnL >= 0 ? '+' : ''}
-                    {formatCurrency(data[hoveredIndex].realizedPnL)}
+                    {hoverPoint.realizedPnL >= 0 ? '+' : ''}
+                    {formatCurrency(hoverPoint.realizedPnL)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
@@ -344,10 +351,10 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
                     <span className="text-xs text-gray-400">Unrealized:</span>
                   </div>
                   <span className={`font-mono font-semibold text-sm ${
-                    data[hoveredIndex].unrealizedPnL >= 0 ? 'text-brand-green' : 'text-red-500'
+                    hoverPoint.unrealizedPnL >= 0 ? 'text-brand-green' : 'text-red-500'
                   }`}>
-                    {data[hoveredIndex].unrealizedPnL >= 0 ? '+' : ''}
-                    {formatCurrency(data[hoveredIndex].unrealizedPnL)}
+                    {hoverPoint.unrealizedPnL >= 0 ? '+' : ''}
+                    {formatCurrency(hoverPoint.unrealizedPnL)}
                   </span>
                 </div>
               </div>

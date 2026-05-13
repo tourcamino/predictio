@@ -5,6 +5,7 @@ import { db } from "~/server/db";
 import {
   creditWalletPoints,
   POINT_ACTION_VALUES,
+  creditLoginStreakBonusesIfEligible,
 } from "~/server/utils/pointsLedger";
 
 export const syncUserAccount = baseProcedure
@@ -186,6 +187,24 @@ export const syncUserAccount = baseProcedure
         console.log(`[Points] Credited ${POINT_ACTION_VALUES.DAILY_LOGIN} pts to ${normalizedAddress} for DAILY_LOGIN`);
       } catch (error) {
         console.error('[Points] Failed to credit DAILY_LOGIN:', error);
+      }
+    }
+
+    // Streak bonuses (7 / 30 days) — only if today's DAILY_LOGIN exists (including just credited).
+    const loginTodayRow =
+      todayLoginEntry ??
+      (await db.pointsLedger.findFirst({
+        where: {
+          walletAddress: normalizedAddress,
+          actionType: "DAILY_LOGIN",
+          createdAt: { gte: today },
+        },
+      }));
+    if (loginTodayRow) {
+      try {
+        await creditLoginStreakBonusesIfEligible(normalizedAddress, today);
+      } catch (error) {
+        console.error("[Points] Failed streak bonus check:", error);
       }
     }
     

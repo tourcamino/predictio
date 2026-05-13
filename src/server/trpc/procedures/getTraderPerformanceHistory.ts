@@ -105,7 +105,7 @@ export const getTraderPerformanceHistory = baseProcedure
     const resolvedOrders = allOrders.filter(o => o.status === 'resolved' && o.resolvedAt);
     
     resolvedOrders.forEach(order => {
-      const dateKey = order.resolvedAt!.toISOString().split('T')[0];
+      const dateKey = order.resolvedAt!.toISOString().slice(0, 10);
       const costBasis = (order.shares || 0) * (order.avgPrice || 0);
       const pnl = order.pnl || 0;
       const isWin = pnl > 0;
