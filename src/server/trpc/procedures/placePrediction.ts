@@ -102,6 +102,14 @@ export const placePrediction = baseProcedure
       });
     }
 
+    const wallet = input.walletAddress.trim().toLowerCase();
+    if (!wallet) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Wallet address is required",
+      });
+    }
+
     // Validate limit order
     if (input.orderType === 'LIMIT' && !input.limitPrice) {
       throw new TRPCError({
@@ -110,17 +118,25 @@ export const placePrediction = baseProcedure
       });
     }
 
-    // Get user and check balance
-    const user = await db.user.findUnique({
-      where: { wallet: input.walletAddress.toLowerCase() },
+    // Ensure DB row exists (syncUserAccount may not have run yet after connect / Strict Mode).
+    const user = await db.user.upsert({
+      where: { wallet },
+      create: {
+        wallet,
+        virtualBalance: 1000.0,
+        totalPnl: 0,
+        tradesCount: 0,
+        firstSeen: new Date(),
+        lastActive: new Date(),
+        totalVolume: 0,
+        predictions: 0,
+        wins: 0,
+        losses: 0,
+      },
+      update: {
+        lastActive: new Date(),
+      },
     });
-
-    if (!user) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "User not found. Please reconnect your wallet.",
-      });
-    }
 
     await ensureMarketRowForPaperTrade(input.marketId, market);
 
@@ -188,7 +204,7 @@ export const placePrediction = baseProcedure
 
     // Update user balance and stats
     await db.user.update({
-      where: { wallet: input.walletAddress.toLowerCase() },
+      where: { wallet },
       data: {
         virtualBalance: balanceAfter,
         tradesCount: { increment: 1 },
@@ -212,7 +228,7 @@ export const placePrediction = baseProcedure
     // Record bet transaction in database
     await db.transaction.create({
       data: {
-        wallet: input.walletAddress.toLowerCase(),
+        wallet,
         type: 'bet_placed',
         amount: input.amount,
         balanceBefore,
@@ -241,7 +257,7 @@ export const placePrediction = baseProcedure
       data: {
         id: predictionId,
         marketId: input.marketId,
-        wallet: input.walletAddress.toLowerCase(),
+        wallet,
         outcome: upperOutcome,
         amount: input.amount,
         shares,
@@ -258,14 +274,14 @@ export const placePrediction = baseProcedure
     // Process copy trading - mirror this trade to active copiers if trader is an analyst
     try {
       const analyst = await db.analyst.findUnique({
-        where: { wallet: input.walletAddress.toLowerCase() },
+        where: { wallet },
       });
 
       if (analyst) {
         // Find all active copiers for this analyst
         const activeCopiers = await db.copyRelationship.findMany({
           where: {
-            analystWallet: input.walletAddress.toLowerCase(),
+            analystWallet: wallet,
             isActive: true,
           },
         });
@@ -435,7 +451,7 @@ export const placePrediction = baseProcedure
         // Check if user is copying an analyst
         const copyRelationship = await db.copyRelationship.findFirst({
           where: {
-            copierWallet: input.walletAddress.toLowerCase(),
+            copierWallet: wallet,
             isActive: true,
           },
         });
@@ -443,14 +459,14 @@ export const placePrediction = baseProcedure
         // Check if user has a referral attribution
         const referralTracking = await db.referralTracking.findUnique({
           where: {
-            referredWallet: input.walletAddress.toLowerCase(),
+            referredWallet: wallet,
           },
         });
 
         // Calculate fee split
         const distribution = await calculateFeeSplit({
           tradeId: predictionId,
-          traderWallet: input.walletAddress,
+          traderWallet: wallet,
           volume: input.amount,
           analystWallet: copyRelationship?.analystWallet || null,
           referralWallet: referralTracking?.refCode ? 
@@ -462,7 +478,7 @@ export const placePrediction = baseProcedure
         await recordFeeDistribution(
           {
             tradeId: predictionId,
-            traderWallet: input.walletAddress,
+            traderWallet: wallet,
             volume: input.amount,
             analystWallet: distribution.analystWallet,
             referralWallet: distribution.referralWallet,
@@ -481,7 +497,7 @@ export const placePrediction = baseProcedure
     await db.notification
       .create({
         data: {
-          walletAddress: input.walletAddress.toLowerCase(),
+          walletAddress: wallet,
           type: 'TRADE_FILLED',
           title: 'Trade filled',
           message: `${input.outcome.toUpperCase()} · $${input.amount.toFixed(2)} on ${marketEventLabel(market)} · ~${shares.toFixed(2)} shares @ $${effectivePrice.toFixed(3)}`,
@@ -495,7 +511,7 @@ export const placePrediction = baseProcedure
     // Check if user is an analyst and notify followers
     try {
       const analyst = await db.analyst.findUnique({
-        where: { wallet: input.walletAddress.toLowerCase() },
+        where: { wallet },
         include: {
           follows: {
             select: {
@@ -533,7 +549,7 @@ export const placePrediction = baseProcedure
 
     // Credit points for trade
     try {
-      const w = input.walletAddress.toLowerCase();
+      const w = wallet;
       const firstTradeEntry = await db.pointsLedger.findFirst({
         where: {
           walletAddress: w,
@@ -562,7 +578,7 @@ export const placePrediction = baseProcedure
       console.error('[Points] Failed to credit trade points:', error);
     }
 
-    console.log(`[Paper Trading] Trade executed: ${input.walletAddress} bought ${shares.toFixed(2)} ${input.outcome} shares for $${totalCost.toFixed(2)}`);
+    console.log(`[Paper Trading] Trade executed: ${wallet} bought ${shares.toFixed(2)} ${input.outcome} shares for $${totalCost.toFixed(2)}`);
 
     return {
       success: true,
