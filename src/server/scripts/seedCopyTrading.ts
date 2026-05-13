@@ -3,7 +3,10 @@
  * Uses live Market rows from the DB; skips gracefully when no markets exist.
  */
 import { db } from "~/server/db";
-import { mockAnalysts } from "~/data/mockAffiliates";
+import {
+  mockAnalysts,
+  COPY_SEED_MARKET_SORT_SUBSTRINGS,
+} from "~/data/mockAffiliates";
 import { parseYesNoPrices } from "~/server/utils/prismaMarket";
 
 const ORDER_PREFIX = "seed-copy";
@@ -30,6 +33,17 @@ function buildWinFlags(count: number, wins: number, salt: string): boolean[] {
   return shuffleDeterministic(flags, salt);
 }
 
+/** Prefer platform “anchor” fixtures so copy-seed orders line up with mock UI + /markets. */
+function prioritizeMarketsForCopySeed<T extends { event: string }>(markets: T[]): T[] {
+  const subs = COPY_SEED_MARKET_SORT_SUBSTRINGS.map((s) => s.toLowerCase());
+  const rank = (ev: string) => {
+    const e = ev.toLowerCase();
+    const i = subs.findIndex((sub) => e.includes(sub));
+    return i === -1 ? 999 : i;
+  };
+  return [...markets].sort((a, b) => rank(a.event) - rank(b.event));
+}
+
 export async function seedCopyTradingExperience(): Promise<void> {
   console.log("[Copy Seed] Starting copy-trading seed...");
 
@@ -41,17 +55,21 @@ export async function seedCopyTradingExperience(): Promise<void> {
     return;
   }
 
-  const resolvedMarkets = await db.market.findMany({
-    where: { status: "resolved", winner: { not: null } },
-    orderBy: { resolvedAt: "desc" },
-    take: 80,
-  });
+  const resolvedMarkets = prioritizeMarketsForCopySeed(
+    await db.market.findMany({
+      where: { status: "resolved", winner: { not: null } },
+      orderBy: { resolvedAt: "desc" },
+      take: 80,
+    }),
+  );
 
-  const openMarkets = await db.market.findMany({
-    where: { status: "open" },
-    orderBy: { closesAt: "asc" },
-    take: 40,
-  });
+  const openMarkets = prioritizeMarketsForCopySeed(
+    await db.market.findMany({
+      where: { status: "open" },
+      orderBy: { closesAt: "asc" },
+      take: 40,
+    }),
+  );
 
   if (resolvedMarkets.length < 8 && openMarkets.length < 4) {
     console.log(

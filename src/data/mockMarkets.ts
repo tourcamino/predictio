@@ -854,6 +854,35 @@ export const mockMarkets: Market[] = [
     predictions: 1543,
     resolutionReason: 'Carlos Alcaraz won 3-1. Market resolved by Azuro oracle.',
   },
+
+  // RESOLVED — YES won (Bundesliga; copy-seed variety on platform markets)
+  {
+    id: 'mock-resolved-bayern-dortmund',
+    sport: 'football',
+    sportEmoji: '⚽',
+    league: 'Bundesliga',
+    region: 'Europe',
+    teamA: 'Bayern Munich',
+    teamB: 'Borussia Dortmund',
+    marketType: 'moneyline',
+    yesPrice: 1.0,
+    noPrice: 0.0,
+    volume: 52100,
+    closesAt: new Date(Date.now() - 26 * 60 * 60 * 1000),
+    start_time: new Date(Date.now() - 26 * 60 * 60 * 1000),
+    traders: 401,
+    isFeatured: false,
+    status: 'resolved',
+    result: 'yes',
+    resolved_at: new Date(Date.now() - 18 * 60 * 60 * 1000),
+    location: 'Allianz Arena, Munich',
+    priceHistory: generatePriceHistory(0.64),
+    liquidity: generateMockLiquidity(52100, 1.0),
+    percentA: 100,
+    percentB: 0,
+    predictions: 1822,
+    resolutionReason: 'Bayern Munich won 3-2. Market resolved by Azuro oracle.',
+  },
   
   // CLOSING SOON — Kickoff in 4 minutes (urgency test)
   {

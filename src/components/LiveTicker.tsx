@@ -4,37 +4,44 @@ import { useTopChromeManaged } from '~/components/TopChromeContext';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '~/trpc/react';
 import type { LiveFeedItemDto } from '~/server/trpc/procedures/getLiveActivityFeed';
+import {
+  mockAnalysts,
+  COPY_SEED_PLATFORM_EVENTS,
+} from '~/data/mockAffiliates';
 
 /** Shown when API returns no rows (or football filter clears all) so the strip never disappears. */
-const LIVE_TICKER_FALLBACK_ITEMS: LiveFeedItemDto[] = [
-  {
-    id: 'fallback-cryptotifoso',
-    type: 'demo',
-    icon: '🔥',
-    text: 'CryptoTifoso ha tradato Napoli WIN +$150',
-    color: 'text-brand-green',
-    isFootball: true,
-    at: Date.now(),
-  },
-  {
-    id: 'fallback-euroanalyst',
-    type: 'demo',
-    icon: '⚽',
-    text: 'EuroAnalyst ha tradato Lazio WIN +$200',
-    color: 'text-brand-cyan',
-    isFootball: true,
-    at: Date.now() - 1,
-  },
-  {
-    id: 'fallback-serieamaster',
-    type: 'demo',
-    icon: '💰',
-    text: 'SerieAMaster ha tradato Inter WIN +$300',
-    color: 'text-yellow-400',
-    isFootball: true,
-    at: Date.now() - 2,
-  },
-];
+const LIVE_TICKER_FALLBACK_ITEMS: LiveFeedItemDto[] = (() => {
+  const [a0, a1, a2] = mockAnalysts;
+  return [
+    {
+      id: 'fallback-copy-seed-0',
+      type: 'demo',
+      icon: a0!.avatar,
+      text: `${a0!.displayName} ha tradato ${COPY_SEED_PLATFORM_EVENTS.MANCHESTER_CITY_VS_ARSENAL} · YES +$112`,
+      color: 'text-brand-green',
+      isFootball: true,
+      at: Date.now(),
+    },
+    {
+      id: 'fallback-copy-seed-1',
+      type: 'demo',
+      icon: a1!.avatar,
+      text: `${a1!.displayName} ha tradato ${COPY_SEED_PLATFORM_EVENTS.BAYERN_VS_DORTMUND} · YES +$265`,
+      color: 'text-brand-cyan',
+      isFootball: true,
+      at: Date.now() - 1,
+    },
+    {
+      id: 'fallback-copy-seed-2',
+      type: 'demo',
+      icon: a2!.avatar,
+      text: `${a2!.displayName} ha tradato ${COPY_SEED_PLATFORM_EVENTS.INTER_VS_FC_BARCELONA} · YES +$155`,
+      color: 'text-yellow-400',
+      isFootball: true,
+      at: Date.now() - 2,
+    },
+  ];
+})();
 
 export function LiveTicker() {
   const isManaged = useTopChromeManaged();

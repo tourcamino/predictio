@@ -79,9 +79,28 @@ export const mockAnalysts: Analyst[] = [
   },
 ];
 
-/** Serie A fixtures — copy-seed “recent activity” (leaderboard + detail when DB orders absent). */
-const COPY_EVENT_NAPOLI_BOLOGNA = "SSC Napoli vs Bologna FC";
-const COPY_EVENT_LAZIO_INTER = "SS Lazio vs Inter Milan";
+/**
+ * Copy-seed “recent activity” when DB orders are absent.
+ * Strings MUST match `Market.event` from seeded `mockMarkets` (paper persistence) so cards match real platform rows.
+ */
+export const COPY_SEED_PLATFORM_EVENTS = {
+  MANCHESTER_CITY_VS_ARSENAL: "Manchester City vs Arsenal",
+  INTER_VS_FC_BARCELONA: "Inter Milan vs FC Barcelona",
+  INTER_VS_AC_MILAN: "Inter Milan vs AC Milan",
+  DJOKOVIC_VS_ALCARAZ: "Novak Djokovic vs Carlos Alcaraz",
+  REAL_MADRID_VS_FC_BARCELONA: "Real Madrid vs FC Barcelona",
+  BAYERN_VS_DORTMUND: "Bayern Munich vs Borussia Dortmund",
+} as const;
+
+/** Prefer these when attaching seed `Order` rows to markets (subset order = tie-break). */
+export const COPY_SEED_MARKET_SORT_SUBSTRINGS: readonly string[] = [
+  COPY_SEED_PLATFORM_EVENTS.MANCHESTER_CITY_VS_ARSENAL,
+  COPY_SEED_PLATFORM_EVENTS.BAYERN_VS_DORTMUND,
+  COPY_SEED_PLATFORM_EVENTS.INTER_VS_FC_BARCELONA,
+  COPY_SEED_PLATFORM_EVENTS.INTER_VS_AC_MILAN,
+  COPY_SEED_PLATFORM_EVENTS.REAL_MADRID_VS_FC_BARCELONA,
+  COPY_SEED_PLATFORM_EVENTS.DJOKOVIC_VS_ALCARAZ,
+];
 
 export type CopySeedRecentTrade = {
   event: string;
@@ -91,6 +110,8 @@ export type CopySeedRecentTrade = {
   result: "Won" | "Lost";
   profitUsd: number;
   daysAgo: number;
+  /** When set, overrides analyst primary sport for this row (e.g. tennis on a football profile). */
+  sport?: string;
 };
 
 /**
@@ -100,7 +121,7 @@ export type CopySeedRecentTrade = {
 export const copySeedRecentTradesByWallet: Record<string, CopySeedRecentTrade[]> = {
   [mockAnalysts[0]!.wallet.toLowerCase()]: [
     {
-      event: COPY_EVENT_NAPOLI_BOLOGNA,
+      event: COPY_SEED_PLATFORM_EVENTS.MANCHESTER_CITY_VS_ARSENAL,
       side: "YES",
       stakeUsd: 180,
       result: "Won",
@@ -108,15 +129,16 @@ export const copySeedRecentTradesByWallet: Record<string, CopySeedRecentTrade[]>
       daysAgo: 2,
     },
     {
-      event: COPY_EVENT_LAZIO_INTER,
-      side: "NO",
+      event: COPY_SEED_PLATFORM_EVENTS.DJOKOVIC_VS_ALCARAZ,
+      side: "YES",
       stakeUsd: 95,
       result: "Lost",
       profitUsd: -95,
       daysAgo: 5,
+      sport: "Tennis",
     },
     {
-      event: COPY_EVENT_NAPOLI_BOLOGNA,
+      event: COPY_SEED_PLATFORM_EVENTS.BAYERN_VS_DORTMUND,
       side: "NO",
       stakeUsd: 240,
       result: "Lost",
@@ -124,7 +146,7 @@ export const copySeedRecentTradesByWallet: Record<string, CopySeedRecentTrade[]>
       daysAgo: 9,
     },
     {
-      event: COPY_EVENT_LAZIO_INTER,
+      event: COPY_SEED_PLATFORM_EVENTS.MANCHESTER_CITY_VS_ARSENAL,
       side: "YES",
       stakeUsd: 310,
       result: "Won",
@@ -134,7 +156,7 @@ export const copySeedRecentTradesByWallet: Record<string, CopySeedRecentTrade[]>
   ],
   [mockAnalysts[1]!.wallet.toLowerCase()]: [
     {
-      event: COPY_EVENT_LAZIO_INTER,
+      event: COPY_SEED_PLATFORM_EVENTS.BAYERN_VS_DORTMUND,
       side: "YES",
       stakeUsd: 420,
       result: "Won",
@@ -142,31 +164,32 @@ export const copySeedRecentTradesByWallet: Record<string, CopySeedRecentTrade[]>
       daysAgo: 1,
     },
     {
-      event: COPY_EVENT_NAPOLI_BOLOGNA,
+      event: COPY_SEED_PLATFORM_EVENTS.MANCHESTER_CITY_VS_ARSENAL,
       side: "NO",
       stakeUsd: 155,
-      result: "Won",
-      profitUsd: 88,
+      result: "Lost",
+      profitUsd: -155,
       daysAgo: 4,
     },
     {
-      event: COPY_EVENT_LAZIO_INTER,
+      event: COPY_SEED_PLATFORM_EVENTS.DJOKOVIC_VS_ALCARAZ,
       side: "NO",
       stakeUsd: 500,
-      result: "Lost",
-      profitUsd: -500,
+      result: "Won",
+      profitUsd: 318,
       daysAgo: 7,
+      sport: "Tennis",
     },
     {
-      event: COPY_EVENT_NAPOLI_BOLOGNA,
+      event: COPY_SEED_PLATFORM_EVENTS.BAYERN_VS_DORTMUND,
       side: "YES",
       stakeUsd: 72,
-      result: "Lost",
-      profitUsd: -72,
+      result: "Won",
+      profitUsd: 41,
       daysAgo: 11,
     },
     {
-      event: COPY_EVENT_NAPOLI_BOLOGNA,
+      event: COPY_SEED_PLATFORM_EVENTS.MANCHESTER_CITY_VS_ARSENAL,
       side: "YES",
       stakeUsd: 260,
       result: "Won",
@@ -176,36 +199,38 @@ export const copySeedRecentTradesByWallet: Record<string, CopySeedRecentTrade[]>
   ],
   [mockAnalysts[2]!.wallet.toLowerCase()]: [
     {
-      event: COPY_EVENT_NAPOLI_BOLOGNA,
+      event: COPY_SEED_PLATFORM_EVENTS.DJOKOVIC_VS_ALCARAZ,
       side: "NO",
       stakeUsd: 200,
       result: "Won",
       profitUsd: 155,
       daysAgo: 3,
+      sport: "Tennis",
     },
     {
-      event: COPY_EVENT_LAZIO_INTER,
-      side: "YES",
+      event: COPY_SEED_PLATFORM_EVENTS.MANCHESTER_CITY_VS_ARSENAL,
+      side: "NO",
       stakeUsd: 88,
       result: "Lost",
       profitUsd: -88,
       daysAgo: 6,
     },
     {
-      event: COPY_EVENT_LAZIO_INTER,
-      side: "NO",
+      event: COPY_SEED_PLATFORM_EVENTS.BAYERN_VS_DORTMUND,
+      side: "YES",
       stakeUsd: 340,
       result: "Won",
       profitUsd: 210,
       daysAgo: 10,
     },
     {
-      event: COPY_EVENT_NAPOLI_BOLOGNA,
+      event: COPY_SEED_PLATFORM_EVENTS.DJOKOVIC_VS_ALCARAZ,
       side: "YES",
       stakeUsd: 125,
       result: "Lost",
       profitUsd: -125,
       daysAgo: 16,
+      sport: "Tennis",
     },
   ],
 };
@@ -236,7 +261,7 @@ export function getCopySeedPredictionHistoryRows(
   return rows.map((r, i) => ({
     id: `copy-seed-${wallet.slice(2, 10)}-${i}`,
     event: r.event,
-    sport: sportFallback || "Football",
+    sport: r.sport ?? (sportFallback || "Football"),
     odds: r.side === "YES" ? 1.85 : 2.05,
     stake: r.stakeUsd,
     outcome: r.result === "Won" ? "Won" : "Lost",
