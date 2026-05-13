@@ -1,8 +1,10 @@
 import {
   defineEventHandler,
-  toWebRequest,
+  readBody,
+  setResponseHeader,
+  setResponseStatus,
   type H3Event,
-} from "vinxi/http";
+} from "h3";
 
 interface LogEntry {
   level: string;
@@ -19,16 +21,17 @@ interface ClientLogRequest {
 }
 
 export default defineEventHandler(async (event: H3Event) => {
-  const request = toWebRequest(event);
-  if (!request || request.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+  if (event.node.req.method !== "POST") {
+    setResponseStatus(event, 405);
+    return "Method not allowed";
   }
 
   try {
-    const body = (await request.json()) as ClientLogRequest;
+    const body = (await readBody(event)) as ClientLogRequest;
 
     if (!body.logs || !Array.isArray(body.logs)) {
-      return new Response("Invalid request body", { status: 400 });
+      setResponseStatus(event, 400);
+      return "Invalid request body";
     }
 
     // Forward each log to the server console
@@ -55,7 +58,7 @@ export default defineEventHandler(async (event: H3Event) => {
 
       // Add extra data if available
        
-      if (log.extra && log.extra.length > 0) {
+      if (log.extra) {
         message +=
           "\n    Extra data: " +
           JSON.stringify(log.extra, null, 2)
@@ -83,15 +86,12 @@ export default defineEventHandler(async (event: H3Event) => {
       }
     });
 
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    setResponseHeader(event, "Content-Type", "application/json; charset=utf-8");
+    return JSON.stringify({ success: true });
   } catch (error) {
     console.error("Error processing client logs:", error);
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    setResponseStatus(event, 400);
+    setResponseHeader(event, "Content-Type", "application/json; charset=utf-8");
+    return JSON.stringify({ error: "Invalid JSON" });
   }
 });
