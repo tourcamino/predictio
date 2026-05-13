@@ -58,8 +58,19 @@ export function HeaderInner() {
     retryDelay: (attempt) => Math.min(2500, 400 * 2 ** attempt),
   });
 
-  const userPoints = pointsQuery.data?.totalPoints || 0;
-  const userTier = pointsQuery.data?.tier || 'BRONZE';
+  /** When tRPC fails, `data` is undefined — do not show "0" (that looked like missing points for weeks). */
+  const pointsLoadFailed = pointsQuery.isError;
+  const pointsLoading =
+    !pointsLoadFailed &&
+    !pointsQuery.data &&
+    (pointsQuery.isPending || pointsQuery.isFetching);
+  const userPoints =
+    !pointsLoadFailed && pointsQuery.data != null
+      ? pointsQuery.data.totalPoints
+      : null;
+  const userTier = pointsQuery.data?.tier ?? "BRONZE";
+  const pointsFailureTitle =
+    "Score unavailable — the server did not return points (often the same outage as wallet sync). On Vercel: use Neon pooled DATABASE_URL and check Runtime logs for this request.";
   
   const getTierColor = (tier: string) => {
     switch (tier) {
@@ -223,12 +234,25 @@ export function HeaderInner() {
                     search={{ tab: 'points' }}
                     className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 rounded hover:bg-white/10 transition-colors"
                     onClick={(e) => e.stopPropagation()}
+                    title={pointsLoadFailed ? pointsFailureTitle : undefined}
                   >
                     <Hexagon className="w-3.5 h-3.5 text-brand-green" />
-                    <span className="font-mono text-sm font-semibold">{userPoints.toLocaleString()}</span>
+                    {pointsLoadFailed ? (
+                      <span className="font-mono text-sm font-semibold text-amber-400/90">—</span>
+                    ) : pointsLoading ? (
+                      <Loader2 className="w-3.5 h-3.5 text-brand-green animate-spin" aria-label="Loading points" />
+                    ) : (
+                      <span className="font-mono text-sm font-semibold">
+                        {(userPoints ?? 0).toLocaleString()}
+                      </span>
+                    )}
                     <div 
                       className="w-2 h-2 rounded-full" 
-                      style={{ backgroundColor: getTierColor(userTier) }}
+                      style={{
+                        backgroundColor: pointsLoadFailed
+                          ? "#6b7280"
+                          : getTierColor(userTier),
+                      }}
                       title={userTier}
                     />
                   </Link>
@@ -383,12 +407,28 @@ export function HeaderInner() {
                     search={{ tab: 'points' }}
                     className="flex items-center gap-2 mb-3 p-2 bg-white/5 rounded hover:bg-white/10 transition-colors"
                     onClick={() => setIsMobileMenuOpen(false)}
+                    title={pointsLoadFailed ? pointsFailureTitle : undefined}
                   >
                     <Hexagon className="w-3.5 h-3.5 text-brand-green flex-shrink-0" />
-                    <span className="font-mono text-sm font-semibold">{userPoints.toLocaleString()} pts</span>
+                    {pointsLoadFailed ? (
+                      <span className="font-mono text-sm font-semibold text-amber-400/90">— pts</span>
+                    ) : pointsLoading ? (
+                      <span className="flex items-center gap-2 font-mono text-sm font-semibold text-gray-300">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-green" aria-hidden />
+                        pts
+                      </span>
+                    ) : (
+                      <span className="font-mono text-sm font-semibold">
+                        {(userPoints ?? 0).toLocaleString()} pts
+                      </span>
+                    )}
                     <div 
                       className="w-2 h-2 rounded-full flex-shrink-0" 
-                      style={{ backgroundColor: getTierColor(userTier) }}
+                      style={{
+                        backgroundColor: pointsLoadFailed
+                          ? "#6b7280"
+                          : getTierColor(userTier),
+                      }}
                     />
                     <span className="text-xs text-gray-400">{userTier}</span>
                   </Link>

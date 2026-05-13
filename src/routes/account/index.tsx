@@ -513,8 +513,14 @@ function AccountPage() {
 
               {/* Error State */}
               {pointsQuery.isError && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-6 text-center">
-                  <p className="text-red-500">Failed to load points data</p>
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-6 text-center space-y-2">
+                  <p className="text-red-400 font-medium">Failed to load points</p>
+                  <p className="text-sm text-gray-400 max-w-lg mx-auto">
+                    This uses the same server as wallet sync. If production shows errors here, fix{" "}
+                    <span className="text-gray-300">DATABASE_URL</span> on Vercel (Neon{" "}
+                    <span className="text-gray-300">pooled</span> host) and check Vercel Runtime logs —
+                    the UI cannot show points until the API responds.
+                  </p>
                 </div>
               )}
 
