@@ -51,16 +51,23 @@ function expressDevApiProxy(): Record<
 /** Vercel sets `VERCEL=1` during build/runtime — Nitro must use the `vercel` preset (not `node-server`). */
 const nitroPreset = process.env.VERCEL ? "vercel" : "node-server";
 
+/**
+ * Prisma + Rollup: `@prisma/client` resolves generated code under `.prisma/client`. Marking both
+ * `external` fixes `node-server` builds (Rollup "Invalid module '.prisma'"). On the `vercel`
+ * preset, those externals are not reliably copied into the serverless artifact → runtime
+ * `ERR_MODULE_NOT_FOUND`. Do not externalize Prisma for Vercel builds only.
+ */
+const prismaServerRollupExternals: string[] =
+  nitroPreset === "vercel" ? [] : ["@prisma/client", ".prisma/client"];
+
 export default createApp({
   server: {
     preset: nitroPreset,
     experimental: {
       asyncContext: true,
     },
-    // Prisma ships `require('.prisma/client/default')` inside `@prisma/client`; bundling it
-    // hits Rollup/Nitro "Invalid module '.prisma'" — keep the client external for the server bundle.
     rollupConfig: {
-      external: ["@prisma/client", ".prisma/client"],
+      external: prismaServerRollupExternals,
     },
     // Vercel: avoid FUNCTION_INVOCATION_FAILED on cold Prisma + DB when the platform default (10s on Hobby) is tight.
     // Hobby projects are still capped at 10s by Vercel; Pro+ can use the full value. See Vercel → Functions → Duration.
