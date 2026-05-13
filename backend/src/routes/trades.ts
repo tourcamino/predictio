@@ -17,6 +17,7 @@ import {
 } from "../middleware/auth";
 import { ApiError } from "../middleware/errors";
 import { idempotency } from "../middleware/idempotency";
+import { newPurchaseRequestId, logPurchaseFlowExpress } from "../lib/purchaseFlowDiagnostic";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -93,6 +94,29 @@ router.post(
   idempotency(),
   validate({ body: createTradeBody }),
   async (req, res, next) => {
+  const requestId = newPurchaseRequestId();
+  const walletForLog = (() => {
+    const authedWallet = (req as any).walletAddress as string | undefined;
+    const bodyWallet = (req.body).walletAddress as string | undefined;
+    const w = authedWallet || bodyWallet || null;
+    return w ? String(w).toLowerCase() : null;
+  })();
+
+  // #region agent log
+  logPurchaseFlowExpress({
+    requestId,
+    userId: walletForLog,
+    location: "trades.ts:POST_/trades",
+    phase: "express.rest.trades.request",
+    payloadReceived: {
+      marketId: (req.body as { marketId?: string })?.marketId,
+      outcome: (req.body as { outcome?: string })?.outcome,
+      amountUsd: (req.body as { amountUsd?: unknown })?.amountUsd,
+      walletAddress: (req.body as { walletAddress?: string })?.walletAddress,
+    },
+  });
+  // #endregion
+
   try {
     const authedWallet = (req as any).walletAddress as string | undefined;
     const bodyWallet = (req.body).walletAddress as string | undefined;
@@ -367,10 +391,41 @@ router.post(
         ? { copyTrades: { count: copyOrderIds.length, orderIds: copyOrderIds } }
         : {}),
     });
+
+    // #region agent log
+    logPurchaseFlowExpress({
+      requestId,
+      userId: walletForLog,
+      location: "trades.ts:POST_/trades",
+      phase: "express.rest.trades.success",
+      apiResponse: {
+        orderId: orderRow.id,
+        marketId,
+        feeTotalUsd: split.feeTotalUsd,
+        copyOrderCount: copyOrderIds.length,
+      },
+      dbWrite: {
+        model: "Order",
+        summary: { id: orderRow.id, marketId, wallet: walletAddress, amount: size },
+      },
+    });
+    // #endregion
   } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
+    // #region agent log
+    logPurchaseFlowExpress({
+      requestId,
+      userId: walletForLog,
+      location: "trades.ts:POST_/trades",
+      phase: "express.rest.trades.error",
+      payloadReceived: req.body,
+      errorMessage: err.message,
+      errorStack: err.stack,
+    });
+    // #endregion
     return next(e);
   }
-});
+  });
 
 export default router;
 

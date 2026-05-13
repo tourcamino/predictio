@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { logPurchaseFlowExpress } from "../lib/purchaseFlowDiagnostic";
 import { ApiError } from "../middleware/errors";
 import {
   calculateFeeSplit,
@@ -48,7 +49,26 @@ export async function runPlacePaperPredictionWeb(
     orderType?: "MARKET" | "LIMIT";
     limitPrice?: number;
   },
+  diag?: { requestId: string },
 ) {
+  // #region agent log
+  const purchaseDiagRequestId = diag?.requestId ?? "no-request-id";
+  const purchaseDiagUserId = input.walletAddress?.trim().toLowerCase() ?? null;
+  logPurchaseFlowExpress({
+    requestId: purchaseDiagRequestId,
+    userId: purchaseDiagUserId,
+    location: "placePaperPredictionWeb.ts:runPlacePaperPredictionWeb",
+    phase: "express.web.place_prediction.enter",
+    payloadReceived: {
+      marketId: input.marketId,
+      outcome: input.outcome,
+      amount: input.amount,
+      orderType: input.orderType,
+      limitPrice: input.limitPrice,
+    },
+  });
+  // #endregion
+
   const market = await loadPaperMarketSnapshot(prisma, input.marketId);
   if (!market) {
     throw new ApiError("Market not found.", { status: 404, code: "NOT_FOUND" });
@@ -228,6 +248,28 @@ export async function runPlacePaperPredictionWeb(
     },
   });
 
+  // #region agent log
+  logPurchaseFlowExpress({
+    requestId: purchaseDiagRequestId,
+    userId: purchaseDiagUserId,
+    location: "placePaperPredictionWeb.ts:after_order_create",
+    phase: "express.web.db.order_created",
+    dbWrite: {
+      model: "Order",
+      summary: {
+        id: predictionId,
+        marketId: input.marketId,
+        wallet,
+        outcome: upperOutcome,
+        amount: input.amount,
+        shares,
+        avgPrice: effectivePrice,
+        orderType,
+      },
+    },
+  });
+  // #endregion
+
   await bumpMarketPaperStats(prisma, input.marketId, input.amount);
 
   try {
@@ -317,7 +359,7 @@ export async function runPlacePaperPredictionWeb(
     console.error("[web placePrediction] points credit failed:", e);
   }
 
-  return {
+  const apiResponse = {
     success: true,
     predictionId,
     message:
@@ -328,4 +370,16 @@ export async function runPlacePaperPredictionWeb(
     fee,
     orderRole,
   };
+
+  // #region agent log
+  logPurchaseFlowExpress({
+    requestId: purchaseDiagRequestId,
+    userId: purchaseDiagUserId,
+    location: "placePaperPredictionWeb.ts:runPlacePaperPredictionWeb",
+    phase: "express.web.place_prediction.success",
+    apiResponse,
+  });
+  // #endregion
+
+  return apiResponse;
 }

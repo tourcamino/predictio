@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -22,6 +22,11 @@ import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { executePlacePredictionWithDiagnostics } from '~/lib/executePlacePredictionWithDiagnostics';
+import {
+  logPurchaseFlowClient,
+  logPurchaseFlowClientError,
+  newClientPurchaseRequestId,
+} from '~/lib/purchaseFlowDiagnosticClient';
 
 interface TradingBoxProps {
   market: Market;
@@ -114,6 +119,7 @@ export function TradingBox({ market }: TradingBoxProps) {
   const [aiResponse, setAiResponse] = useState('');
   const [isAIThinking, setIsAIThinking] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const buyFlowCorrelationRef = useRef<string | null>(null);
 
   // Fetch user positions for this market
   const positionsQuery = useQuery({
@@ -248,8 +254,20 @@ export function TradingBox({ market }: TradingBoxProps) {
       executePlacePredictionWithDiagnostics(
         (i) => trpcClient.placePrediction.mutate(i),
         input,
+        { flowCorrelationId: buyFlowCorrelationRef.current },
       ),
     onSuccess: (data) => {
+      // #region agent log
+      const fid = buyFlowCorrelationRef.current;
+      logPurchaseFlowClient({
+        requestId: fid ?? newClientPurchaseRequestId(),
+        userId: walletKey,
+        flowCorrelationId: fid,
+        location: 'TradingBox.tsx:placeTradeMutation.onSuccess',
+        phase: 'tradingbox.place_trade.success',
+        apiResponse: data,
+      });
+      // #endregion
       setTxError(undefined);
       setTxModalState('success');
 
@@ -282,6 +300,19 @@ export function TradingBox({ market }: TradingBoxProps) {
       }
     },
     onError: (error: Error) => {
+      // #region agent log
+      const fid = buyFlowCorrelationRef.current;
+      logPurchaseFlowClientError(
+        {
+          requestId: fid ?? newClientPurchaseRequestId(),
+          userId: walletKey,
+          location: 'TradingBox.tsx:placeTradeMutation.onError',
+          flowCorrelationId: fid,
+        },
+        'tradingbox.place_trade.error',
+        error,
+      );
+      // #endregion
       let errorMessage = 'Trade failed. Please try again.';
 
       if (error.message.includes('insufficient')) {
@@ -359,10 +390,45 @@ export function TradingBox({ market }: TradingBoxProps) {
   );
 
   const onBuySubmit = async (data: BuyFormData) => {
+    const flowId = newClientPurchaseRequestId();
+    buyFlowCorrelationRef.current = flowId;
+
+    // #region agent log
+    logPurchaseFlowClient({
+      requestId: flowId,
+      userId: walletKey,
+      flowCorrelationId: flowId,
+      location: 'TradingBox.tsx:onBuySubmit',
+      phase: 'tradingbox.buy_submit.enter',
+      payloadReceived: {
+        formAmount: data.amount,
+        marketId: market.id,
+        selectedOutcome,
+        orderType,
+        isDemoActive,
+        isWalletConnected,
+        isMarketTradeable: isMarketTradeable(market),
+        marketStatus: getMarketStatus(market),
+        start_time: market.start_time?.toISOString?.() ?? market.start_time,
+      },
+    });
+    // #endregion
+
     // TODO CURSOR C1: validate trade lock server-side before execution
     // Frontend protection: check if market is still open for trading
     if (!isMarketTradeable(market)) {
       const status = getMarketStatus(market);
+      // #region agent log
+      logPurchaseFlowClient({
+        requestId: flowId,
+        userId: walletKey,
+        flowCorrelationId: flowId,
+        location: 'TradingBox.tsx:onBuySubmit',
+        phase: 'tradingbox.buy_submit.exit_early',
+        payloadReceived: { reason: 'market_not_tradeable', status },
+      });
+      // #endregion
+      buyFlowCorrelationRef.current = null;
       if (status === 'locked') {
         toast.error('Trading is closed for this market. Match has started.');
         return;
@@ -374,6 +440,17 @@ export function TradingBox({ market }: TradingBoxProps) {
     
     // Additional time-based check
     if (new Date() >= market.start_time) {
+      // #region agent log
+      logPurchaseFlowClient({
+        requestId: flowId,
+        userId: walletKey,
+        flowCorrelationId: flowId,
+        location: 'TradingBox.tsx:onBuySubmit',
+        phase: 'tradingbox.buy_submit.exit_early',
+        payloadReceived: { reason: 'kickoff_passed', start_time: market.start_time },
+      });
+      // #endregion
+      buyFlowCorrelationRef.current = null;
       toast.error('Trading closed at kickoff.');
       return;
     }
@@ -388,16 +465,40 @@ export function TradingBox({ market }: TradingBoxProps) {
         marketSnapshot: market,
       });
 
+      // #region agent log
+      logPurchaseFlowClient({
+        requestId: flowId,
+        userId: walletKey,
+        flowCorrelationId: flowId,
+        location: 'TradingBox.tsx:onBuySubmit',
+        phase: 'tradingbox.buy_submit.demo_execute_demo_trade_done',
+        payloadReceived: { demoAmount: data.amount },
+        apiResponse: result,
+      });
+      // #endregion
+
       if (result.success) {
         toast.success(result.message);
         buyForm.reset();
       } else {
         toast.error(result.message);
       }
+      buyFlowCorrelationRef.current = null;
       return;
     }
 
     if (!isWalletConnected) {
+      // #region agent log
+      logPurchaseFlowClient({
+        requestId: flowId,
+        userId: walletKey,
+        flowCorrelationId: flowId,
+        location: 'TradingBox.tsx:onBuySubmit',
+        phase: 'tradingbox.buy_submit.exit_early',
+        payloadReceived: { reason: 'wallet_not_connected', requireWalletWillOpen: true },
+      });
+      // #endregion
+      buyFlowCorrelationRef.current = null;
       requireWallet();
       return;
     }
@@ -405,6 +506,21 @@ export function TradingBox({ market }: TradingBoxProps) {
     setTxError(undefined);
     setTxModalState('review');
     setShowTxModal(true);
+
+    // #region agent log
+    logPurchaseFlowClient({
+      requestId: flowId,
+      userId: walletKey,
+      flowCorrelationId: flowId,
+      location: 'TradingBox.tsx:onBuySubmit',
+      phase: 'tradingbox.buy_submit.modal_opened_review',
+      payloadReceived: {
+        nextStep: 'user_clicks_confirm_in_TransactionModal',
+        formAmount: data.amount,
+        buyAmountWatch: buyAmount,
+      },
+    });
+    // #endregion
   };
 
   const onSellSubmit = async (data: SellFormData) => {
@@ -443,9 +559,32 @@ export function TradingBox({ market }: TradingBoxProps) {
   };
 
   const handleConfirmTransaction = () => {
+    const flowId = buyFlowCorrelationRef.current;
+    // #region agent log
+    logPurchaseFlowClient({
+      requestId: flowId ?? newClientPurchaseRequestId(),
+      userId: walletKey,
+      flowCorrelationId: flowId,
+      location: 'TradingBox.tsx:handleConfirmTransaction',
+      phase: 'tradingbox.confirm.enter',
+      payloadReceived: { activeTab, orderType, buyAmount, walletKey, willDelayMs: 1500 },
+    });
+    // #endregion
+
     setTxError(undefined);
     setTxModalState('pending');
     setTimeout(() => {
+      // #region agent log
+      logPurchaseFlowClient({
+        requestId: flowId ?? newClientPurchaseRequestId(),
+        userId: walletKey,
+        flowCorrelationId: flowId,
+        location: 'TradingBox.tsx:handleConfirmTransaction',
+        phase: 'tradingbox.confirm.after_ui_delay',
+        payloadReceived: { note: 'setTimeout 1500ms fired before mutate' },
+      });
+      // #endregion
+
       setTxModalState('mining');
       
       if (activeTab === 'buy') {
@@ -453,14 +592,27 @@ export function TradingBox({ market }: TradingBoxProps) {
         const limitPriceInput = document.getElementById('limitPrice') as HTMLInputElement;
         const limitPrice = orderType === 'LIMIT' && limitPriceInput ? parseFloat(limitPriceInput.value) : undefined;
         
-        placeTradeMutation.mutate({
+        const mutatePayload = {
           marketId: market.id,
           outcome: selectedOutcome.toLowerCase(),
           amount: buyAmount,
           walletAddress: walletKey,
           orderType,
           limitPrice,
+        };
+
+        // #region agent log
+        logPurchaseFlowClient({
+          requestId: flowId ?? newClientPurchaseRequestId(),
+          userId: walletKey,
+          flowCorrelationId: flowId,
+          location: 'TradingBox.tsx:handleConfirmTransaction',
+          phase: 'tradingbox.confirm.place_trade_mutate_call',
+          payloadReceived: mutatePayload,
         });
+        // #endregion
+
+        placeTradeMutation.mutate(mutatePayload);
       } else {
         // Sell flow
         if (userPosition && userPosition.id) {

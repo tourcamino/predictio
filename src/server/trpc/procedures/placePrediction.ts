@@ -11,6 +11,11 @@ import {
   creditWalletPoints,
   POINT_ACTION_VALUES,
 } from "~/server/utils/pointsLedger";
+import {
+  logPurchaseFlowServer,
+  logPurchaseFlowServerError,
+  newTrpcPurchaseRequestId,
+} from "~/server/lib/purchaseFlowDiagnosticServer";
 
 function marketEventLabel(m: Market): string {
   return m.event ?? `${m.teamA} vs ${m.teamB}`;
@@ -43,6 +48,26 @@ export const placePrediction = baseProcedure
     })
   )
   .mutation(async ({ input }) => {
+    // #region agent log
+    const purchaseDiagRequestId = newTrpcPurchaseRequestId();
+    const purchaseDiagUserId = input.walletAddress?.trim().toLowerCase() ?? null;
+    const purchaseDiagPayload = {
+      marketId: input.marketId,
+      outcome: input.outcome,
+      amount: input.amount,
+      orderType: input.orderType,
+      limitPrice: input.limitPrice,
+    };
+    logPurchaseFlowServer({
+      requestId: purchaseDiagRequestId,
+      userId: purchaseDiagUserId,
+      location: "placePrediction.ts:mutation",
+      phase: "trpc.place_prediction.enter",
+      payloadReceived: purchaseDiagPayload,
+    });
+    // #endregion
+
+    try {
     const market = await loadMarketUiById(input.marketId);
     if (!market) {
       throw new TRPCError({
@@ -270,6 +295,28 @@ export const placePrediction = baseProcedure
         heldSince: new Date(),
       },
     });
+
+    // #region agent log
+    logPurchaseFlowServer({
+      requestId: purchaseDiagRequestId,
+      userId: purchaseDiagUserId,
+      location: "placePrediction.ts:after_order_create",
+      phase: "trpc.db.order_created",
+      dbWrite: {
+        model: "Order",
+        summary: {
+          id: predictionId,
+          marketId: input.marketId,
+          wallet,
+          outcome: upperOutcome,
+          amount: input.amount,
+          shares,
+          avgPrice: effectivePrice,
+          orderType: input.orderType,
+        },
+      },
+    });
+    // #endregion
 
     await bumpMarketPaperStats(input.marketId, input.amount);
 
@@ -626,7 +673,7 @@ export const placePrediction = baseProcedure
 
     console.log(`[Paper Trading] Trade executed: ${wallet} bought ${shares.toFixed(2)} ${input.outcome} shares for $${totalCost.toFixed(2)}`);
 
-    return {
+    const apiResponse = {
       success: true,
       predictionId,
       message: input.orderType === 'LIMIT' 
@@ -636,4 +683,31 @@ export const placePrediction = baseProcedure
       fee,
       orderRole,
     };
+
+    // #region agent log
+    logPurchaseFlowServer({
+      requestId: purchaseDiagRequestId,
+      userId: purchaseDiagUserId,
+      location: "placePrediction.ts:mutation",
+      phase: "trpc.place_prediction.success",
+      apiResponse,
+    });
+    // #endregion
+
+    return apiResponse;
+    } catch (purchaseDiagErr) {
+      // #region agent log
+      logPurchaseFlowServerError(
+        {
+          requestId: purchaseDiagRequestId,
+          userId: purchaseDiagUserId,
+          location: "placePrediction.ts:mutation",
+        },
+        "trpc.place_prediction.error",
+        purchaseDiagErr,
+        { payloadReceived: purchaseDiagPayload },
+      );
+      // #endregion
+      throw purchaseDiagErr;
+    }
   });
