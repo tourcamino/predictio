@@ -16,6 +16,8 @@ The SPA on **https://predictio.live** calls **same-origin** `POST /trpc` (Vinxi/
 4. After changing env vars, **Redeploy** so runtime picks up the new `DATABASE_URL`.
 5. In **Vercel → Logs**, filter for `syncUserAccount` or `trpc_onError` to see the real error behind generic “hosting” messages.
 
+6. **`FUNCTION_INVOCATION_FAILED` / `fra1::…`** — Vercel’s generic “the serverless function died or timed out” message. Check **Runtime logs** for the same timestamp (Prisma `P1001`, OOM, uncaught exception). Repo sets Nitro `vercel.functions.maxDuration` to **60s** on deploy; **Hobby** accounts are still limited to **10s** unless you upgrade or accept cold failures—then fix DB pooling first.
+
 The REST API at **api.predictio.live** can still respond while tRPC fails if only the Vercel env is wrong—symptoms: markets load, wallet connect toast errors, points stay at 0 until sync succeeds.
 
 ---

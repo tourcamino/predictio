@@ -61,6 +61,17 @@ export default createApp({
     rollupConfig: {
       external: ["@prisma/client", ".prisma/client"],
     },
+    // Vercel: avoid FUNCTION_INVOCATION_FAILED on cold Prisma + DB when the platform default (10s on Hobby) is tight.
+    // Hobby projects are still capped at 10s by Vercel; Pro+ can use the full value. See Vercel → Functions → Duration.
+    ...(nitroPreset === "vercel"
+      ? {
+          vercel: {
+            functions: {
+              maxDuration: 60,
+            },
+          },
+        }
+      : {}),
   },
   routers: [
     {
