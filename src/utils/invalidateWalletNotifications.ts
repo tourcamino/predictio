@@ -1,5 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
+
 type GetNotificationsKey = (input: {
   walletAddress: string;
   limit?: number;
@@ -15,7 +17,7 @@ export function invalidateWalletNotifications(
   getNotificationsQueryKey: GetNotificationsKey,
   walletAddress: string,
 ) {
-  const w = walletAddress.trim();
+  const w = normalizeWalletForQuery(walletAddress);
   if (!w) return;
 
   const variants: Parameters<GetNotificationsKey>[0][] = [
@@ -38,11 +40,17 @@ export function invalidateWalletPointsSummary(
   getPointsSummaryQueryKey: GetPointsSummaryKey,
   walletAddress: string,
 ) {
-  const w = walletAddress.trim();
+  const w = normalizeWalletForQuery(walletAddress);
   if (!w) return;
-  queryClient.invalidateQueries({
-    queryKey: getPointsSummaryQueryKey({ walletAddress: w }),
-  });
+  const key = getPointsSummaryQueryKey({ walletAddress: w });
+  queryClient.invalidateQueries({ queryKey: key });
+  // Legacy cache entries keyed with checksummed address (before normalization).
+  const raw = walletAddress.trim();
+  if (raw && raw !== w) {
+    queryClient.invalidateQueries({
+      queryKey: getPointsSummaryQueryKey({ walletAddress: raw }),
+    });
+  }
 }
 
 /** After bulk events (e.g. market resolution) many wallets may gain points. */

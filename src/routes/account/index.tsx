@@ -12,6 +12,7 @@ import { FollowedAnalystsTab } from '~/components/account/FollowedAnalystsTab';
 import { ReferralDashboardTab } from '~/components/account/ReferralDashboardTab';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 const ACCOUNT_TAB_KEYS = [
   'overview',
@@ -50,6 +51,7 @@ function AccountPage() {
   });
 
   const trpc = useTRPC();
+  const walletKey = normalizeWalletForQuery(address);
   const [transactionType, setTransactionType] = useState<'all' | 'deposit' | 'withdrawal' | 'bet_placed' | 'bet_won' | 'bet_lost' | 'bet_refund'>('all');
   const [transactionOffset, setTransactionOffset] = useState(0);
   const transactionLimit = 20;
@@ -57,10 +59,10 @@ function AccountPage() {
   // Fetch user positions
   const positionsQuery = useQuery({
     ...trpc.getUserPositions.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
       status: 'all',
     }),
-    enabled: !!address && (activeTab === 'overview' || activeTab === 'predictions'),
+    enabled: !!walletKey && (activeTab === 'overview' || activeTab === 'predictions'),
   });
 
   const positionsEarly = positionsQuery.data?.positions ?? [];
@@ -75,7 +77,7 @@ function AccountPage() {
       marketIds: positionMarketIds,
     }),
     enabled:
-      !!address &&
+      !!walletKey &&
       (activeTab === 'overview' || activeTab === 'predictions') &&
       positionMarketIds.length > 0,
     staleTime: 30_000,
@@ -86,17 +88,17 @@ function AccountPage() {
   // Fetch portfolio summary
   const summaryQuery = useQuery({
     ...trpc.getPortfolioSummary.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
     }),
-    enabled: !!address && (activeTab === 'overview' || activeTab === 'predictions' || activeTab === 'stats'),
+    enabled: !!walletKey && (activeTab === 'overview' || activeTab === 'predictions' || activeTab === 'stats'),
   });
 
   // Fetch points summary
   const pointsQuery = useQuery({
     ...trpc.getPointsSummary.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
     }),
-    enabled: !!address && activeTab === 'points',
+    enabled: !!walletKey && activeTab === 'points',
   });
   
   const getTierColor = (tier: string) => {
@@ -151,12 +153,12 @@ function AccountPage() {
 
   const transactionHistoryQuery = useQuery({
     ...trpc.getTransactionHistory.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletKey,
       limit: transactionLimit,
       offset: transactionOffset,
       type: transactionType,
     }),
-    enabled: !!address && activeTab === 'history',
+    enabled: !!walletKey && activeTab === 'history',
   });
 
   // Load saved settings from localStorage
@@ -1107,11 +1109,11 @@ function AccountPage() {
           )}
 
           {activeTab === 'followed-analysts' && (
-            <FollowedAnalystsTab userWallet={address || ''} />
+            <FollowedAnalystsTab userWallet={walletKey} />
           )}
 
           {activeTab === 'referral-earnings' && (
-            <ReferralDashboardTab userWallet={address || ''} />
+            <ReferralDashboardTab userWallet={walletKey} />
           )}
 
           {activeTab === 'payout-history' && (

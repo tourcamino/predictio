@@ -13,6 +13,7 @@ import { NotificationBell } from './notifications/NotificationBell';
 import { NotificationCenter } from './notifications/NotificationCenter';
 import { useScrollDirection } from '~/hooks/useScrollDirection';
 import { useTopChromeManaged } from '~/components/TopChromeContext';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 export function Header() {
   const isManaged = useTopChromeManaged();
@@ -30,13 +31,15 @@ export function HeaderInner() {
   const trpc = useTRPC();
   const { scrollDirection, isAtTop } = useScrollDirection();
 
+  const walletQueryKey = normalizeWalletForQuery(address);
+
   // Fetch open positions count
   const positionsQuery = useQuery({
     ...trpc.getUserPositions.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletQueryKey,
       status: 'open',
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletQueryKey && isConnected,
     refetchInterval: 90_000,
   });
 
@@ -45,9 +48,9 @@ export function HeaderInner() {
   // Fetch user points
   const pointsQuery = useQuery({
     ...trpc.getPointsSummary.queryOptions({
-      walletAddress: address || '',
+      walletAddress: walletQueryKey,
     }),
-    enabled: !!address && isConnected,
+    enabled: !!walletQueryKey && isConnected,
     refetchInterval: 120_000,
   });
 

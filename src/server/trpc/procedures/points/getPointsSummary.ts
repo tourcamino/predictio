@@ -10,11 +10,14 @@ import {
 export const getPointsSummary = baseProcedure
   .input(
     z.object({
-      walletAddress: z.string(),
+      walletAddress: z
+        .string()
+        .min(1)
+        .transform((s) => s.trim().toLowerCase()),
     }),
   )
   .query(async ({ input }) => {
-    const normalizedAddress = input.walletAddress.toLowerCase();
+    const normalizedAddress = input.walletAddress;
 
     let pointsTotal = await db.pointsTotal.findUnique({
       where: { walletAddress: normalizedAddress },
