@@ -38,6 +38,7 @@ All comprehensive documentation is in the `/docs` folder:
 - **[ENV.md](docs/ENV.md)** — Complete environment variables reference
 - **[FEATURES.md](docs/FEATURES.md)** — Feature status and implementation roadmap
 - **[CURSOR_HANDOFF.md](docs/CURSOR_HANDOFF.md)** — Developer guide and architecture
+- **[WINDOWS_DEV_PERFORMANCE.md](docs/WINDOWS_DEV_PERFORMANCE.md)** — Slow `npm install` under OneDrive / Defender (Windows)
 
 ---
 
