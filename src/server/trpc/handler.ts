@@ -26,7 +26,7 @@ export default defineEventHandler((event: H3Event) => {
   } as RequestInit & { duplex: string });
 
   return fetchRequestHandler({
-    endpoint: "/trpc",
+    endpoint: "",
     req: request,
     router: appRouter,
     createContext() {
