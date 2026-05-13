@@ -13,6 +13,7 @@ import {
 } from "~/lib/demoStorage";
 import type { Market } from "~/data/mockMarkets";
 import { calcFee } from "~/utils/marketUtils";
+import { fetchMarketSnapshotFromRest } from "~/utils/fetchMarketDetailWithRestFallback";
 import { useTRPC, useTRPCClient } from "~/trpc/react";
 
 /** Stable fallback — `?? {}` is a new object every render and retriggers effects that list `marketMap` as a dependency. */
@@ -31,6 +32,11 @@ interface UseDemoAccountReturn {
     type: "BUY" | "SELL";
     amount: number;
     price: number;
+    /**
+     * UI `Market` from the page (REST / tRPC detail). Required when `marketId` is not
+     * resolvable via `getMarketSummaries` (Azuro/DB-only loader).
+     */
+    marketSnapshot?: Market | null;
   }) => Promise<{ success: boolean; message: string }>;
   activateDemo: () => void;
   deactivateDemo: () => void;
@@ -95,10 +101,21 @@ export function useDemoAccount(): UseDemoAccountReturn {
     type: "BUY" | "SELL";
     amount: number;
     price: number;
+    marketSnapshot?: Market | null;
   }): Promise<{ success: boolean; message: string }> => {
-    const { marketId, outcome, type, amount, price } = params;
+    const { marketId, outcome, type, amount, price, marketSnapshot } = params;
 
-    let market = marketMap[marketId];
+    let market: Market | null =
+      marketSnapshot ?? marketMap[marketId] ?? null;
+
+    if (!market && typeof window !== "undefined") {
+      try {
+        market = await fetchMarketSnapshotFromRest(marketId);
+      } catch {
+        /* offline / blocked */
+      }
+    }
+
     if (!market) {
       const fetched = await client.getMarketSummaries.query({
         marketIds: [marketId],
@@ -106,7 +123,11 @@ export function useDemoAccount(): UseDemoAccountReturn {
       market = fetched[marketId] ?? null;
     }
     if (!market) {
-      return { success: false, message: "Market not found" };
+      return {
+        success: false,
+        message:
+          "Impossibile risolvere il mercato (offline o ID sconosciuto). Ricarica la pagina o riprova da /markets.",
+      };
     }
 
     const currentState = getDemoState();

@@ -180,6 +180,7 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
           type: 'BUY',
           amount: stake,
           price,
+          marketSnapshot: market,
         });
         if (result.success) {
           setTxModalState('success');

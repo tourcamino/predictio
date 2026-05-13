@@ -337,8 +337,9 @@ export function TradeConfirmationModal({
                           <AlertCircle className="w-10 h-10 text-red-500" />
                         </div>
                       </div>
-                      <p className="text-red-400 mb-2 font-semibold">Transaction Failed</p>
-                      <p className="text-gray-400 text-sm mb-6">{error || 'An error occurred. Please try again.'}</p>
+                      <p className="text-gray-300 text-sm mb-6 leading-relaxed">
+                        {error || 'An error occurred. Please try again.'}
+                      </p>
                       <div className="flex gap-3">
                         <button
                           onClick={onClose}

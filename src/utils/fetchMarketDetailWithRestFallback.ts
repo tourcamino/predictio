@@ -1,6 +1,7 @@
 import type { TRPCClient } from "@trpc/client";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "~/server/trpc/root";
+import type { Market } from "~/data/mockMarkets";
 import { getApiBaseUrl } from "~/lib/predictioApi";
 import { normalizeMarketIdParam } from "~/utils/marketId";
 import {
@@ -41,6 +42,15 @@ async function fetchCuratedMarketFromRest(
   } finally {
     clearTimeout(t);
   }
+}
+
+/** Same source as market detail REST-first path — use when tRPC `loadMarketUiById` misses the id. */
+export async function fetchMarketSnapshotFromRest(
+  marketId: string,
+): Promise<Market | null> {
+  const normalized = normalizeMarketIdParam(marketId.trim());
+  const bundle = await fetchCuratedMarketFromRest(normalized);
+  return bundle?.market ?? null;
 }
 
 /**

@@ -74,12 +74,23 @@ export function saveDemoState(state: DemoState): void {
 }
 
 export function resetDemoAccount(): DemoState {
+  try {
+    localStorage.removeItem(DEMO_OPT_IN_KEY);
+  } catch {
+    /* ignore */
+  }
   const newState = createInitialDemoState();
   saveDemoState(newState);
   return newState;
 }
 
 export function activateDemoMode(): DemoState {
+  try {
+    // Must be set before `getDemoState()` — otherwise opt-in logic clears `active` on read.
+    localStorage.setItem(DEMO_OPT_IN_KEY, "true");
+  } catch {
+    /* ignore private mode / quota */
+  }
   const state = getDemoState();
   state.active = true;
   saveDemoState(state);
@@ -87,6 +98,11 @@ export function activateDemoMode(): DemoState {
 }
 
 export function deactivateDemoMode(): DemoState {
+  try {
+    localStorage.setItem(DEMO_OPT_IN_KEY, "false");
+  } catch {
+    /* ignore */
+  }
   const state = getDemoState();
   state.active = false;
   saveDemoState(state);
@@ -124,8 +140,8 @@ export function calculateDemoStats(state: DemoState): {
   let worstTrade: DemoTrade | null = null;
   
   if (trades.length > 0) {
-    bestTrade = trades[0];
-    worstTrade = trades[0];
+    bestTrade = trades[0] ?? null;
+    worstTrade = trades[0] ?? null;
   }
   
   return {

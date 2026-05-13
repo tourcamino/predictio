@@ -21,6 +21,7 @@ import {
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { DEMO_TRADING_HEADLINE } from '~/lib/demoMarketingCopy';
 
 interface TradingBoxProps {
   market: Market;
@@ -375,6 +376,7 @@ export function TradingBox({ market }: TradingBoxProps) {
         type: 'BUY',
         amount: data.amount,
         price: currentPrice,
+        marketSnapshot: market,
       });
 
       if (result.success) {
@@ -409,6 +411,7 @@ export function TradingBox({ market }: TradingBoxProps) {
         type: 'SELL',
         amount: data.shares * currentPrice,
         price: currentPrice,
+        marketSnapshot: market,
       });
 
       if (result.success) {
@@ -920,9 +923,7 @@ export function TradingBox({ market }: TradingBoxProps) {
               
               {/* Demo Mode Info */}
               {!isWalletConnected && (
-                <div className="mt-2 text-center text-xs text-gray-400">
-                  Trading with virtual $1,000 USDC · Connect wallet for real trading
-                </div>
+                <div className="mt-2 text-center text-xs text-gray-400">{DEMO_TRADING_HEADLINE}</div>
               )}
 
               {orderType === 'LIMIT' && buyAmount > 0 && (
