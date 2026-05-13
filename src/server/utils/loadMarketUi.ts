@@ -13,10 +13,10 @@ function withCanonicalId(m: Market, canonicalId: string): Market {
 }
 
 /**
- * Resolve UI `Market` for trading and detail — **Azuro-backed only** (plus DB snapshots of those rows).
- * No static mock/seed fallbacks.
+ * Resolve UI `Market` for trading and detail — Azuro-backed events plus DB `Market` snapshots.
+ * Curated lookup matches Express `GET /api/markets/:gameId` (by `gameId`, `id`, or `azuro-*` URL form).
  *
- * Order: PostgreSQL `Market` → curated catalog + live Azuro quote → live Azuro only.
+ * Order: PostgreSQL `Market` → active `CuratedEvent` (+ live Azuro quote) → live Azuro only (`azuro-*`).
  */
 export async function loadMarketUiById(rawMarketId: string): Promise<Market | null> {
   const marketId = normalizeMarketIdParam(rawMarketId);
@@ -30,22 +30,27 @@ export async function loadMarketUiById(rawMarketId: string): Promise<Market | nu
     console.warn("[loadMarketUiById] DB lookup skipped:", marketId, err);
   }
 
-  if (!marketId.startsWith("azuro-")) {
-    return null;
-  }
-
-  const gameId = marketId.replace(/^azuro-/, "");
+  const azuroStrip = marketId.startsWith("azuro-") ? marketId.slice("azuro-".length) : null;
 
   try {
+    const orClause: Array<{ gameId: string } | { id: string }> = [
+      { id: marketId },
+      { gameId: marketId },
+    ];
+    if (azuroStrip) {
+      orClause.push({ gameId: azuroStrip }, { id: azuroStrip });
+    }
+
     const curated = await db.curatedEvent.findFirst({
       where: {
-        OR: [{ gameId }, { id: gameId }],
         isActive: true,
+        OR: orClause,
       },
     });
+
     if (curated) {
       try {
-        const azuroMarket = await fetchAzuroGameDetail(gameId);
+        const azuroMarket = await fetchAzuroGameDetail(curated.gameId);
         if (azuroMarket) {
           return withCanonicalId(azuroDetailToMarket(azuroMarket), marketId);
         }
@@ -58,8 +63,12 @@ export async function loadMarketUiById(rawMarketId: string): Promise<Market | nu
     console.warn("[loadMarketUiById] CuratedEvent lookup skipped:", marketId, err);
   }
 
+  if (!azuroStrip) {
+    return null;
+  }
+
   try {
-    const detail = await fetchAzuroGameDetail(gameId);
+    const detail = await fetchAzuroGameDetail(azuroStrip);
     if (detail) {
       return withCanonicalId(azuroDetailToMarket(detail), marketId);
     }
