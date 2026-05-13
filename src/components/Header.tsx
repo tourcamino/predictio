@@ -14,7 +14,6 @@ import { NotificationCenter } from './notifications/NotificationCenter';
 import { useScrollDirection } from '~/hooks/useScrollDirection';
 import { useTopChromeManaged } from '~/components/TopChromeContext';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
-import { DEMO_TRADING_HEADLINE } from '~/lib/demoMarketingCopy';
 
 export function Header() {
   const isManaged = useTopChromeManaged();
@@ -334,7 +333,9 @@ export function HeaderInner() {
                           DEMO
                         </span>
                       </div>
-                      <p className="text-xs text-gray-400 mb-3">{DEMO_TRADING_HEADLINE}</p>
+                      <p className="text-xs text-gray-400 mb-3">
+                        Trading with virtual balance · No wallet required
+                      </p>
                     </div>
                   )}
                   <button

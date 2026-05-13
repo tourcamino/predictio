@@ -2,7 +2,6 @@ import { AlertCircle, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useWallet } from '~/store/useWalletStore';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
-import { DEMO_TRADING_HEADLINE } from '~/lib/demoMarketingCopy';
 
 export function DemoBanner() {
   const { isConnected } = useWallet();
@@ -25,7 +24,7 @@ export function DemoBanner() {
   };
   
   const bannerText = !isConnected
-    ? DEMO_TRADING_HEADLINE
+    ? '👀 Guest mode — Connect wallet to save your progress and get $1,000 demo USDC'
     : isDemoActive
       ? '🟢 DEMO — Trading with $1,000 virtual USDC · Switch to Real when ready'
       : '🟠 REAL — Trading with your USDC on Base';

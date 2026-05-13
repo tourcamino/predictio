@@ -259,6 +259,9 @@ export function WalletModal() {
                         <span>🔒</span>
                         <span>Non-custodial · We never hold your funds · No KYC required</span>
                       </div>
+                      <p className="text-xs text-center text-purple-400">
+                        💡 Demo balance ($1,000 virtual USDC) is local until you connect a wallet
+                      </p>
                     </div>
                   </div>
                 )}
