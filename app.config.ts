@@ -1,5 +1,4 @@
 import { createApp } from "vinxi";
-import { fileURLToPath } from "node:url";
 import reactRefresh from "@vitejs/plugin-react";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import tsConfigPaths from "vite-tsconfig-paths";
@@ -50,21 +49,12 @@ function expressDevApiProxy(): Record<
 
 /** Vercel sets `VERCEL=1` during build/runtime — Nitro must use the `vercel` preset (not `node-server`). */
 const nitroPreset = process.env.VERCEL ? "vercel" : "node-server";
-const prismaClientAlias = fileURLToPath(
-  new URL("./node_modules/.prisma/client/index.js", import.meta.url),
-);
 
 export default createApp({
   server: {
     preset: nitroPreset,
     experimental: {
       asyncContext: true,
-    },
-    externals: {
-      external: ["@prisma/client", ".prisma/client"],
-    },
-    alias: {
-      "@prisma/client": prismaClientAlias,
     },
   },
   routers: [
@@ -80,16 +70,6 @@ export default createApp({
       handler: "./src/server/trpc/handler.ts",
       target: "server",
       plugins: () => [
-        config("prisma-client-alias", {
-          resolve: {
-            alias: {
-              "@prisma/client": prismaClientAlias,
-            },
-          },
-          ssr: {
-            noExternal: ["@prisma/client"],
-          },
-        }),
         config("allowedHosts", {
           // @ts-ignore
           server: {
