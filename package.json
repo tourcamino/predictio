@@ -12,6 +12,8 @@
     "typecheck:strict": "tsc --noEmit -p tsconfig.src-strict.json",
     "typecheck:all": "npm run typecheck && npm run typecheck:backend && npm run typecheck:bots",
     "verify": "npm run typecheck && npm run typecheck:backend",
+    "check": "npm run verify && npm run test:points",
+    "check:full": "npm run verify && npm run test:points && npm run build",
     "lint": "eslint . -c eslint.config.mjs --max-warnings 0",
     "db:local": "docker compose -f docker-compose.dev.yml up -d",
     "db:generate": "prisma migrate dev",
