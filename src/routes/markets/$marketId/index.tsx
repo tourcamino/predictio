@@ -89,16 +89,16 @@ function MarketDetailPage() {
       : 'server';
     const title =
       issue === 'network'
-        ? 'Connessione non riuscita'
+        ? 'Connection failed'
         : issue === 'not_found'
-          ? 'Mercato non trovato'
-          : 'Impossibile caricare il mercato';
+          ? 'Market not found'
+          : 'Unable to load market';
     const description =
       issue === 'network'
-        ? 'Non riusciamo a contattare il server (rete assente, timeout o server non raggiungibile). Controlla la connessione e riprova.'
+        ? 'We cannot reach the server right now. Check your connection and try again.'
         : issue === 'not_found'
-          ? 'Questo mercato non esiste più o è stato rimosso dalla piattaforma.'
-          : 'Si è verificato un errore durante il caricamento. Puoi riprovare o tornare alla lista.';
+          ? 'This market no longer exists or was removed from the platform.'
+          : 'Something went wrong while loading this market. You can retry or go back to the list.';
 
     const errMsg =
       marketQuery.isError && marketQuery.error instanceof Error
@@ -139,14 +139,14 @@ function MarketDetailPage() {
                 ) : (
                   <RefreshCw className="w-4 h-4" />
                 )}
-                Riprova
+                Try again
               </button>
               <Link
                 to="/markets"
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 min-w-[200px] border border-white/20 text-gray-200 font-semibold rounded hover:bg-white/5 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
-                Torna ai mercati
+                Back to markets
               </Link>
             </div>
           </div>

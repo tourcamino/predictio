@@ -56,6 +56,6 @@ function renderApp() {
 try {
   renderApp();
 } catch (err) {
-  console.error("[Predictio] Avvio fallito:", err);
-  container.innerHTML = `<div style="min-height:100vh;background:#080B11;color:#fecaca;padding:2rem;font-family:system-ui"><h1 style="color:#fff">Errore di avvio</h1><pre style="white-space:pre-wrap">${String(err instanceof Error ? err.message : err)}</pre></div>`;
+  console.error("[Predictio] Startup failed:", err);
+  container.innerHTML = `<div style="min-height:100vh;background:#080B11;color:#fecaca;padding:2rem;font-family:system-ui"><h1 style="color:#fff">Startup error</h1><pre style="white-space:pre-wrap">${String(err instanceof Error ? err.message : err)}</pre></div>`;
 }

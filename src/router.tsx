@@ -15,14 +15,14 @@ export function RouterPendingShell() {
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      Caricamento Predictio…
+      Loading Predictio...
     </div>
   );
 }
 
 function RouterErrorShell({ error, reset }: ErrorComponentProps) {
   const msg =
-    error instanceof Error ? error.message : String(error ?? "Errore sconosciuto");
+    error instanceof Error ? error.message : String(error ?? "Unknown error");
   return (
     <div
       style={{
@@ -34,7 +34,7 @@ function RouterErrorShell({ error, reset }: ErrorComponentProps) {
       }}
     >
       <h1 style={{ color: "#fff", fontSize: "1.25rem", marginBottom: "1rem" }}>
-        Errore nel caricamento
+        Loading error
       </h1>
       <pre
         style={{
@@ -59,7 +59,7 @@ function RouterErrorShell({ error, reset }: ErrorComponentProps) {
           cursor: "pointer",
         }}
       >
-        Riprova
+        Try again
       </button>
     </div>
   );
