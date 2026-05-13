@@ -22,7 +22,7 @@ Write-Host "Repo root: $repoRoot"
 Write-Host "node_modules: $nodeModules"
 
 if ($repoRoot.Path -match "OneDrive") {
-  Write-Warning "Path is under OneDrive. Installs will be slower; see docs/WINDOWS_DEV_PERFORMANCE.md — prefer e.g. C:\dev\<repo>."
+  Write-Warning "Path is under OneDrive. Installs will be slower; see docs/WINDOWS_DEV_PERFORMANCE.md - prefer a clone under e.g. C:\dev\predictio (outside OneDrive)."
 } else {
   Write-Host "Path does not look like OneDrive (good for I/O)." -ForegroundColor Green
 }
