@@ -25,6 +25,7 @@ import { referralCookieMiddleware } from "./middleware/referral";
 import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
 import { requestLogger } from "./middleware/requestLogger";
+import { getDeployRuntimeMeta } from "./lib/deployRuntimeMeta";
 import { apiUsageTracker } from "./middleware/apiUsageTracker";
 import { realtimeBus, type TradingWsMessage } from "./services/realtimeBus";
 import {
@@ -311,8 +312,9 @@ app.get("/", (_req, res) => {
   res.json({
     service: "predictio-api",
     ok: true,
-    message: "REST API (no page at /). Use /api/v1/health for liveness.",
+    message: "REST API (no page at /). Use /api/v1/health for liveness, /api/v1/version for deploy identity.",
     health: "/api/v1/health",
+    version: "/api/v1/version",
   });
 });
 
@@ -595,6 +597,16 @@ app.get("/api/health", async (_req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
+});
+
+// Deploy identity (no DB) — same purpose as Vinxi `/api/version`
+app.get("/api/v1/version", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json({
+    ok: true,
+    ...getDeployRuntimeMeta(),
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Health check

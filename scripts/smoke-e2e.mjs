@@ -157,6 +157,19 @@ async function main() {
     console.log("SKIP /api/admin/health/full — ADMIN_API_KEY not set");
   }
 
+  let versionOk = false;
+  for (const p of ["/api/v1/version", "/api/version"]) {
+    const { res, json, text } = await req(p);
+    if (res.ok && json?.ok && json?.service) {
+      console.log(`OK  ${p} service=${json.service} short=${json.gitCommitShort ?? "?"}`);
+      versionOk = true;
+      break;
+    }
+  }
+  if (!versionOk) {
+    console.warn("WARN deploy /api/v1/version and /api/version not both available on this base URL");
+  }
+
   console.log("smoke:e2e passed");
 }
 

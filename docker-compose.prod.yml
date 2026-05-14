@@ -2,7 +2,12 @@ version: '3.9'
 
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
+        GIT_BRANCH: ${GIT_BRANCH:-}
+        BUILD_TIME_ISO: ${BUILD_TIME_ISO:-}
     restart: unless-stopped
     ports:
       - "127.0.0.1:3001:3001"

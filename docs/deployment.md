@@ -1,163 +1,221 @@
 # Deployment e runtime (produzione)
 
-Documento operativo: allinea **GitHub**, **Vercel (frontend)**, **Docker sulla VPS (backend)** e cosa controllare dopo ogni deploy. Obiettivo: ridurre mismatch tra codice sorgente e ciò che gira davvero in produzione.
+Documento operativo: allinea **GitHub**, **Vercel (frontend)**, **Docker sulla VPS (backend)** e riduce **divergenze di commit** tra ambienti. Obiettivo: sapere sempre **quale SHA** sta girando e come verificarlo in pochi secondi.
 
 ---
 
-## Frontend
+## Fase 1 — Source of truth (branch e ruoli)
 
-### Vercel
+### 1. Cosa è davvero la “source of truth”
 
-- Progetto tipico: app **TanStack Start / Vinxi** nel repo (cartella radice del deploy, es. `Predictio/`).
-- Dominio SPA: **`https://predictio.live`** (esempio; verificare in dashboard Vercel → Domains).
-- **API REST** del backend long-lived non passa da Vercel: il browser usa **`https://api.predictio.live`** (vedi `vercel.json` → `VITE_API_URL` / `API_BASE_URL`).
+| Concetto | Definizione operativa |
+|----------|------------------------|
+| **Runtime source of truth** | Il **commit Git SHA** effettivamente deployato su ciascun runtime (Vercel serverless, immagine Docker backend). Il nome del branch da solo non basta. |
+| **Source of truth del codice** | **GitHub** (`origin`): tag/branch puntano a SHA; PR e merge aggiornano lo storico. |
 
-### Branch production
+### 2. Branch “ufficiali” in questo repository
 
-- **`master`** e **`main` devono restare sullo stesso commit** prima di considerare il rilascio completo (es. da `master`: `git checkout main && git merge origin/master && git push origin main`, oppure l’inverso). Così Vercel riceve le modifiche sia se il **Production Branch** in dashboard è `main`, sia se è `master`.
-- In **Vercel → Settings → Git → Production Branch** verificare quale branch è collegato; ogni **push** su quel branch avvia un **nuovo deployment** automatico.
-- Dopo allineamento, fare **push di entrambi** i branch su `origin` così GitHub, VPS (`git pull origin master`) e strumenti esterni restano coerenti.
+| Branch | Ruolo |
+|--------|--------|
+| **`master`** | Branch **primario** usato negli script e nella documentazione VPS (`git pull origin master`). |
+| **`main`** | Deve restare **allineato a `master`** (stesso SHA) prima di considerare un rilascio “completo”, così Vercel o altri tool collegati a `main` non restano indietro. |
 
-### Auto deploy flow
+**Regola:** dopo ogni rilascio significativo → `git push origin master` **e** allineare `main` (fast-forward/merge) → `git push origin main`.
 
-1. `git push origin master`
-2. Vercel: build (`prisma generate`, `vinxi build`, preset Nitro `vercel` se `VERCEL=1`)
-3. Promozione automatica su production se il build è **READY**
+### 3. Chi usa quale branch (da configurare / verificare)
 
-### Runtime serverless
+| Sistema | Cosa verificare |
+|---------|-----------------|
+| **Vercel** | Dashboard → **Settings → Git → Production Branch** (es. `main` o `master`). Il deploy production parte dal **push su quel branch** (se Git Integration attiva). |
+| **VPS Docker** | Comandi documentati sotto usano **`git pull origin master`**. Se la squadra standardizza su `main`, aggiornare solo questo doc e gli script interni in modo coerente. |
+| **CI/CD** | Se presente, deve fare checkout/pull dello **stesso branch** dichiarato come production in Vercel **o** buildare da tag SHA esplicito. |
 
-- Le route server definite in **`app.config.ts`** (router HTTP: `/trpc`, `/api/health`, `/api/live`, …) girano come **funzioni serverless** Node su Vercel.
-- **tRPC** same-origin: `https://predictio.live/trpc/...` (il client usa `window.location.origin` per tRPC quando `VITE_API_URL` è un altro host — vedi `src/trpc/react.tsx`).
+---
+
+## Fase 2 — Deploy verification (checklist obbligatoria)
+
+Prima di dichiarare “production aggiornata”, confrontare i **SHA** (non solo “build verde”).
+
+### Sul clone usato per il rilascio (locale o VPS)
+
+```bash
+git rev-parse HEAD
+git branch --show-current
+git log -1 --oneline
+```
+
+### GitHub (ultimo commit del branch production)
+
+Esempio (API GitHub o UI): il commit in cima a `master` / `main` deve coincidere con `git rev-parse HEAD` del clone da cui hai buildato **o** con lo SHA incollato in Vercel.
+
+### Vercel (frontend)
+
+1. Dashboard → **Deployments** → deployment **Production** → **Source** / **Commit** (o variabile `VERCEL_GIT_COMMIT_SHA` nel build log).
+2. Conferma con endpoint pubblico (vedi Fase 3):
+
+```bash
+curl -sS https://predictio.live/api/version
+```
+
+Campi attesi: `gitCommitSha`, `gitBranch`, `environment`, `vercelDeploymentId` (se su Vercel).
+
+### VPS — immagine Docker backend
+
+Dopo `docker compose build` + `up`, il container deve riflettere lo **stesso commit** con cui hai passato i build-arg (vedi Fase 4):
+
+```bash
+curl -sS http://127.0.0.1:3001/api/v1/version
+```
+
+Confrontare `gitCommitSha` con `git rev-parse HEAD` sul server **nello stesso momento** del build (idealmente identici).
+
+### Tabella riepilogo “tutto coincide?”
+
+| Controllo | Dove | Deve matchare con |
+|-----------|------|-------------------|
+| `git rev-parse HEAD` | Clone build | SHA GitHub production branch |
+| `curl …/api/version` | `predictio.live` | Stesso SHA (frontend) |
+| Vercel deployment commit | Dashboard | Stesso SHA |
+| `curl …/api/v1/version` | API container | Stesso SHA del backend buildato |
+| `docker image inspect` (opzionale) | Label/env | Coerente con rebuild appena fatto |
+
+---
+
+## Fase 3 — Runtime visibility (endpoint versione)
+
+### Frontend (Vinxi su Vercel)
+
+| Endpoint | Note |
+|----------|------|
+| `GET https://predictio.live/api/version` | JSON: `service`, `environment`, `gitCommitSha`, `gitCommitShort`, `gitBranch`, `buildTime`, `vercelDeploymentId`, `timestamp`. Su Vercel i campi `VERCEL_*` sono popolati automaticamente in build. `Cache-Control: no-store`. |
+
+### Backend (Express in Docker)
+
+| Endpoint | Note |
+|----------|------|
+| `GET https://api.predictio.live/api/v1/version` (o `http://127.0.0.1:3001/api/v1/version`) | Stesso scopo: commit/branch/build incisi in immagine tramite **build-args** Docker (vedi sotto). |
+
+**Health distinti (non confondere):**
+
+- `GET https://predictio.live/api/health` — liveness app web (leggero).
+- `GET https://api.predictio.live/api/v1/health` — backend + DB.
+
+---
+
+## Frontend (Vercel) — dettaglio operativo
+
+- Progetto: app **TanStack Start / Vinxi** nella root del repo deployato.
+- Dominio SPA esempio: **`https://predictio.live`** (verificare in Vercel → Domains).
+- API REST long-lived: **`https://api.predictio.live`** (`vercel.json` / `VITE_API_URL`).
+
+### Auto deploy (push)
+
+1. Push sul **Production Branch** configurato in Vercel.
+2. Build (`prisma generate`, `vinxi build`, preset Nitro `vercel` se `VERCEL=1`).
+3. Deploy **READY** → traffico production.
+
+### Vercel: push vs CLI (`vercel deploy --prod`)
+
+| Metodo | Quando usarlo |
+|--------|-----------------|
+| **Push Git** | Flusso normale: ogni merge su production branch → build automatica, storico commit in dashboard. |
+| **`vercel deploy --prod`** | Hotfix urgente da working tree locale, ambiente senza Git collegato, o debug del team; **subito dopo** allineare GitHub (commit + push) così Git non resta indietro rispetto al runtime. |
+
+**Preview vs Production:** i branch non-production e le PR generano **Preview**; solo il branch production riceve il dominio principale (salvo override manuali).
 
 ### Nitro / Vinxi (note operative)
 
-- **`VERCEL=1`** → Nitro preset **`vercel`** (non `node-server`).
-- **Prisma e Rollup:** con preset `vercel`, **non** esternalizzare `@prisma/client` e `.prisma/client` nel bundle server (in `app.config.ts` gli externals Prisma si applicano solo a `node-server`). Esternalizzarli su Vercel causava **`ERR_MODULE_NOT_FOUND`** e **`FUNCTION_INVOCATION_FAILED`** su tutte le route server.
-- **Handler HTTP:** usare **`import { defineEventHandler } from "vinxi/http"`** e **`return new Response(...)`** dove serve compatibilità con l’adapter Vercel. Pattern **`h3`** con **`event.node.res`** + **`setResponseHeader`** ha dato **500** su `/api/health` e `/api/live` in produzione; allinearsi al pattern di `src/server/debug/client-logs-handler.ts`.
+- **`VERCEL=1`** → preset **`vercel`**.
+- Prisma: su preset `vercel` non esternalizzare `@prisma/client` in modo che rompa il bundle (vedi `app.config.ts`).
+- Handler HTTP: **`vinxi/http`** + **`Response`** dove necessario per compatibilità serverless.
 
 ---
 
-## Backend
+## Backend (VPS Docker)
 
-### VPS — architettura Docker
+### Architettura
 
-- Stack definita in **`docker-compose.prod.yml`**, inclusa da **`docker-compose.yml`** (`include:` — richiede Compose **v2.20+**).
-- Servizi principali: **`backend`** (Node/Express), **Postgres**, **Redis**, bot opzionali (`market-maker-bot`, `growth-engine-bot`, …).
-- Il backend espone API HTTP e WebSocket dietro **Nginx** sull’host.
+- **`docker-compose.prod.yml`**, incluso da **`docker-compose.yml`**.
+- Servizi: **`backend`**, Postgres, Redis, bot opzionali.
+- Healthcheck compose: `GET http://localhost:3001/api/v1/health`.
 
-### Struttura compose
+### Fase 4 — VPS safety (dopo ogni update backend)
 
-| File | Ruolo |
-|------|--------|
-| `docker-compose.yml` | Include `docker-compose.prod.yml` (default sulla VPS). |
-| `docker-compose.prod.yml` | Servizi produzione: `backend`, DB, Redis, healthcheck, … |
-
-### Container `backend`
-
-- **Build context:** `./backend` (Dockerfile nella cartella `backend/`).
-- **Healthcheck (compose):** `GET http://localhost:3001/api/v1/health` dentro il container.
-- **CORS** tipico: `CORS_ORIGIN=https://predictio.live` (vedi compose).
-
-### Porte (riferimento `docker-compose.prod.yml`)
-
-| Esposizione host | Container | Uso |
-|------------------|------------|-----|
-| `127.0.0.1:3001:3001` | backend | HTTP API (Nginx → `proxy_pass` qui). |
-| `127.0.0.1:8080:8080` | backend | WebSocket (`/ws` via Nginx). |
-
-### Flusso Nginx
-
-- File di riferimento in repo: **`nginx/nginx.conf`** (es. `server_name api.predictio.live`).
-- **`location /api/`** → `proxy_pass http://127.0.0.1:3001;`
-- **`location /ws`** → `proxy_pass http://127.0.0.1:8080;` (upgrade WebSocket).
-- **`/health`** (host API) → rewrite interno verso `http://127.0.0.1:3001/api/v1/health`.
-
-### Rebuild backend (VPS)
-
-Dalla directory del progetto sul server (es. `/root/predictio` — adattare al path reale):
+Nella directory del deploy sul server:
 
 ```bash
+git fetch origin
+git checkout master   # o il branch production effettivo
 git pull origin master
-docker compose build backend
+export GIT_COMMIT_SHA=$(git rev-parse HEAD)
+export GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+export BUILD_TIME_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+docker compose -f docker-compose.yml build backend \
+  --build-arg GIT_COMMIT_SHA="$GIT_COMMIT_SHA" \
+  --build-arg GIT_BRANCH="$GIT_BRANCH" \
+  --build-arg BUILD_TIME_ISO="$BUILD_TIME_ISO"
+
 docker compose up -d --force-recreate backend
 ```
 
-Verificare subito dopo:
+Verifiche immediate:
 
 ```bash
-docker ps
 docker compose ps
+curl -sS http://127.0.0.1:3001/api/v1/version
 curl -sS http://127.0.0.1:3001/api/v1/health
 ```
 
----
+Il campo `gitCommitSha` di `/api/v1/version` deve coincidere con `echo "$GIT_COMMIT_SHA"` usato al build.
 
-## Standard deploy procedure
+### Rebuild minimo (senza build-args)
 
-### Frontend (Vercel)
-
-1. **`git push origin master`** (o merge su branch collegato a Production).
-2. Attendere deploy **READY** in Vercel (Dashboard → Deployments).
-3. **Verifiche post-deploy** (vedi checklist sotto).
-
-### Backend (VPS Docker)
-
-1. **`git pull origin master`** nella cartella del deploy.
-2. **`docker compose build backend`**
-3. **`docker compose up -d --force-recreate backend`**
-4. Verificare health container e curl locale (checklist).
+Se rebuild senza argomenti, `gitCommitSha` può risultare `null`: il container gira comunque ma **non** passa la checklist SHA della Fase 2 — da evitare in produzione.
 
 ---
 
-## Runtime verification checklist
+## Standard deploy procedure (riepilogo)
 
-### Frontend (browser o `curl` pubblico)
+### Frontend
+
+1. Allineare `master` e `main` (stesso SHA), push su entrambi se usati.
+2. Push sul branch collegato a **Production** in Vercel.
+3. `curl -sS https://predictio.live/api/version` → confronto SHA con GitHub.
+
+### Backend
+
+1. `git pull` sul branch production.
+2. `docker compose build` con **build-args** commit/branch/time.
+3. `docker compose up -d --force-recreate backend`.
+4. `curl` locale `/api/v1/version` e `/api/v1/health`.
+
+---
+
+## Runtime verification checklist (URL)
+
+### Frontend
 
 | Check | URL / azione | Esito atteso |
 |--------|----------------|--------------|
-| Health | `GET https://predictio.live/api/health` | **200**, JSON `ok`, `service`, `timestamp` |
-| Live | `GET https://predictio.live/api/live` | **200**, JSON `ok`, `status`, `timestamp` |
-| Copy page | `GET https://predictio.live/copy` | **200** (HTML) |
-| tRPC leaderboard | `GET https://predictio.live/trpc/getAnalystLeaderboard?batch=1&input=...` | **200**, body JSON tRPC (SuperJSON) |
+| Health | `GET https://predictio.live/api/health` | 200, `ok`, `service`, `timestamp` |
+| Version | `GET https://predictio.live/api/version` | 200, SHA/branch coerenti con GitHub |
+| Live | `GET https://predictio.live/api/live` | 200 |
 
-Esempio input batch minimo per `getAnalystLeaderboard` (URL-encoded):
-
-```text
-?batch=1&input={"0":{"json":{"limit":5,"sortBy":"roi","currentUserWallet":""}}}
-```
-
-### Backend (sulla VPS)
+### Backend (VPS / API)
 
 | Check | Comando / azione | Esito atteso |
 |--------|------------------|--------------|
-| Container in esecuzione | `docker ps` | `predictio-backend-1` (o nome servizio) **Up** |
-| Healthy | `docker compose ps` / health Docker | healthy (se configurato) |
-| API locale | `curl -sS http://127.0.0.1:3001/api/v1/health` | JSON ok dal backend |
-| Via dominio | `curl -sS https://api.predictio.live/health` (se Nginx attivo) | allineato a health backend |
+| Version | `curl -sS http://127.0.0.1:3001/api/v1/version` | `gitCommitSha` = commit build |
+| Health | `curl -sS http://127.0.0.1:3001/api/v1/health` | DB ok |
 
 ---
 
-## Known pitfalls (troubleshooting reale)
+## Known pitfalls (troubleshooting)
 
-1. **Backend Docker con codice vecchio**  
-   GitHub aggiornato **non** aggiorna il container finché non si fa **`build` + `up --force-recreate`**. Sintomo: route mancanti (`NOT_FOUND`), file assenti in `dist/` rispetto al repo.
-
-2. **Vercel serverless + Prisma “external”**  
-   Marcare `@prisma/client` / `.prisma/client` come **rollup external** con preset **`vercel`**: build ok, runtime **`ERR_MODULE_NOT_FOUND`**. Soluzione: esternalizzare Prisma **solo** su `node-server`; su Vercel includerlo nel bundle (vedi `app.config.ts`).
-
-3. **Nitro/Vinxi vs handler `h3` puri**  
-   Handler che usano **`event.node.res`** e **`setResponseHeader`** da **`"h3"`** possono fallire in serverless con **500 generico**. Usare **`vinxi/http`** + **`Response`**.
-
-4. **Rollup external vs moduli a runtime**  
-   Ogni `external:` esclude il modulo dal bundle: su Vercel il pacchetto Lambda deve comunque **risolvere** quel modulo a runtime. Se non è tracciato/copiato → crash all’avvio della funzione.
-
-5. **Sorgente vs runtime**  
-   - Frontend produzione = **ultimo deploy Vercel** (commit SHA in dashboard).  
-   - Backend produzione = **immagine Docker** buildata sul server (non il solo `git status` sul disco se non hai ricostruito).
-
-6. **Due “health” diversi**  
-   - **`predictio.live/api/health`** → app Vinxi su Vercel.  
-   - **`api.predictio.live`** / **`/api/v1/health`** → Express nel container backend. Non confondere i due quando si debugga.
+1. **Git aggiornato ma container vecchio** — senza `build` + `--force-recreate` il runtime non cambia.
+2. **Vercel SHA vs GitHub** — usare `/api/version` e la dashboard; mismatch = deploy sbagliato o rollback.
+3. **Due health diversi** — web `/api/health` vs API `/api/v1/health` (vedi sopra).
 
 ---
 
@@ -165,37 +223,17 @@ Esempio input batch minimo per `getAnalystLeaderboard` (URL-encoded):
 
 ### Docker backend
 
-Prima di operazioni rischiose, tag dell’immagine corrente:
+Tag immagine prima di operazioni rischiose; rollback a immagine nota o `git checkout <sha>` + rebuild con stessi build-args.
 
-```bash
-docker tag predictio-backend:latest predictio-backend:backup-$(date +%Y%m%d-%H%M)
-```
+### Vercel
 
-Rollback rapido (se esiste un’immagine nota buona):
-
-```bash
-docker tag predictio-backend:backup-YYYYMMDD-HHMM predictio-backend:latest
-docker compose up -d --force-recreate backend
-```
-
-Oppure **`git checkout <commit>`** + rebuild come in procedura standard.
-
-### Vercel (frontend)
-
-- Dashboard Vercel → **Deployments** → deployment precedente **READY** → **Promote to Production** (o **Rollback** secondo UI).
-- Verificare subito la checklist frontend.
+Dashboard → deployment precedente **READY** → **Promote to Production** / rollback.
 
 ---
 
-## Raccomandazioni future (non implementate qui)
+## Fase 6 — Futuro (non fare ora se stabile)
 
-Aggiungere un endpoint tipo **`GET /api/version`** (solo lettura, senza dati sensibili) che esponga almeno:
-
-- **build hash** / commit Git (`VERCEL_GIT_COMMIT_SHA` su Vercel, variabile custom in Docker),
-- **deployment id** Vercel (`VERCEL_DEPLOYMENT_ID`),
-- timestamp build,
-
-per confrontare in secondi **cosa crede il browser** vs **cosa risponde il server**. Utile accanto a `/api/health` e `/api/live`.
+Valutare **un solo branch production** (es. solo `main` o solo `master`) per eliminare ambiguità. Richiede allineamento Vercel + VPS + abitudini team; **non** obbligatorio finché la regola “stesso SHA su `main` e `master`” è rispettata.
 
 ---
 
@@ -203,9 +241,11 @@ per confrontare in secondi **cosa crede il browser** vs **cosa risponde il serve
 
 | Argomento | File |
 |-----------|------|
-| Preset Nitro, Prisma rollup, maxDuration Vercel | `app.config.ts` |
-| Variabili build-time frontend / domini API | `vercel.json` |
+| Route `/api/version` (web) | `app.config.ts`, `src/server/version-handler.ts`, `src/server/lib/deployRuntimeMeta.ts` |
+| Route `/api/v1/version` (API) | `backend/src/index.ts`, `backend/src/lib/deployRuntimeMeta.ts` |
+| Build-args immagine backend | `backend/Dockerfile`, `docker-compose.prod.yml` |
+| Preset Nitro / Prisma | `app.config.ts` |
+| Variabili build-time | `vercel.json` |
 | Compose produzione | `docker-compose.prod.yml`, `docker-compose.yml` |
-| Esempio Nginx API | `nginx/nginx.conf` |
-| Client tRPC / origine | `src/trpc/react.tsx` |
-| Health/Live handler (pattern consigliato) | `src/server/health-handler.ts`, `src/server/live-handler.ts` |
+| Nginx | `nginx/nginx.conf` |
+| Client tRPC | `src/trpc/react.tsx` |

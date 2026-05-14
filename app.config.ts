@@ -196,6 +196,24 @@ export default createApp({
       ],
     },
     {
+      type: "http",
+      name: "version",
+      base: "/api/version",
+      handler: "./src/server/version-handler.ts",
+      target: "server",
+      plugins: () => [
+        config("allowedHosts", {
+          // @ts-ignore
+          server: {
+            allowedHosts: viteAllowedHostsFromBaseUrl(env.BASE_URL),
+          },
+        }),
+        tsConfigPaths({
+          projects: ["./tsconfig.json"],
+        }),
+      ],
+    },
+    {
       type: "spa",
       name: "client",
       handler: "./index.html",
