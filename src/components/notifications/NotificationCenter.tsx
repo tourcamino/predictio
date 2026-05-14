@@ -14,6 +14,8 @@ function getNotificationIcon(type: string): string {
       return '✅';
     case 'MARKET_RESOLVED':
       return '🏁';
+    case 'MARKET_REFUNDED':
+      return '💸';
     case 'POSITION_OPENED':
       return '📈';
     case 'MARKET_CLOSING_SOON':

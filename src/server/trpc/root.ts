@@ -13,6 +13,8 @@ import { getLeaderboard } from "./procedures/getLeaderboard";
 import { getLiveActivityFeed } from "./procedures/getLiveActivityFeed";
 import { closePosition } from "./procedures/closePosition";
 import { resolvePaperPositions } from "./procedures/resolvePaperPositions";
+import { refundPaperMarket } from "./procedures/refundPaperMarket";
+import { disputePaperMarket } from "./procedures/disputePaperMarket";
 import { generateMarketOGImage } from "./procedures/generateMarketOGImage";
 import { generateTraderOGImage } from "./procedures/generateTraderOGImage";
 import { getMinioBaseUrl } from "./procedures/getMinioBaseUrl";
@@ -123,6 +125,8 @@ export const appRouter = createTRPCRouter({
   getLeaderboard,
   getLiveActivityFeed,
   resolvePaperPositions,
+  refundPaperMarket,
+  disputePaperMarket,
   generateMarketOGImage,
   generateTraderOGImage,
   getMinioBaseUrl,

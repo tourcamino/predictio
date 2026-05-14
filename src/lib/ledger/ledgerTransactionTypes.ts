@@ -25,6 +25,7 @@ export const LEDGER_TRANSACTION_TYPE_SET = new Set<string>(LEDGER_TRANSACTION_TY
 /** Inbound credits (filters, `/portfolio/claims`). */
 export const LEDGER_CREDIT_TYPES: LedgerTransactionType[] = [
   "position_settlement_win",
+  "position_refund",
   "lp_reward_claim",
   "holding_reward",
   "analyst_reward",

@@ -42,7 +42,7 @@ export function azuroDetailToMarket(azuroMarket: AzuroMarket): Market {
 
   let status: Market["status"];
   if (azuroMarket.status === "resolved") {
-    status = "resolved";
+    status = azuroMarket.azuroResult === "draw" ? "under_review" : "resolved";
   } else if (Date.now() >= kickoff.getTime()) {
     status = "closed";
   } else if (azuroMarket.status === "locked") {

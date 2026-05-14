@@ -8,7 +8,7 @@ import { invalidateAllPredictionPortfolioCachesForAnyWallet } from "~/utils/inva
 import { clientChainScopeForTrpc, normalizeWalletForQuery } from "~/utils/walletQuery";
 
 /**
- * Polls Azuro for resolved markets affecting **paper DB orders** for the connected wallet.
+ * Polls Azuro for terminal / exceptional states affecting **paper DB orders** for the connected wallet.
  * Uses `getUserPositions` (open) as the only market-id source — not the realtime trading Zustand slice.
  */
 export function useAzuroResolutionPolling() {
@@ -38,6 +38,8 @@ export function useAzuroResolutionPolling() {
   const notifiedMarkets = useRef(new Set<string>());
 
   const resolveMutation = useMutation(trpc.resolvePaperPositions.mutationOptions());
+  const refundMutation = useMutation(trpc.refundPaperMarket.mutationOptions());
+  const disputeMutation = useMutation(trpc.disputePaperMarket.mutationOptions());
 
   const resolutionQuery = useQuery({
     ...trpc.checkAzuroResolutions.queryOptions({
@@ -53,56 +55,87 @@ export function useAzuroResolutionPolling() {
 
     const orders = openOrdersQuery.data?.positions ?? [];
 
-    resolutionQuery.data.resolvedMarkets.forEach(async (resolved) => {
-      if (notifiedMarkets.current.has(resolved.marketId)) return;
+    resolutionQuery.data.resolvedMarkets.forEach(async (item) => {
+      if (notifiedMarkets.current.has(item.marketId)) return;
 
-      const hasOpenExposure = orders.some((o) => o.marketId === resolved.marketId);
+      const hasOpenExposure = orders.some((o) => o.marketId === item.marketId);
       if (!hasOpenExposure) return;
 
-      notifiedMarkets.current.add(resolved.marketId);
+      notifiedMarkets.current.add(item.marketId);
 
       try {
+        if (item.kind === "DISPUTE") {
+          await disputeMutation.mutateAsync({
+            marketId: item.marketId,
+            disputeReason: `Azuro: ${item.disputeReason}${item.rawState ? ` (${item.rawState})` : ""}`,
+            oracleSource: "azuro_graphql",
+          });
+          invalidateAllPredictionPortfolioCachesForAnyWallet(queryClient);
+          toast(`Market update: ${item.disputeReason} — under review`, { icon: "⚠️", duration: 6000 });
+          console.log(`[Azuro] Dispute queued for ${item.marketId}: ${item.disputeReason}`);
+          return;
+        }
+
+        if (item.kind === "REFUND") {
+          await refundMutation.mutateAsync({
+            marketId: item.marketId,
+            reason: item.refundReason,
+            authority: "azuro_graphql",
+            oracleConditionId: item.conditionId,
+            oracleObservedAt: new Date().toISOString(),
+            oracleRawOutcome: item.rawState ?? item.refundReason,
+          });
+          invalidateAllPredictionPortfolioCachesForAnyWallet(queryClient);
+          invalidateAllPointsSummaryQueries(queryClient);
+          toast.success(`Stakes refunded (${item.refundReason}). Check your portfolio.`, {
+            duration: 6000,
+            icon: "💸",
+          });
+          console.log(`[Azuro] Refunded ${item.marketId}: ${item.refundReason}`);
+          return;
+        }
+
         const winningOutcome =
-          resolved.result === "home" ? "YES" : resolved.result === "away" ? "NO" : null;
+          item.result === "home" ? "YES" : item.result === "away" ? "NO" : null;
         if (!winningOutcome) {
-          console.warn(
-            "[AzuroResolutionPolling] Unexpected oracle result shape:",
-            resolved.marketId,
-            resolved.result,
-          );
-          notifiedMarkets.current.delete(resolved.marketId);
+          console.warn("[AzuroResolutionPolling] Unexpected binary shape:", item.marketId, item);
+          notifiedMarkets.current.delete(item.marketId);
           return;
         }
 
         await resolveMutation.mutateAsync({
-          marketId: resolved.marketId,
+          marketId: item.marketId,
           winningOutcome,
+          oracleSource: "azuro_graphql",
+          oracleConditionId: item.conditionId,
+          oracleObservedAt: new Date().toISOString(),
+          oracleRawOutcome: item.result,
         });
 
         invalidateAllPredictionPortfolioCachesForAnyWallet(queryClient);
         invalidateAllPointsSummaryQueries(queryClient);
 
-        console.log(`[Paper Trading] Resolved positions for market ${resolved.marketId}`);
+        console.log(`[Paper Trading] Resolved positions for market ${item.marketId}`);
+        toast.success(`Market resolved! Check your portfolio to see results.`, {
+          duration: 5000,
+          icon: "✅",
+        });
+
+        console.log(`[Azuro] Market ${item.marketId} resolved: ${item.result}`);
       } catch (error) {
         console.error(
-          `[Paper Trading] Failed to resolve positions for market ${resolved.marketId}:`,
+          `[Paper Trading] Failed oracle follow-up for market ${item.marketId}:`,
           error,
         );
-        notifiedMarkets.current.delete(resolved.marketId);
-        return;
+        notifiedMarkets.current.delete(item.marketId);
       }
-
-      toast.success(`Market resolved! Check your portfolio to see results.`, {
-        duration: 5000,
-        icon: "✅",
-      });
-
-      console.log(`[Azuro] Market ${resolved.marketId} resolved: ${resolved.result}`);
     });
   }, [
     resolutionQuery.data,
     openOrdersQuery.data?.positions,
     resolveMutation,
+    refundMutation,
+    disputeMutation,
     queryClient,
   ]);
 

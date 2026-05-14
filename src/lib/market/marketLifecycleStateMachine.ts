@@ -84,6 +84,7 @@ export const VALID_MARKET_TRANSITIONS: Readonly<
   ],
   [MarketLifecycleState.LOCKED]: [
     MarketLifecycleState.RESOLVING,
+    MarketLifecycleState.REFUNDED,
     MarketLifecycleState.PAUSED,
     MarketLifecycleState.CANCELLED,
     MarketLifecycleState.DISPUTED,
@@ -181,7 +182,10 @@ export function deriveMarketLifecycleFromUiMarket(
   const kickoffMs = Math.min(m.start_time.getTime(), m.closesAt.getTime());
   const pastKickoff = now.getTime() >= kickoffMs;
 
-  if (m.result === "yes" || m.result === "no" || m.result === "draw") {
+  if (m.result === "draw") {
+    return MarketLifecycleState.DISPUTED;
+  }
+  if (m.result === "yes" || m.result === "no") {
     return MarketLifecycleState.RESOLVED;
   }
   if (ui === "resolved") {
@@ -241,6 +245,31 @@ export function canResolvePaperMarket(s: MarketLifecycleState): boolean {
     s === MarketLifecycleState.RESOLVING ||
     s === MarketLifecycleState.DISPUTED
   );
+}
+
+/** Full stake refund (void / draw / cancel) — not from bare OPEN unless admin (handled at procedure). */
+export function canRefundPaperMarket(s: MarketLifecycleState): boolean {
+  return (
+    s === MarketLifecycleState.LOCKED ||
+    s === MarketLifecycleState.RESOLVING ||
+    s === MarketLifecycleState.DISPUTED ||
+    s === MarketLifecycleState.PAUSED ||
+    s === MarketLifecycleState.CANCELLED
+  );
+}
+
+export function reasonCannotRefundPaperMarket(s: MarketLifecycleState): string | null {
+  if (canRefundPaperMarket(s)) return null;
+  if (s === MarketLifecycleState.OPEN) {
+    return "Refund is only available after kickoff or for void/cancel flows (admin).";
+  }
+  if (s === MarketLifecycleState.RESOLVED) {
+    return "This market was already binary-settled; refund is not allowed.";
+  }
+  if (s === MarketLifecycleState.REFUNDED) {
+    return "This market was already refunded.";
+  }
+  return "Refund is not available for this market state.";
 }
 
 /** On-chain claim window (future) — not used in paper DB yet. */
@@ -318,4 +347,10 @@ export function reasonCannotResolvePaperMarket(s: MarketLifecycleState): string 
     return "Market is already in a terminal state.";
   }
   return "Settlement is not allowed from the current lifecycle state.";
+}
+
+/** Binary YES/NO settlement blocked when oracle outcome is draw / void (use refund / dispute flows). */
+export function isBinaryPaperSettlementBlockedByOracleUi(m: UiMarketLifecycleInput): boolean {
+  if (m.result === "draw") return true;
+  return false;
 }

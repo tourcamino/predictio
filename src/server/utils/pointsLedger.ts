@@ -177,6 +177,60 @@ export async function creditWalletPoints(
 }
 
 /**
+ * Idempotent points credit (settlement replays). Dedupes via `metadata.settlementDedupeKey`.
+ */
+export async function creditWalletPointsIdempotent(
+  walletAddress: string,
+  actionType: string,
+  points: number,
+  idempotencyKey: string,
+  metadata?: Prisma.InputJsonValue,
+): Promise<{ newTotal: number; tier: string; skipped: boolean }> {
+  const w = walletAddress.toLowerCase();
+  if (points <= 0) {
+    const row = await db.pointsTotal.findUnique({ where: { walletAddress: w } });
+    return {
+      newTotal: row?.totalPoints ?? 0,
+      tier: row?.tier ?? calculateTier(0),
+      skipped: false,
+    };
+  }
+
+  const existing = await db.pointsLedger.findFirst({
+    where: {
+      walletAddress: w,
+      actionType,
+      metadata: {
+        path: ["settlementDedupeKey"],
+        equals: idempotencyKey,
+      },
+    },
+  });
+
+  if (existing) {
+    const row = await db.pointsTotal.findUnique({ where: { walletAddress: w } });
+    const total = row?.totalPoints ?? 0;
+    return {
+      newTotal: total,
+      tier: row?.tier ?? calculateTier(total),
+      skipped: true,
+    };
+  }
+
+  const base =
+    metadata && typeof metadata === "object" && metadata !== null && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  const merged: Prisma.InputJsonValue = {
+    ...base,
+    settlementDedupeKey: idempotencyKey,
+  };
+
+  const { newTotal, tier } = await creditWalletPoints(w, actionType, points, merged);
+  return { newTotal, tier, skipped: false };
+}
+
+/**
  * Counts consecutive calendar days (local midnight boundaries, same as `syncUserAccount` DAILY_LOGIN)
  * ending on `todayStart` with a `DAILY_LOGIN` ledger row, then credits one-time streak bonuses.
  * Call only after today's login row exists (just credited or from an earlier session today).

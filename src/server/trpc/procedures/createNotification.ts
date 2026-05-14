@@ -4,6 +4,7 @@ import { db } from "~/server/db";
 
 const NotificationTypeEnum = z.enum([
   'MARKET_RESOLVED',
+  'MARKET_REFUNDED',
   'POSITION_OPENED',
   'MARKET_CLOSING_SOON',
   'LEADERBOARD_CHANGE',

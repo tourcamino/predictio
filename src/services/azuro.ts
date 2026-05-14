@@ -665,25 +665,47 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
   }
 }
 
+/** Oracle poll result for paper routing (binary settle vs refund vs dispute queue). */
+export type AzuroPaperResolutionPollItem =
+  | {
+      marketId: string;
+      conditionId: string;
+      kind: "BINARY";
+      result: "home" | "away";
+    }
+  | {
+      marketId: string;
+      conditionId: string;
+      kind: "REFUND";
+      refundReason: string;
+      rawState?: string;
+    }
+  | {
+      marketId: string;
+      conditionId: string;
+      kind: "DISPUTE";
+      disputeReason: string;
+      rawState?: string;
+    };
+
 /**
- * Check for resolved markets (for oracle polling every 5 minutes)
- * Returns markets that have been resolved since last check
+ * Poll Azuro games for terminal / exceptional states affecting paper positions.
+ * Idempotent callers should still dedupe by `marketId` before applying DB writes.
  */
 export async function checkResolvedMarkets(
-  activeMarketIds: string[]
-): Promise<Array<{ marketId: string; result: string; conditionId: string }>> {
+  activeMarketIds: string[],
+): Promise<AzuroPaperResolutionPollItem[]> {
   try {
-    // Extract Azuro game IDs from market IDs
     const azuroGameIds = activeMarketIds
-      .filter(id => id.startsWith('azuro-'))
-      .map(id => id.replace('azuro-', ''));
-    
+      .filter((id) => id.startsWith("azuro-"))
+      .map((id) => id.replace("azuro-", ""));
+
     if (azuroGameIds.length === 0) {
       return [];
     }
 
     const response = await azuroGraphqlFetch({
-        query: `
+      query: `
           query CheckResolved($gameIds: [String!]!) {
             games(where: { gameId_in: $gameIds }) {
               gameId
@@ -698,7 +720,7 @@ export async function checkResolvedMarkets(
             }
           }
         `,
-        variables: { gameIds: azuroGameIds },
+      variables: { gameIds: azuroGameIds },
     });
 
     if (!response.ok) {
@@ -708,37 +730,95 @@ export async function checkResolvedMarkets(
     const raw = await readAzuroGraphqlJson(response);
     const data = raw as { data?: { games?: AzuroGame[] } };
     const games: AzuroGame[] = data.data?.games || [];
-    
-    const resolved = games
-      .filter((game) => {
-        const s = game.state ?? game.status;
-        return s === "Resolved" || s === "Finished";
-      })
-      .map(game => {
-        const mainCondition = game.conditions[0];
-        if (!mainCondition?.wonOutcomeIds?.[0]) {
-          return null;
-        }
-        
-        const wonId = mainCondition.wonOutcomeIds[0];
-        const result = wonId === mainCondition.outcomes[0]?.outcomeId ? 'home' : 'away';
-        
-        return {
-          marketId: `azuro-${game.gameId}`,
+
+    const out: AzuroPaperResolutionPollItem[] = [];
+
+    for (const game of games) {
+      const marketId = `azuro-${game.gameId}`;
+      const main = game.conditions?.[0];
+      if (!main?.conditionId) continue;
+
+      const rawState = (game.state ?? game.status ?? "").trim();
+
+      if (/^(Canceled|Cancelled|Voided|Void)$/i.test(rawState)) {
+        out.push({
+          marketId,
+          conditionId: main.conditionId,
+          kind: "REFUND",
+          refundReason: "VOID",
+          rawState,
+        });
+        continue;
+      }
+
+      if (/postpon/i.test(rawState)) {
+        out.push({
+          marketId,
+          conditionId: main.conditionId,
+          kind: "DISPUTE",
+          disputeReason: "POSTPONED",
+          rawState,
+        });
+        continue;
+      }
+      if (/suspend/i.test(rawState)) {
+        out.push({
+          marketId,
+          conditionId: main.conditionId,
+          kind: "DISPUTE",
+          disputeReason: "SUSPENDED",
+          rawState,
+        });
+        continue;
+      }
+      if (/abandon/i.test(rawState)) {
+        out.push({
+          marketId,
+          conditionId: main.conditionId,
+          kind: "DISPUTE",
+          disputeReason: "ABANDONED",
+          rawState,
+        });
+        continue;
+      }
+
+      if (rawState !== "Resolved" && rawState !== "Finished") {
+        continue;
+      }
+
+      const wonId = main.wonOutcomeIds?.[0];
+      if (!wonId) continue;
+
+      const outs = main.outcomes ?? [];
+      if (outs.length >= 3 && outs[1]?.outcomeId && wonId === outs[1].outcomeId) {
+        out.push({
+          marketId,
+          conditionId: main.conditionId,
+          kind: "REFUND",
+          refundReason: "DRAW",
+          rawState,
+        });
+        continue;
+      }
+
+      if (outs.length >= 1 && outs[0]?.outcomeId) {
+        const result: "home" | "away" = wonId === outs[0].outcomeId ? "home" : "away";
+        out.push({
+          marketId,
+          conditionId: main.conditionId,
+          kind: "BINARY",
           result,
-          conditionId: mainCondition.conditionId,
-        };
-      })
-      .filter((r): r is { marketId: string; result: string; conditionId: string } => r !== null);
-    
-    if (resolved.length > 0) {
-      console.log(`[Azuro] Found ${resolved.length} newly resolved markets`);
+        });
+      }
     }
-    
-    return resolved;
-    
+
+    if (out.length > 0) {
+      console.log(`[Azuro] Paper poll: ${out.length} market(s) need action`);
+    }
+
+    return out;
   } catch (error) {
-    console.error('[Azuro] Failed to check resolved markets:', error);
+    console.error("[Azuro] Failed to check resolved markets:", error);
     return [];
   }
 }

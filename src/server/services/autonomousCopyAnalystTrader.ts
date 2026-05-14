@@ -163,7 +163,12 @@ async function syncResolvedMarketsForAutonomousAnalysts(
   let resolved = 0;
   for (const [marketId, winningOutcome] of byMarket) {
     try {
-      await caller.resolvePaperPositions({ marketId, winningOutcome });
+      await caller.resolvePaperPositions({
+        marketId,
+        winningOutcome,
+        oracleSource: "autonomous_bot",
+        oracleObservedAt: new Date().toISOString(),
+      });
       resolved++;
     } catch (e) {
       console.warn("[AutonomousCopyAnalyst] resolvePaperPositions:", marketId, e);

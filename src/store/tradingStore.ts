@@ -28,7 +28,7 @@ export interface Position {
   resolvedAt?: Date;
   cancelledAt?: Date;
   openedAt: Date;
-  status: 'live' | 'soon' | 'locked' | 'resolved' | 'cancelled';
+  status: 'live' | 'soon' | 'locked' | 'resolved' | 'cancelled' | 'refunded' | 'disputed';
   marketEndsAt: Date;
 }
 

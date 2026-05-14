@@ -22,9 +22,12 @@ export function PositionCard({ position, isSelected, onClick }: PositionCardProp
   );
   const isResolved = position.status === 'resolved';
   const isCancelled = position.status === 'cancelled';
-  const displayPnl = isResolved || isCancelled ? position.unrealizedPnl : live.unrealizedPnl;
-  const displayPnlPct = isResolved || isCancelled ? position.unrealizedPnlPct : live.unrealizedPnlPct;
-  const displayCurrentValue = isResolved || isCancelled ? position.currentValue : live.currentValue;
+  const isRefunded = position.status === 'refunded';
+  const isTerminalStatic =
+    isResolved || isCancelled || isRefunded;
+  const displayPnl = isTerminalStatic ? position.unrealizedPnl : live.unrealizedPnl;
+  const displayPnlPct = isTerminalStatic ? position.unrealizedPnlPct : live.unrealizedPnlPct;
+  const displayCurrentValue = isTerminalStatic ? position.currentValue : live.currentValue;
   const pnlFormatted = formatPnL(displayPnl);
   const pctFormatted = formatPctChange(displayPnlPct);
 
@@ -51,6 +54,8 @@ export function PositionCard({ position, isSelected, onClick }: PositionCardProp
             ? 'border-brand-green border-l-4 border-l-brand-green'
             : isResolved
             ? 'border-brand-green/30'
+            : isRefunded
+            ? 'border-cyan-500/30'
             : isCancelled
             ? 'border-yellow-500/30'
             : 'border-white/10'
@@ -59,6 +64,12 @@ export function PositionCard({ position, isSelected, onClick }: PositionCardProp
         {/* Header with share button */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
+            {isRefunded && (
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
+                <span className="text-xs font-semibold text-cyan-400 uppercase">Refunded</span>
+              </div>
+            )}
             {isResolved && (
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-2 h-2 bg-brand-green rounded-full"></div>
@@ -71,7 +82,7 @@ export function PositionCard({ position, isSelected, onClick }: PositionCardProp
                 <span className="text-xs font-semibold text-yellow-500 uppercase">Cancelled</span>
               </div>
             )}
-            {!isResolved && !isCancelled && (
+            {!isResolved && !isCancelled && !isRefunded && (
               <StatusDot status={position.status} className="mb-2" />
             )}
             <h3 className="font-semibold text-sm truncate">{position.marketName}</h3>
@@ -102,7 +113,12 @@ export function PositionCard({ position, isSelected, onClick }: PositionCardProp
         </div>
 
         {/* P&L Display */}
-        {isResolved && position.claimableAmount ? (
+        {isRefunded ? (
+          <div className="mb-3">
+            <div className="text-xs text-gray-500 mb-1">Stake returned (void / draw / cancel)</div>
+            <div className="text-sm text-cyan-400">+$0.00 P&amp;L · principal refunded to wallet</div>
+          </div>
+        ) : isResolved && position.claimableAmount ? (
           <div className="mb-3">
             <div className="text-xs text-gray-500 mb-1">
               Cost ${position.costBasis.toFixed(2)} → Resolved at $1.00
@@ -160,6 +176,8 @@ export function PositionCard({ position, isSelected, onClick }: PositionCardProp
               Claim Refund →
             </span>
           </div>
+        ) : isRefunded || isResolved ? (
+          <div className="text-xs text-gray-500 text-center py-1">Outcome finalized</div>
         ) : (
           <div className="flex items-center justify-between">
             <Sparkline

@@ -1,231 +1,76 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { baseProcedure } from "~/server/trpc/main";
-import { db } from "~/server/db";
 import { loadMarketUiById } from "~/server/utils/loadMarketUi";
-import {
-  creditWalletPoints,
-  POINT_ACTION_VALUES,
-} from "~/server/utils/pointsLedger";
-import {
-  canResolvePaperMarket,
-  deriveMarketLifecycleFromDbRow,
-  deriveMarketLifecycleFromUiMarket,
-  logMarketLifecycleDev,
-  MarketLifecycleState,
-  reasonCannotResolvePaperMarket,
-} from "~/lib/market/marketLifecycleStateMachine";
+import { isBinaryPaperSettlementBlockedByOracleUi } from "~/lib/market/marketLifecycleStateMachine";
+import type { PaperOracleSource } from "~/lib/settlement/settlementContract";
+import { runPaperBatchSettlement } from "~/lib/settlement/paperSettlementEngine";
+
+const oracleSourceSchema = z.enum([
+  "azuro_graphql",
+  "client_poll",
+  "paper_admin",
+  "autonomous_bot",
+  "unknown",
+]);
 
 export const resolvePaperPositions = baseProcedure
   .input(
     z.object({
       marketId: z.string(),
-      winningOutcome: z.enum(['YES', 'NO']),
-    })
+      winningOutcome: z.enum(["YES", "NO"]),
+      oracleSource: oracleSourceSchema.optional(),
+      oracleConditionId: z.string().optional(),
+      oracleObservedAt: z.string().datetime().optional(),
+      oracleRawOutcome: z.string().optional(),
+    }),
   )
   .mutation(async ({ input }) => {
-    const { marketId, winningOutcome } = input;
-
-    const marketRow = await db.market.findUnique({
-      where: { id: marketId },
-    });
-
-    let lifecycle: (typeof MarketLifecycleState)[keyof typeof MarketLifecycleState];
-    if (marketRow) {
-      lifecycle = deriveMarketLifecycleFromDbRow(marketRow);
-    } else {
-      const ui = await loadMarketUiById(marketId);
-      lifecycle = ui
-        ? deriveMarketLifecycleFromUiMarket(ui)
-        : MarketLifecycleState.RESOLVING;
-      logMarketLifecycleDev("resolvePaperPositions", "no_db_row", {
-        marketId,
-        assumedLifecycle: lifecycle,
-      });
-    }
-
-    if (lifecycle === MarketLifecycleState.RESOLVED) {
-      logMarketLifecycleDev("resolvePaperPositions", "skip_idempotent_resolved", { marketId });
-      return {
-        success: true,
-        resolvedCount: 0,
-        message: "Market already resolved",
-      };
-    }
-
-    if (!canResolvePaperMarket(lifecycle)) {
-      logMarketLifecycleDev("resolvePaperPositions", "reject_resolve", { marketId, lifecycle });
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: reasonCannotResolvePaperMarket(lifecycle) ?? "Cannot resolve this market.",
-      });
-    }
-
-    // Get all open positions for this market
-    const openPositions = await db.order.findMany({
-      where: {
-        marketId,
-        status: 'open',
-      },
-    });
-    
-    if (openPositions.length === 0) {
-      return {
-        success: true,
-        resolvedCount: 0,
-        message: 'No open positions to resolve',
-      };
-    }
-
-    const marketUi = await loadMarketUiById(marketId);
+    const marketUi = await loadMarketUiById(input.marketId);
     const marketLabel =
       marketUi?.event ??
-      (marketUi ? `${marketUi.teamA} vs ${marketUi.teamB}` : marketId);
-    
-    console.log(`[Paper Trading] Resolving ${openPositions.length} positions for market ${marketId}`);
-    
-    // Process each position
-    const updates = await Promise.all(
-      openPositions.map(async (position) => {
-        const shares = position.shares || 0;
-        const avgPrice = position.avgPrice || 0;
-        const costBasis = shares * avgPrice;
-        
-        // Determine if this position won
-        const isWinner = position.outcome.toUpperCase() === winningOutcome;
-        
-        // Calculate payout: winners get $1.00 per share, losers get $0.00
-        const payout = isWinner ? shares * 1.00 : 0;
-        const pnl = payout - costBasis;
-        
-        // Get user
-        const user = await db.user.findUnique({
-          where: { wallet: position.wallet },
-        });
-        
-        if (!user) {
-          console.error(`[Paper Trading] User not found: ${position.wallet}`);
-          return null;
-        }
-        
-        const balanceBefore = user.virtualBalance;
-        const balanceAfter = balanceBefore + payout;
-        
-        // Update user balance and stats
-        await db.user.update({
-          where: { wallet: position.wallet },
-          data: {
-            virtualBalance: balanceAfter,
-            totalPnl: user.totalPnl + pnl,
-            wins: isWinner ? user.wins + 1 : user.wins,
-            losses: !isWinner ? user.losses + 1 : user.losses,
-            lastActive: new Date(),
-          },
-        });
-        
-        // Update position
-        await db.order.update({
-          where: { id: position.id },
-          data: {
-            status: 'resolved',
-            pnl,
-            resolvedAt: new Date(),
-          },
-        });
-        
-        // Record transaction
-        await db.transaction.create({
-          data: {
-            wallet: position.wallet,
-            type: isWinner ? 'position_settlement_win' : 'position_settlement_loss',
-            amount: payout,
-            balanceBefore,
-            balanceAfter,
-            marketId,
-            orderId: position.id,
-            status: 'completed',
-            metadata: {
-              ledgerIntent: 'POSITION_SETTLEMENT',
-              outcome: position.outcome,
-              winningOutcome,
-              shares,
-              payout,
-              pnl,
-              isWinner,
-            },
-          },
-        });
-        
-        // Create MARKET_RESOLVED notification
-        const pnlFormatted = pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`;
+      (marketUi ? `${marketUi.teamA} vs ${marketUi.teamB}` : input.marketId);
 
-        await db.notification.create({
-          data: {
-            walletAddress: position.wallet,
-            type: 'MARKET_RESOLVED',
-            title: 'Market Resolved',
-            message: `${marketLabel} — ${winningOutcome} won. Your position: ${pnlFormatted}`,
-            marketId,
-          },
-        }).catch((err) => {
-          console.error('[Notifications] Failed to create MARKET_RESOLVED notification:', err);
-        });
-
-        if (isWinner) {
-          try {
-            await creditWalletPoints(
-              position.wallet,
-              "MARKET_RESOLVED_WIN",
-              POINT_ACTION_VALUES.MARKET_RESOLVED_WIN,
-              { marketId, marketLabel, winningOutcome },
-            );
-          } catch (err) {
-            console.error("[Points] Failed to credit MARKET_RESOLVED_WIN:", err);
-          }
-        }
-
-        return {
-          wallet: position.wallet,
-          isWinner,
-          payout,
-          pnl,
-        };
-      })
-    );
-    
-    const validUpdates = updates.filter(Boolean);
-    const winners = validUpdates.filter(u => u?.isWinner);
-    const losers = validUpdates.filter(u => !u?.isWinner);
-
-    if (validUpdates.length > 0) {
-      try {
-        const updated = await db.market.updateMany({
-          where: {
-            id: marketId,
-            status: { not: "resolved" },
-          },
-          data: {
-            status: "resolved",
-            winner: winningOutcome,
-            resolvedAt: new Date(),
-          },
-        });
-        logMarketLifecycleDev("resolvePaperPositions", "market_status_update", {
-          marketId,
-          count: updated.count,
-        });
-      } catch {
-        /* Market id may exist only in mocks / Azuro without a DB row */
-      }
+    if (marketUi && isBinaryPaperSettlementBlockedByOracleUi(marketUi)) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message:
+          "Non-binary oracle outcome (e.g. draw). Use refundPaperMarket or disputePaperMarket instead of binary settlement.",
+      });
     }
-    
-    console.log(`[Paper Trading] Resolved ${validUpdates.length} positions: ${winners.length} winners, ${losers.length} losers`);
-    
+
+    const source = (input.oracleSource ?? "unknown") as PaperOracleSource;
+    const observedAt = input.oracleObservedAt ? new Date(input.oracleObservedAt) : new Date();
+
+    const result = await runPaperBatchSettlement({
+      marketId: input.marketId,
+      winningOutcome: input.winningOutcome,
+      oracle: {
+        source,
+        conditionId: input.oracleConditionId ?? null,
+        observedAt,
+        rawOutcome: input.oracleRawOutcome ?? null,
+      },
+      marketLabel,
+    });
+
+    const winners = result.orders.filter((u) => u?.claimed && u.isWinner).length;
+    const losers = result.orders.filter((u) => u?.claimed && !u.isWinner).length;
+
     return {
       success: true,
-      resolvedCount: validUpdates.length,
-      winners: winners.length,
-      losers: losers.length,
-      message: `Resolved ${validUpdates.length} positions`,
+      settlementRunId: result.settlementRunId,
+      idempotent: result.idempotent,
+      idempotentReason: result.idempotentReason,
+      resolvedCount: result.settledThisRun,
+      winners,
+      losers,
+      marketUpdated: result.marketUpdated,
+      message:
+        result.idempotentReason === "market_already_resolved_same_winner"
+          ? "Market already resolved"
+          : result.idempotentReason === "no_open_orders"
+            ? "No open positions to resolve"
+            : `Resolved ${result.settledThisRun} positions`,
     };
   });

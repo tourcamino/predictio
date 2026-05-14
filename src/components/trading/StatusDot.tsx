@@ -1,5 +1,5 @@
 interface StatusDotProps {
-  status: 'live' | 'soon' | 'locked' | 'resolved' | 'cancelled';
+  status: 'live' | 'soon' | 'locked' | 'resolved' | 'cancelled' | 'refunded' | 'disputed';
   className?: string;
 }
 
@@ -33,6 +33,18 @@ export function StatusDot({ status, className = '' }: StatusDotProps) {
       label: 'CANCELLED',
       color: 'bg-yellow-500',
       textColor: 'text-yellow-500',
+      pulse: false,
+    },
+    refunded: {
+      label: 'REFUNDED',
+      color: 'bg-cyan-500',
+      textColor: 'text-cyan-400',
+      pulse: false,
+    },
+    disputed: {
+      label: 'DISPUTED',
+      color: 'bg-orange-500',
+      textColor: 'text-orange-400',
       pulse: false,
     },
   };

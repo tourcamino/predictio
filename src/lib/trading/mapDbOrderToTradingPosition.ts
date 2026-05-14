@@ -56,15 +56,29 @@ function mapOrderToUiStatus(
   order: UserOrderRow,
   market: Market | null | undefined,
 ): Position['status'] {
-  if (order.status === 'resolved') return 'resolved';
-  if (order.status === 'closed') return 'resolved';
   const life = market ? getMarketLifecycleState(market) : MarketLifecycleState.OPEN;
+
+  if (order.status === "open" && life === MarketLifecycleState.REFUNDED) {
+    return "locked";
+  }
+
+  if (order.status === "open" && life === MarketLifecycleState.DISPUTED) {
+    return "disputed";
+  }
+
+  if (order.status === "resolved" && life === MarketLifecycleState.REFUNDED) {
+    return "refunded";
+  }
+
+  if (order.status === "resolved") return "resolved";
+  if (order.status === "closed") return "resolved";
+
   if (
     life === MarketLifecycleState.RESOLVED ||
     life === MarketLifecycleState.CANCELLED ||
     life === MarketLifecycleState.REFUNDED
   ) {
-    return 'resolved';
+    return "resolved";
   }
   if (
     life === MarketLifecycleState.LOCKED ||
@@ -72,9 +86,9 @@ function mapOrderToUiStatus(
     life === MarketLifecycleState.DISPUTED ||
     life === MarketLifecycleState.PAUSED
   ) {
-    return 'locked';
+    return "locked";
   }
-  return 'live';
+  return "live";
 }
 
 export function mapDbOrderToTradingPosition(

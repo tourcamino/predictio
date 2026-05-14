@@ -90,7 +90,7 @@ export function PositionDetail({ position }: PositionDetailProps) {
     () => deriveLivePositionFromQuote(position, marketPrice),
     [position, marketPrice],
   );
-  const terminal = position.status === 'resolved' || position.status === 'cancelled';
+  const terminal = position.status === 'resolved' || position.status === 'cancelled' || position.status === 'refunded';
   const currentPrice = live.lastPrice;
   const headerPnl = terminal ? position.unrealizedPnl : live.unrealizedPnl;
   const headerPnlPct = terminal ? position.unrealizedPnlPct : live.unrealizedPnlPct;

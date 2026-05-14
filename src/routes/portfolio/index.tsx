@@ -204,8 +204,8 @@ function Portfolio() {
 
   // Process positions data
   const positions = positionsQuery.data?.positions || [];
-  const openPositions = positions.filter(p => p.status === 'open');
-  const resolvedPositions = positions.filter(p => p.status === 'resolved');
+  const openPositions = positions.filter(p => p.status === 'open' || p.status === 'disputed');
+  const resolvedPositions = positions.filter(p => p.status === 'resolved' || p.status === 'refunded');
 
   // Calculate aggregate stats with current market prices
   let totalValue = 0;

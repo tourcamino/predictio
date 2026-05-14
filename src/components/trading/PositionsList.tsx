@@ -18,7 +18,8 @@ export function PositionsList({ positions }: PositionsListProps) {
     () =>
       positions.map((p) => {
         const live = deriveLivePositionFromQuote(p, marketPrices[p.marketId]);
-        const terminal = p.status === 'resolved' || p.status === 'cancelled';
+        const terminal =
+          p.status === 'resolved' || p.status === 'cancelled' || p.status === 'refunded';
         return {
           position: p,
           live,

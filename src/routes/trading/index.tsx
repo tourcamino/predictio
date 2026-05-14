@@ -195,7 +195,9 @@ function TradingPage() {
                 marketPrices[position.marketId],
               );
               const terminal =
-                position.status === 'resolved' || position.status === 'cancelled';
+                position.status === 'resolved' ||
+                position.status === 'cancelled' ||
+                position.status === 'refunded';
               const displayPnl = terminal ? position.unrealizedPnl : live.unrealizedPnl;
               const displayValue = terminal ? position.currentValue : live.currentValue;
               const pnlFormatted =
