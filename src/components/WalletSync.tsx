@@ -3,7 +3,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useTRPC } from '~/trpc/react';
 import { useWallet, useWalletStore } from '~/store/useWalletStore';
-import { OnboardingModal } from '~/components/onboarding/OnboardingModal';
+import {
+  OnboardingModal,
+  isWelcomeOnboardingDismissedInStorage,
+} from '~/components/onboarding/OnboardingModal';
 import { invalidateWalletPointsSummary } from '~/utils/invalidateWalletNotifications';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import {
@@ -142,7 +145,10 @@ export function WalletSync() {
             );
           }
 
-          if (!data.onboardingCompleted) {
+          if (
+            !data.onboardingCompleted &&
+            !isWelcomeOnboardingDismissedInStorage(walletKey)
+          ) {
             setShowOnboarding(true);
           }
         };
