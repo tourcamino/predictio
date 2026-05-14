@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { AnalystCard } from '~/components/affiliate/AnalystCard';
 import { CopyingAnalystsSection } from './CopyingAnalystsSection';
-import { formatRoiPct, formatWinRatePct, toFiniteNumber } from '~/utils/formatCopyTrading';
+import { formatRoiPct, formatWinRatePct, roiTextClass, toFiniteNumber } from '~/utils/formatCopyTrading';
 
 interface SocialTradingDashboardProps {
   userWallet: string;
@@ -75,7 +75,8 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
         <div>
           <h2 className="font-syne font-bold text-2xl mb-2">Social Trading</h2>
           <p className="text-gray-400">
-            Discover and copy top-performing traders
+            Traders are ranked with positive ROI first. Copying any trader can still lose money — check
+            history and risk before allocating.
           </p>
         </div>
 
@@ -199,7 +200,14 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
             </div>
             <div className="bg-white/5 border border-white/10 rounded-lg p-4">
               <div className="text-sm text-gray-400 mb-1">Avg ROI</div>
-              <div className="font-mono font-bold text-2xl text-brand-green truncate">
+              <div
+                className={`font-mono font-bold text-2xl truncate ${roiTextClass(
+                  analysts.length > 0
+                    ? analysts.reduce((sum, a) => sum + toFiniteNumber(a.roi), 0) /
+                        analysts.length
+                    : 0,
+                )}`}
+              >
                 {analysts.length > 0
                   ? formatRoiPct(
                       analysts.reduce((sum, a) => sum + toFiniteNumber(a.roi), 0) /

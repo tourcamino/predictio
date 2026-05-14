@@ -10,7 +10,9 @@ import { VerificationBadge } from "~/components/analyst/VerificationBadge";
 import {
   formatRoiPct,
   formatWinRatePct,
+  roiTextClass,
   shortenWallet,
+  toFiniteNumber,
 } from "~/utils/formatCopyTrading";
 
 interface AnalystCardProps {
@@ -107,8 +109,17 @@ export function AnalystCard({ analyst }: AnalystCardProps) {
     }
   };
 
+  const roi = toFiniteNumber(analyst.roi, 0);
+  const isUnderwater = roi < 0;
+
   return (
-    <div className="bg-white/5 border border-white/10 rounded-lg p-6 hover:bg-white/10 transition-all hover:border-brand-green/30">
+    <div
+      className={`rounded-lg border p-6 transition-all hover:bg-white/10 ${
+        isUnderwater
+          ? "border-red-500/25 bg-red-500/[0.04] hover:border-red-400/35"
+          : "border-white/10 bg-white/5 hover:border-brand-green/30"
+      }`}
+    >
       {/* Header */}
       <div className="mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -161,11 +172,19 @@ export function AnalystCard({ analyst }: AnalystCardProps) {
       {/* Bio */}
       <p className="text-sm text-gray-400 mb-4 line-clamp-2">{analyst.bio}</p>
 
+      {isUnderwater ? (
+        <div className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100/95">
+          Net loss on record — copying carries risk of further losses. Review history before following.
+        </div>
+      ) : null}
+
       {/* Stats Grid */}
       <div className="mb-4 grid grid-cols-3 gap-2 border-b border-white/10 pb-4 sm:gap-4">
         <div className="min-w-0">
           <div className="mb-1 text-[10px] text-gray-500 sm:text-xs">ROI</div>
-          <div className="truncate font-mono text-sm font-bold text-brand-green sm:text-base">
+          <div
+            className={`truncate font-mono text-sm font-bold sm:text-base ${roiTextClass(analyst.roi)}`}
+          >
             {formatRoiPct(analyst.roi)}
           </div>
         </div>
@@ -206,7 +225,7 @@ export function AnalystCard({ analyst }: AnalystCardProps) {
             <TrendingUp className="w-4 h-4" />
             <span>Vol Generated</span>
           </div>
-          <span className="font-mono font-semibold text-brand-green">
+          <span className="font-mono font-semibold text-gray-200">
             ${(analyst.volumeGenerated / 1000).toFixed(0)}K
           </span>
         </div>

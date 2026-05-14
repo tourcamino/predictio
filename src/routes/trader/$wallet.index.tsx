@@ -416,6 +416,7 @@ function HistoryTab({
   const seedRows = getCopySeedPredictionHistoryRows(
     walletLookup,
     seedSports?.[0] ?? "Football",
+    seedSports,
   );
 
   const rows =

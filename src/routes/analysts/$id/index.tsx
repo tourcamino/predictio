@@ -34,7 +34,9 @@ import { TradingModalShell } from "~/components/ui/TradingModalShell";
 import {
   formatRoiPct,
   formatWinRatePct,
+  roiTextClass,
   shortenWallet,
+  toFiniteNumber,
 } from "~/utils/formatCopyTrading";
 
 export const Route = createFileRoute("/analysts/$id/")({
@@ -202,6 +204,13 @@ function AnalystProfilePage() {
   }
 
   const { analyst, predictionHistory, followerGrowth, performanceData } = data;
+  const summaryRoi = toFiniteNumber(analyst.roi, 0);
+  const isLossMaking = summaryRoi < 0;
+  const avgOddsN = toFiniteNumber(analyst.avgOdds, 0);
+  const riskTags: string[] = [];
+  if (isLossMaking) riskTags.push("Currently underwater on headline ROI");
+  if (analyst.winRate < 52) riskTags.push("Win rate below coin-flip territory");
+  if (avgOddsN >= 2.2) riskTags.push("Higher average odds — payoff skew / volatility");
 
   return (
     <div className="min-h-screen bg-brand-bg">
@@ -328,6 +337,35 @@ function AnalystProfilePage() {
             )}
           </div>
 
+            {/* Risk & transparency */}
+            {(isLossMaking || riskTags.length > 0) && (
+              <div
+                className={`mb-8 rounded-lg border px-5 py-4 ${
+                  isLossMaking
+                    ? "border-red-500/35 bg-red-500/[0.07]"
+                    : "border-amber-500/25 bg-amber-500/[0.06]"
+                }`}
+              >
+                <p className="text-sm font-semibold text-white">
+                  {isLossMaking
+                    ? "Copying this trader could lose money"
+                    : "Risk snapshot"}
+                </p>
+                <p className="mt-1 text-sm text-gray-300">
+                  {isLossMaking
+                    ? "Public ROI is negative over the tracked window. Past paper trades are not a guarantee of future results — size positions accordingly."
+                    : "Markets are volatile. Review prediction history and max loss before mirroring trades."}
+                </p>
+                {riskTags.length > 0 && (
+                  <ul className="mt-3 list-inside list-disc space-y-1 text-xs text-gray-400">
+                    {riskTags.map((t) => (
+                      <li key={t}>{t}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
           {/* Stats Grid */}
           <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
             <div className="min-w-0 rounded-lg border border-white/10 bg-white/5 p-4 sm:p-6">
@@ -335,7 +373,9 @@ function AnalystProfilePage() {
                 <TrendingUp className="h-5 w-5 shrink-0" />
                 <span className="truncate text-sm">ROI</span>
               </div>
-              <div className="truncate font-mono text-2xl font-bold text-brand-green sm:text-3xl">
+              <div
+                className={`truncate font-mono text-2xl font-bold sm:text-3xl ${roiTextClass(analyst.roi)}`}
+              >
                 {formatRoiPct(analyst.roi)}
               </div>
             </div>
@@ -675,8 +715,13 @@ function SharePerformanceModal({
 }
 
 function PerformanceChart({ data }: { data: any[] }) {
-  const maxRoi = Math.max(...data.map((d) => d.roi));
+  const rois = data.map((d) => d.roi as number);
+  const minRoi = Math.min(...rois, 0);
+  const maxRoi = Math.max(...rois, 0);
+  const span = Math.max(maxRoi - minRoi, 1e-3);
   const maxWinRate = 100;
+  const lastRoi = rois[rois.length - 1] ?? 0;
+  const roiStroke = lastRoi >= 0 ? "#00FF87" : "#f87171";
 
   return (
     <div className="relative" style={{ height: "250px" }}>
@@ -694,17 +739,30 @@ function PerformanceChart({ data }: { data: any[] }) {
           />
         ))}
 
+        {/* Zero baseline when ROI crosses negative/positive */}
+        {minRoi < 0 && maxRoi > 0 ? (
+          <line
+            x1="0"
+            x2="100"
+            y1={100 - ((0 - minRoi) / span) * 100}
+            y2={100 - ((0 - minRoi) / span) * 100}
+            stroke="rgba(255,255,255,0.2)"
+            strokeWidth="0.25"
+            strokeDasharray="1 1"
+          />
+        ) : null}
+
         {/* ROI Line */}
         <path
           d={data
             .map((d, i) => {
               const x = (i / (data.length - 1)) * 100;
-              const y = 100 - (d.roi / maxRoi) * 100;
+              const y = 100 - ((d.roi - minRoi) / span) * 100;
               return `${i === 0 ? "M" : "L"} ${x} ${y}`;
             })
             .join(" ")}
           fill="none"
-          stroke="#00FF87"
+          stroke={roiStroke}
           strokeWidth="2"
         />
 
@@ -724,13 +782,16 @@ function PerformanceChart({ data }: { data: any[] }) {
       </svg>
 
       {/* Legend */}
-      <div className="flex gap-4 mt-4 text-sm">
+      <div className="flex flex-wrap gap-4 mt-4 text-sm">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-brand-green rounded-full" />
-          <span className="text-gray-400">ROI</span>
+          <div
+            className="h-3 w-3 rounded-full"
+            style={{ backgroundColor: roiStroke }}
+          />
+          <span className="text-gray-400">ROI (scaled)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-brand-cyan rounded-full" />
+          <div className="h-3 w-3 rounded-full bg-brand-cyan" />
           <span className="text-gray-400">Win Rate</span>
         </div>
       </div>

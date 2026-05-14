@@ -41,21 +41,42 @@ function prismaLikeFromMock(
   };
 }
 
+/** Non‑negative ROI first (honest default for copy discovery), then higher ROI within each bucket. */
+function compareRoiSignThenMagnitude(a: PrismaAnalyst, b: PrismaAnalyst): number {
+  const aPos = a.roi >= 0;
+  const bPos = b.roi >= 0;
+  if (aPos !== bPos) return aPos ? -1 : 1;
+  return b.roi - a.roi;
+}
+
 function sortCombined(
   rows: PrismaAnalyst[],
   sortBy: "roi" | "winRate" | "followers" | "earned",
 ): void {
   rows.sort((a, b) => {
+    let primary = 0;
     switch (sortBy) {
       case "roi":
-        return b.roi - a.roi;
+        return compareRoiSignThenMagnitude(a, b);
       case "winRate":
-        return b.winRate - a.winRate;
+        primary = b.winRate - a.winRate;
+        if (primary !== 0) return primary;
+        primary = compareRoiSignThenMagnitude(a, b);
+        if (primary !== 0) return primary;
+        return b.roi - a.roi;
       case "followers":
-        return b.followersCount - a.followersCount;
+        primary = b.followersCount - a.followersCount;
+        if (primary !== 0) return primary;
+        primary = compareRoiSignThenMagnitude(a, b);
+        if (primary !== 0) return primary;
+        return b.roi - a.roi;
       case "earned":
       default:
-        return b.totalEarned - a.totalEarned;
+        primary = b.totalEarned - a.totalEarned;
+        if (primary !== 0) return primary;
+        primary = compareRoiSignThenMagnitude(a, b);
+        if (primary !== 0) return primary;
+        return b.roi - a.roi;
     }
   });
 }
@@ -85,14 +106,7 @@ export const getAnalystLeaderboard = baseProcedure
     const combined = [...dbAnalysts, ...mockExtras];
     sortCombined(combined, sortBy);
 
-    /** Always surface the three copy-seed personas first (guests + /copy UX), then everyone else by sort. */
-    const pinWallets = new Set(mockAnalysts.map((m) => m.wallet.toLowerCase()));
-    const byWallet = new Map(combined.map((a) => [a.wallet.toLowerCase(), a]));
-    const pinned = mockAnalysts
-      .map((m) => byWallet.get(m.wallet.toLowerCase()))
-      .filter((a): a is (typeof combined)[number] => a != null);
-    const others = combined.filter((a) => !pinWallets.has(a.wallet.toLowerCase()));
-    const analysts = [...pinned, ...others].slice(0, limit);
+    const analysts = combined.slice(0, limit);
 
     const copySeedWallets = new Set(
       mockAnalysts.map((m) => m.wallet.toLowerCase()),

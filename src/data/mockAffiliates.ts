@@ -95,6 +95,7 @@ export const COPY_SEED_PLATFORM_EVENTS = {
 } as const;
 
 /** Prefer these when attaching seed `Order` rows to markets (subset order = tie-break). */
+/** Tennis intentionally omitted — copy-seed paper trades stay aligned with football/MMA personas. */
 export const COPY_SEED_MARKET_SORT_SUBSTRINGS: readonly string[] = [
   COPY_SEED_PLATFORM_EVENTS.MANCHESTER_CITY_VS_ARSENAL,
   COPY_SEED_PLATFORM_EVENTS.BAYERN_VS_DORTMUND,
@@ -102,7 +103,6 @@ export const COPY_SEED_MARKET_SORT_SUBSTRINGS: readonly string[] = [
   COPY_SEED_PLATFORM_EVENTS.INTER_VS_AC_MILAN,
   COPY_SEED_PLATFORM_EVENTS.REAL_MADRID_VS_FC_BARCELONA,
   COPY_SEED_PLATFORM_EVENTS.UFC_PEREIRA_ANKALAEV,
-  COPY_SEED_PLATFORM_EVENTS.DJOKOVIC_VS_ALCARAZ,
 ];
 
 export type CopySeedRecentTrade = {
@@ -244,6 +244,8 @@ export function getCopySeedLatestTradeLabel(wallet: string): string | null {
 export function getCopySeedPredictionHistoryRows(
   wallet: string,
   sportFallback: string,
+  /** When set, drops rows whose implied sport is not in this list (keeps football-only profiles clean). */
+  allowedSports?: readonly string[],
 ): Array<{
   id: string;
   event: string;
@@ -257,18 +259,26 @@ export function getCopySeedPredictionHistoryRows(
 }> {
   const rows = copySeedRecentTradesByWallet[wallet.toLowerCase()];
   if (!rows?.length) return [];
+  const allow = allowedSports?.length
+    ? new Set(allowedSports.map((s) => s.toLowerCase()))
+    : null;
   const now = Date.now();
-  return rows.map((r, i) => ({
-    id: `copy-seed-${wallet.slice(2, 10)}-${i}`,
-    event: r.event,
-    sport: r.sport ?? (sportFallback || "Football"),
-    odds: r.side === "YES" ? 1.85 : 2.05,
-    stake: r.stakeUsd,
-    outcome: r.result === "Won" ? "Won" : "Lost",
-    profit: r.profitUsd,
-    copiedBy: 3 + (i % 5),
-    timestamp: now - r.daysAgo * 86400000,
-  }));
+  return rows
+    .map((r, i) => {
+      const sport = r.sport ?? (sportFallback || "Football");
+      return {
+        id: `copy-seed-${wallet.slice(2, 10)}-${i}`,
+        event: r.event,
+        sport,
+        odds: r.side === "YES" ? 1.85 : 2.05,
+        stake: r.stakeUsd,
+        outcome: r.result === "Won" ? "Won" : "Lost",
+        profit: r.profitUsd,
+        copiedBy: 3 + (i % 5),
+        timestamp: now - r.daysAgo * 86400000,
+      };
+    })
+    .filter((row) => !allow || allow.has(row.sport.toLowerCase()));
 }
 
 export const mockAffiliateContacts: AffiliateContact[] = [

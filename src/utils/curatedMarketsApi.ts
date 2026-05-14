@@ -2,6 +2,11 @@ import { getApiBaseUrl } from "~/lib/predictioApi";
 import type { SeedMarket } from "~/data/seedMarkets";
 import type { AzuroMarket } from "~/services/azuro";
 import { transformAzuroThreeWayOdds } from "~/utils/azuroThreeWayOdds";
+import {
+  CURATED_FEATURED_MAX,
+  curateFeaturedAzuroMarkets,
+  rankAzuroMarketsByCurationScore,
+} from "~/lib/markets/curateFeaturedEvents";
 
 /** Quota pareggio sintetica se Azuro/API non espone draw (calcio 1X2 sempre 3 esiti in UI). */
 const SYNTHETIC_DRAW_DECIMAL = 3.35;
@@ -135,7 +140,12 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
       markets: CuratedMarketApiRow[];
       total: number;
     };
-    const markets = (data.markets ?? []).map(curatedApiRowToAzuroMarket);
+    const mapped = (data.markets ?? []).map(curatedApiRowToAzuroMarket);
+    const featured = curateFeaturedAzuroMarkets(mapped, { limit: CURATED_FEATURED_MAX });
+    const markets =
+      featured.length > 0
+        ? featured
+        : rankAzuroMarketsByCurationScore(mapped).slice(0, CURATED_FEATURED_MAX);
     if (markets.length === 0) {
       return {
         markets: [],

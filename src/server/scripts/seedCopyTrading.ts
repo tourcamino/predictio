@@ -164,8 +164,30 @@ export async function seedCopyTradingExperience(): Promise<void> {
   const openB = openMarkets.filter((_, i) => i % 3 === 1);
   const openC = openMarkets.filter((_, i) => i % 3 === 2);
 
-  const pickResolved = [resA, resB, resC];
-  const pickOpen = [openA, openB, openC];
+  /** Keep seeded paper trades inside each persona's advertised sports (no tennis on football-only cards). */
+  function filterMarketsForPersona(
+    personaIndex: number,
+    markets: typeof resolvedMarkets,
+  ) {
+    const sports = mockAnalysts[personaIndex]!.sport.map((s) =>
+      s.toLowerCase(),
+    );
+    const filtered = markets.filter((m) =>
+      sports.includes(m.sport.toLowerCase()),
+    );
+    return filtered.length >= 4 ? filtered : markets;
+  }
+
+  const pickResolved = [
+    filterMarketsForPersona(0, resA),
+    filterMarketsForPersona(1, resB),
+    filterMarketsForPersona(2, resC),
+  ];
+  const pickOpen = [
+    filterMarketsForPersona(0, openA),
+    filterMarketsForPersona(1, openB),
+    filterMarketsForPersona(2, openC),
+  ];
 
   for (let pi = 0; pi < profiles.length; pi++) {
     const p = profiles[pi]!;

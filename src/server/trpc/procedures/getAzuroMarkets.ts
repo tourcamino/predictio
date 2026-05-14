@@ -4,6 +4,7 @@ import { db } from "~/server/db";
 import { prismaMarketRowToAzuroMarket } from "~/server/utils/dbMarketToAzuroMarket";
 import { MAX_FOOTBALL_MARKETS } from "~/constants/azuro";
 import { type AzuroMarket, fetchAzuroGames } from "~/services/azuro";
+import { prioritizeFeaturedAzuroMarkets } from "~/lib/markets/curateFeaturedEvents";
 
 // Server-side football focus check
 // In production, this could be an environment variable
@@ -136,6 +137,16 @@ export const getAzuroMarkets = baseProcedure
     
     if (input?.status && input.status !== 'all') {
       filteredMarkets = filteredMarkets.filter(m => m.status === input.status);
+    }
+
+    /** Runtime featured tier (max 9): premium leagues + odds balance — off when founder CuratedEvent list is active. */
+    if (
+      FOOTBALL_FOCUS_ENABLED &&
+      (!curatedByGameId || curatedByGameId.size === 0)
+    ) {
+      filteredMarkets = prioritizeFeaturedAzuroMarkets(filteredMarkets, {
+        featuredLimit: 9,
+      });
     }
 
     if (

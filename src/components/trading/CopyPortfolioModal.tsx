@@ -11,6 +11,7 @@ import { MarketSelectionUI } from './MarketSelectionUI';
 import {
   formatRoiPct,
   formatWinRatePct,
+  roiTextClass,
   shortenWallet,
 } from "~/utils/formatCopyTrading";
 interface CopyPortfolioModalProps {
@@ -247,7 +248,9 @@ export function CopyPortfolioModal({
                           <TrendingUp className="h-3 w-3 shrink-0" />
                           <span className="truncate">ROI</span>
                         </div>
-                        <div className="truncate font-mono text-sm font-bold text-brand-green">
+                        <div
+                          className={`truncate font-mono text-sm font-bold ${roiTextClass(analyst.roi)}`}
+                        >
                           {formatRoiPct(analyst.roi)}
                         </div>
                       </div>

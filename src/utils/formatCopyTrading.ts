@@ -13,6 +13,14 @@ export function formatRoiPct(roi: unknown): string {
   return `${sign}${rounded.toFixed(1)}%`;
 }
 
+/** Tailwind text classes for signed ROI (cards, headers, summaries). */
+export function roiTextClass(roi: unknown): string {
+  const n = toFiniteNumber(roi, 0);
+  if (n > 0) return "text-brand-green";
+  if (n < 0) return "text-red-400";
+  return "text-gray-300";
+}
+
 /** Win rate percent, 1 decimal, no leading +. */
 export function formatWinRatePct(winRate: unknown): string {
   const n = toFiniteNumber(winRate, 0);

@@ -2,6 +2,7 @@ import type { Market as DbMarket } from "@prisma/client";
 import { db } from "~/server/db";
 import { createCaller } from "~/server/trpc/root";
 import { loadMarketUiById } from "~/server/utils/loadMarketUi";
+import { rankPrismaMarketsByCuration } from "~/server/utils/marketCurationFromDb";
 import {
   AUTONOMOUS_COPY_ANALYST_PROFILES,
   type AutonomousAnalystProfile,
@@ -65,14 +66,14 @@ function buildCandidatePool(
   }
 
   if (profile.kind === "conservative") {
-    return shuffle(football, rng);
+    return shuffleTail(football, rng, 10);
   }
 
   const wantFootball = rng() < profile.footballWeight;
   const primary = wantFootball ? football : secondary;
   const fallback = wantFootball && primary.length === 0 ? secondary : football;
   const pool = primary.length > 0 ? primary : fallback;
-  return shuffle(pool, rng);
+  return shuffleTail(pool, rng, 10);
 }
 
 function shuffle<T>(arr: T[], rng: () => number): T[] {
@@ -82,6 +83,14 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
     [a[i], a[j]] = [a[j]!, a[i]!];
   }
   return a;
+}
+
+/** Keep first `head` rows in curation order (featured-first); randomize tail for variety. */
+function shuffleTail<T>(arr: T[], rng: () => number, head: number): T[] {
+  if (arr.length <= head) return shuffle(arr, rng);
+  const h = arr.slice(0, head);
+  const t = shuffle(arr.slice(head), rng);
+  return [...h, ...t];
 }
 
 /** Ensure paper wallets exist and stay tradeable without resetting healthy balances */
@@ -172,7 +181,7 @@ export async function runAutonomousCopyAnalystTick(): Promise<{
   const marketsResolved =
     await syncResolvedMarketsForAutonomousAnalysts(caller);
 
-  const openDbMarkets = await db.market.findMany({
+  const openDbMarketsRaw = await db.market.findMany({
     where: {
       status: "open",
       closesAt: { gt: new Date(Date.now() + 5 * 60 * 1000) },
@@ -180,6 +189,7 @@ export async function runAutonomousCopyAnalystTick(): Promise<{
     orderBy: { closesAt: "asc" },
     take: 120,
   });
+  const openDbMarkets = rankPrismaMarketsByCuration(openDbMarketsRaw);
 
   if (openDbMarkets.length === 0) {
     await caller.updateAnalystMetrics({}).catch(() => {});

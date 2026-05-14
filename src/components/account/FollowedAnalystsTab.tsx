@@ -8,6 +8,7 @@ import { VerificationBadge } from '~/components/analyst/VerificationBadge';
 import { TrendingUp, Target, Award, Users, UserMinus, ExternalLink } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import toast from 'react-hot-toast';
+import { formatRoiPct, roiTextClass } from '~/utils/formatCopyTrading';
 
 interface FollowedAnalystsTabProps {
   userWallet: string;
@@ -143,7 +144,9 @@ export function FollowedAnalystsTab({ userWallet }: FollowedAnalystsTabProps) {
                   <TrendingUp className="w-3 h-3" />
                   <span>ROI</span>
                 </div>
-                <div className="font-mono font-bold text-brand-green">+{analyst.roi}%</div>
+                <div className={`font-mono font-bold ${roiTextClass(analyst.roi)}`}>
+                  {formatRoiPct(analyst.roi)}
+                </div>
               </div>
               <div className="bg-white/5 rounded p-3">
                 <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
