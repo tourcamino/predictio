@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AnalystCard } from '~/components/affiliate/AnalystCard';
 import { CopyingAnalystsSection } from './CopyingAnalystsSection';
+import { formatRoiPct, formatWinRatePct, toFiniteNumber } from '~/utils/formatCopyTrading';
 
 interface SocialTradingDashboardProps {
   userWallet: string;
@@ -198,21 +199,24 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
             </div>
             <div className="bg-white/5 border border-white/10 rounded-lg p-4">
               <div className="text-sm text-gray-400 mb-1">Avg ROI</div>
-              <div className="font-mono font-bold text-2xl text-brand-green">
-                +
+              <div className="font-mono font-bold text-2xl text-brand-green truncate">
                 {analysts.length > 0
-                  ? (analysts.reduce((sum, a) => sum + a.roi, 0) / analysts.length).toFixed(1)
-                  : '0'}
-                %
+                  ? formatRoiPct(
+                      analysts.reduce((sum, a) => sum + toFiniteNumber(a.roi), 0) /
+                        analysts.length,
+                    )
+                  : formatRoiPct(0)}
               </div>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-lg p-4">
               <div className="text-sm text-gray-400 mb-1">Avg Win Rate</div>
-              <div className="font-mono font-bold text-2xl text-brand-cyan">
+              <div className="font-mono font-bold text-2xl text-brand-cyan truncate">
                 {analysts.length > 0
-                  ? (analysts.reduce((sum, a) => sum + a.winRate, 0) / analysts.length).toFixed(1)
-                  : '0'}
-                %
+                  ? formatWinRatePct(
+                      analysts.reduce((sum, a) => sum + toFiniteNumber(a.winRate), 0) /
+                        analysts.length,
+                    )
+                  : formatWinRatePct(0)}
               </div>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-lg p-4">

@@ -1,11 +1,17 @@
 import { Link } from "@tanstack/react-router";
-import { TrendingUp, Users, DollarSign } from "lucide-react";
+import { useState } from "react";
+import { TrendingUp, Users, DollarSign, Copy } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import type { Analyst } from "~/types/affiliate";
 import { useTRPC } from "~/trpc/react";
 import { useWalletStore } from "~/store/useWalletStore";
 import { VerificationBadge } from "~/components/analyst/VerificationBadge";
+import {
+  formatRoiPct,
+  formatWinRatePct,
+  shortenWallet,
+} from "~/utils/formatCopyTrading";
 
 interface AnalystCardProps {
   analyst: Analyst & {
@@ -18,6 +24,7 @@ export function AnalystCard({ analyst }: AnalystCardProps) {
   const queryClient = useQueryClient();
   const wallet = useWalletStore((state) => state.address);
   const openWalletModal = useWalletStore((state) => state.openWalletModal);
+  const [addressCopied, setAddressCopied] = useState(false);
 
   // Check if user is already following this analyst
   const followStatusQuery = useQuery({
@@ -89,17 +96,28 @@ export function AnalystCard({ analyst }: AnalystCardProps) {
 
   const isPending = followMutation.isPending || unfollowMutation.isPending;
 
+  const copyWalletAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(analyst.wallet);
+      setAddressCopied(true);
+      toast.success("Address copied");
+      setTimeout(() => setAddressCopied(false), 1600);
+    } catch {
+      toast.error("Could not copy address");
+    }
+  };
+
   return (
     <div className="bg-white/5 border border-white/10 rounded-lg p-6 hover:bg-white/10 transition-all hover:border-brand-green/30">
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center text-2xl">
+      <div className="mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-2xl">
             {analyst.avatar}
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-syne font-bold text-lg">{analyst.displayName}</h3>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-syne text-lg font-bold">{analyst.displayName}</h3>
               <VerificationBadge 
                 isVerified={analyst.isVerified || false}
                 verificationTier={analyst.verificationTier as any}
@@ -107,11 +125,36 @@ export function AnalystCard({ analyst }: AnalystCardProps) {
                 showLabel={false}
               />
             </div>
-            <p className="text-xs text-gray-400 font-mono">{analyst.wallet}</p>
+            <div className="mt-1 flex max-w-full items-center gap-1.5">
+              <p
+                className="truncate font-mono text-[11px] leading-tight text-gray-400 sm:text-xs"
+                title={analyst.wallet}
+              >
+                {shortenWallet(analyst.wallet, 8, 6)}
+              </p>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  void copyWalletAddress();
+                }}
+                className="shrink-0 rounded p-1 text-gray-500 hover:bg-white/10 hover:text-brand-green"
+                title="Copy full address"
+                aria-label="Copy wallet address"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+              {addressCopied ? (
+                <span className="shrink-0 text-[10px] text-brand-green">Copied</span>
+              ) : null}
+            </div>
           </div>
         </div>
-        <div className="text-xs text-gray-400">
-          35% commission
+        <div className="shrink-0 self-start rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-right">
+          <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+            Analyst share
+          </div>
+          <div className="whitespace-nowrap font-mono text-xs text-gray-200">35% of fees</div>
         </div>
       </div>
 
@@ -119,18 +162,24 @@ export function AnalystCard({ analyst }: AnalystCardProps) {
       <p className="text-sm text-gray-400 mb-4 line-clamp-2">{analyst.bio}</p>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-3 gap-4 mb-4 pb-4 border-b border-white/10">
-        <div>
-          <div className="text-xs text-gray-500 mb-1">ROI</div>
-          <div className="font-mono font-bold text-brand-green">+{analyst.roi}%</div>
+      <div className="mb-4 grid grid-cols-3 gap-2 border-b border-white/10 pb-4 sm:gap-4">
+        <div className="min-w-0">
+          <div className="mb-1 text-[10px] text-gray-500 sm:text-xs">ROI</div>
+          <div className="truncate font-mono text-sm font-bold text-brand-green sm:text-base">
+            {formatRoiPct(analyst.roi)}
+          </div>
         </div>
-        <div>
-          <div className="text-xs text-gray-500 mb-1">Win Rate</div>
-          <div className="font-mono font-bold text-brand-cyan">{analyst.winRate}%</div>
+        <div className="min-w-0">
+          <div className="mb-1 text-[10px] text-gray-500 sm:text-xs">Win Rate</div>
+          <div className="truncate font-mono text-sm font-bold text-brand-cyan sm:text-base">
+            {formatWinRatePct(analyst.winRate)}
+          </div>
         </div>
-        <div>
-          <div className="text-xs text-gray-500 mb-1">Predictions</div>
-          <div className="font-mono font-bold">{analyst.totalPredictions}</div>
+        <div className="min-w-0">
+          <div className="mb-1 text-[10px] text-gray-500 sm:text-xs">Predictions</div>
+          <div className="truncate font-mono text-sm font-bold sm:text-base">
+            {analyst.totalPredictions}
+          </div>
         </div>
       </div>
 
@@ -141,7 +190,9 @@ export function AnalystCard({ analyst }: AnalystCardProps) {
             <DollarSign className="w-4 h-4" />
             <span>Avg Odds</span>
           </div>
-          <span className="font-mono font-semibold">{analyst.avgOdds}x</span>
+          <span className="font-mono font-semibold">
+            {Number(analyst.avgOdds).toFixed(2)}x
+          </span>
         </div>
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-2 text-gray-400">
@@ -165,7 +216,7 @@ export function AnalystCard({ analyst }: AnalystCardProps) {
       <div className="mb-4">
         <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
           <span>Accuracy</span>
-          <span>{analyst.winRate}%</span>
+          <span>{formatWinRatePct(analyst.winRate)}</span>
         </div>
         <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
           <div

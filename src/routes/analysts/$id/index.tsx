@@ -24,12 +24,18 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { 
+import {
   generateTraderPerformanceShareText,
   getTwitterShareUrl,
   getTelegramShareUrl,
   getAnalystProfileUrl,
 } from "~/utils/shareUtils";
+import { TradingModalShell } from "~/components/ui/TradingModalShell";
+import {
+  formatRoiPct,
+  formatWinRatePct,
+  shortenWallet,
+} from "~/utils/formatCopyTrading";
 
 export const Route = createFileRoute("/analysts/$id/")({
   component: AnalystProfilePage,
@@ -220,7 +226,12 @@ function AnalystProfilePage() {
                       size="md"
                     />
                   </div>
-                  <p className="text-sm text-gray-400 font-mono mb-2">{analyst.wallet}</p>
+                  <p
+                    className="mb-2 max-w-full truncate font-mono text-sm text-gray-400"
+                    title={analyst.wallet}
+                  >
+                    {shortenWallet(analyst.wallet, 10, 8)}
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {analyst.sport.map((sport) => (
                       <span
@@ -235,37 +246,38 @@ function AnalystProfilePage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3">
+              <div className="flex w-full flex-shrink-0 flex-wrap gap-2 md:w-auto md:justify-end">
                 <button
                   onClick={handleFollowToggle}
                   disabled={isPending || followStatusQuery.isLoading}
-                  className={`px-8 py-3 font-bold rounded-lg transition-colors ${
+                  className={`min-h-[44px] flex-1 px-6 py-2.5 text-sm font-bold transition-colors sm:flex-initial sm:py-3 sm:text-base ${
                     isFollowing
-                      ? "bg-white/10 text-gray-400 hover:bg-white/5 hover:text-white cursor-pointer"
-                      : "bg-brand-green text-brand-bg hover:bg-brand-green/90"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      ? "cursor-pointer rounded-lg bg-white/10 text-gray-400 hover:border-white/20 hover:bg-white/5 hover:text-white"
+                      : "rounded-lg bg-brand-green text-brand-bg hover:bg-brand-green/90"
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
                 >
                   {isPending ? "..." : isFollowing ? "Following" : "Follow"}
                 </button>
                 <button
                   onClick={() => setShowCopyModal(true)}
-                  className="px-6 py-3 bg-brand-cyan/20 border border-brand-cyan text-brand-cyan font-bold rounded-lg hover:bg-brand-cyan/30 transition-colors flex items-center gap-2"
+                  className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg border border-brand-cyan bg-brand-cyan/20 px-4 py-2.5 text-sm font-bold text-brand-cyan transition-colors hover:bg-brand-cyan/30 sm:flex-initial sm:px-6 sm:py-3 sm:text-base"
                 >
-                  <Copy className="w-4 h-4" />
+                  <Copy className="h-4 w-4 shrink-0" />
                   {existingCopy ? "Manage Copy" : "Copy Portfolio"}
                 </button>
                 <button
                   onClick={() => setShowSharePerformanceModal(true)}
-                  className="px-6 py-3 bg-brand-green/20 border border-brand-green text-brand-green font-bold rounded-lg hover:bg-brand-green/30 transition-colors flex items-center gap-2"
+                  className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg border border-brand-green bg-brand-green/20 px-4 py-2.5 text-sm font-bold text-brand-green transition-colors hover:bg-brand-green/30 sm:flex-initial sm:px-6 sm:py-3 sm:text-base"
                 >
-                  <Share2 className="w-4 h-4" />
+                  <Share2 className="h-4 w-4 shrink-0" />
                   Share Stats
                 </button>
                 <button
                   onClick={handleShare}
-                  className="px-4 py-3 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 sm:h-[52px] sm:w-[52px]"
+                  aria-label="Copy link"
                 >
-                  {copiedLink ? <Copy className="w-5 h-5" /> : <Share2 className="w-5 h-5" />}
+                  {copiedLink ? <Copy className="h-5 w-5" /> : <Share2 className="h-5 w-5" />}
                 </button>
               </div>
             </div>
@@ -317,41 +329,45 @@ function AnalystProfilePage() {
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white/5 border border-white/10 rounded-lg p-6">
-              <div className="flex items-center gap-2 text-gray-400 mb-2">
-                <TrendingUp className="w-5 h-5" />
-                <span className="text-sm">ROI</span>
+          <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+            <div className="min-w-0 rounded-lg border border-white/10 bg-white/5 p-4 sm:p-6">
+              <div className="mb-2 flex items-center gap-2 text-gray-400">
+                <TrendingUp className="h-5 w-5 shrink-0" />
+                <span className="truncate text-sm">ROI</span>
               </div>
-              <div className="font-mono font-bold text-3xl text-brand-green">
-                +{analyst.roi}%
-              </div>
-            </div>
-
-            <div className="bg-white/5 border border-white/10 rounded-lg p-6">
-              <div className="flex items-center gap-2 text-gray-400 mb-2">
-                <Target className="w-5 h-5" />
-                <span className="text-sm">Win Rate</span>
-              </div>
-              <div className="font-mono font-bold text-3xl text-brand-cyan">
-                {analyst.winRate}%
+              <div className="truncate font-mono text-2xl font-bold text-brand-green sm:text-3xl">
+                {formatRoiPct(analyst.roi)}
               </div>
             </div>
 
-            <div className="bg-white/5 border border-white/10 rounded-lg p-6">
-              <div className="flex items-center gap-2 text-gray-400 mb-2">
-                <Award className="w-5 h-5" />
-                <span className="text-sm">Predictions</span>
+            <div className="min-w-0 rounded-lg border border-white/10 bg-white/5 p-4 sm:p-6">
+              <div className="mb-2 flex items-center gap-2 text-gray-400">
+                <Target className="h-5 w-5 shrink-0" />
+                <span className="truncate text-sm">Win Rate</span>
               </div>
-              <div className="font-mono font-bold text-3xl">{analyst.totalPredictions}</div>
+              <div className="truncate font-mono text-2xl font-bold text-brand-cyan sm:text-3xl">
+                {formatWinRatePct(analyst.winRate)}
+              </div>
             </div>
 
-            <div className="bg-white/5 border border-white/10 rounded-lg p-6">
-              <div className="flex items-center gap-2 text-gray-400 mb-2">
-                <Users className="w-5 h-5" />
-                <span className="text-sm">Followers</span>
+            <div className="min-w-0 rounded-lg border border-white/10 bg-white/5 p-4 sm:p-6">
+              <div className="mb-2 flex items-center gap-2 text-gray-400">
+                <Award className="h-5 w-5 shrink-0" />
+                <span className="truncate text-sm">Predictions</span>
               </div>
-              <div className="font-mono font-bold text-3xl">{analyst.followersCount}</div>
+              <div className="truncate font-mono text-2xl font-bold sm:text-3xl">
+                {analyst.totalPredictions}
+              </div>
+            </div>
+
+            <div className="min-w-0 rounded-lg border border-white/10 bg-white/5 p-4 sm:p-6">
+              <div className="mb-2 flex items-center gap-2 text-gray-400">
+                <Users className="h-5 w-5 shrink-0" />
+                <span className="truncate text-sm">Followers</span>
+              </div>
+              <div className="truncate font-mono text-2xl font-bold sm:text-3xl">
+                {analyst.followersCount}
+              </div>
             </div>
           </div>
 
@@ -578,27 +594,22 @@ function SharePerformanceModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-brand-bg border border-white/10 rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="font-syne font-bold text-2xl">Share Your Performance</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
+    <TradingModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Share performance"
+      description="Preview and share your public stats card."
+      size="lg"
+    >
         {/* Preview Card */}
-        <div className="bg-white/5 border border-white/10 rounded-lg p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center text-2xl">
+        <div className="mb-6 rounded-lg border border-white/10 bg-white/5 p-4 sm:p-5">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-2xl">
               {traderData.displayName.charAt(0)}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">{traderData.displayName}</span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="truncate font-bold">{traderData.displayName}</span>
                 <VerificationBadge 
                   isVerified={traderData.isVerified}
                   verificationTier={traderData.verificationTier}
@@ -610,53 +621,56 @@ function SharePerformanceModal({
             </div>
           </div>
           
-          <div className="whitespace-pre-wrap text-sm mb-4">{shareText}</div>
+          <div className="mb-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-200">
+            {shareText}
+          </div>
           
           {ogImageQuery.data?.url && (
             <img 
               src={ogImageQuery.data.url} 
               alt="Performance preview"
-              className="w-full rounded-lg border border-white/10"
+              className="max-h-48 w-full rounded-lg border border-white/10 object-contain sm:max-h-56"
             />
           )}
         </div>
 
         {/* Share Buttons */}
-        <div className="space-y-3 mb-6">
+        <div className="mb-4 space-y-2">
           <button
+            type="button"
             onClick={handleTwitterShare}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 hover:border-brand-green/30 transition-all group"
+            className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-3 transition-all hover:border-brand-green/30 hover:bg-white/10"
           >
-            <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-              <X className="w-5 h-5 text-white" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-black">
+              <X className="h-5 w-5 text-white" />
             </div>
-            <span className="font-semibold">Share on X (Twitter)</span>
+            <span className="font-semibold">Share on X</span>
           </button>
 
           <button
+            type="button"
             onClick={handleTelegramShare}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 hover:border-brand-green/30 transition-all group"
+            className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-3 transition-all hover:border-brand-green/30 hover:bg-white/10"
           >
-            <div className="w-10 h-10 bg-[#0088cc] rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Send className="w-5 h-5 text-white" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#0088cc]">
+              <Send className="h-5 w-5 text-white" />
             </div>
             <span className="font-semibold">Share on Telegram</span>
           </button>
         </div>
 
-        {/* Copy Text */}
         <button
+          type="button"
           onClick={handleCopyText}
-          className={`w-full px-4 py-3 rounded-lg font-semibold transition-all ${
+          className={`w-full rounded-lg px-4 py-3 font-semibold transition-all ${
             copied
-              ? 'bg-brand-green text-brand-bg'
-              : 'bg-white/5 border border-white/10 hover:bg-white/10'
+              ? "bg-brand-green text-brand-bg"
+              : "border border-white/10 bg-white/5 hover:bg-white/10"
           }`}
         >
-          {copied ? '✓ Copied!' : 'Copy Share Text'}
+          {copied ? "Copied" : "Copy share text"}
         </button>
-      </div>
-    </div>
+    </TradingModalShell>
   );
 }
 

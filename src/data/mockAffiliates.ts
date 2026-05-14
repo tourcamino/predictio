@@ -34,10 +34,10 @@ export const mockAnalysts: Analyst[] = [
     wallet: "0x9b3c8e1f7a2d465089c4e2b7f1a5069384758291c",
     displayName: "EdgeRunner_Neo",
     avatar: "⚡",
-    bio: "Higher churn across football & MMA. Wins and bruises both show up — size varies with conviction.",
+    bio: "Higher churn on football cards with occasional UFC spots. Wins and bruises both show up — size varies with conviction.",
     featuredQuote:
       "Paper trading first; sizing down after rough weeks. Nothing here is financial advice.",
-    sport: ["Football", "MMA", "Basketball"],
+    sport: ["Football", "MMA"],
     verificationTier: null,
     roi: 14.8,
     winRate: 56,
@@ -58,10 +58,10 @@ export const mockAnalysts: Analyst[] = [
     wallet: "0x4f6e2d9c8b1a073649f5e3d2c8b1a907564839201f",
     displayName: "FadePublic_Nika",
     avatar: "📉",
-    bio: "Looks for mispriced sides when the board feels stretched. Win rate is mediocre; payoff asymmetry matters more.",
+    bio: "Looks for mispriced football sides when the board feels stretched. Win rate is mediocre; payoff asymmetry matters more.",
     featuredQuote:
       "Care more about payoff skew than headline win rate — boring but keeps sizing sane.",
-    sport: ["Football", "Tennis"],
+    sport: ["Football"],
     verificationTier: null,
     roi: 11.3,
     winRate: 54,
@@ -90,6 +90,8 @@ export const COPY_SEED_PLATFORM_EVENTS = {
   DJOKOVIC_VS_ALCARAZ: "Novak Djokovic vs Carlos Alcaraz",
   REAL_MADRID_VS_FC_BARCELONA: "Real Madrid vs FC Barcelona",
   BAYERN_VS_DORTMUND: "Bayern Munich vs Borussia Dortmund",
+  /** Aligns with paper `mockMarkets` / typical DB UFC line for MMA persona rows */
+  UFC_PEREIRA_ANKALAEV: "Pereira vs Ankalaev",
 } as const;
 
 /** Prefer these when attaching seed `Order` rows to markets (subset order = tie-break). */
@@ -99,6 +101,7 @@ export const COPY_SEED_MARKET_SORT_SUBSTRINGS: readonly string[] = [
   COPY_SEED_PLATFORM_EVENTS.INTER_VS_FC_BARCELONA,
   COPY_SEED_PLATFORM_EVENTS.INTER_VS_AC_MILAN,
   COPY_SEED_PLATFORM_EVENTS.REAL_MADRID_VS_FC_BARCELONA,
+  COPY_SEED_PLATFORM_EVENTS.UFC_PEREIRA_ANKALAEV,
   COPY_SEED_PLATFORM_EVENTS.DJOKOVIC_VS_ALCARAZ,
 ];
 
@@ -129,13 +132,12 @@ export const copySeedRecentTradesByWallet: Record<string, CopySeedRecentTrade[]>
       daysAgo: 2,
     },
     {
-      event: COPY_SEED_PLATFORM_EVENTS.DJOKOVIC_VS_ALCARAZ,
-      side: "YES",
+      event: COPY_SEED_PLATFORM_EVENTS.INTER_VS_AC_MILAN,
+      side: "NO",
       stakeUsd: 95,
       result: "Lost",
       profitUsd: -95,
       daysAgo: 5,
-      sport: "Tennis",
     },
     {
       event: COPY_SEED_PLATFORM_EVENTS.BAYERN_VS_DORTMUND,
@@ -146,7 +148,7 @@ export const copySeedRecentTradesByWallet: Record<string, CopySeedRecentTrade[]>
       daysAgo: 9,
     },
     {
-      event: COPY_SEED_PLATFORM_EVENTS.MANCHESTER_CITY_VS_ARSENAL,
+      event: COPY_SEED_PLATFORM_EVENTS.REAL_MADRID_VS_FC_BARCELONA,
       side: "YES",
       stakeUsd: 310,
       result: "Won",
@@ -172,13 +174,13 @@ export const copySeedRecentTradesByWallet: Record<string, CopySeedRecentTrade[]>
       daysAgo: 4,
     },
     {
-      event: COPY_SEED_PLATFORM_EVENTS.DJOKOVIC_VS_ALCARAZ,
+      event: COPY_SEED_PLATFORM_EVENTS.UFC_PEREIRA_ANKALAEV,
       side: "NO",
-      stakeUsd: 500,
+      stakeUsd: 220,
       result: "Won",
-      profitUsd: 318,
+      profitUsd: 118,
       daysAgo: 7,
-      sport: "Tennis",
+      sport: "MMA",
     },
     {
       event: COPY_SEED_PLATFORM_EVENTS.BAYERN_VS_DORTMUND,
@@ -189,7 +191,7 @@ export const copySeedRecentTradesByWallet: Record<string, CopySeedRecentTrade[]>
       daysAgo: 11,
     },
     {
-      event: COPY_SEED_PLATFORM_EVENTS.MANCHESTER_CITY_VS_ARSENAL,
+      event: COPY_SEED_PLATFORM_EVENTS.INTER_VS_FC_BARCELONA,
       side: "YES",
       stakeUsd: 260,
       result: "Won",
@@ -199,13 +201,12 @@ export const copySeedRecentTradesByWallet: Record<string, CopySeedRecentTrade[]>
   ],
   [mockAnalysts[2]!.wallet.toLowerCase()]: [
     {
-      event: COPY_SEED_PLATFORM_EVENTS.DJOKOVIC_VS_ALCARAZ,
+      event: COPY_SEED_PLATFORM_EVENTS.INTER_VS_FC_BARCELONA,
       side: "NO",
       stakeUsd: 200,
       result: "Won",
       profitUsd: 155,
       daysAgo: 3,
-      sport: "Tennis",
     },
     {
       event: COPY_SEED_PLATFORM_EVENTS.MANCHESTER_CITY_VS_ARSENAL,
@@ -224,13 +225,12 @@ export const copySeedRecentTradesByWallet: Record<string, CopySeedRecentTrade[]>
       daysAgo: 10,
     },
     {
-      event: COPY_SEED_PLATFORM_EVENTS.DJOKOVIC_VS_ALCARAZ,
-      side: "YES",
+      event: COPY_SEED_PLATFORM_EVENTS.REAL_MADRID_VS_FC_BARCELONA,
+      side: "NO",
       stakeUsd: 125,
       result: "Lost",
       profitUsd: -125,
       daysAgo: 16,
-      sport: "Tennis",
     },
   ],
 };

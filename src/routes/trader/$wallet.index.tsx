@@ -22,11 +22,18 @@ import {
   Send
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { 
+import {
   generateTraderPerformanceShareText,
   getTwitterShareUrl,
   getTelegramShareUrl,
 } from "~/utils/shareUtils";
+import { TradingModalShell } from "~/components/ui/TradingModalShell";
+import {
+  formatRoiPct,
+  formatWinRatePct,
+  shortenWallet,
+} from "~/utils/formatCopyTrading";
+import { mockAnalysts, getCopySeedPredictionHistoryRows } from "~/data/mockAffiliates";
 import { useTRPC } from "~/trpc/react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -45,6 +52,10 @@ function TraderProfilePage() {
   const [showSharePerformanceModal, setShowSharePerformanceModal] = useState(false);
 
   const walletNormalized = wallet.trim().toLowerCase();
+
+  const seedAnalystProfile = mockAnalysts.find(
+    (a) => a.wallet.toLowerCase() === walletNormalized,
+  );
 
   // TODO CURSOR C1: replace with real API call to /api/trader/{wallet}
   const trader = resolveMockTrader(wallet);
@@ -114,48 +125,59 @@ function TraderProfilePage() {
       <div className="pb-20 px-4">
         <div className="max-w-7xl mx-auto">
           {/* Profile Header */}
-          <div className="bg-white/5 border border-white/10 rounded-lg p-8 mb-8">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="mb-8 flex flex-col gap-6 rounded-lg border border-white/10 bg-white/5 p-6 md:flex-row md:items-start md:justify-between">
               {/* Trader Info */}
-              <div>
-                <h1 className="font-mono font-bold text-3xl mb-2">{trader.wallet}</h1>
-                <p className="text-gray-400">
-                  Member since {new Date(trader.memberSince).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              <div className="min-w-0 flex-1">
+                <h1 className="mb-1 font-syne text-2xl font-bold text-white md:text-3xl">
+                  {seedAnalystProfile?.displayName ?? shortenWallet(trader.wallet, 8, 6)}
+                </h1>
+                <p
+                  className="mb-2 font-mono text-xs text-gray-400 sm:text-sm"
+                  title={trader.wallet}
+                >
+                  {shortenWallet(trader.wallet, 12, 8)}
+                </p>
+                <p className="text-sm text-gray-400">
+                  Member since{" "}
+                  {new Date(trader.memberSince).toLocaleDateString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })}
                 </p>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3">
+              <div className="flex w-full flex-shrink-0 flex-wrap gap-2 md:w-auto md:justify-end">
                 <button
                   onClick={handleCopyClick}
-                  className="px-8 py-3 bg-brand-green text-brand-bg font-bold rounded-lg hover:bg-brand-green/90 transition-colors flex items-center gap-2"
+                  className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg bg-brand-green px-4 py-2.5 text-sm font-bold text-brand-bg transition-colors hover:bg-brand-green/90 sm:flex-initial sm:px-8 sm:py-3 sm:text-base"
                 >
-                  <Copy className="w-4 h-4" />
+                  <Copy className="h-4 w-4 shrink-0" />
                   Copy This Trader
                 </button>
                 <button
                   onClick={() => setShowSharePerformanceModal(true)}
-                  className="px-6 py-3 bg-brand-green/20 border border-brand-green text-brand-green font-bold rounded-lg hover:bg-brand-green/30 transition-colors flex items-center gap-2"
+                  className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg border border-brand-green bg-brand-green/20 px-4 py-2.5 text-sm font-bold text-brand-green transition-colors hover:bg-brand-green/30 sm:flex-initial sm:px-6 sm:py-3 sm:text-base"
                 >
-                  <Share2 className="w-4 h-4" />
+                  <Share2 className="h-4 w-4 shrink-0" />
                   Share Stats
                 </button>
                 <button
                   onClick={handleShare}
-                  className="px-4 py-3 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 sm:h-[52px] sm:w-[52px]"
+                  aria-label="Copy link"
                 >
-                  {copiedLink ? <CheckCircle className="w-5 h-5" /> : <Share2 className="w-5 h-5" />}
+                  {copiedLink ? <CheckCircle className="h-5 w-5" /> : <Share2 className="h-5 w-5" />}
                 </button>
               </div>
-            </div>
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
             <StatCard
               icon={TrendingUp}
               label="Win Rate"
-              value={`${trader.winRate}%`}
+              value={formatWinRatePct(trader.winRate)}
               color="text-brand-green"
             />
             <StatCard
@@ -267,7 +289,12 @@ function TraderProfilePage() {
             {/* Tab Content */}
             <div className="p-6">
               {activeTab === 'positions' && <OpenPositionsTab trades={openTrades} />}
-              {activeTab === 'history' && <HistoryTab trader={trader} />}
+              {activeTab === 'history' && (
+                <HistoryTab
+                  walletLookup={walletNormalized}
+                  seedSports={seedAnalystProfile?.sport}
+                />
+              )}
               {activeTab === 'copiers' && <CopiersTab count={trader.activeCopiers} />}
             </div>
           </div>
@@ -288,7 +315,7 @@ function TraderProfilePage() {
           isOpen={showSharePerformanceModal}
           onClose={() => setShowSharePerformanceModal(false)}
           traderData={{
-            displayName: trader.wallet,
+            displayName: seedAnalystProfile?.displayName ?? shortenWallet(trader.wallet, 6, 4),
             wallet: trader.wallet,
             totalPnl: trader.totalPnl || 0,
             roi: trader.roi || 0,
@@ -316,12 +343,14 @@ function StatCard({
   color: string;
 }) {
   return (
-    <div className="bg-white/5 border border-white/10 rounded-lg p-6">
-      <div className="flex items-center gap-2 text-gray-400 mb-2">
-        <Icon className="w-5 h-5" />
-        <span className="text-sm">{label}</span>
+    <div className="min-w-0 rounded-lg border border-white/10 bg-white/5 p-4 sm:p-6">
+      <div className="mb-2 flex items-center gap-2 text-gray-400">
+        <Icon className="h-5 w-5 shrink-0" />
+        <span className="truncate text-sm">{label}</span>
       </div>
-      <div className={`font-mono font-bold text-3xl ${color}`}>{value}</div>
+      <div className={`font-mono font-bold ${color} text-2xl tabular-nums sm:text-3xl`}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -377,59 +406,87 @@ function OpenPositionsTab({ trades }: { trades: MockOpenTrade[] }) {
   );
 }
 
-function HistoryTab({ trader }: { trader: MockTrader }) {
-  // TODO CURSOR C1: replace with real API call to /api/trades/history?trader={wallet}
-  const mockHistory = [
-    {
-      id: '1',
-      market: 'Real Madrid vs Barcelona',
-      outcome: 'Won',
-      profit: 45,
-      date: Date.now() - 2 * 24 * 60 * 60 * 1000
-    },
-    {
-      id: '2',
-      market: 'Lakers vs Celtics',
-      outcome: 'Lost',
-      profit: -25,
-      date: Date.now() - 5 * 24 * 60 * 60 * 1000
-    }
-  ];
+function HistoryTab({
+  walletLookup,
+  seedSports,
+}: {
+  walletLookup: string;
+  seedSports?: string[];
+}) {
+  const seedRows = getCopySeedPredictionHistoryRows(
+    walletLookup,
+    seedSports?.[0] ?? "Football",
+  );
+
+  const rows =
+    seedRows.length > 0
+      ? seedRows.map((r) => ({
+          id: r.id,
+          market: r.event,
+          outcome: r.outcome,
+          profit: r.profit,
+          date: r.timestamp,
+          sport: r.sport,
+        }))
+      : [
+          {
+            id: "1",
+            market: "Real Madrid vs Barcelona",
+            outcome: "Won" as const,
+            profit: 45,
+            date: Date.now() - 2 * 24 * 60 * 60 * 1000,
+            sport: "Football",
+          },
+          {
+            id: "2",
+            market: "Bayern Munich vs Borussia Dortmund",
+            outcome: "Lost" as const,
+            profit: -25,
+            date: Date.now() - 5 * 24 * 60 * 60 * 1000,
+            sport: "Football",
+          },
+        ];
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full">
+      <table className="w-full min-w-[520px]">
         <thead>
           <tr className="border-b border-white/10">
-            <th className="text-left py-3 px-4 text-sm font-semibold text-gray-400">Market</th>
-            <th className="text-left py-3 px-4 text-sm font-semibold text-gray-400">Result</th>
-            <th className="text-left py-3 px-4 text-sm font-semibold text-gray-400">P&L</th>
-            <th className="text-left py-3 px-4 text-sm font-semibold text-gray-400">Date</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-400">Market</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-400">Sport</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-400">Result</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-400">P&L</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-400">Date</th>
           </tr>
         </thead>
         <tbody>
-          {mockHistory.map((trade) => (
+          {rows.map((trade) => (
             <tr key={trade.id} className="border-b border-white/5 hover:bg-white/5">
-              <td className="py-3 px-4 font-semibold">{trade.market}</td>
-              <td className="py-3 px-4">
-                {trade.outcome === 'Won' ? (
+              <td className="max-w-[220px] truncate px-4 py-3 font-semibold" title={trade.market}>
+                {trade.market}
+              </td>
+              <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-400">{trade.sport}</td>
+              <td className="px-4 py-3">
+                {trade.outcome === "Won" ? (
                   <span className="flex items-center gap-1 text-brand-green">
-                    <CheckCircle className="w-4 h-4" />
+                    <CheckCircle className="h-4 w-4 shrink-0" />
                     Won
                   </span>
                 ) : (
                   <span className="flex items-center gap-1 text-red-400">
-                    <XCircle className="w-4 h-4" />
+                    <XCircle className="h-4 w-4 shrink-0" />
                     Lost
                   </span>
                 )}
               </td>
-              <td className={`py-3 px-4 font-mono font-bold ${
-                trade.profit > 0 ? 'text-brand-green' : 'text-red-400'
-              }`}>
-                {trade.profit > 0 ? '+' : ''}${trade.profit}
+              <td
+                className={`px-4 py-3 font-mono text-sm font-bold ${
+                  trade.profit > 0 ? "text-brand-green" : "text-red-400"
+                }`}
+              >
+                {trade.profit > 0 ? "+" : ""}${Math.round(trade.profit)}
               </td>
-              <td className="py-3 px-4 text-gray-400 text-sm">
+              <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-400">
                 {new Date(trade.date).toLocaleDateString()}
               </td>
             </tr>
@@ -443,24 +500,34 @@ function HistoryTab({ trader }: { trader: MockTrader }) {
 function CopiersTab({ count }: { count: number }) {
   // TODO CURSOR C1: replace with real API call to /api/copiers?trader={wallet}
   const mockCopiers = Array.from({ length: Math.min(count, 10) }, (_, i) => ({
-    wallet: `0x${Math.random().toString(16).slice(2, 6)}...${Math.random().toString(16).slice(2, 6)}`,
-    since: Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
+    wallet: shortenWallet(
+      `0x${((i + 1) * 1103515245).toString(16).padStart(36, "0").slice(0, 40)}`,
+      6,
+      4,
+    ),
+    since: Date.now() - ((i * 3 + 1) % 28) * 24 * 60 * 60 * 1000,
   }));
 
   return (
     <div>
-      <p className="text-gray-400 mb-6">
-        {count} {count === 1 ? 'trader is' : 'traders are'} currently copying this strategy
+      <p className="mb-6 text-gray-400">
+        {count} {count === 1 ? "trader is" : "traders are"} currently copying this strategy
       </p>
       <div className="space-y-3">
         {mockCopiers.map((copier, index) => (
           <div
             key={index}
-            className="flex items-center justify-between p-4 bg-white/5 rounded-lg"
+            className="flex flex-col gap-1 rounded-lg bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between"
           >
-            <span className="font-mono">{copier.wallet}</span>
-            <span className="text-sm text-gray-500">
-              Since {new Date(copier.since).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+            <span className="truncate font-mono text-sm" title={copier.wallet}>
+              {copier.wallet}
+            </span>
+            <span className="shrink-0 text-sm text-gray-500">
+              Since{" "}
+              {new Date(copier.since).toLocaleDateString("en-US", {
+                month: "short",
+                year: "numeric",
+              })}
             </span>
           </div>
         ))}
@@ -474,41 +541,44 @@ function SimpleCopyModal({ traderWallet, onClose }: { traderWallet: string; onCl
 
   const handleConfirm = () => {
     // TODO CURSOR C1: replace with real API call to /api/copy/start
-    toast.success(`You're now copying ${traderWallet}`);
+    toast.success(`You're now copying ${shortenWallet(traderWallet, 6, 4)}`);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-brand-bg border border-white/10 rounded-xl max-w-md w-full p-6">
-        <h3 className="font-syne font-bold text-2xl mb-4">Copy {traderWallet}</h3>
-        
-        <div className="mb-6">
-          <label className="block text-sm font-semibold mb-2">Max allocation per trade</label>
-          <input
-            type="number"
-            value={allocation}
-            onChange={(e) => setAllocation(Number(e.target.value))}
-            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:border-brand-green focus:outline-none"
-          />
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 bg-white/5 border border-white/10 font-semibold rounded-lg hover:bg-white/10 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirm}
-            className="flex-1 py-3 bg-brand-green text-brand-bg font-bold rounded-lg hover:bg-brand-green/90 transition-colors"
-          >
-            Confirm
-          </button>
-        </div>
+    <TradingModalShell
+      isOpen
+      onClose={onClose}
+      title="Copy this trader"
+      description={`Wallet ${shortenWallet(traderWallet, 8, 6)} · max USDC per mirrored trade`}
+    >
+      <div className="mb-6">
+        <label className="mb-2 block text-sm font-semibold">Max allocation per trade</label>
+        <input
+          type="number"
+          value={allocation}
+          onChange={(e) => setAllocation(Number(e.target.value))}
+          className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-mono focus:border-brand-green focus:outline-none"
+        />
       </div>
-    </div>
+
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex-1 rounded-lg border border-white/10 bg-white/5 py-3 font-semibold transition-colors hover:bg-white/10"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleConfirm}
+          className="flex-1 rounded-lg bg-brand-green py-3 font-bold text-brand-bg transition-colors hover:bg-brand-green/90"
+        >
+          Confirm
+        </button>
+      </div>
+    </TradingModalShell>
   );
 }
 
@@ -558,82 +628,74 @@ function SharePerformanceModal({
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-brand-bg border border-white/10 rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="font-syne font-bold text-2xl">Share Your Performance</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        {/* Preview Card */}
-        <div className="bg-white/5 border border-white/10 rounded-lg p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center text-2xl">
+    <TradingModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Share performance"
+      description="Preview and share this trader card."
+      size="lg"
+    >
+        <div className="mb-6 rounded-lg border border-white/10 bg-white/5 p-4 sm:p-5">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-2xl">
               👤
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">{traderData.displayName}</span>
-              </div>
+            <div className="min-w-0">
+              <div className="truncate font-bold">{traderData.displayName}</div>
               <span className="text-sm text-gray-400">@Predictio</span>
             </div>
           </div>
-          
-          <div className="whitespace-pre-wrap text-sm mb-4">{shareText}</div>
-          
+
+          <div className="mb-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-200">
+            {shareText}
+          </div>
+
           {ogImageQuery.data?.url && (
-            <img 
-              src={ogImageQuery.data.url} 
+            <img
+              src={ogImageQuery.data.url}
               alt="Performance preview"
-              className="w-full rounded-lg border border-white/10"
+              className="max-h-48 w-full rounded-lg border border-white/10 object-contain sm:max-h-56"
             />
           )}
         </div>
 
-        {/* Share Buttons */}
-        <div className="space-y-3 mb-6">
+        <div className="mb-4 space-y-2">
           <button
+            type="button"
             onClick={handleTwitterShare}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 hover:border-brand-green/30 transition-all group"
+            className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-3 transition-all hover:border-brand-green/30 hover:bg-white/10"
           >
-            <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-              <X className="w-5 h-5 text-white" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-black">
+              <X className="h-5 w-5 text-white" />
             </div>
-            <span className="font-semibold">Share on X (Twitter)</span>
+            <span className="font-semibold">Share on X</span>
           </button>
 
           <button
+            type="button"
             onClick={handleTelegramShare}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 hover:border-brand-green/30 transition-all group"
+            className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-3 transition-all hover:border-brand-green/30 hover:bg-white/10"
           >
-            <div className="w-10 h-10 bg-[#0088cc] rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Send className="w-5 h-5 text-white" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#0088cc]">
+              <Send className="h-5 w-5 text-white" />
             </div>
             <span className="font-semibold">Share on Telegram</span>
           </button>
         </div>
 
-        {/* Copy Text */}
         <button
+          type="button"
           onClick={handleCopyText}
-          className={`w-full px-4 py-3 rounded-lg font-semibold transition-all ${
+          className={`w-full rounded-lg px-4 py-3 font-semibold transition-all ${
             copied
-              ? 'bg-brand-green text-brand-bg'
-              : 'bg-white/5 border border-white/10 hover:bg-white/10'
+              ? "bg-brand-green text-brand-bg"
+              : "border border-white/10 bg-white/5 hover:bg-white/10"
           }`}
         >
-          {copied ? '✓ Copied!' : 'Copy Share Text'}
+          {copied ? "Copied" : "Copy share text"}
         </button>
-      </div>
-    </div>
+    </TradingModalShell>
   );
 }
 

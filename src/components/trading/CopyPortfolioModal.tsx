@@ -8,6 +8,11 @@ import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import toast from 'react-hot-toast';
 import { MarketSelectionUI } from './MarketSelectionUI';
+import {
+  formatRoiPct,
+  formatWinRatePct,
+  shortenWallet,
+} from "~/utils/formatCopyTrading";
 interface CopyPortfolioModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -94,6 +99,18 @@ export function CopyPortfolioModal({
     })
     .filter((m): m is NonNullable<typeof m> => m !== null);
 
+  const analystSportAllowlist = useMemo(
+    () => new Set(analyst.sport.map((s) => s.trim().toLowerCase())),
+    [analyst.sport],
+  );
+
+  /** Selective copy: only markets whose sport matches the analyst profile (e.g. football-only personas). */
+  const marketsMatchingAnalystSports = useMemo(() => {
+    return availableMarkets.filter((m) =>
+      analystSportAllowlist.has((m.sport || "").trim().toLowerCase()),
+    );
+  }, [availableMarkets, analystSportAllowlist]);
+
   const startCopyMutation = useMutation(
     trpc.startCopyTrading.mutationOptions({
       onSuccess: () => {
@@ -162,7 +179,7 @@ export function CopyPortfolioModal({
   return (
     <>
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog as="div" className="relative z-[100]" onClose={onClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -172,11 +189,11 @@ export function CopyPortfolioModal({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+          <div className="fixed inset-0 bg-black/75 backdrop-blur-sm" aria-hidden />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
+          <div className="flex min-h-full items-center justify-center p-4 sm:p-5">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-300"
@@ -186,23 +203,27 @@ export function CopyPortfolioModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-lg bg-brand-navy border border-brand-green/30 shadow-xl transition-all">
+              <Dialog.Panel className="flex max-h-[min(88vh,720px)] w-full max-w-lg transform flex-col overflow-hidden rounded-xl border border-brand-green/30 bg-brand-navy shadow-2xl transition-all">
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-white/10">
-                  <Dialog.Title className="font-syne text-xl font-bold flex items-center gap-2">
-                    <Copy className="w-5 h-5 text-brand-green" />
-                    {existingCopy ? 'Manage Copy Trading' : 'Copy Portfolio'}
+                <div className="flex shrink-0 items-center justify-between border-b border-white/10 p-5">
+                  <Dialog.Title className="flex items-center gap-2 font-syne text-lg font-bold sm:text-xl">
+                    <Copy className="h-5 w-5 shrink-0 text-brand-green" />
+                    <span className="min-w-0 truncate">
+                      {existingCopy ? "Manage Copy Trading" : "Copy Portfolio"}
+                    </span>
                   </Dialog.Title>
                   <button
+                    type="button"
                     onClick={onClose}
-                    className="text-gray-400 hover:text-white transition-colors"
+                    className="shrink-0 rounded-full p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                    aria-label="Close"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="h-5 w-5" />
                   </button>
                 </div>
 
                 {/* Content */}
-                <div className="p-6 space-y-6">
+                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-5 sm:p-6">
                   {/* Analyst Info */}
                   <div className="bg-white/5 border border-white/10 rounded-lg p-4">
                     <div className="flex items-center gap-3 mb-4">
@@ -211,33 +232,42 @@ export function CopyPortfolioModal({
                       </div>
                       <div>
                         <div className="font-bold">{analyst.displayName}</div>
-                        <div className="text-xs text-gray-400 font-mono">
-                          {analyst.wallet.slice(0, 6)}...{analyst.wallet.slice(-4)}
+                        <div
+                          className="truncate font-mono text-xs text-gray-400"
+                          title={analyst.wallet}
+                        >
+                          {shortenWallet(analyst.wallet, 6, 4)}
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-white/5 rounded p-2">
-                        <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
-                          <TrendingUp className="w-3 h-3" />
-                          ROI
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                      <div className="min-w-0 rounded bg-white/5 p-2">
+                        <div className="mb-1 flex items-center gap-1 text-[10px] text-gray-400 sm:text-xs">
+                          <TrendingUp className="h-3 w-3 shrink-0" />
+                          <span className="truncate">ROI</span>
                         </div>
-                        <div className="font-mono font-bold text-brand-green">+{analyst.roi}%</div>
+                        <div className="truncate font-mono text-sm font-bold text-brand-green">
+                          {formatRoiPct(analyst.roi)}
+                        </div>
                       </div>
-                      <div className="bg-white/5 rounded p-2">
-                        <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
-                          <Target className="w-3 h-3" />
-                          Win Rate
+                      <div className="min-w-0 rounded bg-white/5 p-2">
+                        <div className="mb-1 flex items-center gap-1 text-[10px] text-gray-400 sm:text-xs">
+                          <Target className="h-3 w-3 shrink-0" />
+                          <span className="truncate">Win</span>
                         </div>
-                        <div className="font-mono font-bold text-brand-cyan">{analyst.winRate}%</div>
+                        <div className="truncate font-mono text-sm font-bold text-brand-cyan">
+                          {formatWinRatePct(analyst.winRate)}
+                        </div>
                       </div>
-                      <div className="bg-white/5 rounded p-2">
-                        <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
-                          <Award className="w-3 h-3" />
-                          Trades
+                      <div className="min-w-0 rounded bg-white/5 p-2">
+                        <div className="mb-1 flex items-center gap-1 text-[10px] text-gray-400 sm:text-xs">
+                          <Award className="h-3 w-3 shrink-0" />
+                          <span className="truncate">Trades</span>
                         </div>
-                        <div className="font-mono font-bold">{analyst.totalPredictions}</div>
+                        <div className="truncate font-mono text-sm font-bold">
+                          {analyst.totalPredictions}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -328,25 +358,37 @@ export function CopyPortfolioModal({
                   {/* Market Selection UI */}
                   {copyMode === 'selective' && (
                     <div className="border-t border-white/10 pt-4">
-                      <h3 className="font-semibold text-sm mb-3">Select Markets to Copy</h3>
+                      <h3 className="mb-1 text-sm font-semibold">Select markets to copy</h3>
+                      <p className="mb-3 text-xs text-gray-500">
+                        Only markets in this analyst&apos;s sports ({analyst.sport.join(", ")}) are shown.
+                      </p>
                       
                       {analystPositionsQuery.isLoading ? (
                         <div className="p-6 text-center">
-                          <div className="animate-spin w-6 h-6 border-2 border-brand-green border-t-transparent rounded-full mx-auto mb-2" />
-                          <p className="text-sm text-gray-400">Loading analyst's markets...</p>
+                          <div className="mx-auto mb-2 h-6 w-6 animate-spin rounded-full border-2 border-brand-green border-t-transparent" />
+                          <p className="text-sm text-gray-400">Loading analyst&apos;s markets...</p>
                         </div>
                       ) : availableMarkets.length === 0 ? (
-                        <div className="p-6 text-center bg-white/5 border border-white/10 rounded-lg">
-                          <p className="text-sm text-gray-400 mb-2">
+                        <div className="rounded-lg border border-white/10 bg-white/5 p-6 text-center">
+                          <p className="mb-2 text-sm text-gray-400">
                             This analyst has no open positions yet
                           </p>
                           <p className="text-xs text-gray-500">
-                            Switch to "Copy All Trades" to start copying when they place new trades
+                            Switch to &quot;Copy All Trades&quot; to start copying when they place new trades
+                          </p>
+                        </div>
+                      ) : marketsMatchingAnalystSports.length === 0 ? (
+                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-6 text-center">
+                          <p className="mb-2 text-sm text-amber-100">
+                            No open positions in {analyst.sport.join(" / ")} right now
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            Use &quot;Copy All Trades&quot; to mirror their next tickets, or check back when they open a line in their sports.
                           </p>
                         </div>
                       ) : (
                         <MarketSelectionUI
-                          markets={availableMarkets}
+                          markets={marketsMatchingAnalystSports}
                           initialSelected={selectedMarkets}
                           onSelectionChange={setSelectedMarkets}
                         />

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Check, AlertCircle } from 'lucide-react';
-import { SPORT_METADATA } from '~/data/mockMarkets';
 
 interface Market {
   id: string;
@@ -45,10 +44,12 @@ export function MarketSelectionUI({
   // Get unique sports from markets
   const availableSports = Array.from(new Set(markets.map(m => m.sport)));
   
+  const normSport = (s: string) => s.trim().toLowerCase();
+
   // Filter markets by sport
   const filteredMarkets = sportFilter === 'all' 
     ? markets 
-    : markets.filter(m => m.sport === sportFilter);
+    : markets.filter(m => normSport(m.sport) === sportFilter);
 
   const toggleAll = () => {
     if (selectedMarkets.size === filteredMarkets.length) {
@@ -61,10 +62,11 @@ export function MarketSelectionUI({
   // Sport filter buttons
   const sportFilters = [
     { key: 'all', label: 'All', count: markets.length },
-    { key: 'football', label: 'Football', count: markets.filter(m => m.sport === 'football').length },
-    { key: 'basketball', label: 'Basketball', count: markets.filter(m => m.sport === 'basketball').length },
-    { key: 'mma', label: 'MMA', count: markets.filter(m => m.sport === 'mma').length },
-    { key: 'other', label: 'Other', count: markets.filter(m => !['football', 'basketball', 'mma'].includes(m.sport)).length },
+    { key: 'football', label: 'Football', count: markets.filter(m => normSport(m.sport) === 'football').length },
+    { key: 'basketball', label: 'Basketball', count: markets.filter(m => normSport(m.sport) === 'basketball').length },
+    { key: 'mma', label: 'MMA', count: markets.filter(m => normSport(m.sport) === 'mma').length },
+    { key: 'tennis', label: 'Tennis', count: markets.filter(m => normSport(m.sport) === 'tennis').length },
+    { key: 'other', label: 'Other', count: markets.filter(m => !['football', 'basketball', 'mma', 'tennis'].includes(normSport(m.sport))).length },
   ].filter(f => f.count > 0 || f.key === 'all');
 
   return (
@@ -139,27 +141,29 @@ export function MarketSelectionUI({
 
                 {/* Market Info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="mb-2 flex items-center gap-2">
                     <span className="text-xl">{market.sportEmoji}</span>
-                    <span className="font-semibold text-sm">{market.event}</span>
+                    <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">
+                      {market.event}
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <div className="text-xs text-gray-400 mb-0.5">YES Price</div>
-                      <div className="font-mono text-sm font-bold text-brand-green">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <div className="min-w-0">
+                      <div className="mb-0.5 text-[10px] text-gray-400 sm:text-xs">YES</div>
+                      <div className="truncate font-mono text-xs font-bold text-brand-green sm:text-sm">
                         ${market.yesPrice.toFixed(2)}
                       </div>
                     </div>
-                    <div>
-                      <div className="text-xs text-gray-400 mb-0.5">NO Price</div>
-                      <div className="font-mono text-sm font-bold text-red-400">
+                    <div className="min-w-0">
+                      <div className="mb-0.5 text-[10px] text-gray-400 sm:text-xs">NO</div>
+                      <div className="truncate font-mono text-xs font-bold text-red-400 sm:text-sm">
                         ${market.noPrice.toFixed(2)}
                       </div>
                     </div>
-                    <div>
-                      <div className="text-xs text-gray-400 mb-0.5">Analyst Volume</div>
-                      <div className="font-mono text-sm font-bold text-brand-cyan">
+                    <div className="min-w-0">
+                      <div className="mb-0.5 text-[10px] text-gray-400 sm:text-xs">Vol</div>
+                      <div className="truncate font-mono text-xs font-bold text-brand-cyan sm:text-sm">
                         ${market.analystVolume.toFixed(0)}
                       </div>
                     </div>

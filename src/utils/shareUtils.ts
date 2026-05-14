@@ -1,3 +1,5 @@
+import { formatRoiPct, formatWinRatePct } from "~/utils/formatCopyTrading";
+
 // Interface definitions
 interface SharePredictionData {
   marketName: string;
@@ -214,8 +216,8 @@ export function generateTraderPerformanceShareText(data: TraderPerformanceShareD
 
 📊 Stats:
 💰 Total P&L: ${totalPnl >= 0 ? '+' : ''}$${totalPnl.toLocaleString()} USDC
-📈 ROI: +${roi.toFixed(1)}%
-🎯 Win Rate: ${winRate.toFixed(1)}%
+📈 ROI: ${formatRoiPct(roi)}
+🎯 Win Rate: ${formatWinRatePct(winRate)}
 📊 Trades: ${totalTrades}
 💵 Volume: $${(totalVolume / 1000).toFixed(0)}K
 
