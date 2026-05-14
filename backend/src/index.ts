@@ -25,7 +25,7 @@ import { referralCookieMiddleware } from "./middleware/referral";
 import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
 import { requestLogger } from "./middleware/requestLogger";
-import { getDeployRuntimeMeta } from "./lib/deployRuntimeMeta";
+import { getVersionEndpointBody } from "./lib/deployRuntimeMeta";
 import { apiUsageTracker } from "./middleware/apiUsageTracker";
 import { realtimeBus, type TradingWsMessage } from "./services/realtimeBus";
 import {
@@ -312,9 +312,10 @@ app.get("/", (_req, res) => {
   res.json({
     service: "predictio-api",
     ok: true,
-    message: "REST API (no page at /). Use /api/v1/health for liveness, /api/v1/version for deploy identity.",
+    message: "REST API (no page at /). Use /api/v1/health for liveness, /api/v1/version (or /api/version) for deploy identity.",
     health: "/api/v1/health",
     version: "/api/v1/version",
+    versionAlt: "/api/version",
   });
 });
 
@@ -599,15 +600,14 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
-// Deploy identity (no DB) — same purpose as Vinxi `/api/version`
-app.get("/api/v1/version", (_req, res) => {
+// Deploy identity (no DB) — same payload on /api/v1/version and /api/version (parity with Vinxi web /api/version)
+const sendVersion = (_req: express.Request, res: express.Response) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json({
-    ok: true,
-    ...getDeployRuntimeMeta(),
-    timestamp: new Date().toISOString(),
-  });
-});
+  res.json(getVersionEndpointBody());
+};
+
+app.get("/api/v1/version", sendVersion);
+app.get("/api/version", sendVersion);
 
 // Health check
 app.get("/api/v1/health", async (req, res) => {
@@ -1066,6 +1066,13 @@ function calculateOrderbook(orders: any[]) {
 app.listen(PORT, () => {
   console.log(`🚀 API server running on port ${PORT}`);
   console.log(`📡 CORS origin: ${CORS_ORIGIN}`);
+  console.log(
+    JSON.stringify({
+      tag: "predictio_backend_boot",
+      listenPort: PORT,
+      ...getVersionEndpointBody(),
+    }),
+  );
   void (async () => {
     await autoSeedEventsOnBoot();
     await backfillCuratedOddsOnBoot();

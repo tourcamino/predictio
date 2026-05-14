@@ -33,8 +33,11 @@ node ./scripts/validate-env.mjs .env
 echo -e "${YELLOW}[2/8] Pulling latest code...${NC}"
 git pull origin master
 
-# 3. Build
+# 3. Build (embed git identity into backend image — required for /api/v1/version)
 echo -e "${YELLOW}[3/8] Building images...${NC}"
+export GIT_COMMIT_SHA="$(git rev-parse HEAD)"
+export GIT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+export BUILD_TIME_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 docker_compose -f docker-compose.prod.yml build
 
 # 4. Stop

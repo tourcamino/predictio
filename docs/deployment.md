@@ -13,22 +13,21 @@ Documento operativo: allinea **GitHub**, **Vercel (frontend)**, **Docker sulla V
 | **Runtime source of truth** | Il **commit Git SHA** effettivamente deployato su ciascun runtime (Vercel serverless, immagine Docker backend). Il nome del branch da solo non basta. |
 | **Source of truth del codice** | **GitHub** (`origin`): tag/branch puntano a SHA; PR e merge aggiornano lo storico. |
 
-### 2. Branch “ufficiali” in questo repository
+### 2. Branch ufficiale (VPS e script in repo)
 
 | Branch | Ruolo |
 |--------|--------|
-| **`master`** | Branch **primario** usato negli script e nella documentazione VPS (`git pull origin master`). |
-| **`main`** | Deve restare **allineato a `master`** (stesso SHA) prima di considerare un rilascio “completo”, così Vercel o altri tool collegati a `main` non restano indietro. |
+| **`master`** | **Unico branch di produzione** per VPS e per gli script in `scripts/` (deploy Docker). |
 
-**Regola:** dopo ogni rilascio significativo → `git push origin master` **e** allineare `main` (fast-forward/merge) → `git push origin main`.
+Altri branch (es. `main` per Vercel) sono opzionali lato team: **non** usarli negli script VPS di questo repository.
 
 ### 3. Chi usa quale branch (da configurare / verificare)
 
 | Sistema | Cosa verificare |
 |---------|-----------------|
-| **Vercel** | Dashboard → **Settings → Git → Production Branch** (es. `main` o `master`). Il deploy production parte dal **push su quel branch** (se Git Integration attiva). |
-| **VPS Docker** | Comandi documentati sotto usano **`git pull origin master`**. Se la squadra standardizza su `main`, aggiornare solo questo doc e gli script interni in modo coerente. |
-| **CI/CD** | Se presente, deve fare checkout/pull dello **stesso branch** dichiarato come production in Vercel **o** buildare da tag SHA esplicito. |
+| **Vercel** | Dashboard → **Settings → Git → Production Branch** (`master` o `main` a scelta). Il deploy parte dal push su quel branch. |
+| **VPS Docker** | Solo **`master`**: **`scripts/vps-deploy-backend.sh`** (`git pull origin master` + build-args + verifica SHA). |
+| **CI/CD** | Checkout del branch di produzione o build da **SHA** esplicito. |
 
 ---
 
@@ -46,7 +45,7 @@ git log -1 --oneline
 
 ### GitHub (ultimo commit del branch production)
 
-Esempio (API GitHub o UI): il commit in cima a `master` / `main` deve coincidere con `git rev-parse HEAD` del clone da cui hai buildato **o** con lo SHA incollato in Vercel.
+Esempio (API GitHub o UI): il commit in cima a **`master`** deve coincidere con `git rev-parse HEAD` del clone da cui hai buildato **o** con lo SHA in Vercel (se production punta a `master`).
 
 ### Vercel (frontend)
 
@@ -76,7 +75,7 @@ Confrontare `gitCommitSha` con `git rev-parse HEAD` sul server **nello stesso mo
 | `git rev-parse HEAD` | Clone build | SHA GitHub production branch |
 | `curl …/api/version` | `predictio.live` | Stesso SHA (frontend) |
 | Vercel deployment commit | Dashboard | Stesso SHA |
-| `curl …/api/v1/version` | API container | Stesso SHA del backend buildato |
+| `curl …/api/v1/version` (o `/api/version`) | API backend | Stesso SHA dell’immagine Docker buildata |
 | `docker image inspect` (opzionale) | Label/env | Coerente con rebuild appena fatto |
 
 ---
@@ -93,7 +92,7 @@ Confrontare `gitCommitSha` con `git rev-parse HEAD` sul server **nello stesso mo
 
 | Endpoint | Note |
 |----------|------|
-| `GET https://api.predictio.live/api/v1/version` (o `http://127.0.0.1:3001/api/v1/version`) | Stesso scopo: commit/branch/build incisi in immagine tramite **build-args** Docker (vedi sotto). |
+| `GET …/api/v1/version` e **`GET …/api/version`** (stesso JSON) | Commit/branch/build da **build-args** Docker; include `uptimeSec` e `runtime` (scheduler/config). |
 
 **Health distinti (non confondere):**
 
@@ -135,43 +134,56 @@ Confrontare `gitCommitSha` con `git rev-parse HEAD` sul server **nello stesso mo
 
 ### Architettura
 
-- **`docker-compose.prod.yml`**, incluso da **`docker-compose.yml`**.
+- **`docker-compose.prod.yml`** (produzione).
 - Servizi: **`backend`**, Postgres, Redis, bot opzionali.
 - Healthcheck compose: `GET http://localhost:3001/api/v1/health`.
 
-### Fase 4 — VPS safety (dopo ogni update backend)
+### Deploy ufficiale (un solo script)
 
-Nella directory del deploy sul server:
+**GitHub aggiornato ≠ runtime aggiornato** finché non ricostruisci l’immagine e ricrei il container.
+
+Sul VPS, dalla root del clone (es. `/root/predictio`):
 
 ```bash
-git fetch origin
-git checkout master   # o il branch production effettivo
-git pull origin master
-export GIT_COMMIT_SHA=$(git rev-parse HEAD)
-export GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-export BUILD_TIME_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-docker compose -f docker-compose.yml build backend \
-  --build-arg GIT_COMMIT_SHA="$GIT_COMMIT_SHA" \
-  --build-arg GIT_BRANCH="$GIT_BRANCH" \
-  --build-arg BUILD_TIME_ISO="$BUILD_TIME_ISO"
-
-docker compose up -d --force-recreate backend
+chmod +x scripts/vps-deploy-backend.sh   # una tantum
+./scripts/vps-deploy-backend.sh
 ```
 
-Verifiche immediate:
+Lo script:
+
+1. `git fetch` + `git checkout master` + `git pull origin master`
+2. Esporta `GIT_COMMIT_SHA`, `GIT_BRANCH`, `BUILD_TIME_ISO` per il **build Docker** (così `/api/v1/version` non è mai “anonimo”)
+3. `docker compose -f docker-compose.prod.yml build backend`
+4. `docker compose up -d --force-recreate backend`
+5. Log tail e **verifica HTTP**: confronta `gitCommitSha` da `VERSION_CHECK_URL` (default `https://api.predictio.live/api/v1/version`) con lo SHA del tree — se diverso, **esce con errore**
+
+Opzioni utili:
+
+| Variabile | Effetto |
+|-----------|---------|
+| `DEACTIVATE_CURATED=1` | Prima del build, disattiva tutte le righe `curated_events` (re-seed al boot). Shortcut: `./scripts/vps-prod-reload-curation.sh` (wrappa lo stesso script). |
+| `SKIP_VERSION_CHECK=1` | Non chiama l’URL pubblico (es. primo install / API non ancora dietro nginx). |
+| `VERSION_CHECK_URL=...` | Override per testare contro `http://127.0.0.1:3001/api/v1/version`. |
+
+### Deploy manuale (equivalente allo script)
+
+Se non puoi usare lo script, replica gli stessi passi (branch **`master`**, build-args obbligatori):
 
 ```bash
-docker compose ps
+cd /root/predictio
+git fetch origin && git checkout master && git pull origin master
+export GIT_COMMIT_SHA="$(git rev-parse HEAD)"
+export GIT_BRANCH="master"
+export BUILD_TIME_ISO="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+docker compose -f docker-compose.prod.yml build backend
+docker compose -f docker-compose.prod.yml up -d --force-recreate backend
 curl -sS http://127.0.0.1:3001/api/v1/version
 curl -sS http://127.0.0.1:3001/api/v1/health
 ```
 
-Il campo `gitCommitSha` di `/api/v1/version` deve coincidere con `echo "$GIT_COMMIT_SHA"` usato al build.
+### Rebuild senza build-args (sconsigliato)
 
-### Rebuild minimo (senza build-args)
-
-Se rebuild senza argomenti, `gitCommitSha` può risultare `null`: il container gira comunque ma **non** passa la checklist SHA della Fase 2 — da evitare in produzione.
+Senza `GIT_*`, `gitCommitSha` in `/api/v1/version` sarà `null`: il container può essere “nuovo” ma **non verificabile** rispetto a Git — da evitare in produzione.
 
 ---
 
@@ -179,16 +191,13 @@ Se rebuild senza argomenti, `gitCommitSha` può risultare `null`: il container g
 
 ### Frontend
 
-1. Allineare `master` e `main` (stesso SHA), push su entrambi se usati.
-2. Push sul branch collegato a **Production** in Vercel.
-3. `curl -sS https://predictio.live/api/version` → confronto SHA con GitHub.
+1. Push sul branch collegato a **Production** in Vercel (es. `master`).
+2. `curl -sS https://predictio.live/api/version` → confronto SHA con GitHub.
 
 ### Backend
 
-1. `git pull` sul branch production.
-2. `docker compose build` con **build-args** commit/branch/time.
-3. `docker compose up -d --force-recreate backend`.
-4. `curl` locale `/api/v1/version` e `/api/v1/health`.
+1. **`./scripts/vps-deploy-backend.sh`** sul VPS (o equivalente manuale sopra).
+2. Confermare `gitCommitSha` su `/api/v1/version` e health su `/api/v1/health`.
 
 ---
 
@@ -206,7 +215,7 @@ Se rebuild senza argomenti, `gitCommitSha` può risultare `null`: il container g
 
 | Check | Comando / azione | Esito atteso |
 |--------|------------------|--------------|
-| Version | `curl -sS http://127.0.0.1:3001/api/v1/version` | `gitCommitSha` = commit build |
+| Version | `curl -sS http://127.0.0.1:3001/api/v1/version` (o `/api/version`) | `gitCommitSha` = commit build; `runtime` presente |
 | Health | `curl -sS http://127.0.0.1:3001/api/v1/health` | DB ok |
 
 ---
@@ -232,9 +241,9 @@ Dashboard → deployment precedente **READY** → **Promote to Production** / ro
 
 ---
 
-## Fase 6 — Futuro (non fare ora se stabile)
+## Fase 6 — Futuro (opzionale)
 
-Valutare **un solo branch production** (es. solo `main` o solo `master`) per eliminare ambiguità. Richiede allineamento Vercel + VPS + abitudini team; **non** obbligatorio finché la regola “stesso SHA su `main` e `master`” è rispettata.
+Valutare un solo branch anche per Vercel se il team vuole eliminare ogni ambiguità; **VPS resta allineato a `master` in questo repo**.
 
 ---
 
@@ -247,6 +256,7 @@ Valutare **un solo branch production** (es. solo `main` o solo `master`) per eli
 | Build-args immagine backend | `backend/Dockerfile`, `docker-compose.prod.yml` |
 | Preset Nitro / Prisma | `app.config.ts` |
 | Variabili build-time | `vercel.json` |
+| Deploy VPS backend (canonico) | `scripts/vps-deploy-backend.sh`, `scripts/deploy-vps.sh` |
 | Compose produzione | `docker-compose.prod.yml`, `docker-compose.yml` |
 | Nginx | `nginx/nginx.conf` |
 | Client tRPC | `src/trpc/react.tsx` |

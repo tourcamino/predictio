@@ -25,3 +25,32 @@ export function getDeployRuntimeMeta(): DeployRuntimeMeta {
     buildTime,
   };
 }
+
+/** JSON body for GET /api/v1/version and GET /api/version (deploy verification, no DB). */
+export function getVersionEndpointBody(): DeployRuntimeMeta & {
+  ok: true;
+  timestamp: string;
+  uptimeSec: number;
+  runtime: {
+    marketStatusSchedulerMs: number;
+    marketStatusSchedulerNote: string;
+    openRouterConfigured: boolean;
+    azuroDataFeedConfigured: boolean;
+  };
+} {
+  return {
+    ok: true,
+    ...getDeployRuntimeMeta(),
+    uptimeSec: Math.floor(process.uptime()),
+    runtime: {
+      marketStatusSchedulerMs: 60_000,
+      marketStatusSchedulerNote:
+        "Curated lifecycle + auto-publish: one setInterval in jobs/marketStatusUpdater.ts, loaded once per Node process; Docker --force-recreate replaces the process (no orphan timers across deploys).",
+      openRouterConfigured: Boolean(
+        (process.env.OPENROUTER_KEY || process.env.OPENROUTER_API_KEY || "").trim(),
+      ),
+      azuroDataFeedConfigured: Boolean((process.env.AZURO_DATA_FEED_URL || "").trim()),
+    },
+    timestamp: new Date().toISOString(),
+  };
+}

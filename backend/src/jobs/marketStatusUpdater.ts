@@ -149,16 +149,29 @@ export async function updateMarketStatuses() {
   }
 }
 
-setInterval(() => {
-  void updateMarketStatuses().catch((e) => {
-     
-    console.error("[MarketUpdater] updateMarketStatuses failed:", e instanceof Error ? e.message : e);
-  });
-}, 60 * 1000);
+const g = globalThis as typeof globalThis & { __predictioMarketStatusScheduler?: boolean };
 
-void updateMarketStatuses().catch((e) => {
+if (!g.__predictioMarketStatusScheduler) {
+  g.__predictioMarketStatusScheduler = true;
+
+  /**
+   * Curated OPEN→LOCKED→RESOLVED + auto-publish top Azuro rows.
+   * One interval per Node process; Docker `--force-recreate` replaces the process (no stacking across deploys).
+   */
+  setInterval(() => {
+    void updateMarketStatuses().catch((e) => {
+      console.error("[MarketUpdater] updateMarketStatuses failed:", e instanceof Error ? e.message : e);
+    });
+  }, 60 * 1000);
+
+  void updateMarketStatuses().catch((e) => {
+    console.warn(
+      "[MarketUpdater] initial run failed (DB offline?)",
+      e instanceof Error ? e.message : e,
+    );
+  });
+} else {
   console.warn(
-    "[MarketUpdater] initial run failed (DB offline?)",
-    e instanceof Error ? e.message : e,
+    "[MarketUpdater] scheduler already registered — duplicate import of this module; skipping second setInterval",
   );
-});
+}
