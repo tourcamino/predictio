@@ -7,7 +7,7 @@ import {
   OnboardingModal,
   isWelcomeOnboardingDismissedInStorage,
 } from '~/components/onboarding/OnboardingModal';
-import { invalidateWalletPointsSummary } from '~/utils/invalidateWalletNotifications';
+import { invalidateAllWalletScopedQueries } from '~/utils/invalidateAllWalletScopedQueries';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import {
   isTransientSyncError,
@@ -119,11 +119,7 @@ export function WalletSync() {
           updateBalance(data.virtualBalance);
           setSyncing(false);
 
-          invalidateWalletPointsSummary(
-            queryClient,
-            trpc.getPointsSummary.queryKey,
-            walletKey,
-          );
+          invalidateAllWalletScopedQueries(queryClient, trpc, walletKey);
 
           if (refCodeFromCookie) {
             document.cookie =

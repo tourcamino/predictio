@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { invalidateWalletPointsSummary } from '~/utils/invalidateWalletNotifications';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { useWalletGate } from '~/hooks/useWalletGate';
 
 interface JoinWaitlistModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface JoinWaitlistModalProps {
 
 export function JoinWaitlistModal({ isOpen, onClose }: JoinWaitlistModalProps) {
   const { address, isConnected, openWalletModal } = useWallet();
+  const { requireWalletAndChain } = useWalletGate();
   const walletKey = normalizeWalletForQuery(address);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -26,6 +28,7 @@ export function JoinWaitlistModal({ isOpen, onClose }: JoinWaitlistModalProps) {
       openWalletModal();
       return;
     }
+    if (!requireWalletAndChain()) return;
 
     setIsSubmitting(true);
 

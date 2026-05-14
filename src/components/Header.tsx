@@ -14,10 +14,13 @@ import { NotificationCenter } from './notifications/NotificationCenter';
 import { useScrollDirection } from '~/hooks/useScrollDirection';
 import { useTopChromeManaged } from '~/components/TopChromeContext';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { getExpectedPredictioChain, getSwitchNetworkCtaLabel } from '~/config/chains';
+import { CHAIN_CONFIG } from '~/config/chain';
 import {
   expressGetPointsSummary,
   shouldUseExpressForWalletCritical,
 } from '~/lib/expressCriticalWalletApi';
+import { pushBodyScrollLock } from '~/lib/bodyScrollLock';
 
 export function Header() {
   const isManaged = useTopChromeManaged();
@@ -29,7 +32,7 @@ export function HeaderInner() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showMobileDisconnectConfirm, setShowMobileDisconnectConfirm] = useState(false);
-  const { isConnected, address, balance, openWalletModal, disconnectWallet, isSyncing, wrongNetwork, switchNetwork } = useWallet();
+  const { isConnected, address, balance, openWalletModal, disconnectWallet, isSyncing, wrongNetwork, switchNetwork, switchNetworkPending } = useWallet();
   const { isActive: isDemoActive, balance: demoBalance } = useDemoAccount();
   const navigate = useNavigate();
   const trpc = useTRPC();
@@ -109,12 +112,8 @@ export function HeaderInner() {
   }, [isMobileMenuOpen]);
 
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const prevOverflow = document.body.style.overflow;
-    if (isMobileMenuOpen) document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
+    if (!isMobileMenuOpen) return;
+    return pushBodyScrollLock();
   }, [isMobileMenuOpen]);
 
   const handleMobileDisconnect = () => {
@@ -199,7 +198,7 @@ export function HeaderInner() {
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
                       <span className="font-bold text-purple-400">
-                        ${demoBalance.toFixed(0)} USDC
+                        ${demoBalance.toFixed(0)} virtual
                       </span>
                       <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs font-semibold rounded">
                         DEMO
@@ -209,15 +208,25 @@ export function HeaderInner() {
                 )}
                 {/* Optional connect wallet button */}
                 <button
-                  onClick={() => (wrongNetwork ? switchNetwork() : openWalletModal())}
+                  onClick={() => (wrongNetwork ? void switchNetwork() : openWalletModal())}
                   data-tour="connect-wallet"
-                  className={`px-6 py-2.5 font-semibold text-sm rounded transition-colors ${
+                  disabled={wrongNetwork && switchNetworkPending}
+                  className={`px-6 py-2.5 font-semibold text-sm rounded transition-colors inline-flex items-center justify-center gap-2 ${
                     wrongNetwork
-                      ? 'bg-red-600 text-white hover:bg-red-500'
+                      ? 'bg-red-600 text-white hover:bg-red-500 disabled:opacity-60'
                       : 'bg-brand-green text-brand-bg hover:bg-brand-green/90'
                   }`}
                 >
-                  {wrongNetwork ? 'Switch to Base' : 'Connect Wallet'}
+                  {wrongNetwork && switchNetworkPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />
+                      <span>Switching…</span>
+                    </>
+                  ) : wrongNetwork ? (
+                    getSwitchNetworkCtaLabel()
+                  ) : (
+                    'Connect Wallet'
+                  )}
                 </button>
               </div>
             ) : (
@@ -228,8 +237,13 @@ export function HeaderInner() {
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-brand-green rounded-full animate-pulse"></div>
                     <span className="font-bold text-brand-green">
-                      ${balance.toLocaleString()} USDC
+                      ${balance.toLocaleString()}
                     </span>
+                    {CHAIN_CONFIG.isTestnet && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        {getExpectedPredictioChain().shortLabel}
+                      </span>
+                    )}
                     {isSyncing && (
                       <Loader2 className="w-3 h-3 text-brand-green animate-spin" />
                     )}
@@ -301,16 +315,21 @@ export function HeaderInner() {
         {isConnected && wrongNetwork && (
           <div className="pb-3">
             <div className="animate-slide-down rounded-lg border border-red-500/30 bg-red-950/60 backdrop-blur-md px-3 py-2 flex items-center justify-between gap-3">
-              <p className="text-xs sm:text-sm font-medium text-white/90">
-                <span className="text-red-300">Wrong Network</span>
-                <span className="text-white/70"> — Predictio runs on </span>
-                <span className="text-white">BASE</span>
+              <p className="text-xs sm:text-sm font-medium text-white/90 min-w-0">
+                <span className="text-red-300">Wrong network</span>
+                <span className="text-white/70"> — Predictio expects </span>
+                <span className="text-white font-semibold">{getExpectedPredictioChain().shortLabel}</span>
               </p>
               <button
-                onClick={switchNetwork}
-                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-semibold text-xs sm:text-sm rounded transition-colors whitespace-nowrap"
+                type="button"
+                disabled={switchNetworkPending}
+                onClick={() => void switchNetwork()}
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-semibold text-xs sm:text-sm rounded transition-colors whitespace-nowrap inline-flex items-center gap-1.5 shrink-0"
               >
-                Switch to BASE
+                {switchNetworkPending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" aria-label="Switching network" />
+                ) : null}
+                {switchNetworkPending ? 'Switching…' : getSwitchNetworkCtaLabel()}
               </button>
             </div>
           </div>
@@ -367,7 +386,7 @@ export function HeaderInner() {
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse flex-shrink-0"></div>
                         <span className="font-bold text-purple-400 text-sm sm:text-base">
-                          ${demoBalance.toFixed(0)} USDC
+                          ${demoBalance.toFixed(0)} virtual
                         </span>
                         <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs font-semibold rounded">
                           DEMO
@@ -380,17 +399,21 @@ export function HeaderInner() {
                   )}
                   <button
                     onClick={() => {
-                      if (wrongNetwork) switchNetwork();
+                      if (wrongNetwork) void switchNetwork();
                       else openWalletModal();
                       setIsMobileMenuOpen(false);
                     }}
-                    className={`w-full px-4 py-2.5 font-semibold text-sm rounded transition-colors ${
+                    disabled={wrongNetwork && switchNetworkPending}
+                    className={`w-full px-4 py-2.5 font-semibold text-sm rounded transition-colors inline-flex items-center justify-center gap-2 ${
                       wrongNetwork
-                        ? 'bg-red-600 text-white hover:bg-red-500'
+                        ? 'bg-red-600 text-white hover:bg-red-500 disabled:opacity-60'
                         : 'bg-brand-green text-brand-bg hover:bg-brand-green/90'
                     }`}
                   >
-                    {wrongNetwork ? 'Switch to Base' : 'Connect Wallet (Optional)'}
+                    {wrongNetwork && switchNetworkPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                    ) : null}
+                    {wrongNetwork ? getSwitchNetworkCtaLabel() : 'Connect Wallet (Optional)'}
                   </button>
                 </div>
               ) : (
@@ -448,6 +471,29 @@ export function HeaderInner() {
                   <p className="font-mono text-xs text-gray-400 mb-3 break-all">
                     {address?.slice(0, 10)}...{address?.slice(-8)}
                   </p>
+
+                  {wrongNetwork && (
+                    <div className="mb-3 rounded-lg border border-red-500/35 bg-red-950/50 p-3 space-y-2">
+                      <p className="text-xs text-white/90">
+                        Wrong network — switch to{" "}
+                        <span className="font-semibold text-white">
+                          {getExpectedPredictioChain().shortLabel}
+                        </span>{" "}
+                        to trade.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={switchNetworkPending}
+                        onClick={() => void switchNetwork()}
+                        className="w-full py-2 text-sm font-semibold rounded bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white inline-flex items-center justify-center gap-2"
+                      >
+                        {switchNetworkPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                        ) : null}
+                        {switchNetworkPending ? "Switching…" : getSwitchNetworkCtaLabel()}
+                      </button>
+                    </div>
+                  )}
 
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <span className="text-xs uppercase tracking-wide text-gray-500">

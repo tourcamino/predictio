@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { DemoBanner } from '~/components/demo/DemoBanner';
+import { NetworkBanner } from '~/components/NetworkBanner';
 import { HeaderInner } from '~/components/Header';
 import { LiveTickerInner } from '~/components/LiveTicker';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
@@ -126,6 +127,7 @@ export function TopStack() {
         }}
       >
         <div ref={headerWrap.ref} className="relative z-[99]">
+          <NetworkBanner />
           <HeaderInner />
         </div>
         <div

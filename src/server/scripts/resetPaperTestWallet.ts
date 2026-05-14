@@ -1,26 +1,31 @@
 /**
- * Hard reset of **paper-trading-related** DB rows for exactly one wallet that appears in
+ * Hard reset of **paper-trading-related** DB rows for exactly one wallet in
  * `PREDICTIO_PAPER_RESET_ALLOWLIST` (comma-separated lowercase addresses).
  *
  * Safety:
  * - Refuses to run if the wallet argument is not in the allowlist.
  * - Does not touch global tables (Market, VaultState, VaultAllocation, AmmOrder, …).
- * - Does not delete `Analyst` / `Affiliate` identity rows (referral codes, public profiles).
+ * - Keeps `Analyst` / `Affiliate` identity rows; zeros per-wallet stats and copy edges.
  *
  * Run (from repo root, with DATABASE_URL in `.env`):
  *   node --env-file=.env --import tsx ./src/server/scripts/resetPaperTestWallet.ts 0xYourTestWallet
  *
  * Env:
  *   PREDICTIO_PAPER_RESET_ALLOWLIST — required. Example: `0xabc...,0xdef...` (lowercase).
- *   PAPER_RESET_TRADING_USDC — optional, default `1000` (paper playground target).
- *   PAPER_RESET_LP_TEST_TOPUP — optional, default `10000` (extra USDC on same balance; see docs).
+ *   PAPER_RESET_TRADING_USDC — optional, default `1000`.
+ *   PAPER_RESET_LP_TEST_TOPUP — optional, default `0` (set e.g. `10000` only if you want extra LP demo liquidity on the same virtual balance).
+ *   PREDICTIO_RESET_VERBOSE — optional `1` for extra row counts in logs.
  *
- * Browser: clear guest demo + trading UI cache (localStorage keys in `docs/PAPER_TEST_WALLET_RESET.md`).
+ * Browser: optional `clearPaperWalletClientCache(addr)` from `~/utils/clearPaperWalletClientCache`
+ * or clear keys listed in `docs/PAPER_TEST_WALLET_RESET.md`.
  */
+import { runPaperWalletHardReset } from "~/server/services/paperWalletHardReset";
 import { db } from "~/server/db";
 
 const DEFAULT_TRADING_USDC = 1000;
-const DEFAULT_LP_TOPUP = 10_000;
+const DEFAULT_LP_TOPUP = 0;
+
+const FOUNDER_SAMPLE = "0x7f3a8b2c4e2b9f1a6d5c8e7f9a2b4c6d8e0f1a3b";
 
 function parseAllowlist(raw: string | undefined): Set<string> {
   if (!raw?.trim()) return new Set();
@@ -72,81 +77,49 @@ async function main() {
 
   const tradingUsd = parseFloatEnv("PAPER_RESET_TRADING_USDC", DEFAULT_TRADING_USDC);
   const lpTopup = parseFloatEnv("PAPER_RESET_LP_TEST_TOPUP", DEFAULT_LP_TOPUP);
-  const newBalance = tradingUsd + lpTopup;
+  const verbose = process.env.PREDICTIO_RESET_VERBOSE === "1";
+  const founderTrace = wallet === FOUNDER_SAMPLE;
 
-  console.log(`[reset] Target wallet: ${wallet}`);
+  console.log(`[reset] === PAPER HARD RESET START === wallet=${wallet}`);
   console.log(
-    `[reset] New virtualBalance = ${newBalance} (${tradingUsd} paper trading + ${lpTopup} LP test top-up on same User row — see docs).`,
+    `[reset] Target virtualBalance = ${tradingUsd + lpTopup} (${tradingUsd} PAPER_RESET_TRADING_USDC + ${lpTopup} PAPER_RESET_LP_TEST_TOPUP)`,
   );
 
-  const countsBefore = {
-    orders: await db.order.count({ where: { wallet } }),
-    transactions: await db.transaction.count({ where: { wallet } }),
-    lp: await db.liquidityPosition.count({ where: { userWallet: wallet } }),
-    copyAsCopier: await db.copyRelationship.count({ where: { copierWallet: wallet } }),
-  };
-  console.log("[reset] Before:", JSON.stringify(countsBefore));
+  if (founderTrace || verbose) {
+    console.log("[reset] Pre-reset row counts (founder/verbose):", JSON.stringify(await snapshot(wallet), null, 2));
+  }
 
-  await db.$transaction(async (tx) => {
-    // Ledger / exposure first (no FK from Order to Transaction in schema, but safe order).
-    await tx.transaction.deleteMany({ where: { wallet } });
-    await tx.order.deleteMany({ where: { wallet } });
-
-    await tx.liquidityPosition.deleteMany({ where: { userWallet: wallet } });
-    await tx.copyRelationship.deleteMany({ where: { copierWallet: wallet } });
-
-    await tx.notification.deleteMany({ where: { walletAddress: wallet } });
-    await tx.watchlist.deleteMany({ where: { walletAddress: wallet } });
-    await tx.priceAlert.deleteMany({ where: { walletAddress: wallet } });
-    await tx.pointsLedger.deleteMany({ where: { walletAddress: wallet } });
-    await tx.pointsTotal.deleteMany({ where: { walletAddress: wallet } });
-    await tx.leaderboard.deleteMany({ where: { walletAddress: wallet } });
-    await tx.analystFollow.deleteMany({ where: { userWallet: wallet } });
-    await tx.appeal.deleteMany({ where: { userWallet: wallet } });
-    await tx.referralTracking.deleteMany({ where: { referredWallet: wallet } });
-    await tx.affiliateReward.deleteMany({ where: { walletAddress: wallet } });
-    await tx.payoutLog.deleteMany({ where: { walletAddress: wallet } });
-    await tx.lPWaitlist.deleteMany({ where: { walletAddress: wallet } });
-
-    await tx.user.upsert({
-      where: { wallet },
-      create: {
-        wallet,
-        virtualBalance: newBalance,
-        totalPnl: 0,
-        tradesCount: 0,
-        predictions: 0,
-        wins: 0,
-        losses: 0,
-        totalVolume: 0,
-        pendingHoldingRewards: 0,
-        claimedHoldingRewards: 0,
-      },
-      update: {
-        virtualBalance: newBalance,
-        totalPnl: 0,
-        tradesCount: 0,
-        predictions: 0,
-        wins: 0,
-        losses: 0,
-        totalVolume: 0,
-        pendingHoldingRewards: 0,
-        claimedHoldingRewards: 0,
-        lastActive: new Date(),
-      },
-    });
+  const result = await runPaperWalletHardReset({
+    walletLower: wallet,
+    tradingUsd,
+    lpTopup,
   });
 
-  const countsAfter = {
-    orders: await db.order.count({ where: { wallet } }),
-    transactions: await db.transaction.count({ where: { wallet } }),
-    lp: await db.liquidityPosition.count({ where: { userWallet: wallet } }),
-    copyAsCopier: await db.copyRelationship.count({ where: { copierWallet: wallet } }),
-    userBalance: (await db.user.findUnique({ where: { wallet }, select: { virtualBalance: true } }))
-      ?.virtualBalance,
+  console.log("[reset] Deleted / zeroed (before snapshot was):", JSON.stringify(result.countsBefore));
+  console.log("[reset] Post-reset counts (expect pointsLedger=2 barrier rows):", JSON.stringify(result.countsAfter));
+  console.log("[reset] User row:", JSON.stringify(result.userSnapshot, null, 2));
+  console.log(`[reset] === DONE === newVirtualBalance=${result.newVirtualBalance}`);
+
+  if (founderTrace || verbose) {
+    console.log("[reset] Post-reset extended snapshot:", JSON.stringify(await snapshot(wallet), null, 2));
+  }
+
+  console.log(
+    "[reset] Clear browser: run clearPaperWalletClientCache from ~/utils/clearPaperWalletClientCache or hard-refresh after disconnect.",
+  );
+}
+
+async function snapshot(wallet: string) {
+  const [openOrders, pointsTotal, affiliate] = await Promise.all([
+    db.order.count({ where: { wallet, status: "open" } }),
+    db.pointsTotal.findUnique({ where: { walletAddress: wallet } }),
+    db.affiliate.findUnique({ where: { walletAddress: wallet } }),
+  ]);
+  return {
+    openOrders,
+    pointsTotal,
+    affiliateRewardsPending: affiliate?.pendingRewardsUsd ?? null,
   };
-  console.log("[reset] After:", JSON.stringify(countsAfter));
-  console.log("[reset] Done. Clear browser localStorage for this origin (see docs/PAPER_TEST_WALLET_RESET.md).");
 }
 
 main().catch((e) => {

@@ -1,26 +1,32 @@
 import { useState, useCallback } from "react";
+import toast from "react-hot-toast";
+import { getExpectedPredictioChain } from "~/config/chains";
 import { useWallet } from "~/store/useWalletStore";
 
 /**
  * Guest-mode gate for actions that require a connected wallet.
  *
  * Pattern:
- *   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
+ *   const { requireWallet, requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
  *
  *   <button onClick={() => {
  *     if (!requireWallet()) return;
- *     doProtectedAction();
- *   }}>Place prediction</button>
+ *     doReadOnlyOrGenericAction();
+ *   }}>…</button>
+ *
+ *   <button onClick={() => {
+ *     if (!requireWalletAndChain()) return;
+ *     placeTradeOrLp();
+ *   }}>…</button>
  *
  *   <WalletGateModal isOpen={showGateModal} onClose={closeGateModal} />
  *
- * The hook reuses the existing Zustand wallet store (no wagmi). When the user
- * is not connected, `requireWallet()` returns false and opens the in-app gate
- * modal; the modal's primary CTA delegates to `openWalletModal()` (the real
- * wallet picker).
+ * `requireWallet` opens the in-app gate when disconnected.
+ * `requireWalletAndChain` also blocks when the injected wallet is on the wrong chain
+ * (markets / analysts stay browsable; trading & LP use this).
  */
 export function useWalletGate() {
-  const { isConnected, address, openWalletModal } = useWallet();
+  const { isConnected, address, openWalletModal, wrongNetwork } = useWallet();
 
   const [showGateModal, setShowGateModal] = useState(false);
 
@@ -30,6 +36,22 @@ export function useWalletGate() {
     return false;
   }, [isConnected]);
 
+  const requireWalletAndChain = useCallback((): boolean => {
+    if (!isConnected) {
+      setShowGateModal(true);
+      return false;
+    }
+    if (wrongNetwork) {
+      const target = getExpectedPredictioChain();
+      toast.error(
+        `Wrong network — switch to ${target.shortLabel} in your wallet to continue (use the banner or header).`,
+        { id: "predictio-wrong-network-gate", duration: 5200 },
+      );
+      return false;
+    }
+    return true;
+  }, [isConnected, wrongNetwork]);
+
   const closeGateModal = useCallback(() => {
     setShowGateModal(false);
   }, []);
@@ -38,6 +60,7 @@ export function useWalletGate() {
     isConnected,
     address,
     requireWallet,
+    requireWalletAndChain,
     showGateModal,
     closeGateModal,
     openWalletModal,

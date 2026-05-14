@@ -1,26 +1,38 @@
-// TBD: All values to be filled when chain and contracts are finalized.
-// This config is referenced by all trading logic — changing these 
-// values "turns on" live mode.
+// Trading / deposit UI config. Expected chain id + RPC/explorer follow `VITE_CHAIN_ID`
+// and `src/config/chains.ts` (Base mainnet vs Base Sepolia).
 
-// NOTE: Azuro Protocol integration is active on Base network
-// The app currently operates in demo mode with Azuro data integration
+import { getExpectedPredictioChain, isPredictioTestnet } from "./chains";
+
+const predictioTarget = getExpectedPredictioChain();
+
+const envUsdc = (): string | null => {
+  try {
+    const v = import.meta.env.VITE_USDC_ADDRESS as string | undefined;
+    const t = v?.trim();
+    if (t) return t;
+  } catch {
+    /* ignore */
+  }
+  return predictioTarget.defaultUsdcAddress;
+};
+
 export const CHAIN_CONFIG = {
-  // Chain identifier - Base network for Azuro integration
-  // Set to null to keep demo mode active while using Azuro data
-  chainId: null as number | null, // Would be 8453 for Base mainnet
+  /** Expected app chain (8453 or 84532 from env). `isLiveMode()` still keys off contracts. */
+  chainId: predictioTarget.chainId as number | null,
+
+  chainName: predictioTarget.shortLabel as string | null,
+  rpcUrl: predictioTarget.rpcUrls[0] ?? null,
+  explorerUrl: predictioTarget.blockExplorerUrls[0] ?? null,
+  isTestnet: isPredictioTestnet(),
   
-  chainName: 'Base' as string | null,
-  rpcUrl: 'https://mainnet.base.org' as string | null,
-  explorerUrl: 'https://basescan.org' as string | null,
-  
-  // USDC on Base
-  usdcAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as string | null,
+  // USDC on the configured Base network (override with VITE_USDC_ADDRESS)
+  usdcAddress: envUsdc() as string | null,
   usdcDecimals: 6,
   
   // Azuro Protocol info (for reference)
   azuro: {
     graphqlEndpoint: 'https://thegraph.azuro.org/subgraphs/name/azuro-protocol/azuro-api-base-v3',
-    chainId: 8453, // Base mainnet
+    chainId: predictioTarget.chainId,
     active: true,
   },
   

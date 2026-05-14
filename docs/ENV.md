@@ -39,8 +39,11 @@ VITE_WS_URL=wss://api.predictio.live/ws       # WebSocket server
 # Blockchain Configuration
 VITE_BASE_RPC_URL=https://mainnet.base.org
 VITE_BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
-VITE_CHAIN_ID=8453                             # Base mainnet (84532 for Sepolia)
-VITE_USDC_ADDRESS=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+VITE_CHAIN_ID=8453                             # Base mainnet (84532 for Base Sepolia testnet)
+# VITE_WALLET_MOCK_CONNECT=1                  # Optional: force mock wallet even if an extension exists (QA). Production: omit.
+
+# Server (Vinxi / tRPC): align with VITE_CHAIN_ID so AI assistant + insights know testnet vs mainnet (`src/server/lib/ai/prompts.ts`).
+# BASE_CHAIN_ID=8453
 
 # Wallet Connect
 VITE_WALLETCONNECT_PROJECT_ID=                 # Get from cloud.walletconnect.com

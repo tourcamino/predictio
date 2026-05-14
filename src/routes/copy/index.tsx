@@ -4,6 +4,7 @@ import { Eye, Zap, DollarSign } from "lucide-react";
 import { SocialTradingDashboard } from "~/components/trading/SocialTradingDashboard";
 import { useWalletGate } from "~/hooks/useWalletGate";
 import { WalletGateModal } from "~/components/WalletGateModal";
+import { isPredictioTestnet } from "~/lib/economySurface";
 
 export const Route = createFileRoute("/copy/")({
   component: CopyTradingPage,
@@ -33,6 +34,16 @@ function CopyTradingPage() {
 
           {/* Social Trading Dashboard — visible to guests; connect only needed to copy/follow */}
           <div className="mt-16 space-y-6">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-gray-300 max-w-3xl mx-auto">
+              <p className="font-semibold text-white/90 mb-1">How money works here</p>
+              <p className="text-gray-400 leading-relaxed">
+                Copy and analyst cards show <span className="text-white/90">paper-tracked activity</span> on
+                Predictio — not hidden real users or guaranteed profits.
+                {isPredictioTestnet()
+                  ? " This build targets Base Sepolia; nothing here is mainnet value."
+                  : " Prediction balances are Predictio paper USDC, not your wallet’s on-chain USDC."}
+              </p>
+            </div>
             {!isConnected && (
               <div className="rounded-xl border border-brand-green/30 bg-brand-green/10 px-4 py-3 text-sm text-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <span>

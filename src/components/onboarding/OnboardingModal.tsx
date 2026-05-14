@@ -5,6 +5,12 @@ import { useMutation } from '@tanstack/react-query';
 import { useTRPC } from '~/trpc/react';
 import { useWallet } from '~/store/useWalletStore';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import {
+  BASE_SEPOLIA_FAUCET_URL,
+  getExpectedPredictioChain,
+  isPredictioTestnet,
+} from '~/lib/economySurface';
+import { pushBodyScrollLock, pushHtmlScrollLock } from '~/lib/bodyScrollLock';
 
 /** Per-wallet dismiss flag (works even before next sync reflects `onboardingCompleted`). */
 export function welcomeOnboardingDismissStorageKey(walletKey: string): string {
@@ -57,15 +63,11 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
 
   useEffect(() => {
     if (!isOpen) return;
-    const html = document.documentElement;
-    const body = document.body;
-    const prevHtmlOverflow = html.style.overflow;
-    const prevBodyOverflow = body.style.overflow;
-    html.style.overflow = 'hidden';
-    body.style.overflow = 'hidden';
+    const releaseHtml = pushHtmlScrollLock();
+    const releaseBody = pushBodyScrollLock();
     return () => {
-      html.style.overflow = prevHtmlOverflow;
-      body.style.overflow = prevBodyOverflow;
+      releaseBody();
+      releaseHtml();
     };
   }, [isOpen]);
 
@@ -200,7 +202,8 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
                     Welcome to Predictio
                   </h2>
                   <p className="mt-1.5 text-sm text-gray-400">
-                    Sports prediction markets on Base — trade event outcomes, not fixed book odds.
+                    Sports prediction markets on {getExpectedPredictioChain().shortLabel}
+                    {isPredictioTestnet() ? ' (testnet)' : ''} — trade outcomes, not fixed book odds.
                   </p>
                 </div>
 
@@ -219,7 +222,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
                     <div>
                       <p className="text-sm font-semibold text-white">Paper wallet</p>
                       <p className="mt-0.5 text-xs leading-snug text-gray-500">
-                        $1,000 virtual USDC. Zero risk.
+                        $1,000 virtual USDC (Predictio account). Not bank money, not on-chain profit.
                       </p>
                     </div>
                   </div>
@@ -235,7 +238,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
                 </div>
 
                 <p className="text-center text-xs text-gray-500">
-                  Board prices ≈ crowd-implied probability. Buy low, redeem $1 if you&apos;re right.
+                  Board prices ≈ crowd-implied probability. Paper mode — no real yield.
                 </p>
 
                 <div className="flex justify-center">
@@ -253,9 +256,24 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
                   Demo mode &amp; your wallet
                 </h2>
                 <p className="text-sm text-gray-400">
-                  Your wallet signs you in for paper trading only. Balances here are virtual — nothing
-                  moves on-chain for these picks.
+                  Your wallet signs you in. Prediction stakes use{' '}
+                  <strong className="text-white/90">Predictio paper USDC</strong> (server) — not the
+                  ERC-20 balance inside your wallet unless we explicitly say on-chain.
                 </p>
+                {isPredictioTestnet() && (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100/95">
+                    <span className="font-semibold text-amber-200">Base Sepolia</span> — get ETH from a{' '}
+                    <a
+                      href={BASE_SEPOLIA_FAUCET_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline font-semibold text-amber-100 hover:text-white"
+                    >
+                      faucet
+                    </a>{' '}
+                    for gas. Test tokens have no cash value.
+                  </div>
+                )}
                 <ul className="space-y-2.5 text-sm text-gray-300">
                   <li className="flex gap-2.5">
                     <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-green" />

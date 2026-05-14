@@ -31,7 +31,7 @@ export function ProtocolVaultDepositModal({
 }: ProtocolVaultDepositModalProps) {
   const { balance, address, isConnected, updateBalance } = useWallet();
   const walletKey = normalizeWalletForQuery(address);
-  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
+  const { requireWallet, requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
   const [amount, setAmount] = useState('');
   const [riskAccepted, setRiskAccepted] = useState(false);
   const [transactionState, setTransactionState] = useState<TransactionState>('review');
@@ -70,6 +70,7 @@ export function ProtocolVaultDepositModal({
   const estimatedDailyEarnings = estimatedMonthlyEarnings / 30;
 
   const handleConfirm = async () => {
+    if (!requireWalletAndChain()) return;
     if (!isValidAmount || !walletKey || !riskAccepted) return;
 
     setTransactionState('pending');

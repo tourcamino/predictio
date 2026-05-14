@@ -2,6 +2,7 @@ import { Fragment, useState, type MouseEvent } from 'react';
 import { Menu, Transition } from '@headlessui/react';
 import { Copy, ExternalLink, User, BarChart3, Trophy, Settings, LogOut, TrendingUp, KeyRound } from 'lucide-react';
 import { useWallet } from '~/store/useWalletStore';
+import { explorerAddressUrl, walletNetworkBadgeLabel, predictionBalanceFootnote } from '~/lib/economySurface';
 import { Link, useNavigate } from '@tanstack/react-router';
 import toast from 'react-hot-toast';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
@@ -73,7 +74,9 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-2 h-2 shrink-0 bg-brand-green rounded-full animate-pulse" />
                 <span className="text-xs font-semibold text-brand-green uppercase tracking-wide">Connected</span>
-                <span className="text-[11px] text-gray-500 shrink-0">· BASE</span>
+                <span className="text-[11px] text-gray-500 shrink-0">
+                  · {walletNetworkBadgeLabel()}
+                </span>
               </div>
             </div>
             <div className="flex items-center gap-1.5 mt-2">
@@ -89,7 +92,7 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
                 <Copy className="w-4 h-4" />
               </button>
               <a
-                href={`https://basescan.org/address/${address}`}
+                href={address ? explorerAddressUrl(address) : '#'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-1.5 hover:bg-white/10 rounded transition-colors shrink-0"
@@ -106,8 +109,9 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
               <span className="text-xl font-bold text-brand-green tabular-nums leading-none">
                 ${balance.toLocaleString()}
               </span>
-              <span className="text-xs text-gray-500 whitespace-nowrap">USDC</span>
+              <span className="text-xs text-gray-500 whitespace-nowrap">Paper USDC</span>
             </div>
+            <p className="text-[11px] text-gray-500 leading-snug mb-2">{predictionBalanceFootnote()}</p>
             <p className="text-xs text-gray-500 mb-2.5">{activePredictions} active predictions</p>
             <div className="flex gap-2">
               <button

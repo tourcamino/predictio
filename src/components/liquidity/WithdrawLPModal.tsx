@@ -8,6 +8,7 @@ import { AlertCircle } from 'lucide-react';
 import type { LPPosition } from '~/data/mockLP';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
+import { useWalletGate } from '~/hooks/useWalletGate';
 
 type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 
@@ -20,6 +21,7 @@ interface WithdrawLPModalProps {
 
 export function WithdrawLPModal({ isOpen, onClose, position, onSuccess }: WithdrawLPModalProps) {
   const { balance, address, updateBalance } = useWallet();
+  const { requireWalletAndChain } = useWalletGate();
   const walletKey = normalizeWalletForQuery(address);
   const [amount, setAmount] = useState('');
   const [claimFees, setClaimFees] = useState(true);
@@ -50,6 +52,7 @@ export function WithdrawLPModal({ isOpen, onClose, position, onSuccess }: Withdr
   const isFullWithdrawal = amountNum >= position.currentValue;
 
   const handleConfirm = async () => {
+    if (!requireWalletAndChain()) return;
     if (!isValidAmount || !walletKey) return;
 
     setTransactionState('pending');

@@ -36,7 +36,7 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
   const queryClient = useQueryClient();
   const { address, updateBalance } = useWallet();
   const walletKey = normalizeWalletForQuery(address);
-  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
+  const { requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
 
   const {
     register,
@@ -101,7 +101,7 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
       toast.error('Please select an outcome first');
       return;
     }
-    if (!requireWallet()) return;
+    if (!requireWalletAndChain()) return;
     if (!address) return;
 
     const side = mapOutcomeToSide();

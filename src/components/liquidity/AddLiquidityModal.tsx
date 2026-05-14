@@ -9,6 +9,7 @@ import { calculatePoolShare, calculateDailyEarnings, calculateMonthlyEarnings, g
 import type { LPMarket } from '~/data/mockLP';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
+import { useWalletGate } from '~/hooks/useWalletGate';
 
 type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 
@@ -21,6 +22,7 @@ interface AddLiquidityModalProps {
 
 export function AddLiquidityModal({ isOpen, onClose, market, onSuccess }: AddLiquidityModalProps) {
   const { balance, address, updateBalance } = useWallet();
+  const { requireWalletAndChain } = useWalletGate();
   const walletKey = normalizeWalletForQuery(address);
   const [amount, setAmount] = useState('');
   const [riskAccepted, setRiskAccepted] = useState(false);
@@ -53,6 +55,7 @@ export function AddLiquidityModal({ isOpen, onClose, market, onSuccess }: AddLiq
   const riskBadge = getLPRiskBadge(market.risk);
 
   const handleConfirm = async () => {
+    if (!requireWalletAndChain()) return;
     if (!isValidAmount || !walletKey || !riskAccepted) return;
 
     setTransactionState('pending');

@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { AlertCircle, Droplet } from 'lucide-react';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
+import { useWalletGate } from '~/hooks/useWalletGate';
 
 type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 
@@ -35,6 +36,7 @@ export function ProtocolVaultWithdrawModal({
   onSuccess 
 }: ProtocolVaultWithdrawModalProps) {
   const { balance, address, updateBalance } = useWallet();
+  const { requireWalletAndChain } = useWalletGate();
   const walletKey = normalizeWalletForQuery(address);
   const [amount, setAmount] = useState('');
   const [claimFees, setClaimFees] = useState(true);
@@ -65,6 +67,7 @@ export function ProtocolVaultWithdrawModal({
   const isFullWithdrawal = amountNum >= position.currentValue;
 
   const handleConfirm = async () => {
+    if (!requireWalletAndChain()) return;
     if (!isValidAmount || !walletKey) return;
 
     setTransactionState('pending');

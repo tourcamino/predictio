@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useSettingsStore } from '~/store/settingsStore';
 import { CHAIN_CONFIG } from '~/config/chain';
+import { isPredictioTestnet } from '~/lib/economySurface';
 import { Download, Upload, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -90,6 +91,27 @@ function AdvancedSettings() {
             </div>
           )}
         </div>
+
+        {debugPanelVisible && (
+          <div className="mt-4 rounded-lg border border-brand-green/25 bg-brand-green/5 p-4 text-xs text-gray-300 space-y-2">
+            <p className="font-semibold text-brand-green text-sm">Economic / network surface (debug)</p>
+            <div className="flex justify-between gap-2">
+              <span className="text-gray-500">Testnet mode</span>
+              <span className="font-mono">{isPredictioTestnet() ? 'yes' : 'no'}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-gray-500">Expected chain id</span>
+              <span className="font-mono">{CHAIN_CONFIG.chainId ?? '—'}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-gray-500">Seeded LP label (UI)</span>
+              <span className="text-right text-gray-200">Platform-seeded liquidity</span>
+            </div>
+            <p className="text-[11px] text-gray-500 pt-1 border-t border-white/10">
+              Shown for support / QA only. Not a financial or on-chain attestation.
+            </p>
+          </div>
+        )}
 
         <div className="mt-4">
           <label className="block text-sm font-medium mb-2">Custom RPC (optional)</label>

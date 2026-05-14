@@ -11,6 +11,7 @@ import { useWallet } from '~/store/useWalletStore';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { LP_SEEDED_EXPLAINER, LP_SEEDED_SHORT } from '~/lib/economySurface';
 
 export const Route = createFileRoute('/liquidity/')({
   component: LiquidityPage,
@@ -20,7 +21,7 @@ function LiquidityPage() {
   const trpc = useTRPC();
   const { isConnected, address } = useWallet();
   const walletKey = normalizeWalletForQuery(address);
-  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
+  const { requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
 
@@ -70,6 +71,10 @@ function LiquidityPage() {
               Single vault pools USDC across all active prediction markets. 
               Earn 50% of all trading fees.
             </p>
+            <div className="mt-6 max-w-3xl mx-auto rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-left text-sm text-gray-300">
+              <p className="font-semibold text-white/90 mb-1">{LP_SEEDED_SHORT}</p>
+              <p className="text-gray-400 leading-relaxed">{LP_SEEDED_EXPLAINER}</p>
+            </div>
           </div>
 
           {/* Vault Stats Card */}
@@ -81,7 +86,7 @@ function LiquidityPage() {
                 <div className="font-mono font-bold text-4xl text-brand-green mb-1">
                   ${vaultStats?.totalLiquidity || 500}
                 </div>
-                <div className="text-sm text-gray-500">Seed Capital</div>
+                <div className="text-sm text-gray-500">Seed capital · {LP_SEEDED_SHORT}</div>
               </div>
 
               {/* Vault APY */}
@@ -119,7 +124,7 @@ function LiquidityPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!requireWallet()) return;
+                  if (!requireWalletAndChain()) return;
                   setIsDepositModalOpen(true);
                 }}
                 className="w-full py-4 bg-gradient-to-r from-brand-green to-brand-cyan text-brand-bg font-bold text-lg rounded-lg hover:opacity-90 transition-all shadow-xl shadow-brand-green/20 flex items-center justify-center gap-2"
@@ -278,7 +283,7 @@ function LiquidityPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!requireWallet()) return;
+                  if (!requireWalletAndChain()) return;
                   setIsDepositModalOpen(true);
                 }}
                 className="px-8 py-4 bg-brand-green text-brand-bg font-bold text-lg rounded-lg hover:opacity-90 transition-all shadow-xl shadow-brand-green/20"

@@ -41,7 +41,7 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
   const queryClient = useQueryClient();
   const { isConnected: isWalletConnected, address, updateBalance } = useWallet();
   const walletKey = normalizeWalletForQuery(address);
-  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
+  const { requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
   const { isActive: isDemoActive, executeDemoTrade } = useDemoAccount();
   const [txModalState, setTxModalState] = useState<'review' | 'pending' | 'mining' | 'success' | 'error'>('review');
   const [txError, setTxError] = useState<string | undefined>(undefined);
@@ -162,7 +162,7 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
       return;
     }
 
-    if (!requireWallet()) return;
+    if (!requireWalletAndChain()) return;
 
     setTxError(undefined);
     setTxModalState('review');
@@ -209,7 +209,7 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
       return;
     }
 
-    if (!requireWallet()) return;
+    if (!requireWalletAndChain()) return;
     if (!address || !walletKey) return;
     setTxModalState('pending');
 

@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import type { LPPosition } from '~/data/mockLP';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
+import { useWalletGate } from '~/hooks/useWalletGate';
 
 interface ManageLPModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export function ManageLPModal({ isOpen, onClose, position, onSuccess }: ManageLP
   const [apyTimeRange, setApyTimeRange] = useState<'7D' | '30D' | '90D' | 'ALL'>('30D');
   
   const { address, updateBalance } = useWallet();
+  const { requireWalletAndChain } = useWalletGate();
   const walletKey = normalizeWalletForQuery(address);
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -47,6 +49,7 @@ export function ManageLPModal({ isOpen, onClose, position, onSuccess }: ManageLP
   const duration = formatLPDuration(position.openSince);
 
   const handleClaimFees = async () => {
+    if (!requireWalletAndChain()) return;
     if (!walletKey || position.feesPending <= 0) return;
 
     try {

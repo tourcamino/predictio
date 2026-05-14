@@ -22,6 +22,7 @@ import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { executePlacePredictionWithDiagnostics } from '~/lib/executePlacePredictionWithDiagnostics';
+import { predictionBalanceFootnote } from '~/lib/economySurface';
 import {
   logPurchaseFlowClient,
   logPurchaseFlowClientError,
@@ -95,7 +96,7 @@ export function TradingBox({ market }: TradingBoxProps) {
   const trpc = useTRPC();
   const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
-  const { isConnected: isWalletConnected, address: walletAddress, updateBalance, balance: walletBalance } = useWallet();
+  const { isConnected: isWalletConnected, address: walletAddress, updateBalance, balance: walletBalance, wrongNetwork } = useWallet();
   const walletKey = normalizeWalletForQuery(walletAddress);
   const {
     isActive: isDemoActive,
@@ -103,7 +104,7 @@ export function TradingBox({ market }: TradingBoxProps) {
     balance: demoBalance,
     positions: demoPositions,
   } = useDemoAccount();
-  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
+  const { requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
   
   // In DEMO mode always use virtual balance; otherwise wallet when connected.
   const currentBalance = isDemoActive ? demoBalance : isWalletConnected ? walletBalance : demoBalance;
@@ -493,19 +494,8 @@ export function TradingBox({ market }: TradingBoxProps) {
       return;
     }
 
-    if (!isWalletConnected) {
-      // #region agent log
-      logPurchaseFlowClient({
-        requestId: flowId,
-        userId: walletKey,
-        flowCorrelationId: flowId,
-        location: 'TradingBox.tsx:onBuySubmit',
-        phase: 'tradingbox.buy_submit.exit_early',
-        payloadReceived: { reason: 'wallet_not_connected', requireWalletWillOpen: true },
-      });
-      // #endregion
+    if (!requireWalletAndChain()) {
       buyFlowCorrelationRef.current = null;
-      requireWallet();
       return;
     }
 
@@ -554,10 +544,7 @@ export function TradingBox({ market }: TradingBoxProps) {
       return;
     }
 
-    if (!isWalletConnected) {
-      requireWallet();
-      return;
-    }
+    if (!requireWalletAndChain()) return;
 
     setTxError(undefined);
     setTxModalState('review');
@@ -565,6 +552,10 @@ export function TradingBox({ market }: TradingBoxProps) {
   };
 
   const handleConfirmTransaction = () => {
+    if (!isDemoActive && !requireWalletAndChain()) {
+      setShowTxModal(false);
+      return;
+    }
     const flowId = buyFlowCorrelationRef.current;
     // #region agent log
     logPurchaseFlowClient({
@@ -1050,7 +1041,7 @@ export function TradingBox({ market }: TradingBoxProps) {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={buyAmount <= 0}
+                disabled={buyAmount <= 0 || (!isDemoActive && wrongNetwork)}
                 className={`w-full py-5 sm:py-4 font-bold text-xl sm:text-lg rounded-lg transition-all disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 active:scale-95 ${
                   selectedOutcome === 'YES'
                     ? 'bg-green-500 text-white hover:bg-green-600'
@@ -1061,6 +1052,8 @@ export function TradingBox({ market }: TradingBoxProps) {
               >
                 {buyAmount <= 0
                   ? 'Enter Amount'
+                  : !isDemoActive && wrongNetwork
+                    ? 'Switch network to trade'
                   : orderType === 'LIMIT'
                   ? `Place limit order · 0% fee`
                   : !isWalletConnected
@@ -1091,7 +1084,7 @@ export function TradingBox({ market }: TradingBoxProps) {
               {/* Demo Mode Info */}
               {!isWalletConnected && (
                 <div className="mt-2 text-center text-xs text-gray-400">
-                  Trading with virtual $1,000 USDC · Connect wallet for real trading
+                  {predictionBalanceFootnote()} Connect a wallet to sync your paper account.
                 </div>
               )}
 
@@ -1221,11 +1214,17 @@ export function TradingBox({ market }: TradingBoxProps) {
                   {/* Submit Button */}
                   <button
                     type="submit"
-                    disabled={sellShares <= 0 || sellShares > userPosition.shares}
+                    disabled={
+                      sellShares <= 0 ||
+                      sellShares > userPosition.shares ||
+                      (!isDemoActive && wrongNetwork)
+                    }
                     className="w-full py-5 sm:py-4 bg-orange-500 text-white font-bold text-xl sm:text-lg rounded-lg hover:bg-orange-600 transition-all disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 active:scale-95"
                   >
                     {sellShares <= 0
                       ? 'Enter Shares'
+                      : !isDemoActive && wrongNetwork
+                        ? 'Switch network to trade'
                       : !isWalletConnected
                       ? `Sell ${
                           selectedOutcome === 'YES'

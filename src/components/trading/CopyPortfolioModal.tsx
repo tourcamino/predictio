@@ -45,7 +45,7 @@ export function CopyPortfolioModal({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { address, balance } = useWalletStore();
-  const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
+  const { requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
   
   const [maxPerTrade, setMaxPerTrade] = useState(existingCopy?.maxPerTradeUsd.toString() || '50');
   const [copyMode, setCopyMode] = useState<'all' | 'selective'>(
@@ -139,7 +139,7 @@ export function CopyPortfolioModal({
   );
 
   const handleStartCopy = () => {
-    if (!requireWallet()) return;
+    if (!requireWalletAndChain()) return;
     if (!address) return;
     const amount = parseFloat(maxPerTrade);
     if (isNaN(amount) || amount < 10) {

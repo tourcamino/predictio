@@ -136,6 +136,9 @@ export function AnalystCard({ analyst }: AnalystCardProps) {
                 showLabel={false}
               />
             </div>
+            <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">
+              Platform analyst · paper-tracked activity
+            </p>
             <div className="mt-1 flex max-w-full items-center gap-1.5">
               <p
                 className="truncate font-mono text-[11px] leading-tight text-gray-400 sm:text-xs"

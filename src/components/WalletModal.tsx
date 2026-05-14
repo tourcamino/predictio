@@ -4,6 +4,13 @@ import { X, Check, Loader2, Copy, ExternalLink, ChevronDown, ChevronUp, AlertCir
 import { useWallet } from '~/store/useWalletStore';
 import { useNavigate } from '@tanstack/react-router';
 import toast from 'react-hot-toast';
+import {
+  BASE_SEPOLIA_FAUCET_URL,
+  getExpectedPredictioChain,
+  isPredictioTestnet,
+  walletModalDepositIntroBody,
+  walletModalDepositIntroTitle,
+} from '~/lib/economySurface';
 
 type ModalStep = 'choose' | 'connecting' | 'success' | 'deposit' | 'error';
 type DepositTab = 'bridge' | 'buy' | 'transfer';
@@ -198,7 +205,10 @@ export function WalletModal() {
                       Connect wallet
                     </Dialog.Title>
                     <p className="text-gray-400 mb-6">
-                      Trade live prediction markets with 1,000 demo USDC — no risk, no deposits required.
+                      Sign in with your wallet for server-synced <strong className="text-white/90">paper</strong> trading
+                      {isPredictioTestnet()
+                        ? ` on ${getExpectedPredictioChain().shortLabel} (testnet — no real funds).`
+                        : " on Base. Guest demo stays in this browser only."}
                     </p>
 
                     <div className="space-y-3 mb-6 max-h-[400px] overflow-y-auto pr-2">
@@ -358,20 +368,23 @@ export function WalletModal() {
                       <div className="p-4 bg-white/5 rounded-lg">
                         <p className="text-sm text-gray-400 mb-1">Balance</p>
                         <p className="text-2xl font-bold text-brand-green">
-                          ${balance.toLocaleString()} USDC
+                          ${balance.toLocaleString()} paper USDC
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Predictio account balance — not your wallet&apos;s on-chain USDC.
                         </p>
                       </div>
 
                       <div className="p-4 bg-white/5 rounded-lg">
                         <p className="text-sm text-gray-400 mb-1">Network</p>
-                        <p className="font-semibold">BASE ✓</p>
+                        <p className="font-semibold">{getExpectedPredictioChain().shortLabel} ✓</p>
                       </div>
                     </div>
 
                     {balance === 0 ? (
                       <div className="mt-6 space-y-3">
                         <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-sm text-yellow-500">
-                          No USDC detected. You'll need USDC to start predicting.
+                          No paper balance synced yet. You can still browse markets — add test funds from a faucet if you need on-chain gas on {getExpectedPredictioChain().shortLabel}.
                         </div>
                         <button
                           onClick={() => setStep('deposit')}
@@ -466,7 +479,7 @@ export function WalletModal() {
                       <p className="font-semibold mb-2">Common issues:</p>
                       <ul className="space-y-1 text-gray-400 text-xs">
                         <li>• Make sure your wallet extension is unlocked</li>
-                        <li>• Check that you're on the correct network (BASE)</li>
+                        <li>• Check that you&apos;re on {getExpectedPredictioChain().shortLabel}</li>
                         <li>• Try refreshing the page and connecting again</li>
                         <li>• Ensure your wallet software is up to date</li>
                       </ul>
@@ -478,9 +491,26 @@ export function WalletModal() {
                 {step === 'deposit' && (
                   <div className="p-6 md:p-8">
                     <Dialog.Title className="font-syne text-2xl md:text-3xl font-bold mb-2">
-                      Add USDC to Start Predicting
+                      {walletModalDepositIntroTitle()}
                     </Dialog.Title>
-                    <p className="text-gray-400 mb-6">You need USDC on BASE to place predictions.</p>
+                    <p className="text-gray-400 mb-4">{walletModalDepositIntroBody()}</p>
+                    {isPredictioTestnet() && (
+                      <div className="mb-6 rounded-lg border border-amber-500/35 bg-amber-500/10 p-4 text-sm text-amber-100/95">
+                        <p className="font-semibold text-amber-200 mb-1">Sepolia ETH (gas)</p>
+                        <p className="text-xs text-amber-100/85 mb-3">
+                          Use an official Base Sepolia faucet. Test tokens have no cash value.
+                        </p>
+                        <a
+                          href={BASE_SEPOLIA_FAUCET_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-xs font-bold text-amber-200 hover:text-white underline"
+                        >
+                          Open Base Sepolia faucet
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    )}
 
                     {/* Tabs */}
                     <div className="flex gap-2 mb-6 border-b border-white/10">
@@ -503,7 +533,7 @@ export function WalletModal() {
                     {depositTab === 'bridge' && (
                       <div className="space-y-4">
                         <p className="text-sm text-gray-400 mb-4">
-                          Already have USDC on Ethereum or another chain? Bridge it to BASE.
+                          Already have USDC on Ethereum or another chain? Bridge it to {getExpectedPredictioChain().shortLabel}.
                         </p>
                         {bridgeOptions.map((option) => (
                           <a
@@ -562,7 +592,7 @@ export function WalletModal() {
                     {depositTab === 'transfer' && (
                       <div className="space-y-4">
                         <p className="text-sm text-gray-400 mb-4">
-                          Already have USDC on BASE? Send it to your wallet.
+                          Already have USDC on {getExpectedPredictioChain().shortLabel}? Send it to your wallet.
                         </p>
                         
                         <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
@@ -590,7 +620,7 @@ export function WalletModal() {
                         </div>
 
                         <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-sm text-yellow-500">
-                          ⚠️ Only send USDC on BASE to this address.
+                          ⚠️ Only send USDC on {getExpectedPredictioChain().shortLabel} to this address.
                         </div>
                       </div>
                     )}

@@ -2,6 +2,13 @@
  * Centralized AI tone / instructions — OpenRouter transport stays in `openRouterClient.ts`.
  */
 
+import { env } from "~/server/env";
+
+function serverTargetsTestnet(): boolean {
+  const n = Number(String(env.BASE_CHAIN_ID || "").trim());
+  return n === 84532;
+}
+
 /** Deterministic lens per match so different fixtures get variety; same fixture stays coherent with cache. */
 export const INSIGHT_LENS = ["sentiment", "volatility", "momentum", "contrarian"] as const;
 export type InsightLens = (typeof INSIGHT_LENS)[number];
@@ -38,6 +45,13 @@ export function buildMarketInsightSystemPrompt(lens: InsightLens): string {
     "- Output: one flowing paragraph of prose in English (or Italian only if team/league names are clearly Italian-domestic and the user block is Italian — match that locale).",
     "- Length: about 80–120 words maximum. No bullet points, no markdown, no numbered lists, no headings.",
     "- Probabilistic framing only: implied odds, consensus vs balance, uncertainty, positioning. No winner picks, no locks, no 'safe bet', no guarantees.",
+    ...(serverTargetsTestnet()
+      ? [
+          "Testnet deployment: never imply mainnet value, bank custody, or cash profit from tokens.",
+        ]
+      : [
+          "Economy context: in-app prediction stakes use Predictio paper USDC (server-synced to a connected wallet address) unless the UI explicitly describes an on-chain leg. Do not imply guaranteed cash profits from paper trading.",
+        ]),
     "- Do not use empty platitudes ('anything can happen', 'both teams will fight'). No gambling hype or SEO fluff.",
     "- One closing clause: prices aggregate trader views; verify fees and rules in-app; not financial advice.",
     "Angle for this reply (weave naturally, do not name the angle): " + lensLine,
@@ -107,6 +121,9 @@ export function buildChatAssistantBaseSystemPrompt(): string {
     "Product facts you may state: trading on Base with USDC; fees on trades with split among protocol vault, analysts, referrals — tell users exact numbers are in-app. Never invent fee percentages.",
     "Security: never ask for seed phrases, private keys, wallet screenshots, or signatures to unknown prompts.",
     "If a detail is missing, say to check the in-app disclosure or support — do not invent policy numbers or chain state.",
+    serverTargetsTestnet()
+      ? "Deployment: Base Sepolia testnet — tokens have no monetary value; prediction balances are paper unless the UI states otherwise."
+      : "Economy: guest demo uses browser-only virtual USDC; connected users get server-synced paper credits for predictions — distinct from any USDC/ETH in the user's wallet for gas.",
   ].join(" ");
 }
 

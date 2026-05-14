@@ -2,9 +2,11 @@ import React from 'react';
 import {
   Outlet,
   createRootRoute,
+  useRouterState,
 } from "@tanstack/react-router";
 import { Toaster } from "react-hot-toast";
 import { WalletSync } from '~/components/WalletSync';
+import { WalletChainSync } from '~/components/WalletChainSync';
 import { WalletModal } from '~/components/WalletModal';
 import { TopStack } from '~/components/TopStack';
 import { TopChromeProvider } from '~/components/TopChromeContext';
@@ -15,6 +17,7 @@ import { useAzuroResolutionPolling } from '~/hooks/useAzuroResolutionPolling';
 import { OnboardingTour } from '~/components/onboarding/OnboardingTour';
 import { useState, useEffect } from 'react';
 import { captureException } from '~/lib/errorMonitoring';
+import { resetStaleScrollLocksIfIdle } from '~/lib/bodyScrollLock';
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -99,6 +102,11 @@ class ErrorBoundary extends React.Component<
 function RootComponent() {
   // Poll Azuro for resolved markets every 5 minutes
   useAzuroResolutionPolling();
+
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useEffect(() => {
+    resetStaleScrollLocksIfIdle();
+  }, [pathname]);
   
   const [showTour, setShowTour] = useState(false);
   
@@ -151,6 +159,7 @@ function RootComponent() {
           }}
         />
         <WalletSync />
+        <WalletChainSync />
         <WalletModal />
         <TopStack />
         <Chatbot />
