@@ -14,8 +14,9 @@ Documento operativo: allinea **GitHub**, **Vercel (frontend)**, **Docker sulla V
 
 ### Branch production
 
-- Di solito **`master`** collegato a **Production** su Vercel (Git integration).
-- Ogni **push** su quel branch avvia un **nuovo deployment** automatico.
+- **`master`** e **`main` devono restare sullo stesso commit** prima di considerare il rilascio completo (es. da `master`: `git checkout main && git merge origin/master && git push origin main`, oppure l’inverso). Così Vercel riceve le modifiche sia se il **Production Branch** in dashboard è `main`, sia se è `master`.
+- In **Vercel → Settings → Git → Production Branch** verificare quale branch è collegato; ogni **push** su quel branch avvia un **nuovo deployment** automatico.
+- Dopo allineamento, fare **push di entrambi** i branch su `origin` così GitHub, VPS (`git pull origin master`) e strumenti esterni restano coerenti.
 
 ### Auto deploy flow
 
