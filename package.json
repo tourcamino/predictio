@@ -109,6 +109,11 @@
   "overrides": {
     "@tanstack/router-generator": "1.119.0"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@napi-rs/canvas"
+    ]
+  },
   "private": true,
   "type": "module"
 }
