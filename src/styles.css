@@ -141,7 +141,7 @@ body {
 
 .ticker-content {
   display: inline-block;
-  animation: ticker-scroll 40s linear infinite;
+  animation: ticker-scroll 100s linear infinite;
   will-change: transform;
 }
 
