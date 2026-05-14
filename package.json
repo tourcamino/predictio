@@ -32,7 +32,8 @@
     "vps:verify": "node ./scripts/vps-verify-remote.mjs",
     "env:validate": "node ./scripts/validate-env.mjs .env",
     "autonomous-copy-analysts:tick": "tsx ./src/server/scripts/runAutonomousCopyAnalystTick.ts",
-    "db:setup": "node --env-file=.env --import tsx ./src/server/scripts/setup.ts"
+    "db:setup": "node --env-file=.env --import tsx ./src/server/scripts/setup.ts",
+    "paper:reset-wallet": "node --env-file=.env --import tsx ./src/server/scripts/resetPaperTestWallet.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",

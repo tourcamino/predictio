@@ -92,3 +92,9 @@ Documento **concettuale** (niente refactor di naming o API). Obiettivo: allinear
 | Chiusura paper | `src/server/trpc/procedures/closePosition.ts` |
 
 Ultimo aggiornamento: allineamento `/trading` ↔ `getUserPositions` e documentazione glossario.
+
+---
+
+## 8. Reset ambiente test (paper wallet)
+
+Per azzerare **solo** un wallet in allowlist (ordini, LP, copy come copier, ledger, punti, ecc.) e ripristinare saldi paper controllati, vedi **`docs/PAPER_TEST_WALLET_RESET.md`** e lo script `src/server/scripts/resetPaperTestWallet.ts`.
