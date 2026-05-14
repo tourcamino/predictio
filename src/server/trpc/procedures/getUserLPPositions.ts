@@ -7,6 +7,8 @@ export const getUserLPPositions = baseProcedure
     z.object({
       walletAddress: z.string(),
       status: z.enum(['all', 'active', 'withdrawn']).default('active'),
+      /** Client cache scope only — ignored for Prisma reads. */
+      clientChainId: z.number().int(),
     })
   )
   .query(async ({ input }) => {

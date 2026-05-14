@@ -35,7 +35,7 @@ export function ProtocolVaultWithdrawModal({
   position, 
   onSuccess 
 }: ProtocolVaultWithdrawModalProps) {
-  const { balance, address, updateBalance } = useWallet();
+  const { address } = useWallet();
   const { requireWalletAndChain } = useWalletGate();
   const walletKey = normalizeWalletForQuery(address);
   const [amount, setAmount] = useState('');
@@ -83,10 +83,6 @@ export function ProtocolVaultWithdrawModal({
 
       setTxHash(result.txHash);
       setTransactionState('mining');
-
-      if (result.newBalance !== undefined) {
-        updateBalance(result.newBalance);
-      }
 
       // Simulate mining delay
       await new Promise(resolve => setTimeout(resolve, 2000));

@@ -1,7 +1,7 @@
 /**
  * Trading UI `Position` rows are a **view** of persisted **`Order`** records (paper trading).
  * This adapter maps `getUserPositions` + optional `getMarketSummaries` into the shape
- * expected by `PositionsList` / `PositionDetail` (`~/store/tradingStore` `Position`).
+ * expected by `PositionsList` / `PositionDetail` (same shape as `~/store/tradingStore` `Position`).
  *
  * **Semantics:** `Position.id` MUST equal `Order.id` for connected users (real CUIDs).
  * Product copy may say “prediction” or “position”; the DB entity remains `Order`.
@@ -12,6 +12,8 @@ import type { AppRouter } from '~/server/trpc/root';
 import type { Market } from '~/data/mockMarkets';
 import type { DemoPosition } from '~/lib/demoStorage';
 import type { Position } from '~/store/tradingStore';
+import { getMarketLifecycleState } from '~/utils/marketLifecycle';
+import { MarketLifecycleState } from '~/lib/market/marketLifecycleStateMachine';
 
 export type UserOrderRow = inferRouterOutputs<AppRouter>['getUserPositions']['positions'][number];
 
@@ -56,9 +58,22 @@ function mapOrderToUiStatus(
 ): Position['status'] {
   if (order.status === 'resolved') return 'resolved';
   if (order.status === 'closed') return 'resolved';
-  const ms = market?.status;
-  if (ms === 'resolved' || ms === 'voided') return 'resolved';
-  if (ms === 'closed' || ms === 'closing-soon' || ms === 'under_review') return 'locked';
+  const life = market ? getMarketLifecycleState(market) : MarketLifecycleState.OPEN;
+  if (
+    life === MarketLifecycleState.RESOLVED ||
+    life === MarketLifecycleState.CANCELLED ||
+    life === MarketLifecycleState.REFUNDED
+  ) {
+    return 'resolved';
+  }
+  if (
+    life === MarketLifecycleState.LOCKED ||
+    life === MarketLifecycleState.RESOLVING ||
+    life === MarketLifecycleState.DISPUTED ||
+    life === MarketLifecycleState.PAUSED
+  ) {
+    return 'locked';
+  }
   return 'live';
 }
 

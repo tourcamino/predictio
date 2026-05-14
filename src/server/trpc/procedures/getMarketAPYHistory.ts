@@ -124,7 +124,7 @@ export const getMarketAPYHistory = baseProcedure
       const recentVolume = await db.transaction.aggregate({
         where: {
           marketId,
-          type: 'bet_placed',
+          type: 'position_open',
           createdAt: {
             gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
           },

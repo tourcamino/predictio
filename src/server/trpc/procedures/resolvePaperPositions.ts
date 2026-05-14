@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
 import { loadMarketUiById } from "~/server/utils/loadMarketUi";
@@ -6,6 +7,14 @@ import {
   creditWalletPoints,
   POINT_ACTION_VALUES,
 } from "~/server/utils/pointsLedger";
+import {
+  canResolvePaperMarket,
+  deriveMarketLifecycleFromDbRow,
+  deriveMarketLifecycleFromUiMarket,
+  logMarketLifecycleDev,
+  MarketLifecycleState,
+  reasonCannotResolvePaperMarket,
+} from "~/lib/market/marketLifecycleStateMachine";
 
 export const resolvePaperPositions = baseProcedure
   .input(
@@ -16,6 +25,41 @@ export const resolvePaperPositions = baseProcedure
   )
   .mutation(async ({ input }) => {
     const { marketId, winningOutcome } = input;
+
+    const marketRow = await db.market.findUnique({
+      where: { id: marketId },
+    });
+
+    let lifecycle: (typeof MarketLifecycleState)[keyof typeof MarketLifecycleState];
+    if (marketRow) {
+      lifecycle = deriveMarketLifecycleFromDbRow(marketRow);
+    } else {
+      const ui = await loadMarketUiById(marketId);
+      lifecycle = ui
+        ? deriveMarketLifecycleFromUiMarket(ui)
+        : MarketLifecycleState.RESOLVING;
+      logMarketLifecycleDev("resolvePaperPositions", "no_db_row", {
+        marketId,
+        assumedLifecycle: lifecycle,
+      });
+    }
+
+    if (lifecycle === MarketLifecycleState.RESOLVED) {
+      logMarketLifecycleDev("resolvePaperPositions", "skip_idempotent_resolved", { marketId });
+      return {
+        success: true,
+        resolvedCount: 0,
+        message: "Market already resolved",
+      };
+    }
+
+    if (!canResolvePaperMarket(lifecycle)) {
+      logMarketLifecycleDev("resolvePaperPositions", "reject_resolve", { marketId, lifecycle });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: reasonCannotResolvePaperMarket(lifecycle) ?? "Cannot resolve this market.",
+      });
+    }
 
     // Get all open positions for this market
     const openPositions = await db.order.findMany({
@@ -93,7 +137,7 @@ export const resolvePaperPositions = baseProcedure
         await db.transaction.create({
           data: {
             wallet: position.wallet,
-            type: isWinner ? 'bet_won' : 'bet_lost',
+            type: isWinner ? 'position_settlement_win' : 'position_settlement_loss',
             amount: payout,
             balanceBefore,
             balanceAfter,
@@ -101,6 +145,7 @@ export const resolvePaperPositions = baseProcedure
             orderId: position.id,
             status: 'completed',
             metadata: {
+              ledgerIntent: 'POSITION_SETTLEMENT',
               outcome: position.outcome,
               winningOutcome,
               shares,
@@ -154,13 +199,20 @@ export const resolvePaperPositions = baseProcedure
 
     if (validUpdates.length > 0) {
       try {
-        await db.market.update({
-          where: { id: marketId },
+        const updated = await db.market.updateMany({
+          where: {
+            id: marketId,
+            status: { not: "resolved" },
+          },
           data: {
-            status: 'resolved',
+            status: "resolved",
             winner: winningOutcome,
             resolvedAt: new Date(),
           },
+        });
+        logMarketLifecycleDev("resolvePaperPositions", "market_status_update", {
+          marketId,
+          count: updated.count,
         });
       } catch {
         /* Market id may exist only in mocks / Azuro without a DB row */

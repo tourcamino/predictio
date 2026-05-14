@@ -7,6 +7,9 @@ import {
 import { Toaster } from "react-hot-toast";
 import { WalletSync } from '~/components/WalletSync';
 import { WalletChainSync } from '~/components/WalletChainSync';
+import { WalletRuntimeScrollCleanup } from '~/components/wallet/WalletRuntimeScrollCleanup';
+import { WalletRuntimeDebugBar } from '~/components/wallet/WalletRuntimeDebugBar';
+import { WalletScopedQueryLifecycle } from '~/components/wallet/WalletScopedQueryLifecycle';
 import { WalletModal } from '~/components/WalletModal';
 import { TopStack } from '~/components/TopStack';
 import { TopChromeProvider } from '~/components/TopChromeContext';
@@ -160,6 +163,9 @@ function RootComponent() {
         />
         <WalletSync />
         <WalletChainSync />
+        <WalletScopedQueryLifecycle />
+        <WalletRuntimeScrollCleanup />
+        <WalletRuntimeDebugBar />
         <WalletModal />
         <TopStack />
         <Chatbot />

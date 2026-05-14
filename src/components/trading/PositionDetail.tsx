@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Clock, TrendingUp, Activity } from 'lucide-react';
 import type { Position } from '~/store/tradingStore';
-import { useTradingStore } from '~/store/tradingStore';
 import { usePositionRealtime } from '~/hooks/usePositionRealtime';
 import { useWallet } from '~/store/useWalletStore';
 import { SellControls } from './SellControls';
@@ -10,16 +9,25 @@ import { TradeConfirmationModal } from './TradeConfirmationModal';
 import { OrderBook } from '~/components/markets/OrderBook';
 import { RecentTradesFeed } from '~/components/markets/RecentTradesFeed';
 import { formatPnL, formatPctChange } from '~/lib/trading/calculations';
-/** Demo / local mock + future on-chain path — paper sells for a connected wallet use `closePosition` (see `handleSellConfirm`). */
-import { executeSell, executeBuy } from '~/lib/trading/execution';
+import { deriveLivePositionFromQuote } from '~/lib/trading/deriveLivePositionFromQuote';
+import { isLiveMode } from '~/config/chain';
+import { useDemoAccount } from '~/hooks/useDemoAccount';
+import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
+import { executePlacePredictionWithDiagnostics } from '~/lib/executePlacePredictionWithDiagnostics';
 import toast from 'react-hot-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTRPC } from '~/trpc/react';
+import { useTRPC, useTRPCClient } from '~/trpc/react';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 import {
   invalidateWalletNotifications,
-  invalidateWalletPointsSummary,
 } from '~/utils/invalidateWalletNotifications';
+
+function positionDetailExecDevLog(phase: string, extra?: Record<string, unknown>) {
+  if (!import.meta.env.DEV || import.meta.env.VITE_POSITION_EXEC_DEBUG !== '1') return;
+  // eslint-disable-next-line no-console
+  console.info('[position-detail-exec]', phase, extra ?? {});
+}
 
 interface PositionDetailProps {
   position: Position;
@@ -29,47 +37,65 @@ type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 type TradeType = 'sell' | 'add';
 
 export function PositionDetail({ position }: PositionDetailProps) {
-  const { balance, isConnected, address, updateBalance } = useWallet();
+  const { isConnected, address } = useWallet();
+  const { cashUsdc: paperCashUsdc } = usePaperWalletBalance();
   const walletKey = normalizeWalletForQuery(address);
-  const usePaperClose = isConnected && !!walletKey && !position.id.startsWith('demo-');
+  const isDemoPosition = position.id.startsWith('demo-');
+  /** Connected paper wallet + real order row — DB mutations only, no local portfolio store. */
+  const usePaperRuntime = isConnected && !!walletKey && !isDemoPosition;
 
   const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
+  const { executeDemoTrade, refreshState, balance: demoBalance } = useDemoAccount();
+
+  const invalidatePaperQueries = () => {
+    if (walletKey) {
+      invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
+      invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
+    }
+    void queryClient.invalidateQueries({
+      queryKey: trpc.getMarketDetail.queryKey({ marketId: position.marketId }),
+    });
+  };
 
   const closePositionMutation = useMutation(
     trpc.closePosition.mutationOptions({
-      onSuccess: (data) => {
-        if (data.newBalance !== undefined) {
-          updateBalance(data.newBalance);
-        }
-        if (walletKey) {
-          queryClient.invalidateQueries({
-            queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'open' }),
-          });
-          queryClient.invalidateQueries({
-            queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
-          });
-          queryClient.invalidateQueries({
-            queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
-          });
-          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
-          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
-        }
+      onSuccess: () => {
+        invalidatePaperQueries();
       },
     }),
   );
 
-  const updatePosition = useTradingStore((state) => state.updatePosition);
-  const removePosition = useTradingStore((state) => state.removePosition);
-  
-  // Real-time data
+  const placePredictionMutation = useMutation({
+    mutationFn: (input: {
+      marketId: string;
+      outcome: string;
+      amount: number;
+      walletAddress: string;
+      orderType: 'MARKET' | 'LIMIT';
+      limitPrice?: number;
+    }) =>
+      executePlacePredictionWithDiagnostics(
+        (i) => trpcClient.placePrediction.mutate(i),
+        input,
+      ),
+    onSuccess: () => {
+      invalidatePaperQueries();
+    },
+  });
   const { marketPrice, orderbook, recentTrades, wsStatus } = usePositionRealtime(position.marketId);
-  
-  // Use real-time price if available, otherwise derive from last mapped snapshot (avoid /0).
-  const currentPrice =
-    marketPrice?.last ??
-    (position.shares > 0 ? position.currentValue / position.shares : position.entryPrice);
-  
+
+  const live = useMemo(
+    () => deriveLivePositionFromQuote(position, marketPrice),
+    [position, marketPrice],
+  );
+  const terminal = position.status === 'resolved' || position.status === 'cancelled';
+  const currentPrice = live.lastPrice;
+  const headerPnl = terminal ? position.unrealizedPnl : live.unrealizedPnl;
+  const headerPnlPct = terminal ? position.unrealizedPnlPct : live.unrealizedPnlPct;
+  const headerCurrentValue = terminal ? position.currentValue : live.currentValue;
+
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [modalState, setModalState] = useState<TransactionState>('review');
@@ -88,8 +114,8 @@ export function PositionDetail({ position }: PositionDetailProps) {
   const [tradeTotalShares, setTradeTotalShares] = useState(0);
   const [tradeFee, setTradeFee] = useState(0);
 
-  const pnlFormatted = formatPnL(position.unrealizedPnl);
-  const pctFormatted = formatPctChange(position.unrealizedPnlPct);
+  const pnlFormatted = formatPnL(headerPnl);
+  const pctFormatted = formatPctChange(headerPnlPct);
   
   // Format time until market ends
   const timeUntilEnd = position.marketEndsAt.getTime() - Date.now();
@@ -112,7 +138,8 @@ export function PositionDetail({ position }: PositionDetailProps) {
     setError('');
 
     try {
-      if (usePaperClose) {
+      if (usePaperRuntime) {
+        positionDetailExecDevLog('sell.paper.closePosition', { orderId: position.id });
         const price = Math.max(currentPrice, 0.001);
         const data = await closePositionMutation.mutateAsync({
           orderId: position.id,
@@ -126,39 +153,39 @@ export function PositionDetail({ position }: PositionDetailProps) {
         return;
       }
 
-      const result = await executeSell({
-        positionId: position.id,
-        marketId: position.marketId,
-        shares: tradeShares,
-        price: currentPrice,
-        slippageBps: 50,
-      });
-
-      if (result.success) {
-        setTxHash(result.txHash);
-        setModalState('mining');
-
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        setModalState('success');
-
-        const remainingShares = position.shares - tradeShares;
-        if (remainingShares === 0) {
-          removePosition(position.id);
-          toast.success('Position closed successfully!');
-        } else {
-          const newCostBasis = position.costBasis - (position.costBasis * (tradeShares / position.shares));
-          updatePosition(position.id, {
-            shares: remainingShares,
-            costBasis: newCostBasis,
-          });
-          toast.success(`Sold ${tradeShares.toLocaleString()} shares!`);
+      if (isDemoPosition) {
+        positionDetailExecDevLog('sell.demo.executeDemoTrade', {
+          marketId: position.marketId,
+          proceeds: tradeProceeds,
+        });
+        const r = await executeDemoTrade({
+          marketId: position.marketId,
+          outcome: position.side,
+          type: 'SELL',
+          amount: tradeProceeds,
+          price: currentPrice,
+        });
+        if (!r.success) {
+          throw new Error(r.message);
         }
-      } else {
-        throw new Error('Transaction failed');
+        refreshState();
+        setTxHash('');
+        setModalState('success');
+        toast.success(r.message);
+        return;
       }
-    } catch (err: any) {
-      setError(err.message || 'Transaction failed. Please try again.');
+
+      if (isLiveMode()) {
+        setError('On-chain sell is not enabled yet.');
+        setModalState('error');
+        return;
+      }
+
+      setError('Connect your wallet or use guest demo to sell.');
+      setModalState('error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Transaction failed. Please try again.';
+      setError(msg);
       setModalState('error');
     }
   };
@@ -177,38 +204,60 @@ export function PositionDetail({ position }: PositionDetailProps) {
 
   const handleBuyConfirm = async () => {
     setModalState('pending');
-    
+    setError('');
+
     try {
-      const result = await executeBuy({
-        marketId: position.marketId,
-        outcome: position.side,
-        amountUSDC: tradeAmount,
-        price: currentPrice,
-        slippageBps: 50, // 0.5% slippage tolerance
-      });
-      
-      if (result.success) {
-        setTxHash(result.txHash);
-        setModalState('mining');
-        
-        // Simulate confirmation delay
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        
-        setModalState('success');
-        
-        // Update position with new shares and average entry
-        updatePosition(position.id, {
-          shares: tradeTotalShares,
-          entryPrice: tradeNewAvgEntry,
-          costBasis: position.costBasis + tradeAmount,
+      if (usePaperRuntime) {
+        positionDetailExecDevLog('buy.paper.placePrediction', {
+          marketId: position.marketId,
+          amount: tradeAmount,
         });
-        
-        toast.success(`Added ${tradeShares.toLocaleString()} shares to position!`);
-      } else {
-        throw new Error('Transaction failed');
+        const data = await placePredictionMutation.mutateAsync({
+          marketId: position.marketId,
+          outcome: position.side,
+          amount: tradeAmount,
+          walletAddress: walletKey!,
+          orderType: 'MARKET',
+        });
+        setTxHash('');
+        setModalState('success');
+        toast.success(
+          (data as { message?: string } | undefined)?.message ??
+            `Added ${tradeShares.toLocaleString()} shares`,
+        );
+        return;
       }
-    } catch (err: any) {
-      setError(err.message || 'Transaction failed. Please try again.');
+
+      if (isDemoPosition) {
+        positionDetailExecDevLog('buy.demo.executeDemoTrade', { marketId: position.marketId });
+        const r = await executeDemoTrade({
+          marketId: position.marketId,
+          outcome: position.side,
+          type: 'BUY',
+          amount: tradeAmount,
+          price: currentPrice,
+        });
+        if (!r.success) {
+          throw new Error(r.message);
+        }
+        refreshState();
+        setTxHash('');
+        setModalState('success');
+        toast.success(r.message);
+        return;
+      }
+
+      if (isLiveMode()) {
+        setError('On-chain buy is not enabled yet.');
+        setModalState('error');
+        return;
+      }
+
+      setError('Connect your wallet or use guest demo to add to this position.');
+      setModalState('error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Transaction failed. Please try again.';
+      setError(msg);
       setModalState('error');
     }
   };
@@ -329,7 +378,7 @@ export function PositionDetail({ position }: PositionDetailProps) {
           </div>
           <div>
             <div className="text-xs text-gray-400 mb-1">Current Value</div>
-            <div className="font-mono font-semibold">${position.currentValue.toFixed(2)}</div>
+            <div className="font-mono font-semibold">${headerCurrentValue.toFixed(2)}</div>
           </div>
         </div>
       </div>
@@ -418,7 +467,7 @@ export function PositionDetail({ position }: PositionDetailProps) {
       <AddToPositionControls
         position={position}
         currentPrice={currentPrice}
-        maxAmount={balance}
+        maxAmount={usePaperRuntime ? paperCashUsdc : demoBalance}
         onBuy={handleBuyClick}
       />
 

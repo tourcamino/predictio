@@ -7,6 +7,8 @@ export const getPortfolioSummary = baseProcedure
   .input(
     z.object({
       walletAddress: z.string(),
+      /** Client cache scope only — ignored for Prisma reads. */
+      clientChainId: z.number().int(),
     })
   )
   .query(async ({ input }) => {
@@ -156,7 +158,7 @@ export const getPortfolioSummary = baseProcedure
     const deposits = await db.transaction.findMany({
       where: {
         wallet,
-        type: 'deposit',
+        type: 'wallet_deposit',
         status: 'completed',
       },
     });
@@ -164,7 +166,7 @@ export const getPortfolioSummary = baseProcedure
     const withdrawals = await db.transaction.findMany({
       where: {
         wallet,
-        type: 'withdrawal',
+        type: 'wallet_withdrawal',
         status: 'completed',
       },
     });

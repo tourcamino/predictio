@@ -58,8 +58,34 @@ export const getVaultPerformanceHistory = baseProcedure
     const transactions = await db.transaction.findMany({
       where: {
         type: {
-          in: ['protocol_vault_deposit', 'protocol_vault_withdrawal'],
+          in: ['lp_deposit', 'lp_withdraw'],
         },
+        OR: [
+          {
+            metadata: {
+              path: ['type'],
+              equals: 'protocol_vault_deposit',
+            },
+          },
+          {
+            metadata: {
+              path: ['type'],
+              equals: 'protocol_vault_withdrawal',
+            },
+          },
+          {
+            metadata: {
+              path: ['vaultDeposit'],
+              equals: true,
+            },
+          },
+          {
+            metadata: {
+              path: ['vaultWithdrawal'],
+              equals: true,
+            },
+          },
+        ],
         createdAt: {
           gte: threshold,
         },
@@ -123,7 +149,7 @@ export const getVaultPerformanceHistory = baseProcedure
     // Build capital flows data
     const capitalFlows = transactions.map(tx => ({
       date: tx.createdAt,
-      type: tx.type === 'protocol_vault_deposit' ? 'deposit' : 'withdrawal',
+      type: tx.type === 'lp_deposit' ? 'deposit' : 'withdrawal',
       amount: tx.amount,
     }));
 

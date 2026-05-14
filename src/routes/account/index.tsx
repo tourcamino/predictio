@@ -12,7 +12,10 @@ import { FollowedAnalystsTab } from '~/components/account/FollowedAnalystsTab';
 import { ReferralDashboardTab } from '~/components/account/ReferralDashboardTab';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
-import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
+import type { LedgerHistoryFilter } from '~/lib/ledger/ledgerTransactionTypes';
+import { dbActivityAmountPrefix, dbActivityTypeLabel } from '~/lib/wallet/dbActivityDisplay';
+import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 
 const ACCOUNT_TAB_KEYS = [
   'overview',
@@ -40,7 +43,8 @@ export const Route = createFileRoute('/account/')({
 });
 
 function AccountPage() {
-  const { isConnected, address, balance, openWalletModal, disconnectWallet } = useWallet();
+  const { isConnected, address, openWalletModal, disconnectWallet, chainId } = useWallet();
+  const { cashUsdc: paperCash, inOpenPositions, totalAtCost } = usePaperWalletBalance();
   const navigate = useNavigate({ from: '/account' });
   const { tab: activeTab } = Route.useSearch();
   const [displayName, setDisplayName] = useState('');
@@ -52,7 +56,8 @@ function AccountPage() {
 
   const trpc = useTRPC();
   const walletKey = normalizeWalletForQuery(address);
-  const [transactionType, setTransactionType] = useState<'all' | 'deposit' | 'withdrawal' | 'bet_placed' | 'bet_won' | 'bet_lost' | 'bet_refund'>('all');
+  const chainScope = clientChainScopeForTrpc(chainId);
+  const [transactionType, setTransactionType] = useState<LedgerHistoryFilter>('all');
   const [transactionOffset, setTransactionOffset] = useState(0);
   const transactionLimit = 20;
   const [predictionStatusFilter, setPredictionStatusFilter] = useState<'all' | 'open' | 'resolved'>('all');
@@ -62,6 +67,7 @@ function AccountPage() {
     ...trpc.getUserPositions.queryOptions({
       walletAddress: walletKey,
       status: 'all',
+      clientChainId: chainScope,
     }),
     enabled: !!walletKey && (activeTab === 'overview' || activeTab === 'predictions'),
   });
@@ -97,6 +103,7 @@ function AccountPage() {
   const summaryQuery = useQuery({
     ...trpc.getPortfolioSummary.queryOptions({
       walletAddress: walletKey,
+      clientChainId: chainScope,
     }),
     enabled: !!walletKey && (activeTab === 'overview' || activeTab === 'predictions' || activeTab === 'stats'),
   });
@@ -165,6 +172,7 @@ function AccountPage() {
       limit: transactionLimit,
       offset: transactionOffset,
       type: transactionType,
+      clientChainId: chainScope,
     }),
     enabled: !!walletKey && activeTab === 'history',
   });
@@ -284,7 +292,7 @@ function AccountPage() {
                 <div className="p-6 bg-white/5 border border-white/10 rounded-lg">
                   <div className="text-sm text-gray-400 mb-2">Total Balance</div>
                   <div className="font-mono text-3xl font-bold text-brand-green">
-                    ${balance.toLocaleString()} USDC
+                    ${totalAtCost.toLocaleString()} USDC
                   </div>
                 </div>
                 <div className="p-6 bg-white/5 border border-white/10 rounded-lg">
@@ -755,19 +763,19 @@ function AccountPage() {
                 <div className="p-6 bg-white/5 border border-white/10 rounded-lg">
                   <div className="text-sm text-gray-400 mb-2">Available Balance</div>
                   <div className="font-mono text-3xl font-bold text-brand-green">
-                    ${balance.toLocaleString()} USDC
+                    ${paperCash.toLocaleString()} USDC
                   </div>
                 </div>
                 <div className="p-6 bg-white/5 border border-white/10 rounded-lg">
                   <div className="text-sm text-gray-400 mb-2">In Active Predictions</div>
                   <div className="font-mono text-3xl font-bold">
-                    ${(summaryQuery.data?.totalInvested || 0).toFixed(0)} USDC
+                    ${inOpenPositions.toFixed(0)} USDC
                   </div>
                 </div>
                 <div className="p-6 bg-white/5 border border-white/10 rounded-lg">
                   <div className="text-sm text-gray-400 mb-2">Total Portfolio Value</div>
                   <div className="font-mono text-3xl font-bold text-brand-cyan">
-                    ${(balance + (summaryQuery.data?.totalInvested || 0)).toLocaleString()} USDC
+                    ${totalAtCost.toLocaleString()} USDC
                   </div>
                 </div>
               </div>
@@ -822,17 +830,25 @@ function AccountPage() {
               {/* Filters */}
               <div className="flex gap-2 flex-wrap">
                 {[
-                  { value: 'all', label: 'All Transactions' },
-                  { value: 'deposit', label: 'Deposits' },
-                  { value: 'withdrawal', label: 'Withdrawals' },
-                  { value: 'bet_placed', label: 'Bets Placed' },
-                  { value: 'bet_won', label: 'Wins' },
-                  { value: 'bet_lost', label: 'Losses' },
+                  { value: 'all' as const, label: 'All' },
+                  { value: 'credits' as const, label: 'Credits' },
+                  { value: 'wallet_deposit' as const, label: 'Wallet in' },
+                  { value: 'wallet_withdrawal' as const, label: 'Wallet out' },
+                  { value: 'position_open' as const, label: 'Open' },
+                  { value: 'position_sell' as const, label: 'Sell' },
+                  { value: 'position_settlement_win' as const, label: 'Settle win' },
+                  { value: 'position_settlement_loss' as const, label: 'Settle loss' },
+                  { value: 'lp_deposit' as const, label: 'LP in' },
+                  { value: 'lp_withdraw' as const, label: 'LP out' },
+                  { value: 'lp_reward_claim' as const, label: 'LP fees' },
+                  { value: 'holding_reward' as const, label: 'Holding' },
+                  { value: 'analyst_reward' as const, label: 'Analyst' },
+                  { value: 'affiliate_reward' as const, label: 'Affiliate' },
                 ].map((filter) => (
                   <button
                     key={filter.value}
                     onClick={() => {
-                      setTransactionType(filter.value as any);
+                      setTransactionType(filter.value);
                       setTransactionOffset(0);
                     }}
                     className={`px-4 py-2 border rounded-lg transition-all text-sm font-medium ${
@@ -879,34 +895,61 @@ function AccountPage() {
                         </thead>
                         <tbody className="divide-y divide-white/10">
                           {transactionHistoryQuery.data?.transactions.map((tx) => {
-                            const isDeposit = tx.type === 'deposit';
-                            const isWithdrawal = tx.type === 'withdrawal';
-                            const isBet = tx.type === 'bet_placed';
-                            const isWin = tx.type === 'bet_won';
-                            const isLoss = tx.type === 'bet_lost';
-                            
-                            const typeConfig = {
-                              deposit: { icon: ArrowDownCircle, color: 'text-brand-green', label: 'Deposit' },
-                              withdrawal: { icon: ArrowUpCircle, color: 'text-yellow-400', label: 'Withdrawal' },
-                              bet_placed: { icon: TrendingUp, color: 'text-brand-cyan', label: 'Bet Placed' },
-                              bet_won: { icon: Trophy, color: 'text-brand-green', label: 'Win' },
-                              bet_lost: { icon: TrendingDown, color: 'text-red-400', label: 'Loss' },
-                              bet_refund: { icon: RefreshCw, color: 'text-gray-400', label: 'Refund' },
-                            }[tx.type] || { icon: Calendar, color: 'text-gray-400', label: tx.type };
+                            const t = tx.type;
+                            const isDeposit = t === 'wallet_deposit' || t === 'deposit';
+                            const isWithdrawal = t === 'wallet_withdrawal' || t === 'withdrawal';
+                            const isBet = t === 'position_open' || t === 'bet_placed';
+                            const isWin = t === 'position_settlement_win' || t === 'bet_won';
+                            const isLoss = t === 'position_settlement_loss' || t === 'bet_lost';
+                            const isReward =
+                              t === 'holding_reward' ||
+                              t === 'analyst_reward' ||
+                              t === 'affiliate_reward' ||
+                              t === 'lp_reward_claim' ||
+                              t === 'reward_claim' ||
+                              t === 'lp_fee_claim';
+                            const isLpMove = t === 'lp_deposit' || t === 'lp_withdraw';
+                            const isSell = t === 'position_sell';
+
+                            const typeConfig =
+                              {
+                                wallet_deposit: { icon: ArrowDownCircle, color: 'text-brand-green' },
+                                deposit: { icon: ArrowDownCircle, color: 'text-brand-green' },
+                                wallet_withdrawal: { icon: ArrowUpCircle, color: 'text-yellow-400' },
+                                withdrawal: { icon: ArrowUpCircle, color: 'text-yellow-400' },
+                                position_open: { icon: TrendingUp, color: 'text-brand-cyan' },
+                                bet_placed: { icon: TrendingUp, color: 'text-brand-cyan' },
+                                position_sell: { icon: TrendingUp, color: 'text-brand-cyan' },
+                                position_settlement_win: { icon: Trophy, color: 'text-brand-green' },
+                                bet_won: { icon: Trophy, color: 'text-brand-green' },
+                                position_settlement_loss: { icon: TrendingDown, color: 'text-red-400' },
+                                bet_lost: { icon: TrendingDown, color: 'text-red-400' },
+                                position_refund: { icon: RefreshCw, color: 'text-gray-400' },
+                                bet_refund: { icon: RefreshCw, color: 'text-gray-400' },
+                                lp_deposit: { icon: ArrowDownCircle, color: 'text-brand-cyan' },
+                                lp_withdraw: { icon: ArrowUpCircle, color: 'text-yellow-400' },
+                                lp_reward_claim: { icon: Gift, color: 'text-brand-green' },
+                                holding_reward: { icon: Gift, color: 'text-brand-green' },
+                                analyst_reward: { icon: Gift, color: 'text-brand-green' },
+                                affiliate_reward: { icon: Gift, color: 'text-brand-green' },
+                                reward_claim: { icon: Gift, color: 'text-brand-green' },
+                                lp_fee_claim: { icon: Gift, color: 'text-brand-green' },
+                              }[t] || { icon: Calendar, color: 'text-gray-400' };
 
                             const Icon = typeConfig.icon;
                             const metadata = tx.metadata as any;
+                            const prefix = dbActivityAmountPrefix(tx);
 
                             return (
                               <tr key={tx.id} className="hover:bg-white/5">
                                 <td className="px-6 py-4">
                                   <div className="flex items-center gap-2">
                                     <Icon className={`w-4 h-4 ${typeConfig.color}`} />
-                                    <span className="font-semibold text-sm">{typeConfig.label}</span>
+                                    <span className="font-semibold text-sm">{dbActivityTypeLabel(t)}</span>
                                   </div>
                                 </td>
                                 <td className="px-6 py-4">
-                                  {isBet || isWin || isLoss ? (
+                                  {isBet || isWin || isLoss || isSell ? (
                                     <div>
                                       <div className="font-medium text-sm">
                                         {metadata?.marketEvent || tx.market?.event || 'Unknown Market'}
@@ -916,20 +959,37 @@ function AccountPage() {
                                           {metadata.outcome} @ {metadata.odds}x
                                         </div>
                                       )}
+                                      {isSell && typeof metadata?.realizedPnL === 'number' ? (
+                                        <div className="text-xs text-gray-500">
+                                          Realized PnL {metadata.realizedPnL >= 0 ? '+' : ''}$
+                                          {Number(metadata.realizedPnL).toFixed(2)}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : isReward || isLpMove ? (
+                                    <div className="text-sm text-gray-300">
+                                      {metadata?.description ||
+                                        metadata?.label ||
+                                        tx.market?.event ||
+                                        (isLpMove ? 'Liquidity' : 'Credit')}
                                     </div>
                                   ) : (
                                     <div className="text-sm text-gray-400">
-                                      {isDeposit ? 'USDC Deposit' : 'USDC Withdrawal'}
+                                      {isDeposit ? 'Wallet funding in' : isWithdrawal ? 'Wallet funding out' : '—'}
                                     </div>
                                   )}
                                 </td>
                                 <td className="px-6 py-4">
-                                  <div className={`font-mono font-semibold ${
-                                    isDeposit || isWin ? 'text-brand-green' : 
-                                    isWithdrawal || isBet || isLoss ? 'text-red-400' : 
-                                    'text-gray-400'
-                                  }`}>
-                                    {isDeposit || isWin ? '+' : '-'}${tx.amount.toLocaleString()}
+                                  <div
+                                    className={`font-mono font-semibold ${
+                                      prefix === '+'
+                                        ? 'text-brand-green'
+                                        : prefix === '-'
+                                          ? 'text-red-400'
+                                          : 'text-gray-400'
+                                    }`}
+                                  >
+                                    {prefix}${tx.amount.toLocaleString()}
                                   </div>
                                   {metadata?.potentialWin && isBet && (
                                     <div className="text-xs text-gray-500">

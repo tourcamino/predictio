@@ -8,6 +8,7 @@ import { AlertCircle, TrendingUp } from 'lucide-react';
 import { calculatePoolShare, calculateDailyEarnings, calculateMonthlyEarnings, getLPRiskBadge } from '~/utils/lpUtils';
 import type { LPMarket } from '~/data/mockLP';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 import { useWalletGate } from '~/hooks/useWalletGate';
 
@@ -21,7 +22,8 @@ interface AddLiquidityModalProps {
 }
 
 export function AddLiquidityModal({ isOpen, onClose, market, onSuccess }: AddLiquidityModalProps) {
-  const { balance, address, updateBalance } = useWallet();
+  const { address } = useWallet();
+  const { cashUsdc: paperCash } = usePaperWalletBalance();
   const { requireWalletAndChain } = useWalletGate();
   const walletKey = normalizeWalletForQuery(address);
   const [amount, setAmount] = useState('');
@@ -48,7 +50,7 @@ export function AddLiquidityModal({ isOpen, onClose, market, onSuccess }: AddLiq
   }, [isOpen]);
 
   const amountNum = parseFloat(amount) || 0;
-  const isValidAmount = amountNum >= 10 && amountNum <= balance;
+  const isValidAmount = amountNum >= 10 && amountNum <= paperCash;
   const poolShare = calculatePoolShare(amountNum, market.poolSize);
   const dailyEarnings = calculateDailyEarnings(amountNum, market.poolSize, market.volume24h);
   const monthlyEarnings = calculateMonthlyEarnings(amountNum, market.poolSize, market.volume24h);
@@ -66,15 +68,11 @@ export function AddLiquidityModal({ isOpen, onClose, market, onSuccess }: AddLiq
         marketId: market.id,
         amount: amountNum,
         walletAddress: walletKey,
-        currentBalance: balance,
+        currentBalance: paperCash,
       });
 
       setTxHash(result.txHash);
       setTransactionState('mining');
-
-      if (result.newBalance !== undefined) {
-        updateBalance(result.newBalance);
-      }
 
       // Simulate mining delay
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -107,7 +105,7 @@ export function AddLiquidityModal({ isOpen, onClose, market, onSuccess }: AddLiq
     }
   };
 
-  const quickAmounts = [50, 100, 250, 500].filter(a => a <= balance);
+  const quickAmounts = [50, 100, 250, 500].filter(a => a <= paperCash);
 
   return (
     <>
@@ -160,7 +158,7 @@ export function AddLiquidityModal({ isOpen, onClose, market, onSuccess }: AddLiq
                 autoFocus
               />
               <p className="text-xs text-gray-400 mt-1">
-                Wallet balance: ${balance.toFixed(2)} USDC
+                Wallet balance: ${paperCash.toFixed(2)} USDC
               </p>
             </div>
 
@@ -175,9 +173,9 @@ export function AddLiquidityModal({ isOpen, onClose, market, onSuccess }: AddLiq
                   ${quickAmount}
                 </button>
               ))}
-              {balance >= 10 && (
+              {paperCash >= 10 && (
                 <button
-                  onClick={() => setAmount(Math.min(balance, 1000).toString())}
+                  onClick={() => setAmount(Math.min(paperCash, 1000).toString())}
                   className="flex-1 py-2 bg-white/5 border border-white/10 rounded-lg hover:border-brand-green transition-colors text-sm font-semibold"
                 >
                   MAX
@@ -193,7 +191,7 @@ export function AddLiquidityModal({ isOpen, onClose, market, onSuccess }: AddLiq
               </div>
             )}
 
-            {amountNum > balance && (
+            {amountNum > paperCash && (
               <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
                 <AlertCircle className="w-4 h-4" />
                 <span>Insufficient balance</span>

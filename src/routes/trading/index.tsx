@@ -6,35 +6,40 @@ import { PositionsList } from '~/components/trading/PositionsList';
 import { PositionDetail } from '~/components/trading/PositionDetail';
 import { OrderHistory } from '~/components/trading/OrderHistory';
 import { useTradingStore } from '~/store/tradingStore';
+import { deriveLivePositionFromQuote } from '~/lib/trading/deriveLivePositionFromQuote';
 import { Users, Copy } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
-import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
 import {
   mapDbOrdersToTradingPositions,
   mapDemoPositionToTradingPosition,
 } from '~/lib/trading/mapDbOrderToTradingPosition';
+import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 
 export const Route = createFileRoute('/trading/')({
   component: TradingPage,
 });
 
 function TradingPage() {
-  const { isConnected, balance, address } = useWallet();
+  const { isConnected, address, chainId } = useWallet();
+  const { cashUsdc: paperCash } = usePaperWalletBalance();
   const { positions: demoPositions, balance: demoBalance } = useDemoAccount();
   const trpc = useTRPC();
   const walletKey = normalizeWalletForQuery(address);
+  const chainScope = clientChainScopeForTrpc(chainId);
 
   const selectedPositionId = useTradingStore((state) => state.selectedPositionId);
-  const setPositions = useTradingStore((state) => state.setPositions);
   const selectPosition = useTradingStore((state) => state.selectPosition);
+  const marketPrices = useTradingStore((s) => s.marketPrices);
   const navigate = useNavigate();
 
   const positionsQuery = useQuery({
     ...trpc.getUserPositions.queryOptions({
       walletAddress: walletKey ?? '',
       status: 'open',
+      clientChainId: chainScope,
     }),
     enabled: !!walletKey && isConnected,
   });
@@ -65,33 +70,18 @@ function TradingPage() {
 
   const displayPositions = isConnected ? dbTradingPositions : demoTradingPositions;
 
-  const currentBalance = isConnected ? balance : demoBalance;
+  const currentBalance = isConnected ? paperCash : demoBalance;
 
-  /** Wallet connected: mirror DB-backed rows into the store for any legacy subscribers; never seed mocks in prod. */
+  /** Paper wallet: selection only — rows from tRPC; `tradingStore` holds quotes + `selectedPositionId` only. */
   useEffect(() => {
-    if (!isConnected) {
-      setPositions([]);
-      return;
-    }
-    if (!walletKey) {
-      setPositions([]);
-      return;
-    }
-    setPositions(dbTradingPositions);
+    if (!isConnected || !walletKey) return;
     const ids = new Set(dbTradingPositions.map((p) => p.id));
     if (selectedPositionId && !ids.has(selectedPositionId)) {
       selectPosition(dbTradingPositions[0]?.id ?? null);
     } else if (!selectedPositionId && dbTradingPositions.length > 0) {
       selectPosition(dbTradingPositions[0]!.id);
     }
-  }, [
-    isConnected,
-    walletKey,
-    dbTradingPositions,
-    selectedPositionId,
-    setPositions,
-    selectPosition,
-  ]);
+  }, [isConnected, walletKey, dbTradingPositions, selectedPositionId, selectPosition]);
 
   /** Guest demo: ensure a valid selection for the desktop split view. */
   useEffect(() => {
@@ -200,10 +190,18 @@ function TradingPage() {
 
           <div className="lg:hidden space-y-4">
             {displayPositions.map((position) => {
+              const live = deriveLivePositionFromQuote(
+                position,
+                marketPrices[position.marketId],
+              );
+              const terminal =
+                position.status === 'resolved' || position.status === 'cancelled';
+              const displayPnl = terminal ? position.unrealizedPnl : live.unrealizedPnl;
+              const displayValue = terminal ? position.currentValue : live.currentValue;
               const pnlFormatted =
-                position.unrealizedPnl >= 0
-                  ? { text: `+$${position.unrealizedPnl.toFixed(2)}`, colorClass: 'text-brand-green' }
-                  : { text: `-$${Math.abs(position.unrealizedPnl).toFixed(2)}`, colorClass: 'text-red-500' };
+                displayPnl >= 0
+                  ? { text: `+$${displayPnl.toFixed(2)}`, colorClass: 'text-brand-green' }
+                  : { text: `-$${Math.abs(displayPnl).toFixed(2)}`, colorClass: 'text-red-500' };
 
               return (
                 <button
@@ -221,7 +219,7 @@ function TradingPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-xs text-gray-500 mb-1">Current Value</div>
-                      <div className="font-mono font-semibold">${position.currentValue.toFixed(2)}</div>
+                      <div className="font-mono font-semibold">${displayValue.toFixed(2)}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-gray-500 mb-1">Unrealized P&L</div>

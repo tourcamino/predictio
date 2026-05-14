@@ -65,8 +65,8 @@ Documento **concettuale** (niente refactor di naming o API). Obiettivo: allinear
 | **`Position` vs “position” LP** | Stessa parola in inglese per prediction UI e LP; contestualizzare nei commenti. |
 | **`Trade` in Zustand vs `Transaction` DB** | Omonimia: il feed “Trade” non è la riga `Transaction`. |
 | **`getUserPositions` restituisce `positions`**| Il JSON dice `positions` ma sono **Order**; confusione solo nominale. |
-| **Zustand `tradingStore.positions`** | Mirror opzionale / legacy per subscriber; lista principale reale arriva da query + prop su `/trading`. |
-| **Mock / paper** | `executeBuy` / `executeSell` restano per demo UI e path non-DB; non mescolare con `Order` reale quando il wallet è connesso. |
+| **Zustand `tradingStore` (slice realtime)** | Solo **quotes / orderbook / tape / WS** + `selectedPositionId` (UI). **Nessun** array di posizioni prediction nello store. |
+| **Mock vs paper vs demo** | Paper connesso = solo **tRPC** (`placePrediction`, `closePosition`) + invalidazione query. Guest demo = **`executeDemoTrade`** su `demoStorage`. Stub `executeBuy` / `executeSell` solo in **`src/lib/trading/legacy/devMockExecution.ts`** (non cablati alla UI). |
 | **DRAW pricing** | Portfolio e adapter possono divergere su edge DRAW se il mercato espone solo YES/NO in qualche calcolo; da unificare **solo** dopo stabilizzazione. |
 
 ---

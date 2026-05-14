@@ -23,7 +23,8 @@ import { DemoBadge } from '~/components/demo/DemoBadge';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { GuestPageState } from '~/components/GuestPageState';
-import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
+import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 
 export const Route = createFileRoute('/portfolio/')({
@@ -31,12 +32,14 @@ export const Route = createFileRoute('/portfolio/')({
 });
 
 function Portfolio() {
-  const { isConnected, balance, address, updateBalance } = useWallet();
+  const { isConnected, address, chainId } = useWallet();
+  const { cashUsdc: paperCash } = usePaperWalletBalance();
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const { isActive: isDemoActive, positions: demoPositions, balance: demoBalance, tradeHistory: demoTradeHistory } = useDemoAccount();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const walletKey = normalizeWalletForQuery(address);
+  const chainScope = clientChainScopeForTrpc(chainId);
   const [timeRange, setTimeRange] = useState<'7D' | '30D' | '90D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM'>('1M');
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>();
   const [customEndDate, setCustomEndDate] = useState<Date | undefined>();
@@ -60,6 +63,7 @@ function Portfolio() {
     ...trpc.getUserPositions.queryOptions({
       walletAddress: walletKey,
       status: 'all',
+      clientChainId: chainScope,
     }),
     enabled: !!walletKey && isConnected,
   });
@@ -68,6 +72,7 @@ function Portfolio() {
   const summaryQuery = useQuery({
     ...trpc.getPortfolioSummary.queryOptions({
       walletAddress: walletKey,
+      clientChainId: chainScope,
     }),
     enabled: !!walletKey && isConnected,
   });
@@ -88,6 +93,7 @@ function Portfolio() {
     ...trpc.getUserLPPositions.queryOptions({
       walletAddress: walletKey,
       status: 'active',
+      clientChainId: chainScope,
     }),
     enabled: !!walletKey && isConnected,
   });
@@ -128,9 +134,6 @@ function Portfolio() {
         claimAll: true,
       });
 
-      if (result.newBalance !== undefined) {
-        updateBalance(result.newBalance);
-      }
       toast.success(`Claimed $${result.amount.toFixed(2)} in LP fees!`);
       if (walletKey) {
         invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
@@ -300,7 +303,7 @@ function Portfolio() {
                 ${totalValue.toFixed(2)}
               </div>
               <div className="text-xs text-gray-500 mt-1">
-                {(isDemoActive && !isConnected ? demoBalance : balance).toLocaleString()} USDC available
+                {(isDemoActive && !isConnected ? demoBalance : paperCash).toLocaleString()} USDC available
               </div>
             </div>
             

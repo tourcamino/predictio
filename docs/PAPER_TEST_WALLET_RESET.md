@@ -49,7 +49,7 @@ Serve un **runtime pulito** per validare trading, portfolio, LP, copy e sync cro
 | Store | Chiavi / note |
 |-------|----------------|
 | **PostgreSQL** | Vedi tabella sopra |
-| **localStorage** | `predictio-wallet`, `predictio-trading`, demo `predictio_demo_*`, dismiss onboarding per wallet — usare `clearPaperWalletClientCache` da `~/utils/clearPaperWalletClientCache` oppure cancellazione manuale |
+| **localStorage** | `predictio-wallet-v2` (preferenza wallet / onboarding; **nessun** indirizzo persistito), legacy `predictio-wallet` migrato e rimosso al boot, `predictio-trading`, demo `predictio_demo_*` — usare `clearPaperWalletClientCache` o cancellazione manuale |
 | **React Query** | Dopo reset DB: hard refresh **oppure** riconnessione wallet (sync invalida molte query) |
 
 ---

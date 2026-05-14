@@ -196,7 +196,7 @@ Il frontend è completato al 100% in termini di UI/UX, navigazione e componenti.
 1. **C1 — Backend PostgreSQL + API**: Priorità assoluta. Sostituire tutti i mock data con query Prisma.
 2. **C2 — Bot AMM**: Deploy del bot per la liquidità (può girare su testnet inizialmente).
 3. **Referral/Copy Trading (Backend)**: Completare la logica di attribuzione e mirroring dei trade.
-4. **C4 — Smart Contracts Base Sepolia**: Sostituire il paper trading in `execution.ts`.
+4. **C4 — Smart Contracts Base Sepolia**: Sostituire il paper trading con settlement on-chain (non usare `legacy/devMockExecution.ts` in produzione).
 5. **C3 — Bot Twitter/Growth**: Implementare distribuzione contenuti.
 6. **C5 — Mainnet**: Deploy finale.
 

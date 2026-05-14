@@ -1,12 +1,13 @@
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { getExpectedPredictioChain, getSwitchNetworkCtaLabel } from "~/config/chains";
 import { useWallet } from "~/store/useWalletStore";
+import { useWalletRuntimeState } from "~/hooks/useWalletRuntimeState";
 
 export function NetworkBanner() {
-  const { wrongNetwork, switchNetwork, isConnected, switchNetworkPending } =
-    useWallet();
+  const { switchNetwork, switchNetworkPending } = useWallet();
+  const { runtime } = useWalletRuntimeState();
 
-  if (!isConnected || !wrongNetwork) return null;
+  if (runtime !== "connected-wrong-chain") return null;
 
   const target = getExpectedPredictioChain();
 

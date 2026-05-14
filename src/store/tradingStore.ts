@@ -2,28 +2,31 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 /**
- * **Trading UI row** (not a Prisma model). When the wallet is connected in paper mode, each
- * row is an adapter view of a persisted **`Order`** (`mapDbOrderToTradingPosition`). When
- * guest demo is active, rows are built from **`DemoPosition`** in local storage instead.
+ * **Realtime market infrastructure** for the trading UI: quotes, orderbook, tape, WS status.
  *
- * Do not confuse with: `LiquidityPosition` (LP DB), `Transaction` (ledger), or the `Trade`
- * type below (orderbook / WS ticks). See `docs/DATA-MODEL-GLOSSARY.md`.
+ * **Not** portfolio authority: prediction rows come from **tRPC** (`getUserPositions`, etc.) and
+ * `mapDbOrderToTradingPosition`; guest demo from **`demoStorage`**. Live PnL uses
+ * `deriveLivePositionFromQuote` against `marketPrices` here plus the row from the server.
+ *
+ * The exported **`Position`** type is a shared **UI row** shape — it is not stored in this slice.
+ *
+ * See `docs/DATA-MODEL-GLOSSARY.md`.
  */
 export interface Position {
   id: string;
   marketId: string;
   marketName: string;
-  outcome: string; // "Inter wins"
+  outcome: string;
   side: 'YES' | 'NO' | 'DRAW';
   shares: number;
-  entryPrice: number; // avg entry price
+  entryPrice: number;
   costBasis: number;
-  currentValue: number; // derived from current price
-  unrealizedPnl: number; // derived
-  unrealizedPnlPct: number; // derived
-  claimableAmount?: number; // Amount claimable if resolved and won
-  resolvedAt?: Date; // When market was resolved
-  cancelledAt?: Date; // When market was cancelled
+  currentValue: number;
+  unrealizedPnl: number;
+  unrealizedPnlPct: number;
+  claimableAmount?: number;
+  resolvedAt?: Date;
+  cancelledAt?: Date;
   openedAt: Date;
   status: 'live' | 'soon' | 'locked' | 'resolved' | 'cancelled';
   marketEndsAt: Date;
@@ -40,7 +43,7 @@ export interface MarketPrice {
 
 export interface Orderbook {
   marketId: string;
-  bids: [number, number][]; // [price, size]
+  bids: [number, number][];
   asks: [number, number][];
   timestamp: number;
 }
@@ -63,106 +66,53 @@ export interface TxResult {
 }
 
 interface TradingState {
-  positions: Position[];
+  /** Transient UI: which position row is selected in split layouts (id from tRPC or demo). */
   selectedPositionId: string | null;
   marketPrices: Record<string, MarketPrice>;
   orderbooks: Record<string, Orderbook>;
   recentTrades: Record<string, Trade[]>;
   wsStatus: 'connected' | 'reconnecting' | 'offline';
+  /** Mirrors `TradingSocketClient` subscription set for dev observability only. */
+  wsSubscribedMarketCount: number;
 }
 
 interface TradingStore extends TradingState {
   selectPosition: (id: string | null) => void;
-  setPositions: (positions: Position[]) => void;
-  updatePosition: (positionId: string, updates: Partial<Position>) => void;
-  removePosition: (positionId: string) => void;
+  setWsSubscribedMarketCount: (count: number) => void;
   updateMarketPrice: (marketId: string, price: MarketPrice) => void;
   updateOrderbook: (marketId: string, orderbook: Orderbook) => void;
   addTrade: (marketId: string, trade: Trade) => void;
   setWsStatus: (status: 'connected' | 'reconnecting' | 'offline') => void;
-  refreshPositions: () => Promise<void>;
   clearMarketData: (marketId: string) => void;
 }
 
 export const useTradingStore = create<TradingStore>()(
   persist(
-    (set, get) => ({
-      // Initial state
-      positions: [],
+    (set) => ({
       selectedPositionId: null,
       marketPrices: {},
       orderbooks: {},
       recentTrades: {},
       wsStatus: 'offline',
+      wsSubscribedMarketCount: 0,
 
-      // Select position
       selectPosition: (id) => {
         set({ selectedPositionId: id });
       },
 
-      // Set all positions
-      setPositions: (positions) => {
-        set({ positions });
+      setWsSubscribedMarketCount: (count) => {
+        set({ wsSubscribedMarketCount: count });
       },
 
-      // Update a specific position
-      updatePosition: (positionId, updates) => {
+      updateMarketPrice: (marketId, price) => {
         set((state) => ({
-          positions: state.positions.map((p) =>
-            p.id === positionId ? { ...p, ...updates } : p
-          ),
+          marketPrices: {
+            ...state.marketPrices,
+            [marketId]: price,
+          },
         }));
       },
 
-      // Remove position (after 100% sell)
-      removePosition: (positionId) => {
-        set((state) => {
-          const newPositions = state.positions.filter((p) => p.id !== positionId);
-          return {
-            positions: newPositions,
-            // If we removed the selected position, select the first remaining one
-            selectedPositionId:
-              state.selectedPositionId === positionId
-                ? newPositions[0]?.id || null
-                : state.selectedPositionId,
-          };
-        });
-      },
-
-      // Update market price (from WebSocket)
-      updateMarketPrice: (marketId, price) => {
-        set((state) => {
-          // Calculate position updates for this market
-          const updatedPositions = state.positions.map((position) => {
-            if (position.marketId === marketId) {
-              const currentPrice = price.last;
-              const currentValue = position.shares * currentPrice;
-              const unrealizedPnl = currentValue - position.costBasis;
-              const unrealizedPnlPct =
-                position.costBasis > 0 ? (unrealizedPnl / position.costBasis) * 100 : 0;
-
-              return {
-                ...position,
-                currentValue,
-                unrealizedPnl,
-                unrealizedPnlPct,
-              };
-            }
-            return position;
-          });
-
-          // Return all updates in a single state change
-          return {
-            marketPrices: {
-              ...state.marketPrices,
-              [marketId]: price,
-            },
-            positions: updatedPositions,
-          };
-        });
-      },
-
-      // Update orderbook (from WebSocket)
       updateOrderbook: (marketId, orderbook) => {
         set((state) => ({
           orderbooks: {
@@ -172,31 +122,22 @@ export const useTradingStore = create<TradingStore>()(
         }));
       },
 
-      // Add trade to recent trades (from WebSocket)
       addTrade: (marketId, trade) => {
         set((state) => {
           const existing = state.recentTrades[marketId] || [];
           return {
             recentTrades: {
               ...state.recentTrades,
-              [marketId]: [trade, ...existing].slice(0, 20), // Keep last 20
+              [marketId]: [trade, ...existing].slice(0, 20),
             },
           };
         });
       },
 
-      // Set WebSocket status
       setWsStatus: (status) => {
         set({ wsStatus: status });
       },
 
-      // Refresh positions (placeholder for future API integration)
-      refreshPositions: async () => {
-        // TODO: Fetch positions from API
-        console.log('[Trading] Refreshing positions...');
-      },
-
-      // Clear market data when unsubscribing
       clearMarketData: (marketId) => {
         set((state) => {
           const { [marketId]: _, ...restPrices } = state.marketPrices;
@@ -216,6 +157,6 @@ export const useTradingStore = create<TradingStore>()(
       partialize: (state) => ({
         selectedPositionId: state.selectedPositionId,
       }),
-    }
-  )
+    },
+  ),
 );

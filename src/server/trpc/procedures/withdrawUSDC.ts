@@ -12,11 +12,11 @@ export const withdrawUSDC = baseProcedure
     z.object({
       amount: z.number().positive().max(1000000),
       walletAddress: z.string(),
-      currentBalance: z.number(),
-    })
+      /** @deprecated Ignored — balance is read from `User.virtualBalance`. */
+      currentBalance: z.number().optional(),
+    }),
   )
   .mutation(async ({ input }) => {
-    // Validate amount
     if (input.amount < 1) {
       throw new TRPCError({
         code: "BAD_REQUEST",
@@ -24,17 +24,29 @@ export const withdrawUSDC = baseProcedure
       });
     }
 
-    // Check sufficient balance
-    if (input.amount > input.currentBalance) {
+    const w = input.walletAddress.trim().toLowerCase();
+
+    const user = await db.user.findUnique({
+      where: { wallet: w },
+      select: { virtualBalance: true },
+    });
+    if (!user) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "No paper wallet balance — connect and sync first.",
+      });
+    }
+    const balanceBefore = user.virtualBalance;
+
+    if (input.amount > balanceBefore) {
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: "Insufficient balance for withdrawal",
       });
     }
 
-    await new Promise(resolve => setTimeout(resolve, 400));
+    await new Promise((resolve) => setTimeout(resolve, 400));
 
-    // Simulate occasional failures (5% chance)
     if (Math.random() < 0.05) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
@@ -42,29 +54,33 @@ export const withdrawUSDC = baseProcedure
       });
     }
 
-    // Generate mock transaction hash
     const txHash = `0x${Math.random().toString(16).substr(2, 64)}`;
-
     const timestamp = new Date();
-    const balanceBefore = input.currentBalance;
     const balanceAfter = balanceBefore - input.amount;
-    const w = input.walletAddress.toLowerCase();
 
-    // Record transaction in database
-    await db.transaction.create({
-      data: {
-        wallet: w,
-        type: 'withdrawal',
-        amount: input.amount,
-        balanceBefore,
-        balanceAfter,
-        txHash,
-        status: 'completed',
-        metadata: {
-          method: 'usdc_transfer',
+    await db.$transaction([
+      db.transaction.create({
+        data: {
+          wallet: w,
+          type: "wallet_withdrawal",
+          amount: input.amount,
+          balanceBefore,
+          balanceAfter,
+          txHash,
+          status: "completed",
+          metadata: {
+            method: "usdc_transfer",
+          },
         },
-      },
-    });
+      }),
+      db.user.update({
+        where: { wallet: w },
+        data: {
+          virtualBalance: balanceAfter,
+          lastActive: new Date(),
+        },
+      }),
+    ]);
 
     try {
       await creditWalletPoints(
@@ -76,14 +92,6 @@ export const withdrawUSDC = baseProcedure
     } catch (err) {
       console.error("[Points] Failed to credit WITHDRAW_COMPLETED:", err);
     }
-
-    // In a real app, we would:
-    // 1. Verify the wallet signature
-    // 2. Check user has no active predictions blocking withdrawal
-    // 3. Interact with the USDC smart contract on Gnosis Chain
-    // 4. Wait for transaction confirmation
-    // 5. Update user balance in database
-    // 6. Record transaction in transaction history
 
     return {
       success: true,

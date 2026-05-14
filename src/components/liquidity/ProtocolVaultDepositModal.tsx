@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { AlertCircle, TrendingUp, Droplet } from 'lucide-react';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
+import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 
 type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 
@@ -29,7 +30,8 @@ export function ProtocolVaultDepositModal({
   vaultStats,
   onSuccess 
 }: ProtocolVaultDepositModalProps) {
-  const { balance, address, isConnected, updateBalance } = useWallet();
+  const { address, isConnected } = useWallet();
+  const { cashUsdc: paperCash } = usePaperWalletBalance();
   const walletKey = normalizeWalletForQuery(address);
   const { requireWallet, requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
   const [amount, setAmount] = useState('');
@@ -56,7 +58,7 @@ export function ProtocolVaultDepositModal({
   }, [isOpen]);
 
   const amountNum = parseFloat(amount) || 0;
-  const isValidAmount = amountNum >= 10 && amountNum <= balance;
+  const isValidAmount = amountNum >= 10 && amountNum <= paperCash;
   
   // Calculate estimates based on vault stats
   const estimatedPoolShare = vaultStats 
@@ -82,15 +84,11 @@ export function ProtocolVaultDepositModal({
         marketId: 'protocol-vault',
         amount: amountNum,
         walletAddress: walletKey,
-        currentBalance: balance,
+        currentBalance: paperCash,
       });
 
       setTxHash(result.txHash);
       setTransactionState('mining');
-
-      if (result.newBalance !== undefined) {
-        updateBalance(result.newBalance);
-      }
 
       // Simulate mining delay
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -129,7 +127,7 @@ export function ProtocolVaultDepositModal({
     requireWallet();
   };
 
-  const quickAmounts = [50, 100, 250, 500].filter(a => a <= balance);
+  const quickAmounts = [50, 100, 250, 500].filter(a => a <= paperCash);
 
   return (
     <>
@@ -218,7 +216,7 @@ export function ProtocolVaultDepositModal({
                     autoFocus
                   />
                   <p className="text-xs text-gray-400 mt-1">
-                    Wallet balance: ${balance.toFixed(2)} USDC
+                    Wallet balance: ${paperCash.toFixed(2)} USDC
                   </p>
                 </div>
 
@@ -233,9 +231,9 @@ export function ProtocolVaultDepositModal({
                       ${quickAmount}
                     </button>
                   ))}
-                  {balance >= 10 && (
+                  {paperCash >= 10 && (
                     <button
-                      onClick={() => setAmount(Math.min(balance, 1000).toString())}
+                      onClick={() => setAmount(Math.min(paperCash, 1000).toString())}
                       className="flex-1 py-2 bg-white/5 border border-white/10 rounded-lg hover:border-brand-green transition-colors text-sm font-semibold"
                     >
                       MAX
@@ -251,7 +249,7 @@ export function ProtocolVaultDepositModal({
                   </div>
                 )}
 
-                {amountNum > balance && (
+                {amountNum > paperCash && (
                   <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
                     <AlertCircle className="w-4 h-4" />
                     <span>Insufficient balance</span>

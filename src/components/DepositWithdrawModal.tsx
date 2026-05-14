@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { TransactionModal } from './TransactionModal';
 import { useWallet } from '~/store/useWalletStore';
+import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { useTRPC } from '~/trpc/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { AlertCircle } from 'lucide-react';
 import { invalidateWalletPointsSummary } from '~/utils/invalidateWalletNotifications';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 
 type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 
@@ -17,7 +19,8 @@ interface DepositWithdrawModalProps {
 }
 
 export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawModalProps) {
-  const { balance, address, updateBalance } = useWallet();
+  const { address } = useWallet();
+  const { cashUsdc: paperCash } = usePaperWalletBalance();
   const walletKey = normalizeWalletForQuery(address);
   const [amount, setAmount] = useState('');
   const [transactionState, setTransactionState] = useState<TransactionState>('review');
@@ -29,7 +32,6 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
   const depositMutation = useMutation(trpc.depositUSDC.mutationOptions());
   const withdrawMutation = useMutation(trpc.withdrawUSDC.mutationOptions());
 
-  // Reset state when modal opens/closes
   useEffect(() => {
     if (!isOpen) {
       setTimeout(() => {
@@ -42,9 +44,11 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
   }, [isOpen]);
 
   const amountNum = parseFloat(amount) || 0;
-  const isValidAmount = amountNum > 0 && (type === 'deposit' || amountNum <= balance);
-  const fee = amountNum * 0.001; // 0.1% fee
+  const fee = amountNum * 0.001;
   const netAmount = type === 'deposit' ? amountNum - fee : amountNum - fee;
+  const isValidAmount =
+    amountNum > 0 &&
+    (type === 'deposit' ? netAmount >= 1 : amountNum <= paperCash && amountNum >= 1);
 
   const handleConfirm = async () => {
     if (!isValidAmount || !walletKey) return;
@@ -58,36 +62,30 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
           ? await withdrawMutation.mutateAsync({
               amount: amountNum,
               walletAddress: walletKey,
-              currentBalance: balance ?? 0,
             })
           : await depositMutation.mutateAsync({
-              amount: amountNum,
+              amount: Math.max(1, netAmount),
               walletAddress: walletKey,
-              currentBalance: balance,
             });
 
       setTxHash(result.txHash);
       setTransactionState('mining');
 
-      await new Promise(resolve => setTimeout(resolve, 600));
-
-      // Update balance
-      const newBalance = type === 'deposit' 
-        ? balance + netAmount 
-        : balance - amountNum;
-      updateBalance(newBalance);
+      await new Promise((resolve) => setTimeout(resolve, 600));
 
       setTransactionState('success');
       toast.success(`${type === 'deposit' ? 'Deposit' : 'Withdrawal'} successful!`);
       if (walletKey) {
+        invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
         invalidateWalletPointsSummary(
           queryClient,
           trpc.getPointsSummary.queryKey,
           walletKey,
         );
       }
-    } catch (err: any) {
-      setError(err.message || 'Transaction failed');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Transaction failed';
+      setError(msg);
       setTransactionState('error');
       toast.error(`${type === 'deposit' ? 'Deposit' : 'Withdrawal'} failed`);
     }
@@ -104,9 +102,10 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
     }
   };
 
-  const quickAmounts = type === 'deposit' 
-    ? [10, 50, 100, 500] 
-    : [10, 50, Math.min(100, balance), Math.min(balance, 500)].filter(a => a > 0);
+  const quickAmounts =
+    type === 'deposit'
+      ? [10, 50, 100, 500]
+      : [10, 50, Math.min(100, paperCash), Math.min(paperCash, 500)].filter((a) => a > 0);
 
   return (
     <>
@@ -124,9 +123,7 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
         >
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Amount (USDC)
-              </label>
+              <label className="block text-sm font-medium mb-2">Amount (USDC)</label>
               <input
                 type="number"
                 value={amount}
@@ -139,12 +136,11 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
               />
               {type === 'withdraw' && (
                 <p className="text-xs text-gray-400 mt-1">
-                  Available: ${balance.toFixed(2)} USDC
+                  Available (paper): ${paperCash.toFixed(2)} USDC
                 </p>
               )}
             </div>
 
-            {/* Quick amount buttons */}
             <div className="flex gap-2">
               {quickAmounts.map((quickAmount) => (
                 <button
@@ -155,9 +151,9 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
                   ${quickAmount}
                 </button>
               ))}
-              {type === 'withdraw' && balance > 0 && (
+              {type === 'withdraw' && paperCash > 0 && (
                 <button
-                  onClick={() => setAmount(balance.toString())}
+                  onClick={() => setAmount(paperCash.toString())}
                   className="flex-1 py-2 bg-white/5 border border-white/10 rounded-lg hover:border-brand-green transition-colors text-sm font-semibold"
                 >
                   Max
@@ -165,8 +161,7 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
               )}
             </div>
 
-            {/* Validation messages */}
-            {amountNum > 0 && type === 'withdraw' && amountNum > balance && (
+            {amountNum > 0 && type === 'withdraw' && amountNum > paperCash && (
               <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
                 <AlertCircle className="w-4 h-4" />
                 <span>Insufficient balance</span>
@@ -180,7 +175,6 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
               </div>
             )}
 
-            {/* Summary */}
             {isValidAmount && (
               <div className="p-4 bg-white/5 rounded-lg space-y-2 font-mono text-sm">
                 <div className="flex justify-between">
@@ -195,14 +189,11 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
                   <span className="font-semibold">
                     {type === 'deposit' ? 'You will receive:' : 'You will send:'}
                   </span>
-                  <span className="text-brand-green font-bold">
-                    ${netAmount.toFixed(2)} USDC
-                  </span>
+                  <span className="text-brand-green font-bold">${netAmount.toFixed(2)} USDC</span>
                 </div>
               </div>
             )}
 
-            {/* Action buttons */}
             <div className="flex gap-3 mt-6">
               <button
                 onClick={handleClose}
@@ -222,7 +213,10 @@ export function DepositWithdrawModal({ isOpen, onClose, type }: DepositWithdrawM
         </TransactionModal>
       )}
 
-      {(transactionState === 'pending' || transactionState === 'mining' || transactionState === 'success' || transactionState === 'error') && (
+      {(transactionState === 'pending' ||
+        transactionState === 'mining' ||
+        transactionState === 'success' ||
+        transactionState === 'error') && (
         <TransactionModal
           isOpen={isOpen}
           onClose={handleClose}

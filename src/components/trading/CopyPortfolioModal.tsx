@@ -3,7 +3,8 @@ import { Dialog, Transition } from '@headlessui/react';
 import { X, TrendingUp, Target, Award, AlertTriangle, Copy, Check } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '~/trpc/react';
-import { useWalletStore } from '~/store/useWalletStore';
+import { useWallet } from '~/store/useWalletStore';
+import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import toast from 'react-hot-toast';
@@ -14,6 +15,8 @@ import {
   roiTextClass,
   shortenWallet,
 } from "~/utils/formatCopyTrading";
+import { clientChainScopeForTrpc } from "~/utils/walletQuery";
+
 interface CopyPortfolioModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -44,7 +47,8 @@ export function CopyPortfolioModal({
 }: CopyPortfolioModalProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { address, balance } = useWalletStore();
+  const { address, chainId } = useWallet();
+  const { cashUsdc: paperCash } = usePaperWalletBalance();
   const { requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
   
   const [maxPerTrade, setMaxPerTrade] = useState(existingCopy?.maxPerTradeUsd.toString() || '50');
@@ -60,6 +64,7 @@ export function CopyPortfolioModal({
     ...trpc.getUserPositions.queryOptions({
       walletAddress: analyst.wallet,
       status: 'open',
+      clientChainId: clientChainScopeForTrpc(chainId),
     }),
     enabled: isOpen && copyMode === 'selective',
   });
@@ -147,7 +152,7 @@ export function CopyPortfolioModal({
       return;
     }
 
-    if (amount > balance) {
+    if (amount > paperCash) {
       toast.error('Amount exceeds your balance');
       return;
     }
@@ -300,7 +305,7 @@ export function CopyPortfolioModal({
                         value={maxPerTrade}
                         onChange={(e) => setMaxPerTrade(e.target.value)}
                         min="10"
-                        max={balance}
+                        max={paperCash}
                         step="10"
                         className="w-full pl-8 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-green font-mono"
                         placeholder="50"
@@ -308,7 +313,7 @@ export function CopyPortfolioModal({
                       />
                     </div>
                     <p className="text-xs text-gray-400 mt-1">
-                      Each copied trade will use up to this amount. Min: $10, Max: ${balance.toFixed(2)}
+                      Each copied trade will use up to this amount. Min: $10, Max: ${paperCash.toFixed(2)}
                     </p>
                   </div>
 

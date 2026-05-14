@@ -24,7 +24,7 @@ model Market {
   closesAt       DateTime
   resolvedAt     DateTime?
   winner         String?
-  status         String    @default("open") // "open", "closed", "under_review", "voided", "resolved"
+  status         String    @default("open") // DB authority: open | closed | under_review | voided | resolved | paused | refunded — derive `MarketLifecycleState` in `~/lib/market/marketLifecycleStateMachine`
   resolutionType String    @default("automatic")
   description    String?
   tags           String[]
@@ -113,7 +113,7 @@ model GrowthLog {
 model Transaction {
   id          String    @id @default(cuid())
   wallet      String
-  type        String    // 'deposit', 'withdrawal', 'bet_placed', 'bet_won', 'bet_lost', 'bet_refund', 'reward_claim', 'claim', 'refund', 'send'
+  type        String    // Canonical ledger: wallet_deposit, wallet_withdrawal, position_open, position_sell, position_settlement_win, position_settlement_loss, position_refund, lp_deposit, lp_withdraw, lp_reward_claim, holding_reward, analyst_reward, affiliate_reward (see `src/lib/ledger/ledgerTransactionTypes.ts` + migrations)
   amount      Float
   balanceBefore Float?
   balanceAfter  Float?

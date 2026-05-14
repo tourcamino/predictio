@@ -31,7 +31,7 @@ export const getFeeRevenue = baseProcedure
     // Get all bet transactions with fees
     const transactions = await db.transaction.findMany({
       where: {
-        type: 'bet_placed',
+        type: 'position_open',
         createdAt: {
           gte: startDate,
         },

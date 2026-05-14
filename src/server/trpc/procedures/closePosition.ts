@@ -6,6 +6,12 @@ import {
   creditWalletPoints,
   POINT_ACTION_VALUES,
 } from "~/server/utils/pointsLedger";
+import {
+  canClosePaperPositionAgainstMarket,
+  deriveMarketLifecycleFromDbRow,
+  logMarketLifecycleDev,
+  reasonCannotClosePaperPosition,
+} from "~/lib/market/marketLifecycleStateMachine";
 
 export const closePosition = baseProcedure
   .input(
@@ -45,6 +51,19 @@ export const closePosition = baseProcedure
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: "Position is not open",
+      });
+    }
+
+    const mLife = deriveMarketLifecycleFromDbRow(order.market);
+    if (!canClosePaperPositionAgainstMarket(mLife)) {
+      logMarketLifecycleDev("closePosition", "reject_exit", {
+        orderId,
+        marketId: order.marketId,
+        lifecycle: mLife,
+      });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: reasonCannotClosePaperPosition(mLife) ?? "Cannot close this position for the current market state.",
       });
     }
     
@@ -93,7 +112,7 @@ export const closePosition = baseProcedure
     await db.transaction.create({
       data: {
         wallet: walletAddress.toLowerCase(),
-        type: 'bet_won', // or 'bet_lost' based on P&L
+        type: 'position_sell',
         amount: proceeds,
         balanceBefore,
         balanceAfter,
@@ -102,6 +121,7 @@ export const closePosition = baseProcedure
         status: 'completed',
         feePaid: 0,
         metadata: {
+          ledgerIntent: 'POSITION_MARKET_SELL',
           outcome: order.outcome,
           sharesSold: sharesToSell,
           pricePerShare: currentPrice,

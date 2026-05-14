@@ -1,5 +1,6 @@
 import type { Market } from "~/data/mockMarkets";
 import type { CuratedEvent } from "@prisma/client";
+import { deriveMarketLifecycleFromUiMarket } from "~/lib/market/marketLifecycleStateMachine";
 
 function curatedStatusToUi(
   row: CuratedEvent,
@@ -12,6 +13,10 @@ function curatedStatusToUi(
   const msToLock = lockMs - now;
   if (msToLock > 0 && msToLock < 2 * 60 * 60 * 1000) return "closing-soon";
   return "open";
+}
+
+function withLifecycle(m: Market): Market {
+  return { ...m, lifecycleState: deriveMarketLifecycleFromUiMarket(m) };
 }
 
 function baseMarketFields(
@@ -71,10 +76,12 @@ export function curatedEventRowToUiMarket(
       const percentA = Math.round(yesPrice * 100);
       const percentDraw = Math.round((id / t) * 100);
       const percentB = Math.max(0, 100 - percentA - percentDraw);
-      return baseMarketFields(row, canonicalId, status, yesPrice, noPrice, percentA, percentB, {
-        percentDraw,
-        drawOdds: doo.toFixed(2),
-      });
+      return withLifecycle(
+        baseMarketFields(row, canonicalId, status, yesPrice, noPrice, percentA, percentB, {
+          percentDraw,
+          drawOdds: doo.toFixed(2),
+        }),
+      );
     }
   }
 
@@ -87,14 +94,18 @@ export function curatedEventRowToUiMarket(
       const noPrice = Math.max(0.01, Math.min(0.98, ia / t));
       const percentA = Math.round(yesPrice * 100);
       const percentB = Math.round(noPrice * 100);
-      return baseMarketFields(row, canonicalId, status, yesPrice, noPrice, percentA, percentB, {
-        drawOdds: null,
-      });
+      return withLifecycle(
+        baseMarketFields(row, canonicalId, status, yesPrice, noPrice, percentA, percentB, {
+          drawOdds: null,
+        }),
+      );
     }
   }
 
-  return baseMarketFields(row, canonicalId, status, 0.45, 0.3, 45, 30, {
-    percentDraw: 25,
-    drawOdds: null,
-  });
+  return withLifecycle(
+    baseMarketFields(row, canonicalId, status, 0.45, 0.3, 45, 30, {
+      percentDraw: 25,
+      drawOdds: null,
+    }),
+  );
 }

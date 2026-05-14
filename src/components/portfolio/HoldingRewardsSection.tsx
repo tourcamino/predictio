@@ -3,6 +3,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { TrendingUp, Clock, HelpCircle, Loader2 } from 'lucide-react';
 import { useTRPC } from '~/trpc/react';
+import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 
 interface HoldingRewardsSectionProps {
   walletAddress: string;
@@ -50,9 +52,10 @@ export function HoldingRewardsSection({
     trpc.claimHoldingRewards.mutationOptions({
       onSuccess: (data) => {
         toast.success(data.message);
-        queryClient.invalidateQueries({
-          queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress }),
-        });
+        const w = normalizeWalletForQuery(walletAddress);
+        if (w) {
+          invalidateWalletPortfolioLpQueries(queryClient, trpc, w);
+        }
         setIsClaiming(false);
       },
       onError: (error: any) => {

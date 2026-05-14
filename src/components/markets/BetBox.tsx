@@ -15,9 +15,9 @@ import { TransactionModal } from '../TransactionModal';
 import { calcFee } from '~/utils/marketUtils';
 import {
   invalidateWalletNotifications,
-  invalidateWalletPointsSummary,
 } from '~/utils/invalidateWalletNotifications';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 import { executePlacePredictionWithDiagnostics } from '~/lib/executePlacePredictionWithDiagnostics';
 
 interface BetBoxProps {
@@ -39,7 +39,7 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
   const trpc = useTRPC();
   const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
-  const { isConnected: isWalletConnected, address, updateBalance } = useWallet();
+  const { isConnected: isWalletConnected, address } = useWallet();
   const walletKey = normalizeWalletForQuery(address);
   const { requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
   const { isActive: isDemoActive, executeDemoTrade } = useDemoAccount();
@@ -80,9 +80,6 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
       ),
     onSuccess: (data) => {
       setTxModalState('success');
-      if (data.newBalance !== undefined) {
-        updateBalance(data.newBalance);
-      }
       setTimeout(() => {
         setShowTxModal(false);
         reset();
@@ -91,17 +88,8 @@ export function BetBox({ market, selectedOutcome }: BetBoxProps) {
         queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
       });
       if (walletKey) {
-        queryClient.invalidateQueries({
-          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
-        });
-        queryClient.invalidateQueries({
-          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'open' }),
-        });
-        queryClient.invalidateQueries({
-          queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
-        });
+        invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
         invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
-        invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
       }
     },
     onError: (error: Error) => {

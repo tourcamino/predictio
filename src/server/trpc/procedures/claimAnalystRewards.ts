@@ -102,7 +102,7 @@ export const claimAnalystRewards = baseProcedure
       db.transaction.create({
         data: {
           wallet: normalizedWallet,
-          type: "reward_claim",
+          type: "analyst_reward",
           amount: claimAmount,
           balanceBefore,
           balanceAfter,

@@ -9,6 +9,10 @@ let capturedBodyOverflow = "";
 let htmlDepth = 0;
 let capturedHtmlOverflow = "";
 
+export function getScrollLockDepths(): { body: number; html: number } {
+  return { body: bodyDepth, html: htmlDepth };
+}
+
 const DEBUG =
   typeof window !== "undefined" &&
   typeof import.meta !== "undefined" &&

@@ -7,7 +7,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
-import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
 import {
   mapDbOrderToTradingPosition,
   mapDemoPositionToTradingPosition,
@@ -20,10 +20,11 @@ export const Route = createFileRoute('/trading/position/$id/')({
 function PositionDetailPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
-  const { isConnected, address } = useWallet();
+  const { isConnected, address, chainId } = useWallet();
   const { positions: demoPositions } = useDemoAccount();
   const trpc = useTRPC();
   const walletKey = normalizeWalletForQuery(address);
+  const chainScope = clientChainScopeForTrpc(chainId);
 
   const isDemoId = id.startsWith('demo-');
   const demoIndex = isDemoId ? Number.parseInt(id.slice('demo-'.length), 10) : NaN;
@@ -39,6 +40,7 @@ function PositionDetailPage() {
     ...trpc.getUserPositions.queryOptions({
       walletAddress: walletKey ?? '',
       status: 'all',
+      clientChainId: chainScope,
     }),
     enabled: !!walletKey && isConnected && !isDemoId,
   });

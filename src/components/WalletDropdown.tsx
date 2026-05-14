@@ -1,8 +1,12 @@
 import { Fragment, useState, type MouseEvent } from 'react';
 import { Menu, Transition } from '@headlessui/react';
+import { useQuery } from '@tanstack/react-query';
 import { Copy, ExternalLink, User, BarChart3, Trophy, Settings, LogOut, TrendingUp, KeyRound } from 'lucide-react';
+import { useTRPC } from '~/trpc/react';
 import { useWallet } from '~/store/useWalletStore';
-import { explorerAddressUrl, walletNetworkBadgeLabel, predictionBalanceFootnote } from '~/lib/economySurface';
+import { clientChainScopeForTrpc, normalizeWalletForQuery } from '~/utils/walletQuery';
+import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
+import { explorerAddressUrl, walletNetworkBadgeLabelFromChainId, predictionBalanceFootnote } from '~/lib/economySurface';
 import { Link, useNavigate } from '@tanstack/react-router';
 import toast from 'react-hot-toast';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
@@ -12,13 +16,28 @@ interface WalletDropdownProps {
 }
 
 export function WalletDropdown({ onClose }: WalletDropdownProps) {
-  const { address, balance, disconnectWallet } = useWallet();
+  const { address, disconnectWallet, chainId } = useWallet();
+  const { cashUsdc: paperCash } = usePaperWalletBalance();
   const navigate = useNavigate();
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [depositWithdrawModal, setDepositWithdrawModal] = useState<{ isOpen: boolean; type: 'deposit' | 'withdraw' }>({
     isOpen: false,
     type: 'deposit',
   });
+
+  const trpc = useTRPC();
+  const walletKey = normalizeWalletForQuery(address);
+  const chainScope = clientChainScopeForTrpc(chainId);
+  const openPositionsQuery = useQuery({
+    ...trpc.getUserPositions.queryOptions({
+      walletAddress: walletKey,
+      status: 'open',
+      clientChainId: chainScope,
+    }),
+    enabled: !!walletKey,
+    staleTime: 30_000,
+  });
+  const activePredictions = openPositionsQuery.data?.positions.length ?? 0;
 
   const copyAddress = () => {
     if (address) {
@@ -50,9 +69,6 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
-  // Mock active predictions count
-  const activePredictions = 6;
-
   return (
     <>
       <Transition
@@ -75,7 +91,7 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
                 <div className="w-2 h-2 shrink-0 bg-brand-green rounded-full animate-pulse" />
                 <span className="text-xs font-semibold text-brand-green uppercase tracking-wide">Connected</span>
                 <span className="text-[11px] text-gray-500 shrink-0">
-                  · {walletNetworkBadgeLabel()}
+                  · {walletNetworkBadgeLabelFromChainId(chainId)}
                 </span>
               </div>
             </div>
@@ -107,7 +123,7 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
           <div className="px-3 py-2.5 border-b border-white/10">
             <div className="flex items-baseline justify-between gap-2 mb-2">
               <span className="text-xl font-bold text-brand-green tabular-nums leading-none">
-                ${balance.toLocaleString()}
+                ${paperCash.toLocaleString()}
               </span>
               <span className="text-xs text-gray-500 whitespace-nowrap">Paper USDC</span>
             </div>

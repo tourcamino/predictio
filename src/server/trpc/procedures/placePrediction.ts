@@ -16,6 +16,12 @@ import {
   logPurchaseFlowServerError,
   newTrpcPurchaseRequestId,
 } from "~/server/lib/purchaseFlowDiagnosticServer";
+import { getMarketLifecycleState } from "~/utils/marketLifecycle";
+import {
+  canOpenNewPaperPosition,
+  logMarketLifecycleDev,
+  reasonCannotOpenPaperPosition,
+} from "~/lib/market/marketLifecycleStateMachine";
 
 function marketEventLabel(m: Market): string {
   return m.event ?? `${m.teamA} vs ${m.teamB}`;
@@ -76,42 +82,15 @@ export const placePrediction = baseProcedure
       });
     }
 
-    if (market.start_time && new Date() >= market.start_time) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "Trading is closed — kickoff has passed.",
+    const lifecycle = getMarketLifecycleState(market);
+    if (!canOpenNewPaperPosition(lifecycle)) {
+      logMarketLifecycleDev("placePrediction", "reject_trade", {
+        marketId: input.marketId,
+        lifecycle,
       });
-    }
-
-    if (market.status === "resolved") {
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: "This market is resolved.",
-      });
-    }
-
-    // TODO CURSOR C1: Server-side trading lock validation
-    // ====================================================
-    // Replace this with real-time check against Azuro GraphQL:
-    // 1. Fetch game.startsAt from Azuro
-    // 2. Check if current time >= game.startsAt
-    // 3. If locked, reject trade with clear error message
-    // 4. Also check game.status !== 'Canceled' and !== 'Resolved'
-    // 
-    // Example:
-    // const azuroGame = await fetchAzuroGameDetail(market.azuroGameId);
-    // if (Date.now() >= azuroGame.startsAt * 1000) {
-    //   throw new TRPCError({
-    //     code: "BAD_REQUEST",
-    //     message: "Trading is closed - match has started",
-    //   });
-    // }
-    
-    // Check if market is still open
-    if (market.closesAt < new Date()) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "This market has already closed",
+        message: reasonCannotOpenPaperPosition(lifecycle) ?? "Trading is not available.",
       });
     }
 
@@ -256,7 +235,7 @@ export const placePrediction = baseProcedure
     await db.transaction.create({
       data: {
         wallet,
-        type: 'bet_placed',
+        type: 'position_open',
         amount: input.amount,
         balanceBefore,
         balanceAfter,
@@ -413,7 +392,7 @@ export const placePrediction = baseProcedure
                 db.transaction.create({
                   data: {
                     wallet: copyRelationship.copierWallet,
-                    type: 'bet_placed',
+                    type: 'position_open',
                     amount: copyAmount,
                     balanceBefore: copierUser.virtualBalance,
                     balanceAfter: copierUser.virtualBalance - copyTotalCost,

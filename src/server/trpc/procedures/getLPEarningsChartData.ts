@@ -53,53 +53,15 @@ export const getLPEarningsChartData = baseProcedure
     // Get LP-related transactions (deposits and withdrawals)
     const transactions = await db.transaction.findMany({
       where: {
-        wallet: walletAddress,
+        wallet: walletAddress.toLowerCase(),
         type: {
-          in: ['deposit', 'withdrawal'],
+          in: ['lp_deposit', 'lp_withdraw'],
         },
         ...(startDate && {
           createdAt: {
             gte: startDate,
           },
         }),
-        OR: [
-          {
-            metadata: {
-              path: ['type'],
-              equals: 'lp_deposit',
-            },
-          },
-          {
-            metadata: {
-              path: ['type'],
-              equals: 'lp_withdrawal',
-            },
-          },
-          {
-            metadata: {
-              path: ['type'],
-              equals: 'protocol_vault_deposit',
-            },
-          },
-          {
-            metadata: {
-              path: ['type'],
-              equals: 'protocol_vault_withdrawal',
-            },
-          },
-          {
-            metadata: {
-              path: ['vaultDeposit'],
-              equals: true,
-            },
-          },
-          {
-            metadata: {
-              path: ['vaultWithdrawal'],
-              equals: true,
-            },
-          },
-        ],
       },
       orderBy: {
         createdAt: 'asc',
@@ -119,7 +81,7 @@ export const getLPEarningsChartData = baseProcedure
     transactions.forEach(tx => {
       events.push({
         timestamp: tx.createdAt,
-        type: tx.type as 'deposit' | 'withdrawal',
+        type: tx.type === 'lp_deposit' ? 'deposit' : 'withdrawal',
         amount: tx.amount,
       });
     });

@@ -1,5 +1,6 @@
 import type { Market as PrismaMarketRow } from "@prisma/client";
 import { type Market, SPORT_METADATA } from "~/data/mockMarkets";
+import { deriveMarketLifecycleFromDbRow } from "~/lib/market/marketLifecycleStateMachine";
 
 export function normalizeYesNoUnitPrices(yesRaw: number, noRaw: number | undefined): {
   yesPrice: number;
@@ -113,6 +114,8 @@ export function prismaMarketToUi(row: PrismaMarketRow): Market {
     else if (cand === b) result = "no";
   }
 
+  const lifecycleState = deriveMarketLifecycleFromDbRow(row);
+
   return {
     id: row.id,
     sport: row.sport,
@@ -130,6 +133,7 @@ export function prismaMarketToUi(row: PrismaMarketRow): Market {
     traders: row.predictions,
     isFeatured: row.tags.includes("featured"),
     status: mapDbStatusToUi(row.status, row.closesAt),
+    lifecycleState,
     resolutionReason: row.resolutionReason ?? undefined,
     disputeReason: row.disputeReason ?? undefined,
     voidedAt: row.voidedAt ?? undefined,

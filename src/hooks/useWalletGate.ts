@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import toast from "react-hot-toast";
 import { getExpectedPredictioChain } from "~/config/chains";
 import { useWallet } from "~/store/useWalletStore";
+import { useWalletRuntimeState } from "~/hooks/useWalletRuntimeState";
 
 /**
  * Guest-mode gate for actions that require a connected wallet.
@@ -26,7 +27,8 @@ import { useWallet } from "~/store/useWalletStore";
  * (markets / analysts stay browsable; trading & LP use this).
  */
 export function useWalletGate() {
-  const { isConnected, address, openWalletModal, wrongNetwork } = useWallet();
+  const { isConnected, address, openWalletModal } = useWallet();
+  const { runtime, isWrongChain } = useWalletRuntimeState();
 
   const [showGateModal, setShowGateModal] = useState(false);
 
@@ -41,7 +43,14 @@ export function useWalletGate() {
       setShowGateModal(true);
       return false;
     }
-    if (wrongNetwork) {
+    if (runtime === "hydrating") {
+      toast.error("Wallet network is still syncing — try again in a moment.", {
+        id: "predictio-wallet-hydrating-gate",
+        duration: 3800,
+      });
+      return false;
+    }
+    if (isWrongChain) {
       const target = getExpectedPredictioChain();
       toast.error(
         `Wrong network — switch to ${target.shortLabel} in your wallet to continue (use the banner or header).`,
@@ -50,7 +59,7 @@ export function useWalletGate() {
       return false;
     }
     return true;
-  }, [isConnected, wrongNetwork]);
+  }, [isConnected, runtime, isWrongChain]);
 
   const closeGateModal = useCallback(() => {
     setShowGateModal(false);

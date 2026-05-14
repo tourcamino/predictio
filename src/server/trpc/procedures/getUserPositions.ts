@@ -16,6 +16,8 @@ export const getUserPositions = baseProcedure
     z.object({
       walletAddress: z.string(),
       status: z.enum(['all', 'open', 'closed', 'resolved']).default('all'),
+      /** Client cache scope only — ignored for Prisma reads. */
+      clientChainId: z.number().int(),
     })
   )
   .query(async ({ input }) => {

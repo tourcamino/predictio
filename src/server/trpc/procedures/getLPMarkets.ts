@@ -17,6 +17,7 @@ export const getLPMarkets = baseProcedure
 
     if (status === 'open') {
       whereClause.status = 'open';
+      whereClause.closesAt = { gt: new Date() };
     } else if (status === 'closed') {
       whereClause.status = { in: ['closed', 'resolved'] };
     }
@@ -108,7 +109,7 @@ export const getLPMarkets = baseProcedure
       const volume = await db.transaction.aggregate({
         where: {
           marketId,
-          type: 'bet_placed',
+          type: 'position_open',
           createdAt: {
             gte: oneDayAgo,
           },

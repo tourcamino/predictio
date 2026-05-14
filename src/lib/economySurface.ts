@@ -3,9 +3,17 @@
  * Keeps wording consistent across wallet, LP, trading, and onboarding.
  */
 
-import { getExpectedPredictioChain, isPredictioTestnet } from "~/config/chains";
+import { getExpectedPredictioChain, isPredictioTestnet, BASE_MAINNET_CHAIN_ID, BASE_SEPOLIA_CHAIN_ID } from "~/config/chains";
 
 export { isPredictioTestnet, getExpectedPredictioChain };
+
+/** Short network tag from the **live** wallet chain id (null = still resolving). */
+export function walletNetworkBadgeLabelFromChainId(chainId: number | null): string {
+  if (chainId === null) return "…";
+  if (chainId === BASE_SEPOLIA_CHAIN_ID) return "Base Sepolia";
+  if (chainId === BASE_MAINNET_CHAIN_ID) return "Base";
+  return `Chain ${chainId}`;
+}
 
 /** Short network tag for compact UI (header chip, wallet menu). */
 export function walletNetworkBadgeLabel(): string {

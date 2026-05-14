@@ -5,15 +5,17 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '~/trpc/react';
 import { useWallet } from '~/store/useWalletStore';
+import { useWalletRuntimeState } from '~/hooks/useWalletRuntimeState';
 import { WalletDropdown } from './WalletDropdown';
 import { Menu as HeadlessMenu } from '@headlessui/react';
+import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { ModeToggle } from './ModeToggle';
 import { NotificationBell } from './notifications/NotificationBell';
 import { NotificationCenter } from './notifications/NotificationCenter';
 import { useScrollDirection } from '~/hooks/useScrollDirection';
 import { useTopChromeManaged } from '~/components/TopChromeContext';
-import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
 import { getExpectedPredictioChain, getSwitchNetworkCtaLabel } from '~/config/chains';
 import { CHAIN_CONFIG } from '~/config/chain';
 import {
@@ -32,7 +34,10 @@ export function HeaderInner() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showMobileDisconnectConfirm, setShowMobileDisconnectConfirm] = useState(false);
-  const { isConnected, address, balance, openWalletModal, disconnectWallet, isSyncing, wrongNetwork, switchNetwork, switchNetworkPending } = useWallet();
+  const { isConnected, address, openWalletModal, disconnectWallet, isSyncing, switchNetwork, switchNetworkPending, chainId } = useWallet();
+  const { cashUsdc: headerPaperCash } = usePaperWalletBalance();
+  const walletRt = useWalletRuntimeState();
+  const showWrongNetwork = walletRt.runtime === 'connected-wrong-chain';
   const { isActive: isDemoActive, balance: demoBalance } = useDemoAccount();
   const navigate = useNavigate();
   const trpc = useTRPC();
@@ -40,12 +45,14 @@ export function HeaderInner() {
   const { scrollDirection, isAtTop } = useScrollDirection();
 
   const walletQueryKey = normalizeWalletForQuery(address);
+  const chainScope = clientChainScopeForTrpc(chainId);
 
   // Fetch open positions count
   const positionsQuery = useQuery({
     ...trpc.getUserPositions.queryOptions({
       walletAddress: walletQueryKey,
       status: 'open',
+      clientChainId: chainScope,
     }),
     enabled: !!walletQueryKey && isConnected,
     refetchInterval: 90_000,
@@ -58,7 +65,7 @@ export function HeaderInner() {
   // Fetch user points
   type HeaderPointsRow = { totalPoints: number; tier?: string };
   const pointsQuery = useQuery<HeaderPointsRow>({
-    queryKey: ['walletPointsSummary', walletQueryKey ?? ''] as const,
+    queryKey: ['walletPointsSummary', walletQueryKey ?? '', chainScope] as const,
     enabled: !!walletQueryKey && isConnected,
     refetchInterval: 120_000,
     retry: 3,
@@ -208,21 +215,21 @@ export function HeaderInner() {
                 )}
                 {/* Optional connect wallet button */}
                 <button
-                  onClick={() => (wrongNetwork ? void switchNetwork() : openWalletModal())}
+                  onClick={() => (showWrongNetwork ? void switchNetwork() : openWalletModal())}
                   data-tour="connect-wallet"
-                  disabled={wrongNetwork && switchNetworkPending}
+                  disabled={showWrongNetwork && switchNetworkPending}
                   className={`px-6 py-2.5 font-semibold text-sm rounded transition-colors inline-flex items-center justify-center gap-2 ${
-                    wrongNetwork
+                    showWrongNetwork
                       ? 'bg-red-600 text-white hover:bg-red-500 disabled:opacity-60'
                       : 'bg-brand-green text-brand-bg hover:bg-brand-green/90'
                   }`}
                 >
-                  {wrongNetwork && switchNetworkPending ? (
+                  {showWrongNetwork && switchNetworkPending ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />
                       <span>Switching…</span>
                     </>
-                  ) : wrongNetwork ? (
+                  ) : showWrongNetwork ? (
                     getSwitchNetworkCtaLabel()
                   ) : (
                     'Connect Wallet'
@@ -237,7 +244,7 @@ export function HeaderInner() {
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-brand-green rounded-full animate-pulse"></div>
                     <span className="font-bold text-brand-green">
-                      ${balance.toLocaleString()}
+                      ${headerPaperCash.toLocaleString()}
                     </span>
                     {CHAIN_CONFIG.isTestnet && (
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/40">
@@ -312,7 +319,7 @@ export function HeaderInner() {
           </button>
         </div>
 
-        {isConnected && wrongNetwork && (
+        {isConnected && showWrongNetwork && (
           <div className="pb-3">
             <div className="animate-slide-down rounded-lg border border-red-500/30 bg-red-950/60 backdrop-blur-md px-3 py-2 flex items-center justify-between gap-3">
               <p className="text-xs sm:text-sm font-medium text-white/90 min-w-0">
@@ -399,28 +406,28 @@ export function HeaderInner() {
                   )}
                   <button
                     onClick={() => {
-                      if (wrongNetwork) void switchNetwork();
+                      if (showWrongNetwork) void switchNetwork();
                       else openWalletModal();
                       setIsMobileMenuOpen(false);
                     }}
-                    disabled={wrongNetwork && switchNetworkPending}
+                    disabled={showWrongNetwork && switchNetworkPending}
                     className={`w-full px-4 py-2.5 font-semibold text-sm rounded transition-colors inline-flex items-center justify-center gap-2 ${
-                      wrongNetwork
+                      showWrongNetwork
                         ? 'bg-red-600 text-white hover:bg-red-500 disabled:opacity-60'
                         : 'bg-brand-green text-brand-bg hover:bg-brand-green/90'
                     }`}
                   >
-                    {wrongNetwork && switchNetworkPending ? (
+                    {showWrongNetwork && switchNetworkPending ? (
                       <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
                     ) : null}
-                    {wrongNetwork ? getSwitchNetworkCtaLabel() : 'Connect Wallet (Optional)'}
+                    {showWrongNetwork ? getSwitchNetworkCtaLabel() : 'Connect Wallet (Optional)'}
                   </button>
                 </div>
               ) : (
                 <div className="mt-2 p-3 sm:p-4 bg-white/5 border border-brand-green/30 rounded-lg">
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <div className="w-2 h-2 bg-brand-green rounded-full animate-pulse flex-shrink-0"></div>
-                    <span className="font-bold text-brand-green text-sm sm:text-base">${balance.toLocaleString()} USDC</span>
+                    <span className="font-bold text-brand-green text-sm sm:text-base">${headerPaperCash.toLocaleString()} USDC</span>
                     {isSyncing && (
                       <Loader2 className="w-3 h-3 text-brand-green animate-spin flex-shrink-0" />
                     )}
@@ -472,7 +479,7 @@ export function HeaderInner() {
                     {address?.slice(0, 10)}...{address?.slice(-8)}
                   </p>
 
-                  {wrongNetwork && (
+                  {showWrongNetwork && (
                     <div className="mb-3 rounded-lg border border-red-500/35 bg-red-950/50 p-3 space-y-2">
                       <p className="text-xs text-white/90">
                         Wrong network — switch to{" "}

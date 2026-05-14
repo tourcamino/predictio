@@ -120,7 +120,7 @@ export const withdrawLiquidity = baseProcedure
       await tx.transaction.create({
         data: {
           wallet: w,
-          type: 'withdrawal',
+          type: 'lp_withdraw',
           amount: totalWithdrawal,
           balanceBefore,
           balanceAfter,

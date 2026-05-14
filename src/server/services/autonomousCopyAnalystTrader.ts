@@ -2,6 +2,8 @@ import type { Market as DbMarket } from "@prisma/client";
 import { db } from "~/server/db";
 import { createCaller } from "~/server/trpc/root";
 import { loadMarketUiById } from "~/server/utils/loadMarketUi";
+import { getMarketLifecycleState } from "~/utils/marketLifecycle";
+import { canOpenNewPaperPosition } from "~/lib/market/marketLifecycleStateMachine";
 import { rankPrismaMarketsByCuration } from "~/server/utils/marketCurationFromDb";
 import {
   AUTONOMOUS_COPY_ANALYST_PROFILES,
@@ -221,9 +223,9 @@ export async function runAutonomousCopyAnalystTick(): Promise<{
       if (usedMarkets.has(row.id)) continue;
 
       const ui = await loadMarketUiById(row.id);
-      if (!ui || ui.status === "resolved") continue;
-      if (ui.start_time && new Date() >= ui.start_time) continue;
-      if (ui.closesAt < new Date()) continue;
+      if (!ui) continue;
+      const life = getMarketLifecycleState(ui);
+      if (!canOpenNewPaperPosition(life)) continue;
 
       const y = ui.yesPrice;
       if (

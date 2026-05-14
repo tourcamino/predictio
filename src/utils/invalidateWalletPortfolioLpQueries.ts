@@ -1,41 +1,77 @@
 import type { QueryClient } from '@tanstack/react-query';
 
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { invalidateWalletPointsSummary } from '~/utils/invalidateWalletNotifications';
+
+const WALLET_SCOPED_READ_MARKERS = [
+  'getUserLPPositions',
+  'getPortfolioSummary',
+  'getUserPositions',
+  'getPaperWalletBalance',
+] as const;
+
+function queryKeyJsonLikelyMatchesWallet(
+  queryKey: readonly unknown[],
+  walletLower: string,
+): boolean {
+  try {
+    const s = JSON.stringify(queryKey).toLowerCase();
+    if (!s.includes(`"walletaddress":"${walletLower}"`)) return false;
+    return WALLET_SCOPED_READ_MARKERS.some((m) => s.includes(m.toLowerCase()));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * After add/remove/claim LP, refetch the same surfaces as paper trading (`TradingBox` / `closePosition` pattern).
+ * Uses a predicate so every `clientChainId` cache variant for this wallet is invalidated.
  */
 export function invalidateWalletPortfolioLpQueries(
   queryClient: QueryClient,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC `queryKey` factories are not assignable to a small structural type across router versions.
   trpc: any,
-  walletKey: string,
+  walletAddress: string,
 ) {
-  const w = walletKey.trim().toLowerCase();
+  const w = normalizeWalletForQuery(walletAddress);
   if (!w) return;
 
   queryClient.invalidateQueries({
-    queryKey: trpc.getUserLPPositions.queryKey({ walletAddress: w, status: 'active' }),
+    predicate: (q) => queryKeyJsonLikelyMatchesWallet(q.queryKey, w),
   });
-  queryClient.invalidateQueries({
-    queryKey: trpc.getUserLPPositions.queryKey({ walletAddress: w, status: 'all' }),
-  });
-  queryClient.invalidateQueries({
-    queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: w }),
-  });
-  queryClient.invalidateQueries({
-    queryKey: trpc.getUserPositions.queryKey({ walletAddress: w, status: 'open' }),
-  });
-  queryClient.invalidateQueries({
-    queryKey: trpc.getUserPositions.queryKey({ walletAddress: w, status: 'all' }),
-  });
+
   invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, w);
 
   queryClient.invalidateQueries({
     predicate: (q) => {
       try {
+        const s = JSON.stringify(q.queryKey).toLowerCase();
+        if (!s.includes(`"walletaddress":"${w}"`)) return false;
+        return (
+          s.includes('gettransactionhistory') ||
+          s.includes('getportfolioperformancehistory')
+        );
+      } catch {
+        return false;
+      }
+    },
+  });
+}
+
+/** After market-wide paper resolution: refresh every cached positions / portfolio read model. */
+export function invalidateAllPredictionPortfolioCachesForAnyWallet(
+  queryClient: QueryClient,
+) {
+  queryClient.invalidateQueries({
+    predicate: (q) => {
+      try {
         const s = JSON.stringify(q.queryKey);
-        return s.includes('getTransactionHistory') || s.includes('getPortfolioPerformanceHistory');
+        const hasWallet =
+          s.includes('"walletAddress"') || s.includes('"walletaddress"');
+        if (!hasWallet) return false;
+        return (
+          s.includes('getUserPositions') || s.includes('getPortfolioSummary')
+        );
       } catch {
         return false;
       }

@@ -11,16 +11,18 @@ import { useWallet } from '~/store/useWalletStore';
 import { TransactionModal } from '../TransactionModal';
 import { calcFee, calcPriceImpact, calculateOrderFee, getOrderRole } from '~/utils/marketUtils';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
+import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { DemoBadge } from '~/components/demo/DemoBadge';
 import { FeeBreakdownCard } from '~/components/FeeBreakdownCard';
 import { getMarketStatus, isMarketTradeable } from '~/utils/marketLifecycle';
 import {
   invalidateWalletNotifications,
-  invalidateWalletPointsSummary,
 } from '~/utils/invalidateWalletNotifications';
 import { useWalletGate } from '~/hooks/useWalletGate';
+import { useWalletRuntimeState } from '~/hooks/useWalletRuntimeState';
 import { WalletGateModal } from '~/components/WalletGateModal';
-import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
+import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 import { executePlacePredictionWithDiagnostics } from '~/lib/executePlacePredictionWithDiagnostics';
 import { predictionBalanceFootnote } from '~/lib/economySurface';
 import {
@@ -96,18 +98,23 @@ export function TradingBox({ market }: TradingBoxProps) {
   const trpc = useTRPC();
   const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
-  const { isConnected: isWalletConnected, address: walletAddress, updateBalance, balance: walletBalance, wrongNetwork } = useWallet();
-  const walletKey = normalizeWalletForQuery(walletAddress);
+  const { isConnected: isWalletConnected, address: walletAddress, chainId } = useWallet();
+  const { cashUsdc: paperCashUsdc } = usePaperWalletBalance();
+  const walletRt = useWalletRuntimeState();
   const {
     isActive: isDemoActive,
     executeDemoTrade,
     balance: demoBalance,
     positions: demoPositions,
   } = useDemoAccount();
+  const chainActionsBlocked =
+    isWalletConnected && !isDemoActive && walletRt.runtime !== "connected-correct-chain";
+  const walletKey = normalizeWalletForQuery(walletAddress);
+  const chainScope = clientChainScopeForTrpc(chainId);
   const { requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
   
-  // In DEMO mode always use virtual balance; otherwise wallet when connected.
-  const currentBalance = isDemoActive ? demoBalance : isWalletConnected ? walletBalance : demoBalance;
+  // Demo: `demoStorage`; paper: `getPaperWalletBalance` (tRPC), not the wallet Zustand slice.
+  const currentBalance = isDemoActive ? demoBalance : isWalletConnected ? paperCashUsdc : demoBalance;
   
   const [activeTab, setActiveTab] = useState<TabType>('buy');
   const [selectedOutcome, setSelectedOutcome] = useState<OutcomeType>('YES');
@@ -127,6 +134,7 @@ export function TradingBox({ market }: TradingBoxProps) {
     ...trpc.getUserPositions.queryOptions({
       walletAddress: walletKey,
       status: 'open',
+      clientChainId: chainScope,
     }),
     enabled: !!walletKey && isWalletConnected && !isDemoActive,
   });
@@ -272,10 +280,6 @@ export function TradingBox({ market }: TradingBoxProps) {
       setTxError(undefined);
       setTxModalState('success');
 
-      if (data.newBalance !== undefined) {
-        updateBalance(data.newBalance);
-      }
-
       toast.success(`Trade executed successfully! ${selectedOutcome} shares purchased.`, {
         duration: 4000,
         icon: '✅',
@@ -289,18 +293,9 @@ export function TradingBox({ market }: TradingBoxProps) {
       queryClient.invalidateQueries({
         queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
       });
-      queryClient.invalidateQueries({
-        queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
-      });
-      queryClient.invalidateQueries({
-        queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'open' }),
-      });
-      queryClient.invalidateQueries({
-        queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
-      });
       if (walletKey) {
+        invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
         invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
-        invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
       }
     },
     onError: (error: Error) => {
@@ -345,11 +340,6 @@ export function TradingBox({ market }: TradingBoxProps) {
         setTxError(undefined);
         setTxModalState('success');
         
-        // Update wallet balance
-        if (data.newBalance !== undefined) {
-          updateBalance(data.newBalance);
-        }
-        
         toast.success(data.message || 'Position closed successfully!', {
           duration: 4000,
           icon: '✅',
@@ -360,18 +350,9 @@ export function TradingBox({ market }: TradingBoxProps) {
           sellForm.reset();
         }, 2000);
         
-        queryClient.invalidateQueries({
-          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
-        });
-        queryClient.invalidateQueries({
-          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'open' }),
-        });
-        queryClient.invalidateQueries({
-          queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
-        });
         if (walletKey) {
+          invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
           invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
-          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
         }
       },
       onError: (error) => {
@@ -443,23 +424,6 @@ export function TradingBox({ market }: TradingBoxProps) {
         toast.error('This market has been resolved. Trading is no longer available.');
         return;
       }
-    }
-    
-    // Additional time-based check
-    if (new Date() >= market.start_time) {
-      // #region agent log
-      logPurchaseFlowClient({
-        requestId: flowId,
-        userId: walletKey,
-        flowCorrelationId: flowId,
-        location: 'TradingBox.tsx:onBuySubmit',
-        phase: 'tradingbox.buy_submit.exit_early',
-        payloadReceived: { reason: 'kickoff_passed', start_time: market.start_time },
-      });
-      // #endregion
-      buyFlowCorrelationRef.current = null;
-      toast.error('Trading closed at kickoff.');
-      return;
     }
     
     if (isDemoActive) {
@@ -1041,7 +1005,7 @@ export function TradingBox({ market }: TradingBoxProps) {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={buyAmount <= 0 || (!isDemoActive && wrongNetwork)}
+                disabled={buyAmount <= 0 || (chainActionsBlocked)}
                 className={`w-full py-5 sm:py-4 font-bold text-xl sm:text-lg rounded-lg transition-all disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 active:scale-95 ${
                   selectedOutcome === 'YES'
                     ? 'bg-green-500 text-white hover:bg-green-600'
@@ -1052,7 +1016,7 @@ export function TradingBox({ market }: TradingBoxProps) {
               >
                 {buyAmount <= 0
                   ? 'Enter Amount'
-                  : !isDemoActive && wrongNetwork
+                  : chainActionsBlocked
                     ? 'Switch network to trade'
                   : orderType === 'LIMIT'
                   ? `Place limit order · 0% fee`
@@ -1217,13 +1181,13 @@ export function TradingBox({ market }: TradingBoxProps) {
                     disabled={
                       sellShares <= 0 ||
                       sellShares > userPosition.shares ||
-                      (!isDemoActive && wrongNetwork)
+                      (chainActionsBlocked)
                     }
                     className="w-full py-5 sm:py-4 bg-orange-500 text-white font-bold text-xl sm:text-lg rounded-lg hover:bg-orange-600 transition-all disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 active:scale-95"
                   >
                     {sellShares <= 0
                       ? 'Enter Shares'
-                      : !isDemoActive && wrongNetwork
+                      : chainActionsBlocked
                         ? 'Switch network to trade'
                       : !isWalletConnected
                       ? `Sell ${

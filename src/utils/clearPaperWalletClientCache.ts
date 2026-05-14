@@ -1,4 +1,5 @@
-const WALLET_PERSIST = "predictio-wallet";
+const WALLET_PERSIST = "predictio-wallet-v2";
+const LEGACY_WALLET_PERSIST = "predictio-wallet";
 const TRADING_PERSIST = "predictio-trading";
 
 function welcomeOnboardingDismissKey(walletKey: string): string {
@@ -13,6 +14,7 @@ export function clearPaperWalletClientCache(walletKey?: string | null): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(WALLET_PERSIST);
+    localStorage.removeItem(LEGACY_WALLET_PERSIST);
     localStorage.removeItem(TRADING_PERSIST);
     localStorage.removeItem("predictio_demo_state");
     localStorage.removeItem("predictio_demo_opt_in");

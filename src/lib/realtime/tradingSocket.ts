@@ -158,11 +158,16 @@ class TradingSocketClient {
     }
   }
 
+  private syncSubscriptionCountToStore() {
+    useTradingStore.getState().setWsSubscribedMarketCount(this.subscribedMarkets.size);
+  }
+
   public subscribe(marketId: string) {
     if (!this.subscribedMarkets.has(marketId)) {
       this.subscribedMarkets.add(marketId);
       this.sendSubscribe(marketId);
       console.log(`[TradingSocket] Subscribed to ${marketId}`);
+      this.syncSubscriptionCountToStore();
     }
   }
 
@@ -172,6 +177,7 @@ class TradingSocketClient {
       this.sendUnsubscribe(marketId);
       useTradingStore.getState().clearMarketData(marketId);
       console.log(`[TradingSocket] Unsubscribed from ${marketId}`);
+      this.syncSubscriptionCountToStore();
     }
   }
 
@@ -190,6 +196,7 @@ class TradingSocketClient {
     this.reconnectAttempts = 0;
     this.isConnecting = false;
     useTradingStore.getState().setWsStatus('offline');
+    useTradingStore.getState().setWsSubscribedMarketCount(0);
   }
 
   public getConnectionState(): 'connected' | 'connecting' | 'offline' {

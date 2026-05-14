@@ -9,19 +9,6 @@ import {
   switchToPredictioChain,
 } from '~/lib/wallet/switchToPredictioChain';
 
-export interface Transaction {
-  id: string;
-  type: 'buy' | 'sell' | 'claim' | 'deposit' | 'withdraw' | 'send' | 'refund';
-  status: 'pending' | 'confirmed' | 'failed';
-  amountUsdc: number;
-  description: string;
-  marketId?: string;
-  txHash?: string;
-  gasUsed?: number;
-  timestamp: Date;
-  feePaid?: number;
-}
-
 export interface Deposit {
   id: string;
   method: 'direct' | 'moonpay' | 'bridge';
@@ -41,24 +28,14 @@ export interface Withdrawal {
   timestamp: Date;
 }
 
-export interface ResolvedMarket {
-  marketId: string;
-  marketName: string;
-  outcome: string;
-  userOutcome: string;
-  won: boolean;
-  claimableAmount: number;
-  /** Present once the market has a firm resolution timestamp (persisted dates may omit). */
-  resolvedAt?: Date;
-  claimStatus: 'claimable' | 'claimed' | 'expired';
-}
-
 export interface WalletState {
   isConnected: boolean;
   address: string | null;
-  balance: number; // USDC balance (total)
-  balanceUsdc: number; // Same as balance, for consistency
-  balanceUsdcAvailable: number; // not in positions
+  /** Legacy / mock-connect only — paper spendable USDC = `getPaperWalletBalance` (tRPC). */
+  balance: number;
+  /** Legacy / mock-connect — prefer tRPC for paper. */
+  balanceUsdc: number;
+  balanceUsdcAvailable: number;
   balanceUsdcInPositions: number;
   balanceEth: number; // ETH for gas
   balanceEthUsd: number; // ETH value in USD
@@ -70,6 +47,11 @@ export interface WalletState {
   wrongNetwork: boolean;
   /** Active wallet chain when injected provider is used; null if unknown / mock */
   chainId: number | null;
+  /**
+   * False during connect and until WalletChainSync finishes the first provider read
+   * after load/connect — avoids treating transient state as wrong network.
+   */
+  walletProviderSyncComplete: boolean;
   switchNetworkPending: boolean;
   referralCode: string | null; // Store the referral code
   
@@ -77,13 +59,8 @@ export interface WalletState {
   pendingDeposits: Deposit[];
   pendingWithdrawals: Withdrawal[];
   pendingClaims: string[]; // marketIds
-  
-  // History
-  transactions: Transaction[];
+
   recentRecipients: string[]; // Recent withdrawal addresses
-  
-  // Resolved markets awaiting claim
-  resolvedMarkets: ResolvedMarket[];
 }
 
 interface WalletStore extends WalletState {
@@ -97,14 +74,8 @@ interface WalletStore extends WalletState {
   refreshChainFromProvider: () => Promise<void>;
   deposit: (amount: number) => Promise<{ success: boolean; txHash: string }>;
   withdraw: (amount: number, toAddress: string) => Promise<{ success: boolean; txHash: string }>;
-  updateBalance: (newBalance: number) => void;
   refreshBalances: () => Promise<void>;
-  refreshTransactions: () => Promise<void>;
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'timestamp'>) => void;
   addRecentRecipient: (address: string) => void;
-  claimWinnings: (marketId: string) => Promise<{ success: boolean; txHash: string; amount: number }>;
-  batchClaimWinnings: (marketIds: string[]) => Promise<{ success: boolean; txHash: string; amount: number }>;
-  updateResolvedMarkets: (markets: ResolvedMarket[]) => void;
 }
 
 export const useWalletStore = create<WalletStore>()(
@@ -126,18 +97,17 @@ export const useWalletStore = create<WalletStore>()(
       isOnboarded: false,
       wrongNetwork: false,
       chainId: null,
+      walletProviderSyncComplete: false,
       switchNetworkPending: false,
       referralCode: null,
       pendingDeposits: [],
       pendingWithdrawals: [],
       pendingClaims: [],
-      transactions: [],
       recentRecipients: [],
-      resolvedMarkets: [],
 
-      // Connect: prefer injected EIP-1193 (MetaMask / Coinbase). Optional mock via VITE_WALLET_MOCK_CONNECT=1.
+      // Connect: EIP-1193 only. Mock ONLY when VITE_WALLET_MOCK_CONNECT=1 on a non-production Vite build (never PROD).
       connectWallet: async (walletType: string) => {
-        set({ isConnecting: true });
+        set({ isConnecting: true, walletProviderSyncComplete: false });
         await new Promise((resolve) => setTimeout(resolve, 220));
 
         const referralCode = localStorage.getItem("predictio-referral-code");
@@ -148,12 +118,17 @@ export const useWalletStore = create<WalletStore>()(
             Date.now() - parseInt(referralTimestamp, 10) < 30 * 24 * 60 * 60 * 1000,
         );
 
-        const allowMock = import.meta.env.VITE_WALLET_MOCK_CONNECT === "1";
+        /** Never implicit mock in production builds (`import.meta.env.PROD`). */
+        const allowMock =
+          import.meta.env.VITE_WALLET_MOCK_CONNECT === "1" && !import.meta.env.PROD;
         const provider = getInjectedEip1193Provider(walletType);
 
         if (!provider) {
-          if (allowMock || import.meta.env.DEV) {
-            const mockAddress = "0x7f3a8b2c4e2b9f1a6d5c8e7f9a2b4c6d8e0f1a3b";
+          if (allowMock) {
+            const mockAddress = (
+              (import.meta.env.VITE_WALLET_MOCK_ADDRESS as string | undefined)?.trim() ||
+              "0x7f3a8b2c4e2b9f1a6d5c8e7f9a2b4c6d8e0f1a3b"
+            ).toLowerCase();
             const mockEthBalance = 0.0423;
             const mockEthPrice = 2600;
             const virtualBalance = 1000.0;
@@ -172,6 +147,7 @@ export const useWalletStore = create<WalletStore>()(
               wrongNetwork: false,
               chainId: null,
               switchNetworkPending: false,
+              walletProviderSyncComplete: true,
               referralCode: isReferralValid ? referralCode : null,
             });
             if (isReferralValid && referralCode) {
@@ -179,13 +155,13 @@ export const useWalletStore = create<WalletStore>()(
                 `[REFERRAL] User ${mockAddress} connected with referral code: ${referralCode}`,
               );
             }
-            console.log(
-              `[Paper Trading] Dev mock wallet connected: ${mockAddress}${allowMock ? " (VITE_WALLET_MOCK_CONNECT=1)" : " (no injected wallet in dev)"}`,
+            console.warn(
+              `[Wallet] MOCK connect only (VITE_WALLET_MOCK_CONNECT=1, non-PROD build): ${mockAddress}`,
             );
             return;
           }
 
-          set({ isConnecting: false });
+          set({ isConnecting: false, walletProviderSyncComplete: true });
           const wt = walletType.toLowerCase();
           const hint =
             wt === "metamask"
@@ -200,6 +176,10 @@ export const useWalletStore = create<WalletStore>()(
           const accounts = (await provider.request({
             method: "eth_requestAccounts",
           })) as string[];
+          if (import.meta.env.DEV && import.meta.env.VITE_WALLET_IDENTITY_DEBUG === "1") {
+            // eslint-disable-next-line no-console
+            console.info("[wallet-identity] eth_requestAccounts", { accounts });
+          }
           if (!accounts?.length) {
             throw new Error("No accounts returned from your wallet.");
           }
@@ -235,7 +215,7 @@ export const useWalletStore = create<WalletStore>()(
             `[Wallet] Connected ${address} chainId=${cid ?? "?"} expected=${expected} wrongNetwork=${wrong}`,
           );
         } catch (e) {
-          set({ isConnecting: false });
+          set({ isConnecting: false, walletProviderSyncComplete: true });
           throw e instanceof Error ? e : new Error("Could not connect wallet");
         }
       },
@@ -257,6 +237,7 @@ export const useWalletStore = create<WalletStore>()(
         // Step 2: Clear ALL localStorage keys (aggressive cleanup)
         const keysToRemove = [
           'predictio-wallet',
+          'predictio-wallet-v2',
           'predictio-referral-code',
           'predictio-referral-timestamp',
           'wagmi.store',
@@ -319,12 +300,11 @@ export const useWalletStore = create<WalletStore>()(
           isOnboarded: false,
           chainId: null,
           switchNetworkPending: false,
+          walletProviderSyncComplete: true,
           pendingDeposits: [],
           pendingWithdrawals: [],
           pendingClaims: [],
-          transactions: [],
           recentRecipients: [],
-          resolvedMarkets: [],
         };
         set(reset);
         
@@ -413,51 +393,9 @@ export const useWalletStore = create<WalletStore>()(
         return { success: true, txHash: '0x...' };
       },
 
-      // Update balance (called after successful deposit/withdraw)
-      updateBalance: (newBalance: number) => {
-        set({ balance: newBalance });
-      },
-
-      // Refresh balances from chain
+      // Paper USDC is **not** updated here — use tRPC `getPaperWalletBalance` + query invalidation.
       refreshBalances: async () => {
-        const state = get();
-        if (!state.address) return;
-        
-        await new Promise(resolve => setTimeout(resolve, 120));
-        
-        // In production, this would fetch from blockchain
-        const mockBalance = state.balance + (Math.random() - 0.5) * 10;
-        const mockEthBalance = state.balanceEth + (Math.random() - 0.5) * 0.01;
-        const mockEthPrice = 2600;
-        
-        set({
-          balance: Math.max(0, mockBalance),
-          balanceUsdc: Math.max(0, mockBalance),
-          balanceUsdcAvailable: Math.max(0, mockBalance * 0.88),
-          balanceUsdcInPositions: Math.max(0, mockBalance * 0.12),
-          balanceEth: Math.max(0, mockEthBalance),
-          balanceEthUsd: Math.max(0, mockEthBalance * mockEthPrice),
-        });
-      },
-
-      // Refresh transaction history
-      refreshTransactions: async () => {
-        // Mock: in production, fetch from API/blockchain
-        await new Promise(resolve => setTimeout(resolve, 80));
-        console.log('[Wallet] Transactions refreshed');
-      },
-
-      // Add transaction to history
-      addTransaction: (transaction: Omit<Transaction, 'id' | 'timestamp'>) => {
-        const newTransaction: Transaction = {
-          ...transaction,
-          id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          timestamp: new Date(),
-        };
-        
-        set((state) => ({
-          transactions: [newTransaction, ...state.transactions].slice(0, 100), // Keep last 100
-        }));
+        await new Promise((resolve) => setTimeout(resolve, 40));
       },
 
       // Add recent recipient address
@@ -469,146 +407,17 @@ export const useWalletStore = create<WalletStore>()(
           };
         });
       },
-
-      // Claim winnings from a resolved market
-      claimWinnings: async (marketId: string) => {
-        const state = get();
-        if (!state.address) {
-          throw new Error('Wallet not connected');
-        }
-        
-        const market = state.resolvedMarkets.find(m => m.marketId === marketId);
-        if (!market || market.claimStatus !== 'claimable') {
-          throw new Error('Market not claimable');
-        }
-        
-        // Mock execution
-        await new Promise(resolve => setTimeout(resolve, 450));
-        
-        const mockTxHash = `0x${Array.from({ length: 64 }, () =>
-          Math.floor(Math.random() * 16).toString(16)
-        ).join('')}`;
-        
-        // Update balance
-        const newBalance = state.balance + market.claimableAmount;
-        set({
-          balance: newBalance,
-          balanceUsdc: newBalance,
-          balanceUsdcAvailable: newBalance * 0.88,
-          balanceUsdcInPositions: newBalance * 0.12,
-          resolvedMarkets: state.resolvedMarkets.map(m =>
-            m.marketId === marketId ? { ...m, claimStatus: 'claimed' as const } : m
-          ),
-        });
-        
-        // Add transaction
-        get().addTransaction({
-          type: 'claim',
-          status: 'confirmed',
-          amountUsdc: market.claimableAmount,
-          description: market.marketName,
-          marketId,
-          txHash: mockTxHash,
-        });
-        
-        return { success: true, txHash: mockTxHash, amount: market.claimableAmount };
-      },
-
-      // Batch claim winnings from multiple resolved markets
-      batchClaimWinnings: async (marketIds: string[]) => {
-        const state = get();
-        if (!state.address) {
-          throw new Error('Wallet not connected');
-        }
-        
-        const claimableMarkets = state.resolvedMarkets.filter(
-          m => marketIds.includes(m.marketId) && m.claimStatus === 'claimable'
-        );
-        
-        if (claimableMarkets.length === 0) {
-          throw new Error('No claimable markets');
-        }
-        
-        const totalAmount = claimableMarkets.reduce((sum, m) => sum + m.claimableAmount, 0);
-        
-        // Mock execution (longer delay for batch)
-        await new Promise(resolve => setTimeout(resolve, 550));
-        
-        const mockTxHash = `0x${Array.from({ length: 64 }, () =>
-          Math.floor(Math.random() * 16).toString(16)
-        ).join('')}`;
-        
-        // Update balance
-        const newBalance = state.balance + totalAmount;
-        set({
-          balance: newBalance,
-          balanceUsdc: newBalance,
-          balanceUsdcAvailable: newBalance * 0.88,
-          balanceUsdcInPositions: newBalance * 0.12,
-          resolvedMarkets: state.resolvedMarkets.map(m =>
-            marketIds.includes(m.marketId) ? { ...m, claimStatus: 'claimed' as const } : m
-          ),
-        });
-        
-        // Add transaction
-        get().addTransaction({
-          type: 'claim',
-          status: 'confirmed',
-          amountUsdc: totalAmount,
-          description: `Batch claim: ${claimableMarkets.length} markets`,
-          txHash: mockTxHash,
-        });
-        
-        return { success: true, txHash: mockTxHash, amount: totalAmount };
-      },
-
-      // Update resolved markets list
-      updateResolvedMarkets: (markets: ResolvedMarket[]) => {
-        set({ resolvedMarkets: markets });
-      },
     }),
     {
-      name: 'predictio-wallet',
+      name: "predictio-wallet-v2",
+      version: 1,
       storage: createJSONStorage(() => localStorage),
+      /** Never persist address — identity must come from `eth_accounts` / `eth_requestAccounts`. */
       partialize: (state) => ({
-        address: state.address,
         walletType: state.walletType,
         isOnboarded: state.isOnboarded,
         referralCode: state.referralCode,
-        transactions: state.transactions,
-        recentRecipients: state.recentRecipients,
       }),
-      onRehydrateStorage: () => (state) => {
-        // If we have a persisted address, simulate reconnection with fresh balance
-        if (state?.address && state?.walletType) {
-          // Use default virtual balance - will be synced from DB in production
-          const virtualBalance = 1000.00;
-          const mockEthBalance = 0.0423;
-          const mockEthPrice = 2600;
-          
-          state.balance = virtualBalance;
-          state.balanceUsdc = virtualBalance;
-          state.balanceUsdcAvailable = virtualBalance;
-          state.balanceUsdcInPositions = 0;
-          state.balanceEth = mockEthBalance;
-          state.balanceEthUsd = mockEthBalance * mockEthPrice;
-          state.isConnected = true;
-          state.wrongNetwork = false;
-          state.chainId = null;
-          state.switchNetworkPending = false;
-
-          // Check if referral code is still valid
-          const referralTimestamp = localStorage.getItem('predictio-referral-timestamp');
-          if (state.referralCode && referralTimestamp) {
-            const isValid = (Date.now() - parseInt(referralTimestamp)) < 30 * 24 * 60 * 60 * 1000;
-            if (!isValid) {
-              state.referralCode = null;
-            }
-          }
-          
-          console.log(`[Paper Trading] Wallet rehydrated: ${state.address} with virtual balance: $${virtualBalance}`);
-        }
-      },
     }
   )
 );

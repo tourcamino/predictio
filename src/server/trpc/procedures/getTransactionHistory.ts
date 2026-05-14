@@ -1,6 +1,16 @@
 import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
+import {
+  LEDGER_CREDIT_TYPES,
+  LEDGER_HISTORY_FILTERS,
+  LEDGER_TRANSACTION_TYPE_SET,
+  type LedgerHistoryFilter,
+} from "~/lib/ledger/ledgerTransactionTypes";
+
+const historyType = z.enum(
+  LEDGER_HISTORY_FILTERS as unknown as [LedgerHistoryFilter, ...LedgerHistoryFilter[]],
+);
 
 export const getTransactionHistory = baseProcedure
   .input(
@@ -8,23 +18,27 @@ export const getTransactionHistory = baseProcedure
       walletAddress: z.string(),
       limit: z.number().min(1).max(100).default(50),
       offset: z.number().min(0).default(0),
-      type: z.enum(['all', 'deposit', 'withdrawal', 'bet_placed', 'bet_won', 'bet_lost', 'bet_refund']).default('all'),
-    })
+      type: historyType.default("all"),
+      /** Client cache scope only — ignored for Prisma reads. */
+      clientChainId: z.number().int().default(0),
+      /** Dev: log non-canonical rows once per request (server console). */
+      debugLedger: z.boolean().optional(),
+    }),
   )
   .query(async ({ input }) => {
-    const { walletAddress, limit, offset, type } = input;
+    const { walletAddress, limit, offset, type, debugLedger } = input;
     const wallet = walletAddress.toLowerCase();
 
-    // Build where clause
-    const where: any = {
+    const where: Record<string, unknown> = {
       wallet,
     };
 
-    if (type !== 'all') {
+    if (type === "credits") {
+      where.type = { in: LEDGER_CREDIT_TYPES };
+    } else if (type !== "all") {
       where.type = type;
     }
 
-    // Fetch transactions with market data
     const transactions = await db.transaction.findMany({
       where,
       include: {
@@ -39,13 +53,20 @@ export const getTransactionHistory = baseProcedure
         },
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
       take: limit,
       skip: offset,
     });
 
-    // Get total count for pagination
+    if (debugLedger && process.env.NODE_ENV !== "production") {
+      for (const row of transactions) {
+        if (!LEDGER_TRANSACTION_TYPE_SET.has(row.type)) {
+          console.warn("[ledger] unknown Transaction.type", row.type, row.id);
+        }
+      }
+    }
+
     const totalCount = await db.transaction.count({ where });
 
     return {

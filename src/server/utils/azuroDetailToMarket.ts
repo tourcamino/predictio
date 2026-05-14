@@ -1,6 +1,7 @@
 import type { Market } from "~/data/mockMarkets";
 import type { AzuroMarket } from "~/services/azuro";
 import { normalizeYesNoUnitPrices } from "~/server/utils/prismaMarket";
+import { deriveMarketLifecycleFromUiMarket } from "~/lib/market/marketLifecycleStateMachine";
 
 /** Maps Azuro GraphQL detail (`fetchAzuroGameDetail`) to the UI `Market` shape used across tRPC + loaders. */
 export function azuroDetailToMarket(azuroMarket: AzuroMarket): Market {
@@ -52,7 +53,7 @@ export function azuroDetailToMarket(azuroMarket: AzuroMarket): Market {
     status = "open";
   }
 
-  return {
+  const base: Market = {
     id: azuroMarket.id,
     sport: azuroMarket.sport,
     sportEmoji: azuroMarket.sportEmoji,
@@ -79,5 +80,10 @@ export function azuroDetailToMarket(azuroMarket: AzuroMarket): Market {
     percentDraw,
     drawOdds: azuroMarket.drawOdds ?? null,
     predictions: azuroMarket.traders,
+  };
+
+  return {
+    ...base,
+    lifecycleState: deriveMarketLifecycleFromUiMarket(base),
   };
 }

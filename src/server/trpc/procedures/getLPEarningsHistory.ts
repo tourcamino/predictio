@@ -55,41 +55,15 @@ export const getLPEarningsHistory = baseProcedure
     // Get LP-related transactions (deposits and withdrawals)
     const transactions = await db.transaction.findMany({
       where: {
-        wallet: walletAddress,
+        wallet: walletAddress.toLowerCase(),
         type: {
-          in: ['deposit', 'withdrawal'],
+          in: ['lp_deposit', 'lp_withdraw'],
         },
         ...(startDate && {
           createdAt: {
             gte: startDate,
           },
         }),
-        OR: [
-          {
-            metadata: {
-              path: ['type'],
-              equals: 'lp_deposit',
-            },
-          },
-          {
-            metadata: {
-              path: ['type'],
-              equals: 'lp_withdrawal',
-            },
-          },
-          {
-            metadata: {
-              path: ['type'],
-              equals: 'protocol_vault_deposit',
-            },
-          },
-          {
-            metadata: {
-              path: ['type'],
-              equals: 'protocol_vault_withdrawal',
-            },
-          },
-        ],
       },
       include: {
         market: {
@@ -127,7 +101,7 @@ export const getLPEarningsHistory = baseProcedure
       
       events.push({
         id: tx.id,
-        type: tx.type as 'deposit' | 'withdrawal',
+        type: tx.type === 'lp_deposit' ? 'deposit' : 'withdrawal',
         timestamp: tx.createdAt,
         amount: tx.amount,
         marketId: isProtocolVault ? 'protocol-vault' : tx.marketId,
@@ -203,11 +177,11 @@ export const getLPEarningsHistory = baseProcedure
 
     // Calculate summary stats
     const totalDeposited = transactions
-      .filter(tx => tx.type === 'deposit')
+      .filter(tx => tx.type === 'lp_deposit')
       .reduce((sum, tx) => sum + tx.amount, 0);
     
     const totalWithdrawn = transactions
-      .filter(tx => tx.type === 'withdrawal')
+      .filter(tx => tx.type === 'lp_withdraw')
       .reduce((sum, tx) => sum + tx.amount, 0);
     
     const totalFeesEarned = positions.reduce(

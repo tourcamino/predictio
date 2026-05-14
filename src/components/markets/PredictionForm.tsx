@@ -11,9 +11,9 @@ import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import {
   invalidateWalletNotifications,
-  invalidateWalletPointsSummary,
 } from '~/utils/invalidateWalletNotifications';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 import { executePlacePredictionWithDiagnostics } from '~/lib/executePlacePredictionWithDiagnostics';
 
 interface PredictionFormProps {
@@ -34,7 +34,7 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
   const trpc = useTRPC();
   const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
-  const { address, updateBalance } = useWallet();
+  const { address } = useWallet();
   const walletKey = normalizeWalletForQuery(address);
   const { requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
 
@@ -70,25 +70,13 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
       ),
     onSuccess: (data) => {
       toast.success(data.message ?? "Prediction placed");
-      if (data.newBalance !== undefined) {
-        updateBalance(data.newBalance);
-      }
       reset();
       queryClient.invalidateQueries({
         queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
       });
       if (walletKey) {
-        queryClient.invalidateQueries({
-          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
-        });
-        queryClient.invalidateQueries({
-          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'open' }),
-        });
-        queryClient.invalidateQueries({
-          queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
-        });
+        invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
         invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
-        invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
       }
     },
     onError: (error: Error) => {

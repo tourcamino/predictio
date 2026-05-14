@@ -2,8 +2,9 @@ import { useTradingStore, type Position } from '~/store/tradingStore';
 import { StatusDot } from './StatusDot';
 import { Sparkline } from './Sparkline';
 import { formatPnL, formatPctChange } from '~/lib/trading/calculations';
+import { deriveLivePositionFromQuote } from '~/lib/trading/deriveLivePositionFromQuote';
 import { ChevronRight, Share2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ShareModal } from '../ShareModal';
 
 interface PositionCardProps {
@@ -14,12 +15,20 @@ interface PositionCardProps {
 
 export function PositionCard({ position, isSelected, onClick }: PositionCardProps) {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const pnlFormatted = formatPnL(position.unrealizedPnl);
-  const pctFormatted = formatPctChange(position.unrealizedPnlPct);
-
-  // Check if position is resolved or cancelled
+  const marketPrice = useTradingStore((s) => s.marketPrices[position.marketId]);
+  const live = useMemo(
+    () => deriveLivePositionFromQuote(position, marketPrice),
+    [position, marketPrice],
+  );
   const isResolved = position.status === 'resolved';
   const isCancelled = position.status === 'cancelled';
+  const displayPnl = isResolved || isCancelled ? position.unrealizedPnl : live.unrealizedPnl;
+  const displayPnlPct = isResolved || isCancelled ? position.unrealizedPnlPct : live.unrealizedPnlPct;
+  const displayCurrentValue = isResolved || isCancelled ? position.currentValue : live.currentValue;
+  const pnlFormatted = formatPnL(displayPnl);
+  const pctFormatted = formatPctChange(displayPnlPct);
+
+  // Check if position is resolved or cancelled
   const isClaimable = isResolved && position.claimableAmount && position.claimableAmount > 0;
 
   // Generate mock sparkline data based on current P&L
@@ -27,11 +36,11 @@ export function PositionCard({ position, isSelected, onClick }: PositionCardProp
   const sparklineData = Array.from({ length: 20 }, (_, i) => {
     const progress = i / 19;
     const baseValue = position.entryPrice;
-    const currentValue = position.currentValue / position.shares;
-    return baseValue + (currentValue - baseValue) * progress + (Math.random() - 0.5) * 0.02;
+    const endTick = live.lastPrice;
+    return baseValue + (endTick - baseValue) * progress + (Math.random() - 0.5) * 0.02;
   });
 
-  const sparklineColor = position.unrealizedPnl >= 0 ? '#00FF87' : '#EF4444';
+  const sparklineColor = displayPnl >= 0 ? '#00FF87' : '#EF4444';
 
   return (
     <>
@@ -124,7 +133,7 @@ export function PositionCard({ position, isSelected, onClick }: PositionCardProp
               </span>
               <span className="text-xs text-gray-500">→</span>
               <span className="font-mono font-semibold">
-                ${position.currentValue.toFixed(2)}
+                ${displayCurrentValue.toFixed(2)}
               </span>
             </div>
             <div className="flex items-baseline justify-end gap-2">
@@ -173,8 +182,8 @@ export function PositionCard({ position, isSelected, onClick }: PositionCardProp
         userPosition={{
           outcome: position.side,
           entryPrice: position.entryPrice,
-          currentPrice: position.currentValue / position.shares,
-          pnl: position.unrealizedPnl,
+          currentPrice: live.lastPrice,
+          pnl: displayPnl,
           shares: position.shares,
         }}
       />

@@ -143,7 +143,7 @@ export const claimLPFees = baseProcedure
         await tx.transaction.create({
           data: {
             wallet: w,
-            type: 'reward_claim',
+            type: 'lp_reward_claim',
             amount: feeAmount,
             balanceBefore,
             balanceAfter: runningBalance,
@@ -151,7 +151,7 @@ export const claimLPFees = baseProcedure
             txHash,
             status: 'completed',
             metadata: {
-              type: 'lp_fee_claim',
+              source: 'lp_fees',
               positionId: position.id,
             },
           },

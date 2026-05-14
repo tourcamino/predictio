@@ -39,7 +39,7 @@ function getCookie(name: string): string | null {
 export function WalletSync() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { isConnected, address, updateBalance, setSyncing } = useWallet();
+  const { isConnected, address, setSyncing } = useWallet();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   const lastSyncedAddressRef = useRef<string | null>(null);
@@ -116,7 +116,6 @@ export function WalletSync() {
           silentRetryCountRef.current = 0;
           clearRetry();
 
-          updateBalance(data.virtualBalance);
           setSyncing(false);
 
           invalidateAllWalletScopedQueries(queryClient, trpc, walletKey);
@@ -211,7 +210,7 @@ export function WalletSync() {
       clearDebounce();
       clearRetry();
     };
-    // Intentionally omit syncMutation / queryClient / trpc / updateBalance — stable or would retrigger sync loops.
+    // Intentionally omit syncMutation / queryClient / trpc — stable or would retrigger sync loops.
   }, [isConnected, address]);
 
   const handleOnboardingComplete = () => {

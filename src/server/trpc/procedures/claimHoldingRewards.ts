@@ -39,7 +39,7 @@ export const claimHoldingRewards = baseProcedure
     await db.transaction.create({
       data: {
         wallet,
-        type: 'reward_claim',
+        type: 'holding_reward',
         amount: pendingRewards,
         status: 'completed',
         metadata: {

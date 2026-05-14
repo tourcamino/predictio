@@ -2,12 +2,14 @@ import { Link } from '@tanstack/react-router';
 import { TrendingUp, Zap } from 'lucide-react';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { useWallet } from '~/store/useWalletStore';
+import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 
 export function EmptyTradingState() {
   const { balance: demoBalance } = useDemoAccount();
-  const { isConnected, balance: walletBalance } = useWallet();
+  const { isConnected } = useWallet();
+  const { cashUsdc: paperCash } = usePaperWalletBalance();
   
-  const currentBalance = isConnected ? walletBalance : demoBalance;
+  const currentBalance = isConnected ? paperCash : demoBalance;
   const isDemo = !isConnected;
   
   return (

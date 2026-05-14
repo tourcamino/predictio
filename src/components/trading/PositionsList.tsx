@@ -1,47 +1,62 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTradingStore, type Position } from '~/store/tradingStore';
 import { PositionCard } from './PositionCard';
 import { ChevronDown } from 'lucide-react';
+import { deriveLivePositionFromQuote } from '~/lib/trading/deriveLivePositionFromQuote';
 
 interface PositionsListProps {
-  /** When set (e.g. wallet + DB orders), overrides Zustand `positions` for the list. */
-  positions?: Position[];
+  /** DB-backed or guest-demo rows from the parent route / query layer. */
+  positions: Position[];
 }
 
-export function PositionsList({ positions: positionsProp }: PositionsListProps) {
-  const storePositions = useTradingStore((state) => state.positions);
-  const positions = positionsProp ?? storePositions;
+export function PositionsList({ positions }: PositionsListProps) {
+  const marketPrices = useTradingStore((s) => s.marketPrices);
   const selectedPositionId = useTradingStore((state) => state.selectedPositionId);
   const selectPosition = useTradingStore((state) => state.selectPosition);
+
+  const rows = useMemo(
+    () =>
+      positions.map((p) => {
+        const live = deriveLivePositionFromQuote(p, marketPrices[p.marketId]);
+        const terminal = p.status === 'resolved' || p.status === 'cancelled';
+        return {
+          position: p,
+          live,
+          displayPnl: terminal ? p.unrealizedPnl : live.unrealizedPnl,
+          displayCurrentValue: terminal ? p.currentValue : live.currentValue,
+        };
+      }),
+    [positions, marketPrices],
+  );
 
   const [filter, setFilter] = useState<'all' | 'winning' | 'losing'>('all');
   const [sort, setSort] = useState<'recent' | 'pnl' | 'size' | 'expiry'>('recent');
 
   // Filter positions
-  const filteredPositions = positions.filter((p) => {
-    if (filter === 'winning') return p.unrealizedPnl > 0;
-    if (filter === 'losing') return p.unrealizedPnl < 0;
+  const filteredRows = rows.filter((r) => {
+    if (filter === 'winning') return r.displayPnl > 0;
+    if (filter === 'losing') return r.displayPnl < 0;
     return true;
   });
 
   // Sort positions
-  const sortedPositions = [...filteredPositions].sort((a, b) => {
+  const sortedRows = [...filteredRows].sort((a, b) => {
     switch (sort) {
       case 'pnl':
-        return b.unrealizedPnl - a.unrealizedPnl;
+        return b.displayPnl - a.displayPnl;
       case 'size':
-        return b.currentValue - a.currentValue;
+        return b.displayCurrentValue - a.displayCurrentValue;
       case 'expiry':
-        return a.marketEndsAt.getTime() - b.marketEndsAt.getTime();
+        return a.position.marketEndsAt.getTime() - b.position.marketEndsAt.getTime();
       case 'recent':
       default:
-        return b.openedAt.getTime() - a.openedAt.getTime();
+        return b.position.openedAt.getTime() - a.position.openedAt.getTime();
     }
   });
 
-  // Calculate totals
-  const totalValue = positions.reduce((sum, p) => sum + p.currentValue, 0);
-  const totalCost = positions.reduce((sum, p) => sum + p.costBasis, 0);
+  // Calculate totals (full list, not filter — matches prior behavior)
+  const totalValue = rows.reduce((sum, r) => sum + r.displayCurrentValue, 0);
+  const totalCost = rows.reduce((sum, r) => sum + r.position.costBasis, 0);
   const totalPnL = totalValue - totalCost;
   const totalPnLPct = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0;
 
@@ -89,7 +104,7 @@ export function PositionsList({ positions: positionsProp }: PositionsListProps) 
 
       {/* Positions list - scrollable */}
       <div className="flex-1 space-y-3 overflow-y-auto scrollbar-hide">
-        {sortedPositions.map((position) => (
+        {sortedRows.map(({ position }) => (
           <PositionCard
             key={position.id}
             position={position}

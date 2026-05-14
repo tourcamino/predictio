@@ -7,16 +7,29 @@ import {
   POINT_ACTION_VALUES,
 } from "~/server/utils/pointsLedger";
 
+const userCreateDefaults = (wallet: string, virtualBalance: number) => ({
+  wallet,
+  virtualBalance,
+  totalPnl: 0,
+  tradesCount: 0,
+  firstSeen: new Date(),
+  lastActive: new Date(),
+  totalVolume: 0,
+  predictions: 0,
+  wins: 0,
+  losses: 0,
+});
+
 export const depositUSDC = baseProcedure
   .input(
     z.object({
       amount: z.number().positive().max(1000000),
       walletAddress: z.string(),
+      /** @deprecated Ignored — balance is read from `User.virtualBalance`. */
       currentBalance: z.number().optional(),
-    })
+    }),
   )
   .mutation(async ({ input }) => {
-    // Validate amount
     if (input.amount < 1) {
       throw new TRPCError({
         code: "BAD_REQUEST",
@@ -24,9 +37,8 @@ export const depositUSDC = baseProcedure
       });
     }
 
-    await new Promise(resolve => setTimeout(resolve, 350));
+    await new Promise((resolve) => setTimeout(resolve, 350));
 
-    // Simulate occasional failures (5% chance)
     if (Math.random() < 0.05) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
@@ -34,29 +46,41 @@ export const depositUSDC = baseProcedure
       });
     }
 
-    // Generate mock transaction hash
     const txHash = `0x${Math.random().toString(16).substr(2, 64)}`;
-
     const timestamp = new Date();
-    const balanceBefore = input.currentBalance || 0;
-    const balanceAfter = balanceBefore + input.amount;
-    const w = input.walletAddress.toLowerCase();
+    const w = input.walletAddress.trim().toLowerCase();
 
-    // Record transaction in database
-    await db.transaction.create({
-      data: {
-        wallet: w,
-        type: 'deposit',
-        amount: input.amount,
-        balanceBefore,
-        balanceAfter,
-        txHash,
-        status: 'completed',
-        metadata: {
-          method: 'usdc_transfer',
-        },
-      },
+    const user = await db.user.findUnique({
+      where: { wallet: w },
+      select: { virtualBalance: true },
     });
+    const balanceBefore = user?.virtualBalance ?? 0;
+    const balanceAfter = balanceBefore + input.amount;
+
+    await db.$transaction([
+      db.transaction.create({
+        data: {
+          wallet: w,
+          type: "wallet_deposit",
+          amount: input.amount,
+          balanceBefore,
+          balanceAfter,
+          txHash,
+          status: "completed",
+          metadata: {
+            method: "usdc_transfer",
+          },
+        },
+      }),
+      db.user.upsert({
+        where: { wallet: w },
+        create: userCreateDefaults(w, balanceAfter),
+        update: {
+          virtualBalance: balanceAfter,
+          lastActive: new Date(),
+        },
+      }),
+    ]);
 
     try {
       await creditWalletPoints(
@@ -68,13 +92,6 @@ export const depositUSDC = baseProcedure
     } catch (err) {
       console.error("[Points] Failed to credit DEPOSIT_COMPLETED:", err);
     }
-
-    // In a real app, we would:
-    // 1. Verify the wallet signature
-    // 2. Interact with the USDC smart contract on Gnosis Chain
-    // 3. Wait for transaction confirmation
-    // 4. Update user balance in database
-    // 5. Record transaction in transaction history
 
     return {
       success: true,

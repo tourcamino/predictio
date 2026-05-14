@@ -11,6 +11,7 @@ import {
   walletModalDepositIntroBody,
   walletModalDepositIntroTitle,
 } from '~/lib/economySurface';
+import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 
 type ModalStep = 'choose' | 'connecting' | 'success' | 'deposit' | 'error';
 type DepositTab = 'bridge' | 'buy' | 'transfer';
@@ -18,7 +19,8 @@ type ConnectionStatus = 'requesting' | 'signing' | 'verifying' | 'syncing';
 
 export function WalletModal() {
   const navigate = useNavigate();
-  const { isModalOpen, closeWalletModal, connectWallet, isConnecting, isConnected, address, balance, walletType } = useWallet();
+  const { isModalOpen, closeWalletModal, connectWallet, isConnecting, isConnected, address, walletType } = useWallet();
+  const { cashUsdc: modalPaperCash } = usePaperWalletBalance();
   const [step, setStep] = useState<ModalStep>('choose');
   const [selectedWallet, setSelectedWallet] = useState<string>('');
   const [depositTab, setDepositTab] = useState<DepositTab>('bridge');
@@ -67,8 +69,8 @@ export function WalletModal() {
     } else if (isConnected && step === 'connecting') {
       setStep('success');
       
-      // Auto-close if balance > 0
-      if (balance > 0) {
+      // Auto-close if paper balance synced
+      if (modalPaperCash > 0) {
         let progress = 100;
         const ticks = 15; // 1.5s at 100ms
         const interval = setInterval(() => {
@@ -83,7 +85,7 @@ export function WalletModal() {
         return () => clearInterval(interval);
       }
     }
-  }, [isModalOpen, isConnecting, isConnected, step, balance, closeWalletModal]);
+  }, [isModalOpen, isConnecting, isConnected, step, modalPaperCash, closeWalletModal]);
 
   const handleWalletSelect = async (wallet: string) => {
     setSelectedWallet(wallet);
@@ -368,7 +370,7 @@ export function WalletModal() {
                       <div className="p-4 bg-white/5 rounded-lg">
                         <p className="text-sm text-gray-400 mb-1">Balance</p>
                         <p className="text-2xl font-bold text-brand-green">
-                          ${balance.toLocaleString()} paper USDC
+                          ${modalPaperCash.toLocaleString()} paper USDC
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
                           Predictio account balance — not your wallet&apos;s on-chain USDC.
@@ -381,7 +383,7 @@ export function WalletModal() {
                       </div>
                     </div>
 
-                    {balance === 0 ? (
+                    {modalPaperCash === 0 ? (
                       <div className="mt-6 space-y-3">
                         <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-sm text-yellow-500">
                           No paper balance synced yet. You can still browse markets — add test funds from a faucet if you need on-chain gas on {getExpectedPredictioChain().shortLabel}.

@@ -29,7 +29,7 @@ export function ManageLPModal({ isOpen, onClose, position, onSuccess }: ManageLP
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [apyTimeRange, setApyTimeRange] = useState<'7D' | '30D' | '90D' | 'ALL'>('30D');
   
-  const { address, updateBalance } = useWallet();
+  const { address } = useWallet();
   const { requireWalletAndChain } = useWalletGate();
   const walletKey = normalizeWalletForQuery(address);
   const trpc = useTRPC();
@@ -57,10 +57,6 @@ export function ManageLPModal({ isOpen, onClose, position, onSuccess }: ManageLP
         positionId: position.id,
         walletAddress: walletKey,
       });
-
-      if (result.newBalance !== undefined) {
-        updateBalance(result.newBalance);
-      }
 
       toast.success(`Claimed $${result.amount.toFixed(2)} in fees!`);
 

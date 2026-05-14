@@ -8,6 +8,12 @@ import {
   POINT_ACTION_VALUES,
 } from "~/server/utils/pointsLedger";
 import { liquidityPointsForUsdcDeposit } from "~/server/utils/pointsPure";
+import {
+  canProvideLiquidityToMarket,
+  deriveMarketLifecycleFromDbRow,
+  logMarketLifecycleDev,
+  reasonCannotProvideLiquidity,
+} from "~/lib/market/marketLifecycleStateMachine";
 
 export const provideLiquidity = baseProcedure
   .input(
@@ -72,10 +78,16 @@ export const provideLiquidity = baseProcedure
         });
       }
 
-      if (market.status !== 'open') {
+      const life = deriveMarketLifecycleFromDbRow(market);
+      if (!canProvideLiquidityToMarket(life)) {
+        logMarketLifecycleDev("provideLiquidity", "reject_lp", {
+          marketId,
+          lifecycle: life,
+          dbStatus: market.status,
+        });
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Cannot provide liquidity to closed market",
+          message: reasonCannotProvideLiquidity(life) ?? "Cannot provide liquidity to this market.",
         });
       }
     }
@@ -183,7 +195,7 @@ export const provideLiquidity = baseProcedure
       await tx.transaction.create({
         data: {
           wallet: w,
-          type: 'deposit',
+          type: 'lp_deposit',
           amount,
           balanceBefore,
           balanceAfter: nextBalance,

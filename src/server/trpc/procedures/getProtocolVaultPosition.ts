@@ -38,12 +38,22 @@ export const getProtocolVaultPosition = baseProcedure
       where: {
         wallet,
         type: {
-          in: ['deposit', 'withdrawal'],
+          in: ['lp_deposit', 'lp_withdraw'],
         },
-        metadata: {
-          path: ['vaultDeposit'],
-          equals: true,
-        },
+        OR: [
+          {
+            metadata: {
+              path: ['vaultDeposit'],
+              equals: true,
+            },
+          },
+          {
+            metadata: {
+              path: ['vaultWithdrawal'],
+              equals: true,
+            },
+          },
+        ],
       },
       orderBy: {
         createdAt: 'desc',

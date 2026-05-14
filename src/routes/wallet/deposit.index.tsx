@@ -7,6 +7,10 @@ import toast from 'react-hot-toast';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { GuestPageState } from '~/components/GuestPageState';
+import { useTRPC } from '~/trpc/react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 
 export const Route = createFileRoute('/wallet/deposit/')({
   component: DepositPage,
@@ -16,7 +20,11 @@ type DepositMethod = 'select' | 'direct' | 'moonpay' | 'bridge';
 
 function DepositPage() {
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
-  const { isConnected, address, updateBalance, balance, addTransaction } = useWallet();
+  const { isConnected, address } = useWallet();
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const depositMutation = useMutation(trpc.depositUSDC.mutationOptions());
+  const walletKey = normalizeWalletForQuery(address);
   const [selectedMethod, setSelectedMethod] = useState<DepositMethod>('select');
   const [copied, setCopied] = useState(false);
   const [bridgeAmount, setBridgeAmount] = useState('');
@@ -46,19 +54,22 @@ function DepositPage() {
     toast.loading('Processing payment...', { duration: 3000 });
     await new Promise(resolve => setTimeout(resolve, 3000));
     
-    // Update balance
     const fee = amount * 0.03; // 3% Moonpay fee
     const netAmount = amount - fee;
-    updateBalance(balance + netAmount);
-    
-    addTransaction({
-      type: 'deposit',
-      status: 'confirmed',
-      amountUsdc: netAmount,
-      description: 'From Moonpay',
-      feePaid: fee,
-      txHash: `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`,
-    });
+    if (!walletKey) {
+      toast.error('Connect wallet first');
+      return;
+    }
+    try {
+      await depositMutation.mutateAsync({
+        amount: netAmount,
+        walletAddress: walletKey,
+      });
+      invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Deposit failed');
+      return;
+    }
     
     toast.success(`✓ Deposited $${netAmount.toFixed(2)} USDC!`);
     setMoonpayAmount('');
@@ -81,19 +92,22 @@ function DepositPage() {
     toast.loading('Crediting your balance...', { duration: 2000 });
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Update balance (with fee)
     const fee = 2.5; // Fixed bridge fee
     const netAmount = amount - fee;
-    updateBalance(balance + netAmount);
-    
-    addTransaction({
-      type: 'deposit',
-      status: 'confirmed',
-      amountUsdc: netAmount,
-      description: `Bridged from ${sourceChain}`,
-      feePaid: fee,
-      txHash: `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`,
-    });
+    if (!walletKey) {
+      toast.error('Connect wallet first');
+      return;
+    }
+    try {
+      await depositMutation.mutateAsync({
+        amount: netAmount,
+        walletAddress: walletKey,
+      });
+      invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Deposit failed');
+      return;
+    }
     
     toast.success(`✓ Bridged $${netAmount.toFixed(2)} USDC!`);
     setBridgeAmount('');

@@ -552,7 +552,7 @@
 
 **6. Paper Trading vs Real Trading**
 - **Issue:** All trades are currently "paper trading" (localStorage only)
-- **Location:** `src/lib/trading/execution.ts`
+- **Location (legacy stub, non UI):** `src/lib/trading/legacy/devMockExecution.ts`
 - **Current behavior:**
   ```typescript
   if (!isLiveMode()) {
