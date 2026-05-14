@@ -1,7 +1,6 @@
 import { SeedMarket } from "~/data/seedMarkets";
 import { MAX_FOOTBALL_MARKETS } from "~/constants/azuro";
 import { env } from "~/server/env";
-import { pickTieredFootballMarkets } from "~/utils/footballSeedMarkets";
 
 export {
   hoursUntilStartMarket,
@@ -134,10 +133,14 @@ export interface AzuroMarket extends SeedMarket {
   drawOdds?: string | null;
 }
 
-const AZURO_GAMES_QUERY = `
-  query Games {
+const AZURO_PAGE_SIZE = 200;
+const AZURO_MAX_PAGES = 4;
+
+const AZURO_GAMES_PAGE_QUERY = `
+  query GamesPage($first: Int!, $skip: Int!) {
     games(
-      first: 200
+      first: $first
+      skip: $skip
       where: {
         state: Prematch
         activeConditionsCount_gt: 0
@@ -320,56 +323,80 @@ function getSportEmoji(sportSlug: string): string {
 
 export type FetchAzuroGamesOptions = {
   /**
-   * When true, return all mapped football games from the indexer (no 3+3+3 tier pick).
-   * Use when intersecting with founder-curated `gameId`s so the list is not reduced to 9 first.
+   * @deprecated Early tier cap (3+3+3) is removed — all football prematch pages are merged,
+   * then `getAzuroMarkets` / curation selects top cards. Kept for API compatibility; ignored.
    */
   skipTiering?: boolean;
 };
 
 /**
- * Fetch active games from Azuro Protocol
- * Filters for: Champions League, Serie A, Premier League, NBA, MMA
- * Returns an empty list if Azuro is unavailable (no synthetic seed markets).
+ * Fetch active prematch games from Azuro (paginated), map to football markets only.
+ * Does not apply the old 9-game tier cap — callers curate to featured limits.
  */
 export async function fetchAzuroGames(
-  options?: FetchAzuroGamesOptions,
+  _options?: FetchAzuroGamesOptions,
 ): Promise<AzuroMarket[]> {
   try {
-    const response = await azuroGraphqlFetch({
-      query: AZURO_GAMES_QUERY,
-    });
+    const mergedGames: AzuroGame[] = [];
+    const seenIds = new Set<string>();
 
-    if (!response.ok) {
-      const errText = await response.text().catch(() => "");
-      console.error(
-        "[Azuro] GraphQL HTTP error:",
-        response.status,
-        response.statusText,
-        errText.slice(0, 400),
-      );
-      return [];
+    for (let page = 0; page < AZURO_MAX_PAGES; page++) {
+      const skip = page * AZURO_PAGE_SIZE;
+      const response = await azuroGraphqlFetch({
+        query: AZURO_GAMES_PAGE_QUERY,
+        variables: { first: AZURO_PAGE_SIZE, skip },
+      });
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => "");
+        console.error(
+          "[Azuro] GraphQL HTTP error:",
+          response.status,
+          response.statusText,
+          errText.slice(0, 400),
+        );
+        break;
+      }
+
+      const raw = await readAzuroGraphqlJson(response);
+      const data = raw as {
+        errors?: unknown;
+        data?: { games?: AzuroGame[] };
+      };
+
+      if (data.errors) {
+        console.error("[Azuro] GraphQL errors:", data.errors);
+        break;
+      }
+
+      const batch = data.data?.games ?? [];
+      for (const g of batch) {
+        const id = String(g.gameId || "").trim();
+        if (!id || seenIds.has(id)) continue;
+        seenIds.add(id);
+        mergedGames.push(g);
+      }
+
+      if (batch.length < AZURO_PAGE_SIZE) break;
     }
 
-    const raw = await readAzuroGraphqlJson(response);
-    const data = raw as {
-      errors?: unknown;
-      data?: { games?: AzuroGame[] };
-    };
+    const games = mergedGames;
 
-    if (data.errors) {
-      console.error('[Azuro] GraphQL errors:', data.errors);
-      return [];
-    }
+    console.log(
+      JSON.stringify({
+        tag: "azuro_client_fetch",
+        pages: Math.ceil(games.length / AZURO_PAGE_SIZE) || 0,
+        rawGames: games.length,
+      }),
+    );
 
-    const games: AzuroGame[] = data.data?.games || [];
-
-    /** Football / soccer only — league breadth handled in tier scoring */
+    /** Football / soccer only — league breadth handled downstream in curation */
     const footballGames = games.filter(
       (game) => mapAzuroSportToSlug(game.sport.name) === "football",
     );
 
     // Transform Azuro games to our market format (football only)
-    const markets: AzuroMarket[] = footballGames.map(game => {
+    const markets: AzuroMarket[] = footballGames.map((game) => {
       const sportSlug = mapAzuroSportToSlug(game.sport.name);
       const ordered = sortAzuroParticipants(game.participants || []);
       const homeTeam = ordered[0]?.name || 'Team A';
@@ -466,25 +493,20 @@ export async function fetchAzuroGames(
       };
     });
 
-    if (options?.skipTiering) {
-      console.log(
-        `[Azuro] Fetched ${markets.length} football markets (no tier cap — for curation / full list)`,
-      );
-      return markets;
-    }
-
-    const tiered = pickTieredFootballMarkets(markets);
-
-    if (tiered.length === 0) {
-      console.warn("[Azuro] No tiered football markets from indexer");
+    if (markets.length === 0) {
+      console.warn("[Azuro] No football markets from indexer after pagination");
       return [];
     }
 
     console.log(
-      `[Azuro] Fetched ${tiered.length} tiered football markets from Azuro Protocol`,
+      JSON.stringify({
+        tag: "azuro_client_fetch",
+        msg: "football_mapped",
+        count: markets.length,
+      }),
     );
-    return tiered;
-    
+    return markets;
+
   } catch (error) {
     console.error('[Azuro] Failed to fetch games:', error);
     return [];
@@ -516,7 +538,7 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
       if (data.errors) {
         console.error("[Azuro] Game not found or error:", data.errors);
       }
-      const fromList = await fetchAzuroGames({ skipTiering: true });
+      const fromList = await fetchAzuroGames();
       const hit = fromList.find((m) => m.azuroGameId === gameId);
       if (hit) {
         return hit;
@@ -635,7 +657,7 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
   } catch (error) {
     console.error("[Azuro] Failed to fetch game detail:", error);
     try {
-      const fromList = await fetchAzuroGames({ skipTiering: true });
+      const fromList = await fetchAzuroGames();
       return fromList.find((m) => m.azuroGameId === gameId) ?? null;
     } catch {
       return null;

@@ -1,6 +1,7 @@
 import {
   extract1x2DecimalOddsFromRawGame,
   fetchAzuroGames,
+  rawGameIsFootball,
   type NormalizedCuratorGame,
   type RawAzuroGame,
 } from "./azuroCuratorGraphql";
@@ -114,7 +115,7 @@ export function getImportanceScoreFromNormalized(meta: NormalizedCuratorGame): n
   });
 }
 
-/** Leghe prioritarie (solo Serie A IT + coppe italiane top + coppe UEFA). Niente Serie B. */
+/** Italy + UEFA cups + major European domestic (country-gated). */
 export function isAllowedLeague(leagueName: string, country: string): boolean {
   const league = leagueName.toLowerCase();
   const cnt = country.toLowerCase();
@@ -127,6 +128,19 @@ export function isAllowedLeague(leagueName: string, country: string): boolean {
     return true;
   if (league.includes("europa league")) return true;
   if (league.includes("conference league")) return true;
+
+  if (
+    league.includes("premier league") &&
+    !league.includes("scottish") &&
+    !league.includes("northern ireland") &&
+    (cnt.includes("england") || cnt.includes("united kingdom"))
+  )
+    return true;
+  if ((league.includes("la liga") || league.includes("laliga")) && cnt.includes("spain")) return true;
+  if (league.includes("bundesliga") && cnt.includes("germany")) return true;
+  if (league.includes("ligue 1") && cnt.includes("france")) return true;
+  if (league.includes("eredivisie") && cnt.includes("netherlands")) return true;
+  if (league.includes("primeira liga") && cnt.includes("portugal")) return true;
 
   return false;
 }
@@ -237,7 +251,7 @@ function isFallbackTopFiveLeague(g: RawAzuroGame, importanceScore: number, minSc
 }
 
 function filterEuropeanUpcoming(rawGames: RawAzuroGame[], nowSec: number, windowEndSec: number) {
-  const footballGames = rawGames.filter((g) => g.sport?.slug === "football");
+  const footballGames = rawGames.filter((g) => rawGameIsFootball(g));
 
   const upcoming = footballGames.filter((g) => {
     const kickoff = parseInt(String(g.startsAt), 10);
@@ -273,19 +287,43 @@ function sortParticipants(parts: unknown) {
 const UNPRED_MIN_FAVORITE_ODDS = 1.5;
 const UNPRED_MAX_HOME_AWAY_GAP = 2.0;
 
-function isEventUnpredictable(homeOdds: number | null, awayOdds: number | null): boolean {
+function isEventUnpredictableWithParams(
+  homeOdds: number | null,
+  awayOdds: number | null,
+  minFavorite: number,
+  maxGap: number,
+): boolean {
   if (homeOdds == null || awayOdds == null) return false;
   if (!(homeOdds > 1) || !(awayOdds > 1)) return false;
   const favorite = Math.min(homeOdds, awayOdds);
   const gap = Math.abs(homeOdds - awayOdds);
-  if (favorite < UNPRED_MIN_FAVORITE_ODDS) return false;
-  if (gap > UNPRED_MAX_HOME_AWAY_GAP) return false;
+  if (favorite < minFavorite) return false;
+  if (gap > maxGap) return false;
   return true;
 }
 
-function rawPassesUnpredictability(raw: RawAzuroGame): boolean {
+function isEventUnpredictable(homeOdds: number | null, awayOdds: number | null): boolean {
+  return isEventUnpredictableWithParams(
+    homeOdds,
+    awayOdds,
+    UNPRED_MIN_FAVORITE_ODDS,
+    UNPRED_MAX_HOME_AWAY_GAP,
+  );
+}
+
+function rawPassesUnpredictabilityLevel(raw: RawAzuroGame, level: 0 | 1 | 2): boolean {
   const o = extract1x2DecimalOddsFromRawGame(raw);
-  return isEventUnpredictable(o.homeOdds, o.awayOdds);
+  const tiers = [
+    { minF: UNPRED_MIN_FAVORITE_ODDS, maxGap: UNPRED_MAX_HOME_AWAY_GAP },
+    { minF: 1.38, maxGap: 2.85 },
+    { minF: 1.28, maxGap: 3.6 },
+  ];
+  const { minF, maxGap } = tiers[level];
+  return isEventUnpredictableWithParams(o.homeOdds, o.awayOdds, minF, maxGap);
+}
+
+function rawPassesUnpredictability(raw: RawAzuroGame): boolean {
+  return rawPassesUnpredictabilityLevel(raw, 0);
 }
 
 /**
@@ -392,7 +430,11 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     totalFromAzuro: number;
     footballGames: number;
     footballInWindowCount: number;
+    europeanLeagueGateCount: number;
+    afterPrestigeStrictUnpred: number;
+    combinedPoolSize: number;
     topMatchScoreOver80: number;
+    pickedCount: number;
   };
 }> {
   const nowSec = Math.floor(Date.now() / 1000);
@@ -414,9 +456,11 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
   const seenGid = (it: ScoredItalian) => String(it.raw.gameId || "").trim();
   const combinedPool: ScoredItalian[] = [...allowedPool];
   const seen = new Set(combinedPool.map(seenGid).filter(Boolean));
+  const TARGET_POOL = 36;
+
   const fillFallback = (minScore: number) => {
     for (const g of upcoming) {
-      if (combinedPool.length >= 9) break;
+      if (combinedPool.length >= TARGET_POOL) break;
       const importanceScore = getImportanceScore(g);
       if (!isFallbackTopFiveLeague(g, importanceScore, minScore)) continue;
       if (!rawPassesUnpredictability(g)) continue;
@@ -427,24 +471,36 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     }
     combinedPool.sort(byImportanceThenKickoff);
   };
-  if (combinedPool.length < 9) fillFallback(72);
-  if (combinedPool.length < 9) fillFallback(60);
+  if (combinedPool.length < TARGET_POOL) fillFallback(72);
+  if (combinedPool.length < TARGET_POOL) fillFallback(60);
 
-  console.log(
-    `[curation] primary pool: ${allowedPool.length}, con fallback top-5: ${combinedPool.length} eventi ` +
-      `(tutti con 1X2 “bilanciato”: favorite ≥${UNPRED_MIN_FAVORITE_ODDS}, |H−A| ≤${UNPRED_MAX_HOME_AWAY_GAP})`,
-  );
+  const relaxIntoPool = (level: 1 | 2, cap: number) => {
+    for (const g of upcoming) {
+      if (combinedPool.length >= cap) break;
+      const importanceScore = getImportanceScore(g);
+      const item: ScoredItalian = { raw: g, importanceScore };
+      if (!isPrestigeFixture(item)) continue;
+      if (!rawPassesUnpredictabilityLevel(g, level)) continue;
+      const leagueName = g.league?.name || "";
+      const country = g.league?.country?.name || "";
+      if (!isAllowedLeague(leagueName, country) && !isFallbackTopFiveLeague(g, importanceScore, 52)) continue;
+      const gid = String(g.gameId || "").trim();
+      if (!gid || seen.has(gid)) continue;
+      seen.add(gid);
+      combinedPool.push(item);
+    }
+    combinedPool.sort(byImportanceThenKickoff);
+  };
+  if (combinedPool.length < TARGET_POOL) relaxIntoPool(1, 48);
+  if (combinedPool.length < TARGET_POOL) relaxIntoPool(2, 56);
 
-  const MAX_SOURCE = 72;
+  const MAX_SOURCE = 120;
   const sourceForPick = combinedPool.slice(0, MAX_SOURCE);
 
   const { soon: soonEvents, mid: midEvents, later: laterEvents } = partitionItalianTemporal(
     nowSec,
     sourceForPick,
   );
-  console.log(`[curation] SOON: ${soonEvents.length} eventi`);
-  console.log(`[curation] MID: ${midEvents.length} eventi`);
-  console.log(`[curation] LATER: ${laterEvents.length} eventi`);
 
   const picked = pickDistributedNineFromBuckets(
     sourceForPick,
@@ -452,11 +508,25 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     midEvents,
     laterEvents,
   );
-  console.log(
-    `[curation] Pool totale: ${sourceForPick.length} → selezionati: ${picked.length}`,
-  );
 
   const topOver80 = sourceForPick.filter((x) => x.importanceScore > 80).length;
+
+  console.log(
+    JSON.stringify({
+      tag: "azuro_curation_pipeline",
+      rawIndexer: allGames.length,
+      afterFootballFilter: footballGames.length,
+      upcomingIn60d: upcoming.length,
+      europeanLeagueGate: europeanGames.length,
+      afterPrestigeStrictUnpred: allowedPool.length,
+      combinedPool: combinedPool.length,
+      sourceForPick: sourceForPick.length,
+      soonBucket: soonEvents.length,
+      midBucket: midEvents.length,
+      laterBucket: laterEvents.length,
+      picked: picked.length,
+    }),
+  );
 
   const games: CurationGamePayload[] = picked.map(({ raw: g, importanceScore }) => {
     const sorted = sortParticipants(g.participants);
@@ -506,8 +576,12 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     diagnostics: {
       totalFromAzuro: allGames.length,
       footballGames: footballGames.length,
-      footballInWindowCount: games.length,
+      footballInWindowCount: upcoming.length,
+      europeanLeagueGateCount: europeanGames.length,
+      afterPrestigeStrictUnpred: allowedPool.length,
+      combinedPoolSize: combinedPool.length,
       topMatchScoreOver80: topOver80,
+      pickedCount: games.length,
     },
   };
 }

@@ -60,82 +60,122 @@ export type RawAzuroGame = {
   }>;
 };
 
+/** Indexer sometimes omits `sport.slug`; never drop rows on slug-only checks. */
+export function rawGameIsFootball(g: RawAzuroGame): boolean {
+  const slug = (g.sport?.slug || "").trim().toLowerCase();
+  if (slug === "football" || slug === "soccer") return true;
+  const name = (g.sport?.name || "").trim().toLowerCase();
+  return name.includes("football") || name === "soccer";
+}
+
+const GAMES_PAGE_FIELDS = `
+      id
+      gameId
+      title
+      startsAt
+      state
+      sport {
+        name
+        slug
+      }
+      league {
+        name
+        country {
+          name
+        }
+      }
+      participants {
+        name
+        image
+        sortOrder
+      }
+      activeConditionsCount
+      conditions(where: { state: Active }) {
+        state
+        outcomes {
+          currentOdds
+        }
+      }
+`;
+
 export async function fetchAzuroGames(): Promise<RawAzuroGame[]> {
   if (!AZURO_FEED_URL) {
     throw new Error("AZURO_DATA_FEED_URL is not set");
   }
 
-  const query = `
-    query Games {
-      games(
-        first: 1000
-        where: {
-          state: Prematch
-          activeConditionsCount_gt: 0
-        }
-        orderBy: startsAt
-        orderDirection: asc
-      ) {
-        id
-        gameId
-        title
-        startsAt
-        state
-        sport {
-          name
-          slug
-        }
-        league {
-          name
-          country {
-            name
+  const PAGE = 250;
+  const MAX_PAGES = 5;
+  const merged: RawAzuroGame[] = [];
+  const seen = new Set<string>();
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const skip = page * PAGE;
+    const query = `
+      query GamesPage($first: Int!, $skip: Int!) {
+        games(
+          first: $first
+          skip: $skip
+          where: {
+            state: Prematch
+            activeConditionsCount_gt: 0
           }
-        }
-        participants {
-          name
-          image
-          sortOrder
-        }
-        activeConditionsCount
-        conditions(where: { state: Active }) {
-          state
-          outcomes {
-            currentOdds
-          }
+          orderBy: startsAt
+          orderDirection: asc
+        ) {
+${GAMES_PAGE_FIELDS}
         }
       }
+    `;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12_000);
+    let response: Response;
+    try {
+      response = await fetch(AZURO_FEED_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, variables: { first: PAGE, skip } }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
     }
-  `;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10_000);
-  let response: Response;
-  try {
-    response = await fetch(AZURO_FEED_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query }),
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeoutId);
+    const json = (await response.json()) as {
+      data?: { games?: RawAzuroGame[] };
+      errors?: unknown;
+    };
+
+    if (!response.ok) {
+      console.warn("[Azuro] fetchAzuroGames HTTP", response.status, "page", page);
+      break;
+    }
+    if ((json as { errors?: unknown }).errors) {
+      console.warn("[Azuro] fetchAzuroGames GraphQL errors page", page, (json as { errors: unknown }).errors);
+      break;
+    }
+
+    const batch = json.data?.games ?? [];
+    for (const g of batch) {
+      const id = String(g.gameId || g.id || "").trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      merged.push(g);
+    }
+
+    if (batch.length < PAGE) break;
   }
 
-  const json = (await response.json()) as {
-    data?: { games?: RawAzuroGame[] };
-    errors?: unknown;
-  };
+  console.log(
+    JSON.stringify({
+      tag: "azuro_indexer_fetch",
+      msg: "games_merged",
+      pages: Math.ceil(merged.length / PAGE) || 0,
+      count: merged.length,
+    }),
+  );
 
-   
-  console.log("AZURO RESPONSE STATUS:", response.status);
-   
-  console.log("AZURO RAW:", JSON.stringify(json).substring(0, 500));
-
-  if ((json as any).errors) {
-    throw new Error(JSON.stringify((json as any).errors));
-  }
-
-  return json.data?.games || [];
+  return merged;
 }
 
 function normalizeGame(raw: RawAzuroGame): NormalizedCuratorGame | null {
@@ -250,8 +290,7 @@ export async function fetchFootballGamesNext14Days(): Promise<{
     const fifteenDays = now + 30 * 24 * 60 * 60;
 
     const europeanFootball = allGames.filter((game) => {
-      // solo calcio
-      if (game.sport?.slug !== "football") return false;
+      if (!rawGameIsFootball(game)) return false;
 
       // solo partite future nei prossimi 15 giorni
       const kickoff = parseInt(String(game.startsAt), 10);

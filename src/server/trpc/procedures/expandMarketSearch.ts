@@ -3,8 +3,9 @@ import { baseProcedure } from "~/server/trpc/main";
 import { AI_MODELS } from "~/config/aiModels";
 import {
   hasOpenRouterKey,
+  logOpenRouterKeyMissingOnce,
   openRouterChatCompletion,
-} from "~/server/services/openRouterCompletion";
+} from "~/server/lib/ai/openRouterClient";
 
 function normalizeWhitespace(s: string): string {
   return s.replace(/\s+/g, " ").trim();
@@ -23,9 +24,10 @@ export const expandMarketSearch = baseProcedure
     }
 
     if (!hasOpenRouterKey()) {
+      logOpenRouterKeyMissingOnce();
       return {
         expandedQuery: raw,
-        note: "AI search refinement needs OPENROUTER_KEY on the server.",
+        note: "AI search refinement needs OPENROUTER_KEY or OPENROUTER_API_KEY on the server.",
       };
     }
 

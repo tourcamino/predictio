@@ -72,8 +72,19 @@ export function AIInsightBadge({
     Boolean(marketSnapshot?.teamA) &&
     Boolean(marketSnapshot?.teamB);
 
+  const insightFingerprint = marketSnapshot
+    ? [
+        marketSnapshot.marketId,
+        Math.round(marketSnapshot.yesPrice * 1000),
+        Math.round(marketSnapshot.noPrice * 1000),
+        Math.round((marketSnapshot.volume24h ?? 0) / 100),
+        marketSnapshot.lifecycle ?? "",
+        marketSnapshot.status ?? "",
+      ].join(":")
+    : "idle";
+
   const insightQuery = useQuery({
-    queryKey: ['marketAiInsight', marketSnapshot?.marketId ?? 'idle'],
+    queryKey: ["marketAiInsight", insightFingerprint],
     enabled: insightReady && !!marketSnapshot,
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,

@@ -81,7 +81,7 @@ export function Chatbot() {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content:
-          "I'm sorry, I couldn't reach the assistant. Check your connection and that OPENROUTER_KEY is set on the server.",
+          "I couldn't reach the assistant (network or server timeout). Try again shortly — if it persists, the host may be busy or AI may be disabled. Trading and markets still work normally.",
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, errorMessage]);

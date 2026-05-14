@@ -10,16 +10,23 @@ export const CURATED_FEATURED_MAX = 9;
 /** Kickoff must be within this window (ms) from `now` for hard eligibility. */
 export const FEATURED_MAX_HORIZON_MS = 15 * 24 * 60 * 60 * 1000;
 
+/** Fallback window when strict pool yields fewer than target featured slots. */
+export const FEATURED_MAX_HORIZON_RELAXED_MS = 21 * 24 * 60 * 60 * 1000;
+
 /** Substrings on `competition` / `league` (case-insensitive). Keep tight — expand later for multi-sport. */
 export const SUPPORTED_LEAGUES: readonly string[] = [
   "serie a",
   "champions league",
   "uefa champions",
   "europa league",
+  "conference league",
   "premier league",
   "la liga",
   "laliga",
   "bundesliga",
+  "eredivisie",
+  "ligue 1",
+  "primeira liga",
 ];
 
 /** Extra boost when league string matches (multiplier applied on top of base league score). */
@@ -30,6 +37,9 @@ export const LEAGUE_PRESTIGE_EXTRA: ReadonlyArray<{ match: RegExp; boost: number
   { match: /europa league/i, boost: 10 },
   { match: /la liga|laliga/i, boost: 10 },
   { match: /bundesliga/i, boost: 10 },
+  { match: /ligue 1/i, boost: 8 },
+  { match: /eredivisie/i, boost: 7 },
+  { match: /primeira liga/i, boost: 7 },
 ];
 
 /**
@@ -82,6 +92,24 @@ export type CurationCandidate = {
 
 function norm(s: string): string {
   return s.trim().toLowerCase();
+}
+
+/** Secondary European leagues — only used in relaxed curation tier. */
+export function isTier2FootballLeague(leagueOrCompetition: string): boolean {
+  const h = norm(leagueOrCompetition);
+  if (h.includes("serie b") || h.includes("ligue 2") || h.includes("segunda")) return false;
+  const t2 = [
+    "eredivisie",
+    "ligue 1",
+    "primeira liga",
+    "scottish premiership",
+    "pro league",
+    "super lig",
+    "austrian bundesliga",
+    "uefa conference",
+    "conference league",
+  ];
+  return t2.some((frag) => h.includes(frag));
 }
 
 /** Hard gate: premium football league only. */
@@ -144,14 +172,25 @@ function activitySoftScore(volume: number, liquidity: number): number {
  * Returns null if the market fails hard filters (wrong sport/league/window).
  * Otherwise a comparable score (higher = better featured fit).
  */
+export type CurationStrictness = "strict" | "relax1" | "relax2";
+
 export function scoreCurationCandidate(
   c: CurationCandidate,
   nowMs: number,
+  strictness: CurationStrictness = "strict",
 ): number | null {
   if (!isFootballSport(c.sport)) return null;
-  if (!isSupportedPremiumLeague(c.leagueLabel)) return null;
+
+  const maxHorizon =
+    strictness === "strict" ? FEATURED_MAX_HORIZON_MS : FEATURED_MAX_HORIZON_RELAXED_MS;
+  const leagueOk =
+    strictness === "relax2"
+      ? isSupportedPremiumLeague(c.leagueLabel) || isTier2FootballLeague(c.leagueLabel)
+      : isSupportedPremiumLeague(c.leagueLabel);
+  if (!leagueOk) return null;
+
   if (c.startsAtMs < nowMs - 60_000) return null;
-  if (c.startsAtMs > nowMs + FEATURED_MAX_HORIZON_MS) return null;
+  if (c.startsAtMs > nowMs + maxHorizon) return null;
   if (c.closesAtMs <= nowMs + 120_000) return null;
 
   const brand = teamBrandFromNames(c.teamNames);
@@ -195,7 +234,24 @@ export function azuroMarketToCandidate(m: AzuroMarket): CurationCandidate {
   const oc = m.outcomes ?? [];
   let yes = 0.5;
   let no = 0.5;
-  if (oc.length >= 2) {
+  if (oc.length >= 3) {
+    let h = Number(oc[0]?.price ?? 0.33);
+    let d = Number(oc[1]?.price ?? 0.34);
+    let a = Number(oc[2]?.price ?? 0.33);
+    if (h > 1 || d > 1 || a > 1) {
+      h /= 100;
+      d /= 100;
+      a /= 100;
+    }
+    const sum3 = h + d + a;
+    if (sum3 > 0 && Math.abs(sum3 - 1) > 0.02) {
+      h /= sum3;
+      d /= sum3;
+      a /= sum3;
+    }
+    yes = h;
+    no = a;
+  } else if (oc.length >= 2) {
     yes = Number(oc[0]?.price ?? 0.5);
     no = Number(oc[1]?.price ?? 0.5);
     if (yes > 1 || no > 1) {
@@ -207,14 +263,6 @@ export function azuroMarketToCandidate(m: AzuroMarket): CurationCandidate {
       yes /= sum;
       no /= sum;
     }
-  } else if (oc.length === 3) {
-    const p = oc.map((o) => Number(o.price) || 0);
-    const s = p.reduce((a, b) => a + b, 0) || 1;
-    const n = p.map((x) => x / s);
-    const mx = Math.max(...n);
-    const mn = Math.min(...n);
-    yes = (1 - (mx - mn)) * 0.5 + 0.25;
-    no = 1 - yes;
   }
   yes = Math.max(0.02, Math.min(0.98, yes));
   no = Math.max(0.02, Math.min(0.98, no));
@@ -235,15 +283,26 @@ export function azuroMarketToCandidate(m: AzuroMarket): CurationCandidate {
 
 export type ScoredMarket = { market: AzuroMarket; score: number; candidate: CurationCandidate };
 
+function mergeScoredByBestScore(a: ScoredMarket[], b: ScoredMarket[]): ScoredMarket[] {
+  const m = new Map<string, ScoredMarket>();
+  for (const x of a) m.set(x.market.id, x);
+  for (const x of b) {
+    const cur = m.get(x.market.id);
+    if (!cur || x.score > cur.score) m.set(x.market.id, x);
+  }
+  return [...m.values()].sort((x, y) => y.score - x.score);
+}
+
 /** Score + filter nulls. */
 export function scoreAzuroMarkets(
   markets: AzuroMarket[],
   nowMs = Date.now(),
+  strictness: CurationStrictness = "strict",
 ): ScoredMarket[] {
   const out: ScoredMarket[] = [];
   for (const market of markets) {
     const candidate = azuroMarketToCandidate(market);
-    const s = scoreCurationCandidate(candidate, nowMs);
+    const s = scoreCurationCandidate(candidate, nowMs, strictness);
     if (s == null) continue;
     out.push({ market, score: s, candidate });
   }
@@ -306,8 +365,20 @@ export function curateFeaturedAzuroMarkets(
 ): AzuroMarket[] {
   const limit = Math.min(opts?.limit ?? CURATED_FEATURED_MAX, CURATED_FEATURED_MAX);
   const now = opts?.now ?? Date.now();
-  const scored = scoreAzuroMarkets(markets, now);
-  return pickDiverseFeatured(scored, limit);
+
+  const strict = scoreAzuroMarkets(markets, now, "strict");
+  let picked = pickDiverseFeatured(strict, limit);
+  if (picked.length >= limit) return picked;
+
+  const merged1 = mergeScoredByBestScore(strict, scoreAzuroMarkets(markets, now, "relax1"));
+  picked = pickDiverseFeatured(merged1, limit);
+  if (picked.length >= limit) return picked;
+
+  const merged2 = mergeScoredByBestScore(
+    merged1,
+    scoreAzuroMarkets(markets, now, "relax2"),
+  );
+  return pickDiverseFeatured(merged2, limit);
 }
 
 /** Re-order full list: curated featured first (same diversity cap), then remainder in original order. */
@@ -331,7 +402,7 @@ export function rankAzuroMarketsByCurationScore(
 ): AzuroMarket[] {
   const withScores = markets.map((m) => {
     const c = azuroMarketToCandidate(m);
-    return { m, s: scoreCurationCandidate(c, nowMs) };
+    return { m, s: scoreCurationCandidate(c, nowMs, "strict") };
   });
   withScores.sort((a, b) => {
     if (a.s == null && b.s == null) return 0;

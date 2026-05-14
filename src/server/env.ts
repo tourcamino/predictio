@@ -47,8 +47,9 @@ const envSchema = z.object({
   AZURO_DATA_FEED_URL: z.string().optional(),
   AZURO_GRAPHQL_URL: z.string().optional(),
   
-  // OpenRouter (AI)
+  // OpenRouter (AI) — server: OPENROUTER_KEY or OPENROUTER_API_KEY; VITE_* only for local/dev parity
   OPENROUTER_KEY: z.string().optional(),
+  OPENROUTER_API_KEY: z.string().optional(),
   VITE_OPENROUTER_KEY: z.string().optional(),
   
   // Unsplash API

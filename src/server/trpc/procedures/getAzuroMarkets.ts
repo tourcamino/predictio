@@ -2,7 +2,7 @@ import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
 import { prismaMarketRowToAzuroMarket } from "~/server/utils/dbMarketToAzuroMarket";
-import { MAX_FOOTBALL_MARKETS } from "~/constants/azuro";
+import { AZURO_FEED_LIST_CAP } from "~/constants/azuro";
 import { type AzuroMarket, fetchAzuroGames } from "~/services/azuro";
 import { prioritizeFeaturedAzuroMarkets } from "~/lib/markets/curateFeaturedEvents";
 
@@ -45,14 +45,12 @@ export const getAzuroMarkets = baseProcedure
   .query(async ({ input }) => {
     let curatedByGameId: Map<string, { importanceScore: number; startsAtMs: number }> | null =
       null;
-    let useCuratedIntersection = false;
 
     try {
       const activeCurated = await db.curatedEvent.findMany({
         where: { isActive: true },
       });
       if (activeCurated.length > 0) {
-        useCuratedIntersection = true;
         curatedByGameId = new Map(
           activeCurated.map((c) => {
             const imp = (c as { importanceScore?: number }).importanceScore ?? 0;
@@ -70,10 +68,10 @@ export const getAzuroMarkets = baseProcedure
       console.warn("[getAzuroMarkets] Curated lookup skipped:", err);
     }
 
-    // Founder-curated mode needs the full indexer list — tiering caps at 9 games and breaks intersection.
-    let markets = await fetchAzuroGames({
-      skipTiering: useCuratedIntersection,
-    });
+    // Wide Azuro pool — curation / caps happen below (no early 9-game indexer cap).
+    let markets = await fetchAzuroGames();
+    const countRawAzuroFootball = markets.length;
+
     let mergedDbCount = 0;
     let fromDb: AzuroMarket[] = [];
 
@@ -93,12 +91,15 @@ export const getAzuroMarkets = baseProcedure
       console.warn("[getAzuroMarkets] Skipping DB merge:", err);
     }
 
+    const countAfterDbMerge = markets.length;
+
     if (curatedByGameId && curatedByGameId.size > 0) {
       const allow = new Set(curatedByGameId.keys());
       markets = markets.filter(
         (m) => m.azuroGameId != null && allow.has(m.azuroGameId),
       );
     }
+    const countAfterCuratedIntersect = markets.length;
 
     // Enforce football-only filtering when football focus is enabled
     if (FOOTBALL_FOCUS_ENABLED) {
@@ -123,6 +124,7 @@ export const getAzuroMarkets = baseProcedure
         });
       }
     }
+    const countAfterFootballOnly = markets.length;
     
     // Apply additional filters if provided
     let filteredMarkets = markets;
@@ -138,6 +140,8 @@ export const getAzuroMarkets = baseProcedure
     if (input?.status && input.status !== 'all') {
       filteredMarkets = filteredMarkets.filter(m => m.status === input.status);
     }
+
+    const countAfterInputFilters = filteredMarkets.length;
 
     /** Runtime featured tier (max 9): premium leagues + odds balance — off when founder CuratedEvent list is active. */
     if (
@@ -157,6 +161,8 @@ export const getAzuroMarkets = baseProcedure
       filteredMarkets = sortByCuratedMeta(filteredMarkets, curatedByGameId);
     }
 
+    const countAfterCurationOrder = filteredMarkets.length;
+
     if (filteredMarkets.length === 0) {
       console.warn("[getAzuroMarkets] No markets after filters (Azuro + DB only).");
     }
@@ -164,8 +170,23 @@ export const getAzuroMarkets = baseProcedure
     const listCap =
       curatedByGameId && curatedByGameId.size > 0
         ? CURATED_MARKETS_CAP
-        : MAX_FOOTBALL_MARKETS;
+        : AZURO_FEED_LIST_CAP;
     const cappedMarkets = filteredMarkets.slice(0, listCap);
+
+    console.log(
+      JSON.stringify({
+        tag: "getAzuroMarkets_pipeline",
+        rawAzuroFootball: countRawAzuroFootball,
+        afterDbMerge: countAfterDbMerge,
+        afterCuratedIntersect: countAfterCuratedIntersect,
+        afterFootballSort: countAfterFootballOnly,
+        afterInputFilters: countAfterInputFilters,
+        afterCurationOrder: countAfterCurationOrder,
+        listCap,
+        returned: cappedMarkets.length,
+        hasFounderCuration: Boolean(curatedByGameId && curatedByGameId.size > 0),
+      }),
+    );
 
     const source =
       cappedMarkets.length === 0
