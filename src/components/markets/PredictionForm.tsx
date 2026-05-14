@@ -82,6 +82,9 @@ export function PredictionForm({ market, selectedOutcome }: PredictionFormProps)
           queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
         });
         queryClient.invalidateQueries({
+          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'open' }),
+        });
+        queryClient.invalidateQueries({
           queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
         });
         invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);

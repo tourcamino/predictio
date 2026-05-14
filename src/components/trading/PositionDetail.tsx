@@ -65,8 +65,10 @@ export function PositionDetail({ position }: PositionDetailProps) {
   // Real-time data
   const { marketPrice, orderbook, recentTrades, wsStatus } = usePositionRealtime(position.marketId);
   
-  // Use real-time price if available, otherwise use position's current value
-  const currentPrice = marketPrice?.last || position.currentValue / position.shares;
+  // Use real-time price if available, otherwise derive from last mapped snapshot (avoid /0).
+  const currentPrice =
+    marketPrice?.last ??
+    (position.shares > 0 ? position.currentValue / position.shares : position.entryPrice);
   
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);

@@ -22,7 +22,7 @@ export const Route = createFileRoute('/trading/')({
 
 function TradingPage() {
   const { isConnected, balance, address } = useWallet();
-  const { isActive: isDemoActive, positions: demoPositions, balance: demoBalance } = useDemoAccount();
+  const { positions: demoPositions, balance: demoBalance } = useDemoAccount();
   const trpc = useTRPC();
   const walletKey = normalizeWalletForQuery(address);
 

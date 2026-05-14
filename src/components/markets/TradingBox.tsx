@@ -292,6 +292,9 @@ export function TradingBox({ market }: TradingBoxProps) {
         queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
       });
       queryClient.invalidateQueries({
+        queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'open' }),
+      });
+      queryClient.invalidateQueries({
         queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
       });
       if (walletKey) {
@@ -358,6 +361,9 @@ export function TradingBox({ market }: TradingBoxProps) {
         
         queryClient.invalidateQueries({
           queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
+        });
+        queryClient.invalidateQueries({
+          queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'open' }),
         });
         queryClient.invalidateQueries({
           queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
