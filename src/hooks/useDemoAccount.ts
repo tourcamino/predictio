@@ -16,6 +16,11 @@ import { calcFee } from "~/utils/marketUtils";
 import { fetchMarketSnapshotFromRest } from "~/utils/fetchMarketDetailWithRestFallback";
 import { useTRPC, useTRPCClient } from "~/trpc/react";
 
+/**
+ * Guest **prediction** demo: balance + positions + trade history live in `demoStorage` only.
+ * LP (liquidity provider) flows use DB `LiquidityPosition` + tRPC when a wallet is connected; there is
+ * no guest LP mirror here yet — see `docs/ACCOUNT-AND-DEMO-AUDIT.md` §7 for the incremental plan.
+ */
 /** Stable fallback — `?? {}` is a new object every render and retriggers effects that list `marketMap` as a dependency. */
 const EMPTY_MARKET_MAP: Record<string, Market | null> = {};
 

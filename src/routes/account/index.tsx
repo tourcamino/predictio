@@ -55,6 +55,7 @@ function AccountPage() {
   const [transactionType, setTransactionType] = useState<'all' | 'deposit' | 'withdrawal' | 'bet_placed' | 'bet_won' | 'bet_lost' | 'bet_refund'>('all');
   const [transactionOffset, setTransactionOffset] = useState(0);
   const transactionLimit = 20;
+  const [predictionStatusFilter, setPredictionStatusFilter] = useState<'all' | 'open' | 'resolved'>('all');
 
   // Fetch user positions
   const positionsQuery = useQuery({
@@ -84,6 +85,13 @@ function AccountPage() {
   });
 
   const marketById = marketSummariesQuery.data ?? {};
+
+  const filteredAccountPredictions = useMemo(() => {
+    const list = positionsQuery.data?.positions ?? [];
+    if (predictionStatusFilter === 'all') return list;
+    if (predictionStatusFilter === 'open') return list.filter((p) => p.status === 'open');
+    return list.filter((p) => p.status !== 'open');
+  }, [positionsQuery.data?.positions, predictionStatusFilter]);
 
   // Fetch portfolio summary
   const summaryQuery = useQuery({
@@ -356,12 +364,24 @@ function AccountPage() {
             <div className="space-y-6">
               {/* Filters */}
               <div className="flex gap-2 flex-wrap">
-                {['All', 'Open', 'Resolved'].map((filter) => (
+                {(
+                  [
+                    { key: 'all' as const, label: 'All' },
+                    { key: 'open' as const, label: 'Open' },
+                    { key: 'resolved' as const, label: 'Resolved' },
+                  ] as const
+                ).map(({ key, label }) => (
                   <button
-                    key={filter}
-                    className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg hover:border-brand-green transition-all text-sm"
+                    key={key}
+                    type="button"
+                    onClick={() => setPredictionStatusFilter(key)}
+                    className={`px-4 py-2 border rounded-lg transition-all text-sm ${
+                      predictionStatusFilter === key
+                        ? 'bg-brand-green/20 border-brand-green text-brand-green'
+                        : 'bg-white/5 border-white/10 hover:border-brand-green'
+                    }`}
                   >
-                    {filter}
+                    {label}
                   </button>
                 ))}
               </div>
@@ -383,6 +403,12 @@ function AccountPage() {
 
               {/* Predictions List */}
               {positionsQuery.data && positionsQuery.data.positions.length > 0 ? (
+                filteredAccountPredictions.length === 0 ? (
+                  <div className="bg-white/5 border border-white/10 rounded-lg p-12 text-center">
+                    <p className="text-gray-400 mb-2">No predictions match this filter</p>
+                    <p className="text-sm text-gray-500">Try &quot;All&quot; or switch filter.</p>
+                  </div>
+                ) : (
                 <div className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
@@ -399,7 +425,7 @@ function AccountPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/10">
-                        {positionsQuery.data.positions.map((position) => {
+                        {filteredAccountPredictions.map((position) => {
                           const market = marketById[position.marketId];
                           if (!market) return null;
 
@@ -491,6 +517,7 @@ function AccountPage() {
                     </table>
                   </div>
                 </div>
+                )
               ) : positionsQuery.data && positionsQuery.data.positions.length === 0 ? (
                 <div className="bg-white/5 border border-white/10 rounded-lg p-12 text-center">
                   <FileText className="w-12 h-12 text-gray-500 mx-auto mb-4" />
