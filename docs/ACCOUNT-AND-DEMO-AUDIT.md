@@ -128,3 +128,9 @@ Riutilizzare le stesse query del route dedicato o passare `walletKey` e riusare 
 | Paper wallet LP | **Già** runtime reale DB (stesso stack produzione paper). |
 
 Raccomandazione operativa immediata: per QA “completo”, usare **wallet test paper** + script reset (`docs/PAPER_TEST_WALLET_RESET.md`). Per guest pura, pianificare epic §7 per sprint dedicato.
+
+---
+
+## 10. QA end-to-end (issue list + checklist manuale)
+
+Vedi **`docs/E2E-PLATFORM-QA.md`** (lifecycle utente, query/mutazioni/invalidazioni, tabella problemi con severity e fix minimi suggeriti).
