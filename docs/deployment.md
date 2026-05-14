@@ -215,7 +215,7 @@ Se rebuild senza argomenti, `gitCommitSha` può risultare `null`: il container g
 
 1. **Git aggiornato ma container vecchio** — senza `build` + `--force-recreate` il runtime non cambia.
 2. **Vercel SHA vs GitHub** — usare `/api/version` e la dashboard; mismatch = deploy sbagliato o rollback.
-3. **Preview `ERROR` ma Production `READY` (stesso commit)** — cache build diversa per branch + **pnpm 10** che non esegue lifecycle delle dipendenze salvo `pnpm.onlyBuiltDependencies`. Nei log: `ENOENT … @napi-rs/canvas-linux-x64-musl` in `vinxi build`. In repo: `onlyBuiltDependencies` include `@napi-rs/canvas` e `optionalDependencies` esplicite per `@napi-rs/canvas-linux-x64-gnu` / `@napi-rs/canvas-linux-x64-musl` (0.1.100) così i binari Linux restano nel lockfile anche se la cache Preview è “sporca”. Se persiste: **Redeploy** Preview con “Clear build cache”.
+3. **Preview `ERROR` ma Production `READY` (stesso commit)** — cache build diversa per branch + **pnpm 10** (`onlyBuiltDependencies` per `@napi-rs/canvas`) + linker isolato: nei log compare `ENOENT … @napi-rs/canvas-linux-x64-musl` in `vinxi build` perché il bundler fa `realpath` anche su optional “musl” anche su builder **glibc**, mentre pnpm può non materializzare quel symlink nel virtual store. In repo: `.npmrc` con `node-linker=hoisted`, optional Linux pin su `@napi-rs/canvas-linux-x64-*`. Se persiste: **Redeploy** Preview con “Clear build cache”.
 4. **Due health diversi** — web `/api/health` vs API `/api/v1/health` (vedi sopra).
 
 ---
