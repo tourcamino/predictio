@@ -1,3 +1,7 @@
+/**
+ * Guest-only simulated prediction rows (localStorage). Not persisted as `Order` rows;
+ * never mix with wallet-connected paper state. See `docs/DATA-MODEL-GLOSSARY.md`.
+ */
 export interface DemoPosition {
   marketId: string;
   marketTitle: string;

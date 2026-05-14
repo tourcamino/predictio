@@ -3,6 +3,14 @@ import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
 import { calculateHoldingReward, getHoldingRewardRate, getTimeUntilRewardsStart } from "~/systems/holdingRewards";
 
+/**
+ * Canonical read model for **prediction paper exposure**: returns persisted `Order` rows
+ * for a wallet (plus optional holding-rewards metadata). The response field is named
+ * `positions` for historical reasons; each element is a DB **Order**, not a separate entity.
+ *
+ * UI surfaces (`/trading`, `/account`, `/portfolio`) should treat this as the source of truth
+ * for open/closed prediction rows. See `docs/DATA-MODEL-GLOSSARY.md`.
+ */
 export const getUserPositions = baseProcedure
   .input(
     z.object({

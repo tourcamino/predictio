@@ -1,7 +1,11 @@
 /**
- * Trading UI `Position` rows are a **view** of persisted `Order` records (paper trading).
+ * Trading UI `Position` rows are a **view** of persisted **`Order`** records (paper trading).
  * This adapter maps `getUserPositions` + optional `getMarketSummaries` into the shape
  * expected by `PositionsList` / `PositionDetail` (`~/store/tradingStore` `Position`).
+ *
+ * **Semantics:** `Position.id` MUST equal `Order.id` for connected users (real CUIDs).
+ * Product copy may say “prediction” or “position”; the DB entity remains `Order`.
+ * See `docs/DATA-MODEL-GLOSSARY.md`.
  */
 import type { inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '~/server/trpc/root';

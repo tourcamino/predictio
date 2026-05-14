@@ -1,7 +1,14 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
-/** One open row in the trading UI — backed by a DB `Order` when the wallet is connected (paper). */
+/**
+ * **Trading UI row** (not a Prisma model). When the wallet is connected in paper mode, each
+ * row is an adapter view of a persisted **`Order`** (`mapDbOrderToTradingPosition`). When
+ * guest demo is active, rows are built from **`DemoPosition`** in local storage instead.
+ *
+ * Do not confuse with: `LiquidityPosition` (LP DB), `Transaction` (ledger), or the `Trade`
+ * type below (orderbook / WS ticks). See `docs/DATA-MODEL-GLOSSARY.md`.
+ */
 export interface Position {
   id: string;
   marketId: string;
@@ -38,6 +45,7 @@ export interface Orderbook {
   timestamp: number;
 }
 
+/** One synthetic orderbook tick for UI / WS feeds — not Prisma `Transaction` or `Order`. */
 export interface Trade {
   id: string;
   marketId: string;
