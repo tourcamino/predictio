@@ -1,10 +1,16 @@
 import { useState } from 'react';
-import { useTradingStore } from '~/store/tradingStore';
+import { useTradingStore, type Position } from '~/store/tradingStore';
 import { PositionCard } from './PositionCard';
 import { ChevronDown } from 'lucide-react';
 
-export function PositionsList() {
-  const positions = useTradingStore((state) => state.positions);
+interface PositionsListProps {
+  /** When set (e.g. wallet + DB orders), overrides Zustand `positions` for the list. */
+  positions?: Position[];
+}
+
+export function PositionsList({ positions: positionsProp }: PositionsListProps) {
+  const storePositions = useTradingStore((state) => state.positions);
+  const positions = positionsProp ?? storePositions;
   const selectedPositionId = useTradingStore((state) => state.selectedPositionId);
   const selectPosition = useTradingStore((state) => state.selectPosition);
 

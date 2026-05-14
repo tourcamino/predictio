@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
+/** One open row in the trading UI — backed by a DB `Order` when the wallet is connected (paper). */
 export interface Position {
   id: string;
   marketId: string;

@@ -10,8 +10,16 @@ import { TradeConfirmationModal } from './TradeConfirmationModal';
 import { OrderBook } from '~/components/markets/OrderBook';
 import { RecentTradesFeed } from '~/components/markets/RecentTradesFeed';
 import { formatPnL, formatPctChange } from '~/lib/trading/calculations';
+/** Demo / local mock + future on-chain path — paper sells for a connected wallet use `closePosition` (see `handleSellConfirm`). */
 import { executeSell, executeBuy } from '~/lib/trading/execution';
 import toast from 'react-hot-toast';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTRPC } from '~/trpc/react';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import {
+  invalidateWalletNotifications,
+  invalidateWalletPointsSummary,
+} from '~/utils/invalidateWalletNotifications';
 
 interface PositionDetailProps {
   position: Position;
@@ -21,7 +29,36 @@ type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 type TradeType = 'sell' | 'add';
 
 export function PositionDetail({ position }: PositionDetailProps) {
-  const { balance } = useWallet();
+  const { balance, isConnected, address, updateBalance } = useWallet();
+  const walletKey = normalizeWalletForQuery(address);
+  const usePaperClose = isConnected && !!walletKey && !position.id.startsWith('demo-');
+
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  const closePositionMutation = useMutation(
+    trpc.closePosition.mutationOptions({
+      onSuccess: (data) => {
+        if (data.newBalance !== undefined) {
+          updateBalance(data.newBalance);
+        }
+        if (walletKey) {
+          queryClient.invalidateQueries({
+            queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'open' }),
+          });
+          queryClient.invalidateQueries({
+            queryKey: trpc.getUserPositions.queryKey({ walletAddress: walletKey, status: 'all' }),
+          });
+          queryClient.invalidateQueries({
+            queryKey: trpc.getPortfolioSummary.queryKey({ walletAddress: walletKey }),
+          });
+          invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
+          invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, walletKey);
+        }
+      },
+    }),
+  );
+
   const updatePosition = useTradingStore((state) => state.updatePosition);
   const removePosition = useTradingStore((state) => state.removePosition);
   
@@ -70,26 +107,39 @@ export function PositionDetail({ position }: PositionDetailProps) {
 
   const handleSellConfirm = async () => {
     setModalState('pending');
-    
+    setError('');
+
     try {
+      if (usePaperClose) {
+        const price = Math.max(currentPrice, 0.001);
+        const data = await closePositionMutation.mutateAsync({
+          orderId: position.id,
+          walletAddress: walletKey,
+          sharesToSell: tradeShares,
+          currentPrice: price,
+        });
+        setTxHash('');
+        setModalState('success');
+        toast.success(data.message || 'Trade completed');
+        return;
+      }
+
       const result = await executeSell({
         positionId: position.id,
         marketId: position.marketId,
         shares: tradeShares,
         price: currentPrice,
-        slippageBps: 50, // 0.5% slippage tolerance
+        slippageBps: 50,
       });
-      
+
       if (result.success) {
         setTxHash(result.txHash);
         setModalState('mining');
-        
-        // Simulate confirmation delay
+
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        
+
         setModalState('success');
-        
-        // Update position or remove if fully sold
+
         const remainingShares = position.shares - tradeShares;
         if (remainingShares === 0) {
           removePosition(position.id);

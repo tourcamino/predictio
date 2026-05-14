@@ -6,94 +6,116 @@ import { PositionsList } from '~/components/trading/PositionsList';
 import { PositionDetail } from '~/components/trading/PositionDetail';
 import { OrderHistory } from '~/components/trading/OrderHistory';
 import { useTradingStore } from '~/store/tradingStore';
-import { Wallet, Users, Copy } from 'lucide-react';
-import { useEffect } from 'react';
+import { Users, Copy } from 'lucide-react';
+import { useEffect, useMemo } from 'react';
+import { useTRPC } from '~/trpc/react';
+import { useQuery } from '@tanstack/react-query';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import {
+  mapDbOrdersToTradingPositions,
+  mapDemoPositionToTradingPosition,
+} from '~/lib/trading/mapDbOrderToTradingPosition';
 
 export const Route = createFileRoute('/trading/')({
   component: TradingPage,
 });
 
 function TradingPage() {
-  const { isConnected, openWalletModal, balance, address } = useWallet();
+  const { isConnected, balance, address } = useWallet();
   const { isActive: isDemoActive, positions: demoPositions, balance: demoBalance } = useDemoAccount();
-  
-  // Initialize mock positions for demo (in production, fetch from API)
-  const positions = useTradingStore((state) => state.positions);
+  const trpc = useTRPC();
+  const walletKey = normalizeWalletForQuery(address);
+
   const selectedPositionId = useTradingStore((state) => state.selectedPositionId);
   const setPositions = useTradingStore((state) => state.setPositions);
   const selectPosition = useTradingStore((state) => state.selectPosition);
   const navigate = useNavigate();
 
-  // Use demo positions when wallet is not connected
-  const displayPositions = isConnected ? positions : demoPositions.map((demoPos, index) => ({
-    id: `demo-${index}`,
-    marketId: demoPos.marketId,
-    marketName: demoPos.marketTitle,
-    outcome: demoPos.outcome === 'DRAW' ? 'Draw (X)' : `${demoPos.outcome} wins`,
-    side: demoPos.outcome,
-    shares: demoPos.shares,
-    entryPrice: demoPos.avgPrice,
-    costBasis: demoPos.shares * demoPos.avgPrice,
-    currentValue: demoPos.shares * demoPos.currentPrice,
-    unrealizedPnl: (demoPos.shares * demoPos.currentPrice) - (demoPos.shares * demoPos.avgPrice),
-    unrealizedPnlPct: ((demoPos.currentPrice - demoPos.avgPrice) / demoPos.avgPrice) * 100,
-    openedAt: new Date(demoPos.openedAt),
-    status: 'live' as const,
-    marketEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-  }));
+  const positionsQuery = useQuery({
+    ...trpc.getUserPositions.queryOptions({
+      walletAddress: walletKey ?? '',
+      status: 'open',
+    }),
+    enabled: !!walletKey && isConnected,
+  });
+
+  const orders = positionsQuery.data?.positions ?? [];
+  const positionMarketIds = useMemo(
+    () => [...new Set(orders.map((o) => o.marketId))],
+    [orders],
+  );
+
+  const marketSummariesQuery = useQuery({
+    ...trpc.getMarketSummaries.queryOptions({
+      marketIds: positionMarketIds,
+    }),
+    enabled: !!walletKey && isConnected && positionMarketIds.length > 0,
+    staleTime: 30_000,
+  });
+
+  const dbTradingPositions = useMemo(
+    () => mapDbOrdersToTradingPositions(orders, marketSummariesQuery.data ?? {}),
+    [orders, marketSummariesQuery.data],
+  );
+
+  const demoTradingPositions = useMemo(
+    () => demoPositions.map((p, i) => mapDemoPositionToTradingPosition(p, i)),
+    [demoPositions],
+  );
+
+  const displayPositions = isConnected ? dbTradingPositions : demoTradingPositions;
 
   const currentBalance = isConnected ? balance : demoBalance;
 
-  // Initialize mock positions if none exist and wallet is connected
+  /** Wallet connected: mirror DB-backed rows into the store for any legacy subscribers; never seed mocks in prod. */
   useEffect(() => {
-    if (positions.length === 0 && isConnected) {
-      const mockPositions = [
-        {
-          id: 'pos-1',
-          marketId: 'mkt-123',
-          marketName: 'Inter Milan vs AC Milan',
-          outcome: 'Inter Milan wins',
-          side: 'YES' as const,
-          shares: 500,
-          entryPrice: 0.65,
-          costBasis: 325,
-          currentValue: 350,
-          unrealizedPnl: 25,
-          unrealizedPnlPct: 7.69,
-          openedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-          status: 'live' as const,
-          marketEndsAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
-        },
-        {
-          id: 'pos-2',
-          marketId: 'mkt-456',
-          marketName: 'Real Madrid vs Barcelona',
-          outcome: 'Real Madrid wins',
-          side: 'YES' as const,
-          shares: 300,
-          entryPrice: 0.55,
-          costBasis: 165,
-          currentValue: 150,
-          unrealizedPnl: -15,
-          unrealizedPnlPct: -9.09,
-          openedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-          status: 'live' as const,
-          marketEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-        },
-      ];
-      setPositions(mockPositions);
-      const first = mockPositions[0];
-      if (first) selectPosition(first.id);
+    if (!isConnected) {
+      setPositions([]);
+      return;
     }
-    // setPositions / selectPosition are stable Zustand actions; omitting from deps avoids loops.
-  }, [positions.length, isConnected]);
+    if (!walletKey) {
+      setPositions([]);
+      return;
+    }
+    setPositions(dbTradingPositions);
+    const ids = new Set(dbTradingPositions.map((p) => p.id));
+    if (selectedPositionId && !ids.has(selectedPositionId)) {
+      selectPosition(dbTradingPositions[0]?.id ?? null);
+    } else if (!selectedPositionId && dbTradingPositions.length > 0) {
+      selectPosition(dbTradingPositions[0]!.id);
+    }
+  }, [
+    isConnected,
+    walletKey,
+    dbTradingPositions,
+    selectedPositionId,
+    setPositions,
+    selectPosition,
+  ]);
+
+  /** Guest demo: ensure a valid selection for the desktop split view. */
+  useEffect(() => {
+    if (isConnected) return;
+    if (demoTradingPositions.length === 0) return;
+    const ids = new Set(demoTradingPositions.map((p) => p.id));
+    if (!selectedPositionId || !ids.has(selectedPositionId)) {
+      selectPosition(demoTradingPositions[0]!.id);
+    }
+  }, [isConnected, demoTradingPositions, selectedPositionId, selectPosition]);
 
   const selectedPosition = displayPositions.find((p) => p.id === selectedPositionId);
 
-  // Determine if we have positions
+  const positionsLoading = isConnected && !!walletKey && positionsQuery.isLoading;
   const hasPositions = displayPositions.length > 0;
 
-  // No positions - show empty state (but don't require wallet)
+  if (positionsLoading) {
+    return (
+      <div className="min-h-screen bg-brand-bg flex items-center justify-center px-4">
+        <p className="text-gray-400">Loading positions…</p>
+      </div>
+    );
+  }
+
   if (!hasPositions) {
     return (
       <div className="min-h-screen bg-brand-bg">
@@ -109,6 +131,9 @@ function TradingPage() {
                   </span>
                 </div>
               )}
+              {isConnected && positionsQuery.isError && (
+                <p className="mt-3 text-sm text-red-400">Could not load positions. Try again shortly.</p>
+              )}
             </div>
             <EmptyTradingState />
           </div>
@@ -117,12 +142,10 @@ function TradingPage() {
     );
   }
 
-  // Has positions - show trading dashboard
   return (
     <div className="min-h-screen bg-brand-bg">
       <div className="pb-20 px-4">
         <div className="max-w-7xl mx-auto">
-          {/* Copy Trading Banner */}
           <div className="mb-6 px-6 py-4 bg-brand-green/10 border border-brand-green/30 rounded-xl flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className="text-2xl">💡</span>
@@ -154,21 +177,16 @@ function TradingPage() {
               <div className="text-sm">
                 <span className="text-gray-500">Balance: </span>
                 <span className="font-mono font-semibold">${currentBalance.toFixed(2)} USDC</span>
-                {!isConnected && (
-                  <span className="ml-2 text-xs text-purple-400">(Virtual)</span>
-                )}
+                {!isConnected && <span className="ml-2 text-xs text-purple-400">(Virtual)</span>}
               </div>
             </div>
           </div>
 
-          {/* Desktop: Split View */}
           <div className="hidden lg:grid lg:grid-cols-[380px_1fr] lg:gap-6 lg:h-[calc(100vh-280px)]">
-            {/* Left Column: Positions List */}
             <div className="overflow-hidden">
-              <PositionsList />
+              <PositionsList positions={displayPositions} />
             </div>
 
-            {/* Right Column: Position Detail */}
             <div className="overflow-y-auto scrollbar-hide">
               {selectedPosition ? (
                 <PositionDetail position={selectedPosition} />
@@ -180,13 +198,13 @@ function TradingPage() {
             </div>
           </div>
 
-          {/* Mobile: List View */}
           <div className="lg:hidden space-y-4">
             {displayPositions.map((position) => {
-              const pnlFormatted = position.unrealizedPnl >= 0 
-                ? { text: `+$${position.unrealizedPnl.toFixed(2)}`, colorClass: 'text-brand-green' }
-                : { text: `-$${Math.abs(position.unrealizedPnl).toFixed(2)}`, colorClass: 'text-red-500' };
-              
+              const pnlFormatted =
+                position.unrealizedPnl >= 0
+                  ? { text: `+$${position.unrealizedPnl.toFixed(2)}`, colorClass: 'text-brand-green' }
+                  : { text: `-$${Math.abs(position.unrealizedPnl).toFixed(2)}`, colorClass: 'text-red-500' };
+
               return (
                 <button
                   key={position.id}
@@ -199,7 +217,7 @@ function TradingPage() {
                       <p className="text-sm text-gray-400 truncate">{position.outcome}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-xs text-gray-500 mb-1">Current Value</div>
@@ -207,9 +225,7 @@ function TradingPage() {
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-gray-500 mb-1">Unrealized P&L</div>
-                      <div className={`font-mono font-bold ${pnlFormatted.colorClass}`}>
-                        {pnlFormatted.text}
-                      </div>
+                      <div className={`font-mono font-bold ${pnlFormatted.colorClass}`}>{pnlFormatted.text}</div>
                     </div>
                   </div>
                 </button>
@@ -217,7 +233,6 @@ function TradingPage() {
             })}
           </div>
 
-          {/* Social Trading Section */}
           {hasPositions && (
             <div className="mt-8 bg-gradient-to-r from-brand-cyan/10 to-brand-green/10 border border-brand-cyan/30 rounded-xl p-8">
               <div className="flex items-center justify-between">
@@ -226,9 +241,7 @@ function TradingPage() {
                     <Users className="w-8 h-8 text-brand-cyan" />
                   </div>
                   <div>
-                    <h3 className="font-syne font-bold text-2xl mb-2">
-                      Discover Social Trading
-                    </h3>
+                    <h3 className="font-syne font-bold text-2xl mb-2">Discover Social Trading</h3>
                     <p className="text-gray-400">
                       Follow top traders and automatically copy their strategies. Learn from the best while you trade.
                     </p>
@@ -245,10 +258,9 @@ function TradingPage() {
             </div>
           )}
 
-          {/* Order History Section */}
           {hasPositions && (
             <div className="mt-8">
-              <OrderHistory walletAddress={isConnected ? (address || '') : 'demo'} />
+              <OrderHistory walletAddress={isConnected && walletKey ? walletKey : 'demo'} />
             </div>
           )}
         </div>
@@ -256,4 +268,3 @@ function TradingPage() {
     </div>
   );
 }
-
