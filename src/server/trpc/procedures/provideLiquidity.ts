@@ -19,20 +19,40 @@ export const provideLiquidity = baseProcedure
     })
   )
   .mutation(async ({ input }) => {
-    const { marketId, amount, walletAddress, currentBalance } = input;
+    const { marketId, amount, walletAddress } = input;
+
+    const w = walletAddress.trim().toLowerCase();
+    if (!w) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Wallet address is required",
+      });
+    }
+
+    await db.user.upsert({
+      where: { wallet: w },
+      create: {
+        wallet: w,
+        virtualBalance: 1000.0,
+        totalPnl: 0,
+        tradesCount: 0,
+        firstSeen: new Date(),
+        lastActive: new Date(),
+        totalVolume: 0,
+        predictions: 0,
+        wins: 0,
+        losses: 0,
+      },
+      update: {
+        lastActive: new Date(),
+      },
+    });
 
     // Validate amount
     if (amount < 10) {
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: "Minimum liquidity deposit is $10 USDC",
-      });
-    }
-
-    if (amount > currentBalance) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "Insufficient balance",
       });
     }
 
@@ -95,42 +115,91 @@ export const provideLiquidity = baseProcedure
       poolShare = amount / newPoolSize;
     }
 
-    // Create or update LP position
-    const existingPosition = await db.liquidityPosition.findFirst({
-      where: {
-        marketId,
-        userWallet: walletAddress,
-        status: 'active',
-      },
-    });
+    const walletVariants = [w, walletAddress.trim()].filter(
+      (v, i, a) => v && a.indexOf(v) === i,
+    );
 
-    if (existingPosition) {
-      // Update existing position
-      const newDeposit = existingPosition.depositedAmount + amount;
-      const newValue = existingPosition.currentValue + amount;
-      const newShare = newDeposit / newPoolSize;
+    const { balanceAfter } = await db.$transaction(async (tx) => {
+      const userRow = await tx.user.findUnique({ where: { wallet: w } });
+      if (!userRow) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
+        });
+      }
+      if (userRow.virtualBalance < amount) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Insufficient balance. Available: $${userRow.virtualBalance.toFixed(2)}`,
+        });
+      }
 
-      await db.liquidityPosition.update({
-        where: { id: existingPosition.id },
-        data: {
-          depositedAmount: newDeposit,
-          currentValue: newValue,
-          poolShare: newShare,
-        },
-      });
-    } else {
-      // Create new position
-      await db.liquidityPosition.create({
-        data: {
+      const balanceBefore = userRow.virtualBalance;
+      const nextBalance = balanceBefore - amount;
+
+      const existingPosition = await tx.liquidityPosition.findFirst({
+        where: {
           marketId,
-          userWallet: walletAddress,
-          depositedAmount: amount,
-          currentValue: amount,
-          poolShare,
           status: 'active',
+          userWallet: { in: walletVariants },
         },
       });
-    }
+
+      if (existingPosition) {
+        const newDeposit = existingPosition.depositedAmount + amount;
+        const newValue = existingPosition.currentValue + amount;
+        const newShare = newDeposit / newPoolSize;
+
+        await tx.liquidityPosition.update({
+          where: { id: existingPosition.id },
+          data: {
+            userWallet: w,
+            depositedAmount: newDeposit,
+            currentValue: newValue,
+            poolShare: newShare,
+          },
+        });
+      } else {
+        await tx.liquidityPosition.create({
+          data: {
+            marketId,
+            userWallet: w,
+            depositedAmount: amount,
+            currentValue: amount,
+            poolShare,
+            status: 'active',
+          },
+        });
+      }
+
+      await tx.user.update({
+        where: { wallet: w },
+        data: {
+          virtualBalance: nextBalance,
+          lastActive: new Date(),
+        },
+      });
+
+      await tx.transaction.create({
+        data: {
+          wallet: w,
+          type: 'deposit',
+          amount,
+          balanceBefore,
+          balanceAfter: nextBalance,
+          marketId: isProtocolVault ? null : marketId,
+          txHash,
+          status: 'completed',
+          metadata: {
+            type: isProtocolVault ? 'protocol_vault_deposit' : 'lp_deposit',
+            poolShare,
+            ...(isProtocolVault && { vaultDeposit: true }),
+          },
+        },
+      });
+
+      return { balanceAfter: nextBalance };
+    });
 
     // Recalculate all pool shares for this market (skip for protocol-vault)
     if (!isProtocolVault) {
@@ -143,24 +212,6 @@ export const provideLiquidity = baseProcedure
         console.error('[LP Pool Shares] Failed to update pool shares:', error);
       }
     }
-
-    // Record transaction
-    const w = walletAddress.toLowerCase();
-    await db.transaction.create({
-      data: {
-        wallet: w,
-        type: 'deposit',
-        amount,
-        marketId: isProtocolVault ? null : marketId,
-        txHash,
-        status: 'completed',
-        metadata: {
-          type: isProtocolVault ? 'protocol_vault_deposit' : 'lp_deposit',
-          poolShare,
-          ...(isProtocolVault && { vaultDeposit: true }),
-        },
-      },
-    });
 
     // Points: 10 pts per $10 USDC deposited (guide: LIQUIDITY_ADDED)
     const liquidityPoints = liquidityPointsForUsdcDeposit(
@@ -188,6 +239,7 @@ export const provideLiquidity = baseProcedure
       txHash,
       amount,
       poolShare,
+      newBalance: balanceAfter,
       timestamp: timestamp.toISOString(),
       message: isProtocolVault 
         ? "Liquidity added to Protocol Vault successfully"

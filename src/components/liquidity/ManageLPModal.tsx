@@ -8,11 +8,12 @@ import { WithdrawLPModal } from './WithdrawLPModal';
 import { APYTrendChart } from './APYTrendChart';
 import { LPPerformanceChart } from './LPPerformanceChart';
 import { useTRPC } from '~/trpc/react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '~/store/useWalletStore';
 import toast from 'react-hot-toast';
 import type { LPPosition } from '~/data/mockLP';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 
 interface ManageLPModalProps {
   isOpen: boolean;
@@ -27,9 +28,10 @@ export function ManageLPModal({ isOpen, onClose, position, onSuccess }: ManageLP
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [apyTimeRange, setApyTimeRange] = useState<'7D' | '30D' | '90D' | 'ALL'>('30D');
   
-  const { address, updateBalance, balance } = useWallet();
+  const { address, updateBalance } = useWallet();
   const walletKey = normalizeWalletForQuery(address);
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const claimFeesMutation = useMutation(trpc.claimLPFees.mutationOptions());
 
   // Fetch APY history
@@ -48,15 +50,20 @@ export function ManageLPModal({ isOpen, onClose, position, onSuccess }: ManageLP
     if (!walletKey || position.feesPending <= 0) return;
 
     try {
-      await claimFeesMutation.mutateAsync({
+      const result = await claimFeesMutation.mutateAsync({
         positionId: position.id,
         walletAddress: walletKey,
       });
 
-      // Update balance
-      updateBalance(balance + position.feesPending);
+      if (result.newBalance !== undefined) {
+        updateBalance(result.newBalance);
+      }
 
-      toast.success(`Claimed $${position.feesPending.toFixed(2)} in fees!`);
+      toast.success(`Claimed $${result.amount.toFixed(2)} in fees!`);
+
+      if (walletKey) {
+        invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
+      }
       
       if (onSuccess) {
         onSuccess();

@@ -16,6 +16,14 @@ export const withdrawLiquidity = baseProcedure
   .mutation(async ({ input }) => {
     const { positionId, amount, claimFees, walletAddress } = input;
 
+    const w = walletAddress.trim().toLowerCase();
+    if (!w) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Wallet address is required",
+      });
+    }
+
     // Get position
     const position = await db.liquidityPosition.findUnique({
       where: { id: positionId },
@@ -28,7 +36,7 @@ export const withdrawLiquidity = baseProcedure
       });
     }
 
-    if (position.userWallet !== walletAddress) {
+    if (position.userWallet.trim().toLowerCase() !== w) {
       throw new TRPCError({
         code: "FORBIDDEN",
         message: "Not authorized",
@@ -63,31 +71,74 @@ export const withdrawLiquidity = baseProcedure
     const feesToClaim = claimFees ? position.feesPending : 0;
     const totalWithdrawal = amount + feesToClaim;
 
-    if (isFullWithdrawal) {
-      // Close position
-      await db.liquidityPosition.update({
-        where: { id: positionId },
+    const { newBalance } = await db.$transaction(async (tx) => {
+      const userRow = await tx.user.findUnique({ where: { wallet: w } });
+      if (!userRow) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
+        });
+      }
+
+      const balanceBefore = userRow.virtualBalance;
+      const balanceAfter = balanceBefore + totalWithdrawal;
+
+      if (isFullWithdrawal) {
+        await tx.liquidityPosition.update({
+          where: { id: positionId },
+          data: {
+            userWallet: w,
+            status: 'withdrawn',
+            withdrawnAt: timestamp,
+            currentValue: 0,
+            feesPending: 0,
+          },
+        });
+      } else {
+        const newValue = position.currentValue - amount;
+        const newDeposit = position.depositedAmount * (newValue / position.currentValue);
+        
+        await tx.liquidityPosition.update({
+          where: { id: positionId },
+          data: {
+            userWallet: w,
+            depositedAmount: newDeposit,
+            currentValue: newValue,
+            feesPending: claimFees ? 0 : position.feesPending,
+          },
+        });
+      }
+
+      await tx.user.update({
+        where: { wallet: w },
         data: {
-          status: 'withdrawn',
-          withdrawnAt: timestamp,
-          currentValue: 0,
-          feesPending: 0,
+          virtualBalance: balanceAfter,
+          lastActive: new Date(),
         },
       });
-    } else {
-      // Partial withdrawal
-      const newValue = position.currentValue - amount;
-      const newDeposit = position.depositedAmount * (newValue / position.currentValue);
-      
-      await db.liquidityPosition.update({
-        where: { id: positionId },
+
+      await tx.transaction.create({
         data: {
-          depositedAmount: newDeposit,
-          currentValue: newValue,
-          feesPending: claimFees ? 0 : position.feesPending,
+          wallet: w,
+          type: 'withdrawal',
+          amount: totalWithdrawal,
+          balanceBefore,
+          balanceAfter,
+          marketId: position.marketId,
+          txHash,
+          status: 'completed',
+          metadata: {
+            type: isProtocolVault ? 'protocol_vault_withdrawal' : 'lp_withdrawal',
+            principalWithdrawn: amount,
+            feesClaimed: feesToClaim,
+            isFullWithdrawal,
+            ...(isProtocolVault && { vaultWithdrawal: true }),
+          },
         },
       });
-    }
+
+      return { newBalance: balanceAfter };
+    });
 
     // Recalculate all pool shares for this market (skip for protocol-vault)
     if (!isProtocolVault) {
@@ -101,31 +152,13 @@ export const withdrawLiquidity = baseProcedure
       }
     }
 
-    // Record transaction
-    await db.transaction.create({
-      data: {
-        wallet: walletAddress,
-        type: 'withdrawal',
-        amount: totalWithdrawal,
-        marketId: position.marketId,
-        txHash,
-        status: 'completed',
-        metadata: {
-          type: isProtocolVault ? 'protocol_vault_withdrawal' : 'lp_withdrawal',
-          principalWithdrawn: amount,
-          feesClaimed: feesToClaim,
-          isFullWithdrawal,
-          ...(isProtocolVault && { vaultWithdrawal: true }),
-        },
-      },
-    });
-
     return {
       success: true,
       txHash,
       amount: totalWithdrawal,
       principalWithdrawn: amount,
       feesClaimed: feesToClaim,
+      newBalance,
       timestamp: timestamp.toISOString(),
       message: "Withdrawal successful",
     };

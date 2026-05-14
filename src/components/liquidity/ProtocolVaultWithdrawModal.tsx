@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { TransactionModal } from '../TransactionModal';
 import { useWallet } from '~/store/useWalletStore';
 import { useTRPC } from '~/trpc/react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { AlertCircle, Droplet } from 'lucide-react';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 
 type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 
@@ -42,6 +43,7 @@ export function ProtocolVaultWithdrawModal({
   const [error, setError] = useState<string>('');
 
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const withdrawMutation = useMutation(trpc.withdrawLiquidity.mutationOptions());
 
   // Reset state when modal opens/closes
@@ -79,14 +81,19 @@ export function ProtocolVaultWithdrawModal({
       setTxHash(result.txHash);
       setTransactionState('mining');
 
+      if (result.newBalance !== undefined) {
+        updateBalance(result.newBalance);
+      }
+
       // Simulate mining delay
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Update balance
-      updateBalance(balance + totalReceive);
-
       setTransactionState('success');
       toast.success('Withdrawal successful!');
+
+      if (walletKey) {
+        invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
+      }
       
       if (onSuccess) {
         onSuccess();

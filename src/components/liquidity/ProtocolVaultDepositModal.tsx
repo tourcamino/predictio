@@ -4,10 +4,11 @@ import { useWallet } from '~/store/useWalletStore';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { useTRPC } from '~/trpc/react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { AlertCircle, TrendingUp, Droplet } from 'lucide-react';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 
 type TransactionState = 'review' | 'pending' | 'mining' | 'success' | 'error';
 
@@ -38,6 +39,7 @@ export function ProtocolVaultDepositModal({
   const [error, setError] = useState<string>('');
 
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const provideLiquidityMutation = useMutation(trpc.provideLiquidity.mutationOptions());
 
   // Reset state when modal opens/closes
@@ -85,14 +87,19 @@ export function ProtocolVaultDepositModal({
       setTxHash(result.txHash);
       setTransactionState('mining');
 
+      if (result.newBalance !== undefined) {
+        updateBalance(result.newBalance);
+      }
+
       // Simulate mining delay
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Update balance
-      updateBalance(balance - amountNum);
-
       setTransactionState('success');
       toast.success('Liquidity added to Protocol Vault!');
+
+      if (walletKey) {
+        invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
+      }
       
       if (onSuccess) {
         onSuccess();

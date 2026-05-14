@@ -14,23 +14,54 @@ export const claimLPFees = baseProcedure
   .mutation(async ({ input }) => {
     const { positionId, walletAddress, claimAll } = input;
 
-    let positions: any[] = [];
+    const w = walletAddress.trim().toLowerCase();
+    if (!w) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Wallet address is required",
+      });
+    }
+
+    const walletVariants = [w, walletAddress.trim()].filter(
+      (v, i, a) => v && a.indexOf(v) === i,
+    );
+
+    await db.user.upsert({
+      where: { wallet: w },
+      create: {
+        wallet: w,
+        virtualBalance: 1000.0,
+        totalPnl: 0,
+        tradesCount: 0,
+        firstSeen: new Date(),
+        lastActive: new Date(),
+        totalVolume: 0,
+        predictions: 0,
+        wins: 0,
+        losses: 0,
+      },
+      update: {
+        lastActive: new Date(),
+      },
+    });
+
+    let positions: { id: string; marketId: string; feesPending: number }[] = [];
     
     if (claimAll) {
-      // Claim all pending fees across all positions
       positions = await db.liquidityPosition.findMany({
         where: {
-          userWallet: walletAddress,
+          userWallet: { in: walletVariants },
           status: 'active',
           feesPending: {
             gt: 0,
           },
         },
+        select: { id: true, marketId: true, feesPending: true },
       });
     } else if (positionId) {
-      // Claim fees for specific position
       const position = await db.liquidityPosition.findUnique({
         where: { id: positionId },
+        select: { id: true, marketId: true, feesPending: true, userWallet: true, status: true },
       });
 
       if (!position) {
@@ -40,7 +71,7 @@ export const claimLPFees = baseProcedure
         });
       }
 
-      if (position.userWallet !== walletAddress) {
+      if (position.userWallet.trim().toLowerCase() !== w) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Not authorized",
@@ -54,7 +85,13 @@ export const claimLPFees = baseProcedure
         });
       }
 
-      positions = [position];
+      positions = [
+        {
+          id: position.id,
+          marketId: position.marketId,
+          feesPending: position.feesPending,
+        },
+      ];
     } else {
       throw new TRPCError({
         code: "BAD_REQUEST",
@@ -76,40 +113,67 @@ export const claimLPFees = baseProcedure
     const txHash = `0x${Math.random().toString(16).substr(2, 64)}`;
 
     const timestamp = new Date();
-    let totalClaimed = 0;
 
-    // Update all positions and record fees claimed
-    for (const position of positions) {
-      totalClaimed += position.feesPending;
+    const { totalClaimed, newBalance } = await db.$transaction(async (tx) => {
+      const userRow = await tx.user.findUnique({ where: { wallet: w } });
+      if (!userRow) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
+        });
+      }
 
-      await db.liquidityPosition.update({
-        where: { id: position.id },
-        data: {
-          feesPending: 0,
-        },
-      });
+      let runningBalance = userRow.virtualBalance;
+      let claimedSum = 0;
 
-      // Record transaction for each position
-      await db.transaction.create({
-        data: {
-          wallet: walletAddress,
-          type: 'reward_claim',
-          amount: position.feesPending,
-          marketId: position.marketId,
-          txHash,
-          status: 'completed',
-          metadata: {
-            type: 'lp_fee_claim',
-            positionId: position.id,
+      for (const position of positions) {
+        const feeAmount = position.feesPending;
+        claimedSum += feeAmount;
+        const balanceBefore = runningBalance;
+        runningBalance += feeAmount;
+
+        await tx.liquidityPosition.update({
+          where: { id: position.id },
+          data: {
+            feesPending: 0,
+            userWallet: w,
           },
+        });
+
+        await tx.transaction.create({
+          data: {
+            wallet: w,
+            type: 'reward_claim',
+            amount: feeAmount,
+            balanceBefore,
+            balanceAfter: runningBalance,
+            marketId: position.marketId,
+            txHash,
+            status: 'completed',
+            metadata: {
+              type: 'lp_fee_claim',
+              positionId: position.id,
+            },
+          },
+        });
+      }
+
+      await tx.user.update({
+        where: { wallet: w },
+        data: {
+          virtualBalance: runningBalance,
+          lastActive: new Date(),
         },
       });
-    }
+
+      return { totalClaimed: claimedSum, newBalance: runningBalance };
+    });
 
     return {
       success: true,
       txHash,
       amount: totalClaimed,
+      newBalance,
       positionsClaimed: positions.length,
       timestamp: timestamp.toISOString(),
       message: `Claimed $${totalClaimed.toFixed(2)} in LP fees`,

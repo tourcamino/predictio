@@ -5,7 +5,7 @@ import { ShareButton } from '~/components/ShareButton';
 import { ShareModal } from '~/components/ShareModal';
 import { generatePortfolioShareText } from '~/utils/shareUtils';
 import { useTRPC } from '~/trpc/react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PortfolioValueChart } from '~/components/portfolio/PortfolioValueChart';
 import { PnLHistoryChart } from '~/components/portfolio/PnLHistoryChart';
 import { PositionTimeline } from '~/components/portfolio/PositionTimeline';
@@ -24,6 +24,7 @@ import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { GuestPageState } from '~/components/GuestPageState';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 
 export const Route = createFileRoute('/portfolio/')({
   component: Portfolio,
@@ -34,6 +35,7 @@ function Portfolio() {
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const { isActive: isDemoActive, positions: demoPositions, balance: demoBalance, tradeHistory: demoTradeHistory } = useDemoAccount();
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const walletKey = normalizeWalletForQuery(address);
   const [timeRange, setTimeRange] = useState<'7D' | '30D' | '90D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM'>('1M');
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>();
@@ -126,9 +128,13 @@ function Portfolio() {
         claimAll: true,
       });
 
-      updateBalance(balance + result.amount);
+      if (result.newBalance !== undefined) {
+        updateBalance(result.newBalance);
+      }
       toast.success(`Claimed $${result.amount.toFixed(2)} in LP fees!`);
-      lpPositionsQuery.refetch();
+      if (walletKey) {
+        invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
+      }
     } catch (err: any) {
       toast.error('Failed to claim fees');
     }
