@@ -10,6 +10,7 @@ import { COUNTRY_FLAG, getMarketCountryCode, isEliteMarket } from '~/config/mark
 import {
   CURATED_PROTOCOL_FOOTER_LABEL,
   hasRealMarketSocialMetrics,
+  isCuratedCatalogMarket,
   shouldShowCuratedProtocolFooter,
 } from '~/lib/curatedMarketPresentation';
 
@@ -71,7 +72,10 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
       className="group bg-brand-bg border border-white/10 rounded-lg p-5 cursor-pointer transition-all duration-200 hover:border-brand-green hover:-translate-y-1 hover:shadow-lg hover:shadow-brand-green/20 h-full flex flex-col"
     >
       {/* Low Liquidity Warning */}
-      {market.liquidity && market.liquidity.totalPool < 5000 && lifecycleStatus === 'open' && (
+      {!isCuratedCatalogMarket(market) &&
+        market.liquidity &&
+        market.liquidity.totalPool < 5000 &&
+        lifecycleStatus === 'open' && (
         <div className="mb-3 px-3 py-2 bg-red-500/20 border border-red-500/30 rounded-lg flex items-center gap-2">
           <span className="text-red-500 text-sm font-semibold">⚠ Low liquidity · High slippage</span>
         </div>

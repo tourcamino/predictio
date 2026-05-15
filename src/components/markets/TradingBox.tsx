@@ -248,7 +248,11 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
   const dynamicFeePct = orderType === 'LIMIT' ? 0 : calcFee(currentPrice) * 100;
   
   // Price impact calculation
-  const poolSize = liquidity?.totalPool || 50000;
+  const poolSize =
+    liquidity?.totalPool ??
+    (typeof market.importanceScore === "number" && Number.isFinite(market.importanceScore)
+      ? 12_000
+      : 50_000);
   const priceImpact = calcPriceImpact(buyAmount, poolSize);
   const priceImpactPct = priceImpact * 100;
   

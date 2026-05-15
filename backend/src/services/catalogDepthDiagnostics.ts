@@ -16,6 +16,11 @@ import {
   getAppealThresholdsByTier,
   type LeagueTier,
 } from "./editorialLeagueTiers";
+import { getProtocolLiquidityConfigFromEnv } from "./protocolLiquidityMode";
+import {
+  buildVaultAllocationRows,
+  resolveVaultCanonicalExposure,
+} from "./vaultCuratedExposureBridge";
 
 function leagueHistogram(games: RawAzuroGame[], limit = 12): Record<string, number> {
   const map: Record<string, number> = {};
@@ -316,12 +321,33 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
   const paginationProbe = await probeAzuroPagination(nowSec);
 
   const appealSum = openActive.reduce((s, r) => s + r.importanceScore, 0);
+  const liquidityConfig = getProtocolLiquidityConfigFromEnv();
+  const vaultCanonical = await resolveVaultCanonicalExposure(prisma);
+  const totalSimulatedLiquidity = liquidityConfig.simulatedLiquidityUsdc;
+  const perMarketAllocation = buildVaultAllocationRows(
+    vaultCanonical.slots,
+    vaultCanonical.allocationSource,
+    totalSimulatedLiquidity,
+  );
+  const allocationSum = perMarketAllocation.reduce((s, r) => s + r.allocation, 0);
+  const openGameIds = new Set(openActive.map((r) => r.gameId));
+  const orphanAllocations = perMarketAllocation.filter(
+    (r) => !openGameIds.has(r.marketId.replace(/^azuro-/, "")),
+  );
   const vaultExposure = {
-    canonicalOpenSlots: openActive.length,
+    protocolMode: liquidityConfig.mode,
+    allocationMode: vaultCanonical.allocationSource,
+    canonicalOpenSlots: vaultCanonical.curatedOpenCount,
+    dbOpenActiveCount: openActive.length,
     appealScoreSum: appealSum,
-    allocationMode:
-      openActive.length > 0 ? "curated-appeal-fallback" : "empty-catalog",
-    note: "Vault bridge reads same OPEN curated_events as GET /api/markets",
+    totalSimulatedLiquidity,
+    allocationSum,
+    allocationCoherent:
+      vaultCanonical.curatedOpenCount === 0 ||
+      Math.abs(allocationSum - totalSimulatedLiquidity) < 0.02,
+    perMarketAllocation,
+    orphanAllocationCount: orphanAllocations.length,
+    note: "Single source: CuratedEvent OPEN+active only; no CLOSED/LOCKED/inactive",
   };
 
   return {

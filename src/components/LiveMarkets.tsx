@@ -64,8 +64,8 @@ export function LiveMarkets() {
 
           <p className="text-lg text-gray-400 max-w-2xl mx-auto mb-8">
             {isFootballFocusEnabled()
-              ? 'Nine founder-curated matches backed by the protocol vault. Odds from Azuro; order reflects editorial priority.'
-              : 'A focused set of curated markets with shared vault liquidity.'}
+              ? 'Nine founder-curated matches with shared paper liquidity routing. Odds from Azuro; order reflects editorial priority.'
+              : 'A focused set of curated markets with editorial paper liquidity allocation.'}
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-4 lg:gap-8 mb-10">

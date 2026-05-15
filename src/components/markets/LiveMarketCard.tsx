@@ -4,7 +4,10 @@ import { PriceMovement } from './PriceMovement';
 import { MiniSparkline } from './MiniSparkline';
 import { MarketCountdown } from '../MarketCountdown';
 import { getMarketStatus } from '~/utils/marketLifecycle';
-import { CURATED_PROTOCOL_FOOTER_LABEL } from '~/lib/curatedMarketPresentation';
+import {
+  CURATED_PROTOCOL_FOOTER_LABEL,
+  isCuratedCatalogMarket,
+} from '~/lib/curatedMarketPresentation';
 
 interface LiveMarketCardProps {
   market: Market;
@@ -29,7 +32,8 @@ export function LiveMarketCard({ market, onClick }: LiveMarketCardProps) {
   const noPercent = market.noPrice * 100;
 
   const showLowLiquidity =
-    market.liquidity &&
+    !isCuratedCatalogMarket(market) &&
+    market.liquidity != null &&
     market.liquidity.totalPool < 5000 &&
     lifecycleStatus === 'open';
 

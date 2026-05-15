@@ -34,10 +34,19 @@ export function explorerTxUrl(txHash: string): string {
 export const BASE_SEPOLIA_FAUCET_URL =
   "https://docs.base.org/docs/tools/network-faucet/";
 
-export const LP_SEEDED_SHORT = "Platform-seeded liquidity";
+export const LP_SEEDED_SHORT = "Editorial paper liquidity allocation";
 
 export const LP_SEEDED_EXPLAINER =
-  "Displayed vault size includes platform-seeded USDC for UX and stress testing — not organic depth from external market makers.";
+  "Simulated liquidity routing across curated prediction markets — not on-chain TVL, LP depth, or external market-maker capital.";
+
+export {
+  PRE_TESTNET_LIQUIDITY_HEADLINE,
+  PRE_TESTNET_LIQUIDITY_SUBLINE,
+  PRE_TESTNET_ALLOCATION_EXPLAINER,
+  CURATED_MARKET_ROUTING_LABEL,
+  getProtocolLiquidityConfigClient,
+  isPreTestnetLiquidityMode,
+} from "~/lib/protocolLiquidityMode";
 
 export function demoBannerPrimaryLine(opts: {
   isConnected: boolean;

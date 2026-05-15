@@ -2,7 +2,21 @@ import type { SeedMarket } from "~/data/seedMarkets";
 import type { AzuroMarket } from "~/services/azuro";
 import { CURATED_FEATURED_MAX } from "~/lib/markets/curateFeaturedEvents";
 
-export const CURATED_PROTOCOL_FOOTER_LABEL = "Vault-backed market";
+import { CURATED_MARKET_ROUTING_LABEL } from "~/lib/protocolLiquidityMode";
+
+export const CURATED_PROTOCOL_FOOTER_LABEL = CURATED_MARKET_ROUTING_LABEL;
+
+/** Curated catalog rows from GET /api/markets carry appeal scores. */
+export function isCuratedCatalogMarket(market: {
+  importanceScore?: number | null;
+}): boolean {
+  return (
+    typeof market.importanceScore === "number" && Number.isFinite(market.importanceScore)
+  );
+}
+
+/** Neutral pool for paper price-impact math when no real depth exists. */
+export const PAPER_ROUTING_IMPACT_POOL_USDC = 12_000;
 
 export type CuratedCatalogMarket = SeedMarket | AzuroMarket;
 

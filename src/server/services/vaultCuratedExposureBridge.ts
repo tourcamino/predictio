@@ -223,6 +223,15 @@ export function buildVaultAllocationRows(
     };
   });
 
+  const sum = rows.reduce((s, r) => s + r.allocation, 0);
+  const drift = Math.round((totalLiquidity - sum) * 100) / 100;
+  if (rows.length > 0 && Math.abs(drift) >= 0.01) {
+    rows[0] = {
+      ...rows[0]!,
+      allocation: Math.round((rows[0]!.allocation + drift) * 100) / 100,
+    };
+  }
+
   rows.sort((a, b) => b.allocation - a.allocation);
   return rows;
 }

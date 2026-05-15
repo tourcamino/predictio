@@ -11,7 +11,14 @@ import { useWallet } from '~/store/useWalletStore';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
-import { LP_SEEDED_SHORT } from '~/lib/economySurface';
+import {
+  LP_SEEDED_EXPLAINER,
+  LP_SEEDED_SHORT,
+  PRE_TESTNET_ALLOCATION_EXPLAINER,
+  PRE_TESTNET_LIQUIDITY_HEADLINE,
+  PRE_TESTNET_LIQUIDITY_SUBLINE,
+  getProtocolLiquidityConfigClient,
+} from '~/lib/economySurface';
 
 export const Route = createFileRoute('/liquidity/')({
   component: LiquidityPage,
@@ -31,6 +38,10 @@ function LiquidityPage() {
   );
 
   const vaultStats = vaultQuery.data;
+  const liquidityMode = getProtocolLiquidityConfigClient();
+  const isPreTestnet = liquidityMode.mode === 'PRE_TESTNET';
+  const simulatedPool =
+    vaultStats?.totalSimulatedLiquidity ?? liquidityMode.simulatedLiquidityUsdc;
 
   // Fetch user's Protocol Vault position
   const userPositionQuery = useQuery({
@@ -65,14 +76,22 @@ function LiquidityPage() {
           {/* Hero Section */}
           <div className="text-center mb-12">
             <h1 className="font-syne font-bold text-5xl mb-4">
-              Protocol Vault
+              {isPreTestnet ? 'Paper Liquidity Routing' : 'Protocol Vault'}
             </h1>
             <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-              One protocol vault shares paper USDC across founder-curated markets.
-              Earn a proportional share of trading fees when volume is live.
+              {isPreTestnet
+                ? 'Simulated liquidity routing across the curated OPEN catalog. Protocol in build — preparing for Base testnet.'
+                : 'Shared testnet USDC pool across founder-curated markets with visible allocation.'}
             </p>
             <p className="mt-4 max-w-2xl mx-auto text-xs text-gray-500 leading-relaxed border border-white/10 rounded-lg px-4 py-3 bg-white/[0.03]">
-              Pre-testnet vault using paper USDC. Includes seeded protocol liquidity.
+              {isPreTestnet ? (
+                <>
+                  <span className="text-gray-300 font-medium">{PRE_TESTNET_LIQUIDITY_HEADLINE}.</span>{' '}
+                  {PRE_TESTNET_LIQUIDITY_SUBLINE}
+                </>
+              ) : (
+                LP_SEEDED_EXPLAINER
+              )}
             </p>
           </div>
 
@@ -81,17 +100,32 @@ function LiquidityPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-6">
               {/* Total Liquidity */}
               <div>
-                <div className="text-sm text-gray-400 mb-2">Total Liquidity</div>
-                <div className="font-mono font-bold text-4xl text-brand-green mb-1">
-                  ${vaultStats?.totalLiquidity || 500}
+                <div className="text-sm text-gray-400 mb-2">
+                  {isPreTestnet ? 'Simulated routing pool' : 'Total liquidity'}
                 </div>
-                <div className="text-sm text-gray-500">Seed capital · {LP_SEEDED_SHORT}</div>
+                <div className="font-mono font-bold text-4xl text-brand-green mb-1">
+                  {isPreTestnet
+                    ? `${simulatedPool.toLocaleString()} USDC (simulated)`
+                    : `$${(vaultStats?.totalLiquidity ?? simulatedPool).toLocaleString()}`}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {isPreTestnet
+                    ? 'Editorial paper allocation model · not on-chain TVL'
+                    : LP_SEEDED_SHORT}
+                </div>
               </div>
 
               {/* Vault APY */}
               <div>
-                <div className="text-sm text-gray-400 mb-2">Vault APY</div>
-                {vaultStats && vaultStats.vaultAPY !== null ? (
+                <div className="text-sm text-gray-400 mb-2">
+                  {isPreTestnet ? 'Fee share (when live)' : 'Vault APY'}
+                </div>
+                {isPreTestnet ? (
+                  <>
+                    <div className="font-mono font-bold text-4xl text-gray-500">—</div>
+                    <div className="text-sm text-gray-500">No APY until testnet volume</div>
+                  </>
+                ) : vaultStats && vaultStats.vaultAPY !== null ? (
                   <>
                     <div className="font-mono font-bold text-4xl text-brand-green">
                       {vaultStats.vaultAPY.toFixed(1)}%
@@ -349,7 +383,8 @@ function LiquidityPage() {
             </div>
           )}
 
-          {/* Estimated Returns Table */}
+          {/* Estimated Returns Table — testnet only (no fake APY in pre-testnet) */}
+          {!isPreTestnet && (
           <div className="mb-12">
             <h2 className="font-syne font-bold text-3xl mb-6 text-center">Estimated Returns</h2>
             <p className="text-center text-gray-400 mb-8">
@@ -413,10 +448,14 @@ function LiquidityPage() {
               </p>
             </div>
           </div>
+          )}
 
           {/* Market Allocation Section */}
           <div className="mb-12">
-            <h2 className="font-syne font-bold text-3xl mb-6">Market Allocation</h2>
+            <h2 className="font-syne font-bold text-3xl mb-6">Curated market allocation</h2>
+            <p className="text-sm text-gray-500 mb-4 max-w-3xl">
+              {PRE_TESTNET_ALLOCATION_EXPLAINER} Weighting uses editorial appeal or paper volume when live.
+            </p>
             <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
               {vaultStats?.marketAllocations && vaultStats.marketAllocations.length > 0 ? (
                 vaultStats.marketAllocations.map((allocation) => (
@@ -431,10 +470,14 @@ function LiquidityPage() {
                       </div>
                       <div className="text-right">
                         <div className="font-mono font-bold text-brand-green">
-                          ${allocation.allocation.toFixed(0)}
+                          {isPreTestnet
+                            ? `${allocation.percentage.toFixed(1)}%`
+                            : `$${allocation.allocation.toFixed(0)}`}
                         </div>
                         <div className="text-xs text-gray-400">
-                          {allocation.percentage.toFixed(0)}%
+                          {isPreTestnet
+                            ? `~${allocation.allocation.toFixed(0)} USDC simulated`
+                            : `${allocation.percentage.toFixed(0)}%`}
                         </div>
                       </div>
                     </div>
