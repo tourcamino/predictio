@@ -319,28 +319,7 @@ export function HeaderInner() {
           </button>
         </div>
 
-        {isConnected && showWrongNetwork && (
-          <div className="pb-3">
-            <div className="animate-slide-down rounded-lg border border-red-500/30 bg-red-950/60 backdrop-blur-md px-3 py-2 flex items-center justify-between gap-3">
-              <p className="text-xs sm:text-sm font-medium text-white/90 min-w-0">
-                <span className="text-red-300">Wrong network</span>
-                <span className="text-white/70"> — Predictio expects </span>
-                <span className="text-white font-semibold">{getExpectedPredictioChain().shortLabel}</span>
-              </p>
-              <button
-                type="button"
-                disabled={switchNetworkPending}
-                onClick={() => void switchNetwork()}
-                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-semibold text-xs sm:text-sm rounded transition-colors whitespace-nowrap inline-flex items-center gap-1.5 shrink-0"
-              >
-                {switchNetworkPending ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" aria-label="Switching network" />
-                ) : null}
-                {switchNetworkPending ? 'Switching…' : getSwitchNetworkCtaLabel()}
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Wrong-network: NetworkBanner in TopStack is the only viewport banner. */}
 
         {/* Mobile Menu (portal to escape transformed ancestors) */}
         {isMobileMenuOpen && typeof document !== 'undefined' && createPortal(
@@ -478,29 +457,6 @@ export function HeaderInner() {
                   <p className="font-mono text-xs text-gray-400 mb-3 break-all">
                     {address?.slice(0, 10)}...{address?.slice(-8)}
                   </p>
-
-                  {showWrongNetwork && (
-                    <div className="mb-3 rounded-lg border border-red-500/35 bg-red-950/50 p-3 space-y-2">
-                      <p className="text-xs text-white/90">
-                        Wrong network — switch to{" "}
-                        <span className="font-semibold text-white">
-                          {getExpectedPredictioChain().shortLabel}
-                        </span>{" "}
-                        to trade.
-                      </p>
-                      <button
-                        type="button"
-                        disabled={switchNetworkPending}
-                        onClick={() => void switchNetwork()}
-                        className="w-full py-2 text-sm font-semibold rounded bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white inline-flex items-center justify-center gap-2"
-                      >
-                        {switchNetworkPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
-                        ) : null}
-                        {switchNetworkPending ? "Switching…" : getSwitchNetworkCtaLabel()}
-                      </button>
-                    </div>
-                  )}
 
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <span className="text-xs uppercase tracking-wide text-gray-500">

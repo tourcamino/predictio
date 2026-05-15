@@ -8,6 +8,11 @@ import {
   POINT_ACTION_VALUES,
   creditLoginStreakBonusesIfEligible,
 } from "~/server/utils/pointsLedger";
+import {
+  logPaperBalanceBootstrapOnCreate,
+  ensurePaperBalanceForWallet,
+  PAPER_STARTING_BALANCE_USDC,
+} from "~/server/utils/paperBalanceBootstrap";
 
 async function attributeReferralForNewUser(
   normalizedAddress: string,
@@ -207,9 +212,12 @@ export const syncUserAccount = baseProcedure
     });
 
     if (isNewUser) {
+      logPaperBalanceBootstrapOnCreate(normalizedAddress);
       console.log(
-        `[Paper Trading] New account created for ${normalizedAddress} with $1,000 virtual balance`,
+        `[Paper Trading] New account created for ${normalizedAddress} with $${PAPER_STARTING_BALANCE_USDC} virtual balance`,
       );
+    } else if (user.virtualBalance <= 0) {
+      await ensurePaperBalanceForWallet(normalizedAddress, "sync");
     }
 
     const referralPromise =
@@ -221,9 +229,15 @@ export const syncUserAccount = baseProcedure
 
     await Promise.all([referralPromise, pointsPromise]);
 
+    let virtualBalance = user.virtualBalance;
+    if (!isNewUser && virtualBalance <= 0) {
+      const repaired = await ensurePaperBalanceForWallet(normalizedAddress, "sync");
+      virtualBalance = repaired.virtualBalance;
+    }
+
     return {
       isNewUser,
-      virtualBalance: user.virtualBalance,
+      virtualBalance,
       totalPnl: user.totalPnl,
       tradesCount: user.tradesCount,
       onboardingCompleted: user.onboardingCompleted,

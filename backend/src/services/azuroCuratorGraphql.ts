@@ -102,15 +102,23 @@ const GAMES_PAGE_FIELDS = `
 export type FetchAzuroGamesOptions = {
   /** When set, request `startsAt_gte` server-side (falls back if subgraph rejects). */
   minStartsAtSec?: number;
+  maxPages?: number;
+  pageSize?: number;
 };
 
 async function fetchAzuroGamesPage(
   page: number,
   pageSize: number,
   minStartsAtSec?: number,
+  /** When true, use startsAt_gte on every page (not only page 0). */
+  useStartsAtGte = false,
 ): Promise<{ batch: RawAzuroGame[]; graphqlStartsAtGte: boolean; aborted: boolean }> {
   const skip = page * pageSize;
-  const useGte = minStartsAtSec != null && Number.isFinite(minStartsAtSec) && minStartsAtSec > 0;
+  const useGte =
+    useStartsAtGte &&
+    minStartsAtSec != null &&
+    Number.isFinite(minStartsAtSec) &&
+    minStartsAtSec > 0;
 
   const queryWithGte = `
       query GamesPage($first: Int!, $skip: Int!, $minStartsAt: BigInt!) {
@@ -167,7 +175,7 @@ ${GAMES_PAGE_FIELDS}
     }
   };
 
-  if (useGte && page === 0) {
+  if (useGte) {
     const { response, json } = await runQuery(queryWithGte, {
       first: pageSize,
       skip,
@@ -176,14 +184,16 @@ ${GAMES_PAGE_FIELDS}
     if (response.ok && !json.errors) {
       return { batch: json.data?.games ?? [], graphqlStartsAtGte: true, aborted: false };
     }
-    console.warn(
-      JSON.stringify({
-        tag: "azuro_indexer_fetch",
-        msg: "startsAt_gte_unsupported_fallback",
-        status: response.status,
-        errors: json.errors ?? null,
-      }),
-    );
+    if (page === 0) {
+      console.warn(
+        JSON.stringify({
+          tag: "azuro_indexer_fetch",
+          msg: "startsAt_gte_unsupported_fallback",
+          status: response.status,
+          errors: json.errors ?? null,
+        }),
+      );
+    }
   }
 
   const { response, json } = await runQuery(queryPlain, { first: pageSize, skip });
@@ -203,17 +213,54 @@ export async function fetchAzuroGames(opts?: FetchAzuroGamesOptions): Promise<Ra
     throw new Error("AZURO_DATA_FEED_URL is not set");
   }
 
-  const PAGE = 250;
-  const MAX_PAGES = 5;
+  const PAGE = opts?.pageSize ?? 250;
+  const MAX_PAGES = opts?.maxPages ?? 5;
   const merged: RawAzuroGame[] = [];
   const seen = new Set<string>();
   let graphqlStartsAtGte = false;
+  let useGteAllPages = false;
 
-  for (let page = 0; page < MAX_PAGES; page++) {
+  if (
+    opts?.minStartsAtSec != null &&
+    Number.isFinite(opts.minStartsAtSec) &&
+    opts.minStartsAtSec > 0
+  ) {
+    const probe = await fetchAzuroGamesPage(0, PAGE, opts.minStartsAtSec, true);
+    if (probe.graphqlStartsAtGte) {
+      useGteAllPages = true;
+      graphqlStartsAtGte = true;
+    }
+    if (!probe.aborted) {
+      for (const g of probe.batch) {
+        const id = String(g.gameId || g.id || "").trim();
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        merged.push(g);
+      }
+      if (probe.batch.length < PAGE) {
+        console.log(
+          JSON.stringify({
+            tag: "azuro_indexer_fetch",
+            msg: "games_merged",
+            pages: 1,
+            count: merged.length,
+            graphqlStartsAtGte,
+            minStartsAtSec: opts.minStartsAtSec,
+          }),
+        );
+        return merged;
+      }
+    }
+  }
+
+  const startPage = useGteAllPages && merged.length > 0 ? 1 : 0;
+
+  for (let page = startPage; page < MAX_PAGES; page++) {
     const { batch, graphqlStartsAtGte: usedGte, aborted } = await fetchAzuroGamesPage(
       page,
       PAGE,
       opts?.minStartsAtSec,
+      useGteAllPages,
     );
     if (usedGte) graphqlStartsAtGte = true;
     if (aborted) break;

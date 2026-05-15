@@ -4,6 +4,10 @@ import {
   creditWalletPoints,
   POINT_ACTION_VALUES,
 } from "./pointsLedgerWeb";
+import {
+  ensurePaperBalanceForWallet,
+  logPaperBalanceBootstrapOnCreate,
+} from "../services/paperBalanceBootstrap";
 
 async function attributeReferralForNewUser(
   prisma: PrismaClient,
@@ -191,9 +195,19 @@ export async function runSyncUserAccountWeb(
 
   await Promise.all([referralPromise, pointsPromise]);
 
+  if (isNewUser) {
+    logPaperBalanceBootstrapOnCreate(normalizedAddress);
+  }
+
+  let virtualBalance = user.virtualBalance;
+  if (!isNewUser && virtualBalance <= 0) {
+    const repaired = await ensurePaperBalanceForWallet(prisma, normalizedAddress, "sync");
+    virtualBalance = repaired.virtualBalance;
+  }
+
   return {
     isNewUser,
-    virtualBalance: user.virtualBalance,
+    virtualBalance,
     totalPnl: user.totalPnl,
     tradesCount: user.tradesCount,
     onboardingCompleted: user.onboardingCompleted,

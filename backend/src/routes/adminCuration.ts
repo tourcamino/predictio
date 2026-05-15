@@ -14,6 +14,7 @@ import {
   getTemporalBandForUnix,
   isAutoPublish,
 } from "../services/eventCurationPipeline";
+import { collectCatalogDepthDiagnostics } from "../services/catalogDepthDiagnostics";
 
 const CACHE_KEY = "admin:azuro:football:14d:v2";
 const MAX_ACTIVE = 9;
@@ -44,6 +45,16 @@ export function registerAdminCurationRoutes(
   prisma: PrismaClient,
   publicLimiter: RequestHandler,
 ) {
+  /** DEV/ops: full catalog depth trace + pagination probe (admin key required). */
+  app.get("/api/admin/catalog-debug", requireXAdminKey, async (_req, res, next) => {
+    try {
+      const payload = await collectCatalogDepthDiagnostics(prisma);
+      res.json(payload);
+    } catch (e) {
+      next(e);
+    }
+  });
+
   app.get("/api/admin/azuro-raw-test", requireXAdminKey, async (_req, res, next) => {
     try {
       const url = process.env.AZURO_DATA_FEED_URL?.trim();

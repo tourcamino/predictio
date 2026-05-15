@@ -121,7 +121,7 @@ function isEventUnpredictableWithParams(
 }
 
 /** Minimum appeal to enter curation pool without prestige fixture. */
-const POOL_MIN_APPEAL_THRESHOLD = 110;
+export const POOL_MIN_APPEAL_THRESHOLD = 110;
 /** Auto-publish when appeal is high even without strict prestige gate. */
 const AUTO_PUBLISH_APPEAL_THRESHOLD = 130;
 
@@ -831,6 +831,7 @@ export function filterEuropeanUpcoming(
   });
 
   logEuropeanLeagueGateAudit(upcoming);
+  logItalianAppealPoolTrace(upcoming);
 
   const europeanGames = upcoming.filter((g) => {
     const leagueName = g.league?.name || "";
@@ -909,11 +910,101 @@ export function isAutoPublish(
 }
 
 /** Pool entry: allowed league + (UCL | prestige fixture | appeal >= threshold). */
-function qualifiesForAppealPool(g: RawAzuroGame, appealScore: number): boolean {
+export function qualifiesForAppealPool(g: RawAzuroGame, appealScore: number): boolean {
+  return explainAppealPoolRejection(g, appealScore).passes;
+}
+
+export function explainAppealPoolRejection(
+  g: RawAzuroGame,
+  appealScore: number,
+): {
+  passes: boolean;
+  reason: string;
+  isPrestigeFixture: boolean;
+  appealScore: number;
+  threshold: number;
+} {
   const leagueName = g.league?.name || "";
-  if (isUefaChampionsLeague(leagueName)) return true;
-  if (isPrestigeFixture({ raw: g, importanceScore: appealScore })) return true;
-  return appealScore >= POOL_MIN_APPEAL_THRESHOLD;
+  const prestige = isPrestigeFixture({ raw: g, importanceScore: appealScore });
+  if (isUefaChampionsLeague(leagueName)) {
+    return {
+      passes: true,
+      reason: "ucl",
+      isPrestigeFixture: prestige,
+      appealScore,
+      threshold: POOL_MIN_APPEAL_THRESHOLD,
+    };
+  }
+  if (prestige) {
+    return {
+      passes: true,
+      reason: "prestige_fixture",
+      isPrestigeFixture: true,
+      appealScore,
+      threshold: POOL_MIN_APPEAL_THRESHOLD,
+    };
+  }
+  if (appealScore >= POOL_MIN_APPEAL_THRESHOLD) {
+    return {
+      passes: true,
+      reason: "above_threshold",
+      isPrestigeFixture: false,
+      appealScore,
+      threshold: POOL_MIN_APPEAL_THRESHOLD,
+    };
+  }
+  return {
+    passes: false,
+    reason: "below_threshold",
+    isPrestigeFixture: false,
+    appealScore,
+    threshold: POOL_MIN_APPEAL_THRESHOLD,
+  };
+}
+
+/** Trace Italy-priority upcoming vs appeal pool (diagnostics only). */
+export function logItalianAppealPoolTrace(upcoming: RawAzuroGame[]): void {
+  for (const g of upcoming) {
+    if (!isItalianPriorityFixture(g)) continue;
+    const gameId = String(g.gameId || "").trim();
+    const league = g.league?.name ?? "";
+    const country = g.league?.country?.name ?? "";
+    const passesGate = isAllowedLeague(league, country, g.league?.slug);
+    if (!passesGate) {
+      const verdict = explainAllowedLeagueRejection(league, country, g.league?.slug);
+      console.log(
+        JSON.stringify({
+          tag: "appeal_pool_reject",
+          gameId,
+          league,
+          country,
+          importanceScore: null,
+          appealScore: computeAppealScore(g),
+          isPrestigeFixture: false,
+          reason: "league_not_whitelisted",
+          rejectionReason: verdict.rejectionReason,
+        }),
+      );
+      continue;
+    }
+    const appealScore = computeAppealScore(g);
+    const explained = explainAppealPoolRejection(g, appealScore);
+    if (!explained.passes) {
+      console.log(
+        JSON.stringify({
+          tag: "appeal_pool_reject",
+          gameId,
+          league,
+          country,
+          importanceScore: appealScore,
+          appealScore,
+          isPrestigeFixture: explained.isPrestigeFixture,
+          reason: explained.reason,
+          threshold: explained.threshold,
+        }),
+      );
+    }
+  }
 }
 
 function scoredFromRaw(g: RawAzuroGame): ScoredItalian {
@@ -989,7 +1080,7 @@ function logAppealCurationDiagnostics(
 }
 
 /** Finestra fino a ~60 giorni così entrano partite “tra un mese” e si riempie il catalogo. */
-const LOOKAHEAD_SEC_60D = 60 * 24 * 60 * 60;
+export const LOOKAHEAD_SEC_60D = 60 * 24 * 60 * 60;
 const BUCKET_SOON_SEC = 3 * 24 * 60 * 60;
 const BUCKET_MID_SEC = 14 * 24 * 60 * 60;
 
@@ -1282,7 +1373,23 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
   const allowedPool: ScoredItalian[] = [];
   for (const g of europeanGames) {
     const item = scoredFromRaw(g);
-    if (!qualifiesForAppealPool(g, item.importanceScore)) continue;
+    const explained = explainAppealPoolRejection(g, item.importanceScore);
+    if (!explained.passes) {
+      console.log(
+        JSON.stringify({
+          tag: "appeal_pool_reject",
+          gameId: String(g.gameId || "").trim(),
+          league: g.league?.name ?? "",
+          country: g.league?.country?.name ?? "",
+          importanceScore: item.importanceScore,
+          appealScore: explained.appealScore,
+          isPrestigeFixture: explained.isPrestigeFixture,
+          reason: explained.reason,
+          threshold: explained.threshold,
+        }),
+      );
+      continue;
+    }
     allowedPool.push(item);
   }
   allowedPool.sort(byImportanceThenKickoff);
@@ -1372,6 +1479,21 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     unionBerlinPresent,
   };
   console.log(JSON.stringify(pipelineLog));
+  console.log(
+    JSON.stringify({
+      tag: "catalog_depth_trace_compact",
+      rawIndexer: allGames.length,
+      stalePrematchRejected,
+      validFutureFootball,
+      futureWhitelisted,
+      futureItalianPool,
+      europeanLeagueGate: europeanGames.length,
+      allowedPoolAfterAppeal: allowedPool.length,
+      combinedPool: combinedPool.length,
+      picked: picked.length,
+      appealThreshold: POOL_MIN_APPEAL_THRESHOLD,
+    }),
+  );
   logAppealCurationDiagnostics(picked, sourceForPick, pipelineLog);
 
   const games: CurationGamePayload[] = picked.map(({ raw: g, importanceScore }) => {

@@ -27,7 +27,8 @@ export function usePaperWalletBalance() {
       walletAddress: walletKey ?? "",
       clientChainId: chainScope,
     }),
-    enabled: Boolean(isConnected && walletKey && chainId !== null),
+    /** Paper ledger is chain-agnostic; do not block reads on wrong/null chainId. */
+    enabled: Boolean(isConnected && walletKey),
     staleTime: 15_000,
   });
 
