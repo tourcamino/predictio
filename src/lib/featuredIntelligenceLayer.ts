@@ -118,7 +118,7 @@ export function editorialBriefingDescriptor(m: AzuroMarket): string {
   if (/\bformula\s*1\b|grand prix/i.test(comp) || m.sport === "f1" || m.sport === "motorsport") {
     return "Race weekend · grid outlook";
   }
-  if (/serie a|coppa italia/i.test(comp)) return "Italian football · night focus";
+  if (/serie a|coppa italia/i.test(comp)) return "Italian lane · night focus";
   if (m.editorialSlot === "tennisPremium") return "Court · premium lane";
   if (m.editorialSlot === "basketballPremium") return "Hardwood · premium lane";
   if (m.editorialSlot === "motorsportCombat") return "Motorsport · premium lane";

@@ -73,7 +73,7 @@ export function MarketsFilterDrawer(props: MarketsFilterDrawerProps) {
   const sports = useMemo(() => {
     return [
       ...(isFootballFocusEnabled() ? [] : [{ id: 'all', name: 'All Sports', emoji: '🏆' }]),
-      { id: 'football', name: 'Football', emoji: '⚽' },
+      { id: 'football', name: 'Soccer', emoji: '⚽' },
       ...(isFootballFocusEnabled()
         ? []
         : [

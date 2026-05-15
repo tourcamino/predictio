@@ -26,6 +26,7 @@ export function LiveMarkets() {
     if (marketsQuery.isPending && !marketsQuery.data) return [];
     const rows = marketsQuery.data?.markets;
     if (!rows?.length) return [];
+    if (marketsQuery.data?.rawFeedMode) return rows.slice(0, 36);
     return rows.slice(0, HOME_MARKET_CARD_COUNT);
   }, [marketsQuery.isPending, marketsQuery.data]);
 
@@ -34,8 +35,11 @@ export function LiveMarkets() {
   /** Foreground density cap — featured + two supporting + optional compact strip. */
   const intelligenceSlice = useMemo(() => {
     if (curatedSlice.length === 0) return [];
+    if (marketsQuery.data?.rawFeedMode) {
+      return curatedSlice.slice(0, 12);
+    }
     return orderForHomepageIntelligence(curatedSlice, catalogClock, 5);
-  }, [curatedSlice, catalogClock]);
+  }, [curatedSlice, catalogClock, marketsQuery.data?.rawFeedMode]);
 
   const featuredRow = intelligenceSlice[0];
   const supportingRows = intelligenceSlice.slice(1, 3);

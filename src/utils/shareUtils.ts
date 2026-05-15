@@ -136,6 +136,7 @@ export function generateAnalystProfileShareText(data: ShareAnalystProfileData): 
   const sportEmojis = sport.map(s => {
     const emojiMap: Record<string, string> = {
       'Football': '⚽',
+      'Soccer': '⚽',
       'MMA': '🥊',
       'Cricket': '🏏',
       'Basketball': '🏀',
@@ -163,6 +164,7 @@ export function generateReferralShareText(data: ShareReferralData): string {
   const sportEmojis = sport.map(s => {
     const emojiMap: Record<string, string> = {
       'Football': '⚽',
+      'Soccer': '⚽',
       'MMA': '🥊',
       'Cricket': '🏏',
       'Basketball': '🏀',

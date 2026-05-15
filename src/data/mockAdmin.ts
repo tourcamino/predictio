@@ -305,7 +305,7 @@ export const mockAnalytics: AnalyticsData = {
     { date: 'Apr 14', volume: 4200000, predictions: 9456 },
   ],
   sportDistribution: [
-    { sport: 'Football', percentage: 35, color: '#00FF87' },
+    { sport: 'Soccer', percentage: 35, color: '#00FF87' },
     { sport: 'Basketball', percentage: 22, color: '#FF6B35' },
     { sport: 'Cricket', percentage: 18, color: '#3580FF' },
     { sport: 'MMA', percentage: 12, color: '#FF3535' },
@@ -344,7 +344,7 @@ export const mockAnalytics: AnalyticsData = {
     { country: 'Philippines', flag: '🇵🇭', volume: 432000 },
   ],
   sportPerformance: [
-    { sport: 'Football', markets: 342, volume: 1470000, avgMarketSize: 4298, resolutionRate: 98.2, revenue: 11760 },
+    { sport: 'Soccer', markets: 342, volume: 1470000, avgMarketSize: 4298, resolutionRate: 98.2, revenue: 11760 },
     { sport: 'Basketball', markets: 198, volume: 924000, avgMarketSize: 4666, resolutionRate: 97.5, revenue: 7392 },
     { sport: 'Cricket', markets: 145, volume: 756000, avgMarketSize: 5213, resolutionRate: 96.8, revenue: 6048 },
     { sport: 'MMA', markets: 87, volume: 504000, avgMarketSize: 5793, resolutionRate: 99.1, revenue: 4032 },

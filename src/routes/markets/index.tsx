@@ -264,6 +264,7 @@ function MarketsPage() {
   });
   
   const allMarkets = marketsQuery.data?.markets || [];
+  const rawFeedCatalog = marketsQuery.data?.rawFeedMode === true;
   const canonicalCuratedCatalog = isCanonicalCuratedCatalog(allMarkets);
 
   /** True until the first successful response (includes automatic retry fetches). */
@@ -338,6 +339,8 @@ function MarketsPage() {
     if (!canonicalCuratedCatalog || sortBy !== 'featured') return [];
     return groupMarketsByEditorialSlot(filteredMarkets as AzuroMarket[]);
   }, [canonicalCuratedCatalog, sortBy, filteredMarkets]);
+
+  const effectiveDisplayCount = rawFeedCatalog ? Math.max(displayCount, 250) : displayCount;
 
   const sortedMarkets = useMemo(() => {
     if (canonicalCuratedCatalog && sortBy === 'featured') {
@@ -455,7 +458,7 @@ function MarketsPage() {
   }, [allMarkets]);
   
   // Paginated display
-  const displayedMarkets = sortedMarkets.slice(0, displayCount);
+  const displayedMarkets = sortedMarkets.slice(0, effectiveDisplayCount);
   
   // Filter chips
   const filterChips = [];
@@ -894,7 +897,7 @@ function MarketsPage() {
                         <p className="text-xs text-gray-500">
                           {canonicalCuratedCatalog
                             ? 'Editorial slot order — premium anchors, Italy-first, protocol identity — not raw score ranking'
-                            : `Browse ${isFootballFocusEnabled() ? 'football' : 'sports'} markets`}
+                            : `Browse sports markets`}
                         </p>
                       </div>
                       
@@ -936,7 +939,7 @@ function MarketsPage() {
                           <h3 className="font-syne text-xl font-bold mb-2">No markets right now</h3>
                           <p className="text-sm text-gray-500 max-w-md mx-auto">
                             The curated catalog is empty. Check back soon for new{' '}
-                            {isFootballFocusEnabled() ? 'football' : 'sports'} matches.
+                            sports matches.
                           </p>
                         </div>
                       </div>
@@ -964,13 +967,19 @@ function MarketsPage() {
                     ) : (
                       <>
                         <MarketsGrid
-                          markets={displayedMarkets.slice(0, MAX_FOOTBALL_MARKETS)}
+                          markets={
+                            rawFeedCatalog
+                              ? displayedMarkets
+                              : displayedMarkets.slice(0, MAX_FOOTBALL_MARKETS)
+                          }
                           viewMode={viewMode}
                           onMarketClick={handleMarketClick}
                         />
                         
                         {/* Load More */}
-                        {displayedMarkets.length > MAX_FOOTBALL_MARKETS && sortedMarkets.length > MAX_FOOTBALL_MARKETS && (
+                        {!rawFeedCatalog &&
+                          displayedMarkets.length > MAX_FOOTBALL_MARKETS &&
+                          sortedMarkets.length > MAX_FOOTBALL_MARKETS && (
                           <div className="col-span-full mt-8 text-center">
                             <button
                               onClick={handleLoadMore}
@@ -982,6 +991,11 @@ function MarketsPage() {
                               Showing {Math.min(MAX_FOOTBALL_MARKETS, displayedMarkets.length)} of {sortedMarkets.length} markets
                             </p>
                           </div>
+                        )}
+                        {rawFeedCatalog && sortedMarkets.length > 0 && (
+                          <p className="font-mono text-sm text-gray-500 mt-6 text-center">
+                            Showing {displayedMarkets.length} of {sortedMarkets.length} markets (raw feed mode)
+                          </p>
                         )}
                       </>
                     )}

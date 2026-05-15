@@ -197,6 +197,7 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
   markets: AzuroMarket[];
   total: number;
   source: "curated-api" | "empty";
+  rawFeedMode?: boolean;
 }> {
   try {
     const base = getApiBaseUrl().replace(/\/$/, "");
@@ -210,8 +211,19 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
     const data = (await res.json()) as {
       markets: CuratedMarketApiRow[];
       total: number;
+      rawFeedMode?: boolean;
     };
     const mapped = (data.markets ?? []).map(curatedApiRowToAzuroMarket);
+
+    if (data.rawFeedMode) {
+      const sorted = [...mapped].sort((a, b) => kickoffMsForSort(a) - kickoffMsForSort(b));
+      return {
+        markets: sorted,
+        total: data.total ?? sorted.length,
+        source: "curated-api",
+        rawFeedMode: true,
+      };
+    }
 
     let markets: AzuroMarket[];
     if (shouldUseBackendCuratedPassThrough(mapped)) {

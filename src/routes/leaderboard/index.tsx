@@ -152,7 +152,7 @@ function LeaderboardPage() {
               </div>
               <p className="text-gray-400 text-lg">
                 {isFootballFocusEnabled() 
-                  ? 'Top football traders ranked by performance'
+                  ? 'Top sports traders ranked by performance'
                   : 'Top traders on Predictio ranked by performance'
                 }
               </p>
@@ -161,17 +161,17 @@ function LeaderboardPage() {
               </p>
             </div>
 
-            {/* Football Focus Notice */}
+            {/* Narrow sport-scope notice (when football focus mode is on) */}
             {isFootballFocusEnabled() && (
               <div className="max-w-4xl mx-auto mb-8 p-4 bg-brand-green/10 border border-brand-green/30 rounded-lg">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">⚽</span>
                   <div>
                     <div className="font-semibold text-brand-green mb-1">
-                      Football Traders Only
+                      Sports traders — focused book
                     </div>
                     <p className="text-sm text-gray-400">
-                      Rankings based on football market trading activity. Champions League, Serie A, and top European competitions.
+                      Rankings based on sports market trading activity. Champions League, Serie A, and top European competitions.
                     </p>
                   </div>
                 </div>
@@ -563,6 +563,7 @@ function LeaderboardPage() {
                                   {analyst.sport.map((s, i) => (
                                     <span key={i} className="text-lg">
                                       {s === 'Football' && '⚽'}
+                                      {s === 'Soccer' && '⚽'}
                                       {s === 'MMA' && '🥊'}
                                       {s === 'Cricket' && '🏏'}
                                       {s === 'Basketball' && '🏀'}
@@ -607,7 +608,7 @@ function LeaderboardPage() {
                   </h3>
                   <p className="text-gray-400 mb-6">
                     {isFootballFocusEnabled()
-                      ? 'Apply as a Football Analyst and start earning USDC from your predictions.'
+                      ? 'Apply as a sports analyst and start earning USDC from your predictions.'
                       : 'Apply as an Analyst and start earning USDC from your predictions.'
                     }
                   </p>

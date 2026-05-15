@@ -4,7 +4,7 @@ import { useTRPCClient } from "~/trpc/react";
 import { fetchCuratedMarketsFromApi } from "~/utils/curatedMarketsApi";
 
 /**
- * Pre-generates OG images for the top Azuro football markets in the background
+ * Pre-generates OG images for the top curated sports markets in the background
  * so social previews resolve quickly when links are shared.
  */
 export function OGImagePreloader() {

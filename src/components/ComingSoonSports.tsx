@@ -18,7 +18,7 @@ export function ComingSoonSports() {
         </h2>
         
         <p className="text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed">
-          We're starting with football to build the best trading experience. More sports will be unlocked as the platform grows.
+          We're starting with a tight multisport core to build the best trading experience. More sports will be unlocked as the platform grows.
         </p>
       </div>
     </section>

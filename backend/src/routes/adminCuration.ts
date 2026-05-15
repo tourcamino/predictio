@@ -21,9 +21,18 @@ import {
   compareEditorialCatalogOrder,
   inferEditorialSlotForFixture,
 } from "../services/editorialCatalogOrchestrator";
+import { isRawFeedMode, rawFeedApiResponseCap } from "../services/emergencyRelaxMode";
+import { syncRawFeedGamesToPrisma } from "../services/rawFeedDbSync";
 
 const CACHE_KEY = "admin:azuro:football:14d:v2";
 const MAX_ACTIVE = 9;
+
+/** Throttle heavy DB upserts on each GET in raw mode. */
+let rawFeedLastDbSyncMs = 0;
+function rawFeedSyncMinIntervalMs(): number {
+  const n = Number(process.env.PREDICTIO_RAW_FEED_SYNC_MIN_INTERVAL_MS ?? "90000");
+  return Number.isFinite(n) && n >= 5000 ? Math.floor(n) : 90000;
+}
 
 /** Avoid hanging requests when Postgres is down or TCP stalls (default Prisma can wait a long time). */
 const DB_READ_TIMEOUT_MS = 8_000;
@@ -369,6 +378,113 @@ export function registerAdminCurationRoutes(
   /** Public list of founder-curated Azuro games (same chain as indexer). */
   app.get("/api/markets", publicLimiter, async (_req, res) => {
     try {
+      if (isRawFeedMode()) {
+        const { games, diagnostics } = await buildEuropeanCurationGamesPayload(new Set());
+        const apiCap = rawFeedApiResponseCap();
+        const out = games.slice(0, apiCap);
+
+        const nowMs = Date.now();
+        let dbWritten = 0;
+        let deactivated = 0;
+        if (nowMs - rawFeedLastDbSyncMs >= rawFeedSyncMinIntervalMs()) {
+          try {
+            const r = await syncRawFeedGamesToPrisma(prisma, games);
+            dbWritten = r.written;
+            deactivated = r.deactivated;
+            rawFeedLastDbSyncMs = nowMs;
+          } catch (syncErr) {
+            console.warn(
+              "[adminCuration] raw feed DB sync failed (still returning live payload):",
+              syncErr instanceof Error ? syncErr.message : syncErr,
+            );
+          }
+        }
+
+        let allocationByMarketId: Record<string, { allocation: number; percentage: number }> = {};
+        try {
+          const liquidity = await resolveCanonicalLiquidityState(prisma);
+          for (const row of liquidity.liquidityPerMarket) {
+            allocationByMarketId[row.marketId] = {
+              allocation: row.allocation,
+              percentage: row.percentage,
+            };
+          }
+        } catch (liqErr) {
+          console.warn(
+            "[adminCuration] raw feed — canonical liquidity snapshot failed:",
+            liqErr instanceof Error ? liqErr.message : liqErr,
+          );
+        }
+
+        const nowSec = Math.floor(nowMs / 1000);
+        const markets = out.map((r) => {
+          const startsAtDate = new Date(r.startsAt);
+          const lockedAt = new Date(startsAtDate.getTime() - 5 * 60 * 1000);
+          const timeToLock = Math.floor((lockedAt.getTime() - nowMs) / 1000);
+          const kickSec = Math.floor(startsAtDate.getTime() / 1000);
+          const marketId = `azuro-${r.gameId}`;
+          const paperLiq = allocationByMarketId[marketId];
+          const editorial = inferEditorialSlotForFixture({
+            leagueName: r.leagueName,
+            country: r.country,
+            homeTeam: r.homeTeam,
+            awayTeam: r.awayTeam,
+            importanceScore: r.importanceScore ?? 0,
+            sport: r.sport,
+            sportSlug: r.sportSlug,
+          });
+          return {
+            id: marketId,
+            gameId: r.gameId,
+            title: r.title,
+            homeTeam: r.homeTeam,
+            awayTeam: r.awayTeam,
+            homeImage: r.homeImage ?? null,
+            awayImage: r.awayImage ?? null,
+            leagueName: r.leagueName,
+            country: r.country,
+            startsAt: startsAtDate.toISOString(),
+            lockedAt: lockedAt.toISOString(),
+            status: String(r.status || "OPEN"),
+            result: null,
+            timeToLock,
+            importanceScore: r.importanceScore ?? 0,
+            autoPublish: r.autoPublish ?? true,
+            sport: r.sportSlug ?? r.sport ?? "football",
+            sportSlug: r.sportSlug ?? r.sport ?? "football",
+            temporalBand: getTemporalBandForUnix(nowSec, kickSec),
+            editorialSlot: editorial.slot,
+            selectionReason: editorial.selectionReason,
+            homeOdds: r.homeOdds ?? null,
+            drawOdds: r.drawOdds ?? null,
+            awayOdds: r.awayOdds ?? null,
+            paperLiquidityAllocation: paperLiq?.allocation ?? null,
+            paperLiquiditySharePct: paperLiq?.percentage ?? null,
+          };
+        });
+
+        const inv = diagnostics.emergencyInventory as Record<string, unknown> | undefined;
+        console.log(
+          JSON.stringify({
+            tag: "raw_feed_api_markets",
+            RAW_FEED_COUNT: diagnostics.totalFromAzuro,
+            NORMALIZED_COUNT: inv?.NORMALIZED_COUNT ?? null,
+            VALID_COUNT: inv?.VALID_COUNT ?? null,
+            PIPELINE_OUT: games.length,
+            API_COUNT: markets.length,
+            DB_WRITTEN_COUNT: dbWritten,
+            DEACTIVATED_PRIOR_OPEN: deactivated,
+          }),
+        );
+
+        return res.json({
+          markets,
+          total: markets.length,
+          liquidityMode: "raw-feed-mode",
+          rawFeedMode: true,
+        });
+      }
+
       let rows: Awaited<ReturnType<typeof prisma.curatedEvent.findMany>>;
       try {
         rows = await withDbTimeout(

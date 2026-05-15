@@ -415,7 +415,7 @@ function HistoryTab({
 }) {
   const seedRows = getCopySeedPredictionHistoryRows(
     walletLookup,
-    seedSports?.[0] ?? "Football",
+    seedSports?.[0] ?? "Soccer",
     seedSports,
   );
 
@@ -436,7 +436,7 @@ function HistoryTab({
             outcome: "Won" as const,
             profit: 45,
             date: Date.now() - 2 * 24 * 60 * 60 * 1000,
-            sport: "Football",
+            sport: "Soccer",
           },
           {
             id: "2",
@@ -444,7 +444,7 @@ function HistoryTab({
             outcome: "Lost" as const,
             profit: -25,
             date: Date.now() - 5 * 24 * 60 * 60 * 1000,
-            sport: "Football",
+            sport: "Soccer",
           },
         ];
 

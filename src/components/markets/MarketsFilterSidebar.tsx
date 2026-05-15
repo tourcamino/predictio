@@ -59,7 +59,7 @@ export function MarketsFilterSidebar({
 
   const sports = [
     ...(isFootballFocusEnabled() ? [] : [{ id: 'all', name: 'All Sports', emoji: '🏆' }]),
-    { id: 'football', name: 'Football', emoji: '⚽' },
+    { id: 'football', name: 'Soccer', emoji: '⚽' },
     ...(isFootballFocusEnabled() ? [] : [
       { id: 'basketball', name: 'Basketball', emoji: '🏀' },
       { id: 'tennis', name: 'Tennis', emoji: '🎾' },

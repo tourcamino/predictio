@@ -3,6 +3,8 @@
  *
  * - `PREDICTIO_EMERGENCY_RELAX` — disables strict premium whitelist + expands gates (legacy name).
  * - `PREDICTIO_EMERGENCY_INVENTORY_MODE` — **full funnel bypass**: minimal tradable checks only + forced min book.
+ * - `PREDICTIO_RAW_FEED_MODE` — **debug / survival**: Azuro → minimal validation only → full list (no editorial,
+ *   interest, Europe tier, premium, orchestrator). Intended to verify indexer depth; not final product behavior.
  */
 
 export function isEmergencyRelaxMode(): boolean {
@@ -20,8 +22,45 @@ export function isEmergencyInventoryMode(): boolean {
   return v === "true" || v === "1" || v === "yes";
 }
 
+/** Raw Azuro ingestion — bypasses all curated / editorial / interest / premium layers. */
+export function isRawFeedMode(): boolean {
+  const v = String(process.env.PREDICTIO_RAW_FEED_MODE ?? "").trim().toLowerCase();
+  return v === "true" || v === "1" || v === "yes";
+}
+
+/** Pages × pageSize (250) — indexer round-trips. Default 40 ≈ 10k rows max merged. */
+export function rawFeedMaxPages(): number {
+  const n = Number(process.env.PREDICTIO_RAW_FEED_MAX_PAGES ?? "40");
+  return Number.isFinite(n) && n >= 1 ? Math.min(120, Math.floor(n)) : 40;
+}
+
+/** Forward window from wall clock (seconds). Default 90d. */
+export function rawFeedWindowEndSec(wallSec: number): number {
+  const days = Number(process.env.PREDICTIO_RAW_FEED_LOOKAHEAD_DAYS ?? "90");
+  const d = Number.isFinite(days) && days >= 1 ? Math.min(365, Math.floor(days)) : 90;
+  return wallSec + d * 86400;
+}
+
+/** Max games returned by `buildEuropeanCurationGamesPayload` in raw mode (after minimal filter). */
+export function rawFeedPipelineMaxGames(): number {
+  const n = Number(process.env.PREDICTIO_RAW_FEED_PIPELINE_MAX ?? "3000");
+  return Number.isFinite(n) && n >= 50 ? Math.min(20000, Math.floor(n)) : 3000;
+}
+
+/** Max JSON rows returned by `GET /api/markets` in raw mode (full payload can be huge). */
+export function rawFeedApiResponseCap(): number {
+  const n = Number(process.env.PREDICTIO_RAW_FEED_API_CAP ?? "2500");
+  return Number.isFinite(n) && n >= 50 ? Math.min(10000, Math.floor(n)) : 2500;
+}
+
+/** Max rows written to `curated_events` on raw DB sync (boot / throttled GET). */
+export function rawFeedDbSyncCap(): number {
+  const n = Number(process.env.PREDICTIO_RAW_FEED_DB_CAP ?? "800");
+  return Number.isFinite(n) && n >= 10 ? Math.min(5000, Math.floor(n)) : 800;
+}
+
 export function isEmergencyCatalogBypass(): boolean {
-  return isEmergencyInventoryMode() || isEmergencyRelaxMode();
+  return isRawFeedMode() || isEmergencyInventoryMode() || isEmergencyRelaxMode();
 }
 
 /** Default 168h — combined with `curationLookaheadDays()` via `Math.max` in pipeline (never narrows below index horizon). */

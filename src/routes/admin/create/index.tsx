@@ -248,7 +248,7 @@ function CreateMarket() {
                         className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-brand-green transition-colors"
                       >
                         <option value="">Select sport...</option>
-                        <option value="Football">⚽ Football</option>
+                        <option value="Football">⚽ Soccer</option>
                         <option value="Basketball">🏀 Basketball</option>
                         <option value="Tennis">🎾 Tennis</option>
                         <option value="MMA">🥊 MMA</option>

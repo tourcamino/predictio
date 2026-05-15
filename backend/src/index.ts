@@ -21,6 +21,8 @@ import { registerAdminCurationRoutes } from "./routes/adminCuration";
 import { buildEuropeanCurationGamesPayload } from "./services/eventCurationPipeline";
 import { fetchAzuro1x2DecimalOddsByGameId } from "./services/azuroCuratorGraphql";
 import { cacheDel } from "./services/redisCache";
+import { isRawFeedMode } from "./services/emergencyRelaxMode";
+import { syncRawFeedGamesToPrisma } from "./services/rawFeedDbSync";
 import { referralCookieMiddleware } from "./middleware/referral";
 import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
@@ -153,6 +155,20 @@ function isAllowedCorsOrigin(origin: string | undefined): boolean {
  */
 async function autoSeedEventsOnBoot() {
   try {
+    if (isRawFeedMode()) {
+      const { games } = await buildEuropeanCurationGamesPayload(new Set());
+      const sync = await syncRawFeedGamesToPrisma(prisma, games);
+      console.log(
+        JSON.stringify({
+          tag: "boot_raw_feed_mode",
+          payloadGames: games.length,
+          DB_WRITTEN_COUNT: sync.written,
+          deactivatedOpenRows: sync.deactivated,
+        }),
+      );
+      return;
+    }
+
     const activeCount = await prisma.curatedEvent.count({
       where: { isActive: true, status: "OPEN" },
     });

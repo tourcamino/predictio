@@ -4,7 +4,7 @@ export function HowItWorks() {
       number: '01',
       title: 'Pick a Match',
       description:
-        'Choose a live football market.',
+        'Choose a live sports market.',
     },
     {
       number: '02',

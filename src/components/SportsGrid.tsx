@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router';
 export function SportsGrid() {
   // Map display names to sport keys from SPORT_METADATA
   const sports = [
-    { emoji: '⚽', name: 'Football', key: 'football' },
+    { emoji: '⚽', name: 'Soccer', key: 'football' },
     { emoji: '🏀', name: 'Basketball', key: 'basketball' },
     { emoji: '🎾', name: 'Tennis', key: 'tennis' },
     { emoji: '🥊', name: 'MMA/UFC', key: 'mma' },

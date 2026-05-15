@@ -13,7 +13,7 @@ export const mockAnalysts: Analyst[] = [
     bio: "Mostly PL / La Liga. Fewer tickets, smaller sizes — trying not to turn picks into noise.",
     featuredQuote:
       "Still figuring out what consistently works here; posting trades so friends can follow along.",
-    sport: ["Football"],
+    sport: ["Soccer"],
     verificationTier: null,
     roi: 9.2,
     winRate: 64,
@@ -34,10 +34,10 @@ export const mockAnalysts: Analyst[] = [
     wallet: "0x9b3c8e1f7a2d465089c4e2b7f1a5069384758291c",
     displayName: "EdgeRunner_Neo",
     avatar: "⚡",
-    bio: "Higher churn on football cards with occasional UFC spots. Wins and bruises both show up — size varies with conviction.",
+    bio: "Higher churn on match cards with occasional UFC spots. Wins and bruises both show up — size varies with conviction.",
     featuredQuote:
       "Paper trading first; sizing down after rough weeks. Nothing here is financial advice.",
-    sport: ["Football", "MMA"],
+    sport: ["Soccer", "MMA"],
     verificationTier: null,
     roi: 14.8,
     winRate: 56,
@@ -58,10 +58,10 @@ export const mockAnalysts: Analyst[] = [
     wallet: "0x4f6e2d9c8b1a073649f5e3d2c8b1a907564839201f",
     displayName: "FadePublic_Nika",
     avatar: "📉",
-    bio: "Looks for mispriced football sides when the board feels stretched. Win rate is mediocre; payoff asymmetry matters more.",
+    bio: "Looks for mispriced sides when the board feels stretched. Win rate is mediocre; payoff asymmetry matters more.",
     featuredQuote:
       "Care more about payoff skew than headline win rate — boring but keeps sizing sane.",
-    sport: ["Football"],
+    sport: ["Soccer"],
     verificationTier: null,
     roi: 11.3,
     winRate: 54,
@@ -265,7 +265,7 @@ export function getCopySeedPredictionHistoryRows(
   const now = Date.now();
   return rows
     .map((r, i) => {
-      const sport = r.sport ?? (sportFallback || "Football");
+      const sport = r.sport ?? (sportFallback || "Soccer");
       return {
         id: `copy-seed-${wallet.slice(2, 10)}-${i}`,
         event: r.event,
@@ -286,7 +286,7 @@ export const mockAffiliateContacts: AffiliateContact[] = [
     id: "c001",
     name: "FootballGuru UK",
     type: "creator",
-    sport: ["Football"],
+    sport: ["Soccer"],
     platform: "YouTube",
     followers: "2.1M",
     region: "UK",
@@ -308,7 +308,7 @@ export const mockAffiliateContacts: AffiliateContact[] = [
         status: "sent",
       },
     ],
-    notes: "Very engaged football audience. Mentioned crypto before.",
+    notes: "Very engaged sports audience. Mentioned crypto before.",
     addedAt: Date.now() - 86400000 * 5,
   },
   {
@@ -335,7 +335,7 @@ export const mockAffiliateContacts: AffiliateContact[] = [
     id: "c003",
     name: "BettingInsider Network",
     type: "network",
-    sport: ["Football", "MMA", "Tennis"],
+    sport: ["Soccer", "MMA", "Tennis"],
     platform: "Web",
     followers: "2,400 affiliates",
     region: "EU",
@@ -383,7 +383,7 @@ export const mockAffiliateContacts: AffiliateContact[] = [
     id: "c005",
     name: "SportsTech Media",
     type: "media",
-    sport: ["Football", "Basketball"],
+    sport: ["Soccer", "Basketball"],
     platform: "Web",
     followers: "450K readers/month",
     region: "Global",
@@ -416,7 +416,7 @@ export const mockNetworks: AffiliateNetwork[] = [
     website: "bettinginsider.com",
     reach: "2,400 affiliates · 15M users",
     affiliatesCount: 2400,
-    verticals: ["Football", "MMA", "Tennis", "Casino"],
+    verticals: ["Soccer", "MMA", "Tennis", "Casino"],
     contact: "partnerships@bettinginsider.com",
     proposedRevShare: 20,
     stage: "negotiating",

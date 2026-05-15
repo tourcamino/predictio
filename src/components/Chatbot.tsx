@@ -22,7 +22,7 @@ export function Chatbot() {
       id: '0',
       role: 'assistant',
       content:
-        "Hi! I'm your Predictio AI assistant. Ask about prediction markets, football context, fees, or how to trade on Base — I'll keep things transparent and concise.",
+        "Hi! I'm your Predictio AI assistant. Ask about prediction markets, sports context, fees, or how to trade on Base — I'll keep things transparent and concise.",
       timestamp: Date.now(),
     },
   ]);
@@ -100,13 +100,13 @@ export function Chatbot() {
       'How do prediction markets work here?',
       'How do I connect my wallet on Base?',
       'How do fees and the vault split work?',
-      'What should I check before trading a football market?',
+      'What should I check before trading a sports market?',
     ];
     const signedIn = [
       'Where do I see my portfolio and open positions?',
       'How do deposits and withdrawals work with USDC?',
       'How do fees and the vault split work?',
-      'What should I check before trading a football market?',
+      'What should I check before trading a sports market?',
       'How do I become an analyst?',
     ];
     return isConnected && address ? signedIn : guest;

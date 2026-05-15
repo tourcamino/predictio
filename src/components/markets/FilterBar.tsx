@@ -55,7 +55,7 @@ export function FilterBar({
 }: FilterBarProps) {
   const sports = [
     { id: 'all', name: 'All', emoji: '' },
-    { id: 'football', name: 'Football', emoji: '⚽' },
+    { id: 'football', name: 'Soccer', emoji: '⚽' },
     { id: 'basketball', name: 'Basketball', emoji: '🏀' },
     { id: 'tennis', name: 'Tennis', emoji: '🎾' },
     { id: 'mma', name: 'MMA', emoji: '🥊' },

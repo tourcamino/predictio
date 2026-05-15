@@ -4,6 +4,7 @@ import {
   type CurationGamePayload,
 } from "../services/eventCurationPipeline";
 import { notifyCatalogLiquidityChanged } from "../services/catalogLiquidityRebalance";
+import { isRawFeedMode } from "../services/emergencyRelaxMode";
 
 const prisma = new PrismaClient();
 
@@ -77,6 +78,10 @@ function isUpcomingTradeable(startsAt: Date, lockedAt: Date, now: Date): boolean
  * Uses pipeline payload + upsert (same strategy as boot seed), never skips existing gameId.
  */
 async function runCuratedCatalogRefill(now: Date): Promise<number> {
+  if (isRawFeedMode()) {
+    return 0;
+  }
+
   let refilled = 0;
 
   try {

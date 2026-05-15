@@ -167,7 +167,7 @@ function WhoIsThisForSection() {
       icon: "📱",
       title: "Content Creators",
       description:
-        "Football, MMA, Cricket, NBA — YouTube, TikTok, Instagram, X. Your audience already predicts. Monetize your audience with prediction markets.",
+        "Soccer, MMA, Cricket, NBA — YouTube, TikTok, Instagram, X. Your audience already predicts. Monetize your audience with prediction markets.",
     },
     {
       icon: "🎙️",
@@ -645,7 +645,7 @@ function NetworksSection({ onOpenContactModal }: { onOpenContactModal: () => voi
           <div className="mb-6">
             <div className="text-sm text-gray-400 mb-2">Verticals that convert:</div>
             <div className="flex flex-wrap items-center justify-center gap-2">
-              {["⚽ Premier League", "⚽ Serie A", "⚽ Champions League", "⚽ European football"].map(
+              {["⚽ Premier League", "⚽ Serie A", "⚽ Champions League", "⚽ Top European leagues"].map(
                 (sport, i) => (
                   <div
                     key={i}

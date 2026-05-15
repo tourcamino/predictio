@@ -70,7 +70,7 @@ export interface SportMetadata {
 
 export const SPORT_METADATA: Record<string, SportMetadata> = {
   football: {
-    name: 'Football',
+    name: 'Soccer',
     emoji: '⚽',
     color: '#00FF87',
     bgColor: 'bg-[#00FF87]',
@@ -352,7 +352,7 @@ export const mockMarkets: Market[] = [
     percentB: 35,
     predictions: 4521,
   },
-  // Regular Markets - Football
+  // Regular Markets - Soccer
   {
     id: 'market-6',
     sport: 'football',

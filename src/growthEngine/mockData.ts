@@ -221,6 +221,10 @@ export const dmTemplates: Record<string, string[]> = {
     "The El Clasico market split is actually more interesting than the odds suggest — sharp money moved in the last 2 hours in a direction most people aren't seeing.",
     "You seem to follow this match closely. The crowd is 45% Real Madrid but the volume distribution tells a different story.",
   ],
+  Soccer: [
+    "The El Clasico market split is actually more interesting than the odds suggest — sharp money moved in the last 2 hours in a direction most people aren't seeing.",
+    "You seem to follow this match closely. The crowd is 45% Real Madrid but the volume distribution tells a different story.",
+  ],
   Cricket: [
     "The India-Australia split shifted 8 points in the last hour after the pitch report. You'd find the movement pattern interesting.",
     "Most people are backing India but the $39K sitting on Australia is coming from accounts with a strong track record on World Cup finals.",

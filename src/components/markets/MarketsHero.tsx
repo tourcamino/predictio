@@ -26,7 +26,7 @@ export function MarketsHero({ searchQuery, onSearchChange, onSearchFocus }: Mark
         </h1>
 
         <p className="text-base sm:text-lg text-gray-500 mb-8 sm:mb-10 max-w-2xl mx-auto leading-relaxed">
-          Search across European premium football, court events, motorsport, and more — same glass
+          Search across multisport premium lanes, court events, motorsport, and more — same glass
           card language everywhere, built for focus over noise.
         </p>
 

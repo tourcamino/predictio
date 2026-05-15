@@ -62,7 +62,7 @@ export function MarketSelectionUI({
   // Sport filter buttons
   const sportFilters = [
     { key: 'all', label: 'All', count: markets.length },
-    { key: 'football', label: 'Football', count: markets.filter(m => normSport(m.sport) === 'football').length },
+    { key: 'football', label: 'Soccer', count: markets.filter(m => normSport(m.sport) === 'football').length },
     { key: 'basketball', label: 'Basketball', count: markets.filter(m => normSport(m.sport) === 'basketball').length },
     { key: 'mma', label: 'MMA', count: markets.filter(m => normSport(m.sport) === 'mma').length },
     { key: 'tennis', label: 'Tennis', count: markets.filter(m => normSport(m.sport) === 'tennis').length },

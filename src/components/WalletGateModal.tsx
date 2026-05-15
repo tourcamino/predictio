@@ -57,7 +57,7 @@ export function WalletGateModal({ isOpen, onClose }: WalletGateModalProps) {
                   <p className="mb-6 text-sm text-gray-400 leading-relaxed">
                     Receive{' '}
                     <span className="font-mono text-white">1,000</span> paper USDC and trade
-                    founder-curated football markets. Your balance syncs to this address.
+                    founder-curated sports markets. Your balance syncs to this address.
                   </p>
 
                   <ul className="mb-6 text-left text-sm text-gray-400 space-y-2 border border-white/10 rounded-lg px-4 py-3 bg-white/[0.02]">

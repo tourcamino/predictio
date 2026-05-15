@@ -12,6 +12,16 @@ const PRIORITY_COMPETITIONS = ["UEFA Champions League", "Serie A"];
 /** When founder curation is active, match Express `GET /api/markets` (max 12, importance ↓ then kickoff ↑). */
 const CURATED_MARKETS_CAP = 12;
 
+function isRawFeedModeEnv(): boolean {
+  const v = String(process.env.PREDICTIO_RAW_FEED_MODE ?? "").trim().toLowerCase();
+  return v === "true" || v === "1" || v === "yes";
+}
+
+function rawFeedApiCapFromEnv(): number {
+  const n = Number(process.env.PREDICTIO_RAW_FEED_API_CAP ?? "2500");
+  return Number.isFinite(n) && n >= 72 ? Math.min(10000, Math.floor(n)) : 2500;
+}
+
 function sortByCuratedMeta(
   markets: AzuroMarket[],
   curatedByGameId: Map<string, { importanceScore: number; startsAtMs: number }>,
@@ -65,6 +75,10 @@ export const getAzuroMarkets = baseProcedure
       }
     } catch (err) {
       console.warn("[getAzuroMarkets] Curated lookup skipped:", err);
+    }
+
+    if (isRawFeedModeEnv()) {
+      curatedByGameId = null;
     }
 
     // Wide Azuro pool — curation / caps happen below (no early 9-game indexer cap).
@@ -162,8 +176,9 @@ export const getAzuroMarkets = baseProcedure
       console.warn("[getAzuroMarkets] No markets after filters (Azuro + DB only).");
     }
 
-    const listCap =
-      curatedByGameId && curatedByGameId.size > 0
+    const listCap = isRawFeedModeEnv()
+      ? rawFeedApiCapFromEnv()
+      : curatedByGameId && curatedByGameId.size > 0
         ? CURATED_MARKETS_CAP
         : AZURO_FEED_LIST_CAP;
     const cappedMarkets = filteredMarkets.slice(0, listCap);
@@ -180,6 +195,7 @@ export const getAzuroMarkets = baseProcedure
         listCap,
         returned: cappedMarkets.length,
         hasFounderCuration: Boolean(curatedByGameId && curatedByGameId.size > 0),
+        rawFeedMode: isRawFeedModeEnv(),
       }),
     );
 

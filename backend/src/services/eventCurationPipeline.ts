@@ -31,6 +31,10 @@ import {
   guaranteedMinimumInventory,
   isEmergencyInventoryMode,
   isEmergencyRelaxMode,
+  isRawFeedMode,
+  rawFeedMaxPages,
+  rawFeedPipelineMaxGames,
+  rawFeedWindowEndSec,
 } from "./emergencyRelaxMode";
 import {
   computeGlobalInterestScore,
@@ -1382,6 +1386,184 @@ async function buildEmergencyInventoryCatalogPayload(
 }
 
 /**
+ * Emergency debug: Azuro → `emergencyMinimalTradable` (no decimal odds requirement) → chronological list.
+ * No editorial, interest, Europe tier, premium, or orchestrator.
+ */
+async function buildRawFeedCatalogPayload(
+  selectedGameIds: Set<string>,
+  wallSec: number,
+  nowSec: number,
+  options?: { openActiveCount?: number },
+): Promise<{
+  games: CurationGamePayload[];
+  diagnostics: {
+    totalFromAzuro: number;
+    footballGames: number;
+    footballInWindowCount: number;
+    europeanLeagueGateCount: number;
+    afterPrestigeStrictUnpred: number;
+    combinedPoolSize: number;
+    topMatchScoreOver80: number;
+    pickedCount: number;
+    editorialSlots?: EditorialOrchestrationDiagnostics["editorialSlots"];
+    editorialSlotSamples?: EditorialOrchestrationDiagnostics["samples"];
+    editorialRedistributions?: string[];
+    multisportPremiumPool?: number;
+    multisportBySport?: Record<string, number>;
+    emergencyInventory?: Record<string, unknown>;
+  };
+}> {
+  const windowEndSec = rawFeedWindowEndSec(wallSec);
+  const allGames = await fetchAzuroGames({
+    minStartsAtSec: nowSec,
+    maxPages: rawFeedMaxPages(),
+  });
+
+  let normalizedCount = 0;
+  const rejection: Record<string, number> = {};
+  const bump = (r: string) => {
+    rejection[r] = (rejection[r] ?? 0) + 1;
+  };
+
+  const merged: ScoredItalian[] = [];
+  for (const g of allGames) {
+    const gid = String(g.gameId || g.id || "").trim();
+    const k = kickoffSecFromRaw(g);
+    if (gid && k != null && Number.isFinite(k)) normalizedCount += 1;
+
+    const v = emergencyMinimalTradable(g, nowSec, windowEndSec, false);
+    if (!v.ok) {
+      bump(v.reason || "rejected");
+      continue;
+    }
+    merged.push({ raw: g, importanceScore: 0 });
+  }
+
+  merged.sort(
+    (a, b) => parseInt(String(a.raw.startsAt), 10) - parseInt(String(b.raw.startsAt), 10),
+  );
+
+  const maxOut = rawFeedPipelineMaxGames();
+  const picked = merged.slice(0, maxOut);
+
+  const metaByGameId = new Map<string, EditorialPickMeta>();
+  for (const it of picked) {
+    const gid = String(it.raw.gameId || "").trim();
+    if (!gid) continue;
+    metaByGameId.set(gid, {
+      slot: "adaptiveFallback",
+      selectionReason: "raw-feed-mode",
+    });
+  }
+
+  const topReasons = Object.entries(rejection)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 24);
+
+  const multisportBySport: Record<string, number> = {};
+  for (const it of merged) {
+    const sp = canonicalSportFromRaw(it.raw) ?? "unknown";
+    multisportBySport[sp] = (multisportBySport[sp] ?? 0) + 1;
+  }
+
+  const brutal = {
+    tag: "RAW_FEED_MODE_COUNTS",
+    RAW_FEED_COUNT: allGames.length,
+    NORMALIZED_COUNT: normalizedCount,
+    VALID_COUNT: merged.length,
+    PIPELINE_CAPPED_COUNT: picked.length,
+    SELECTED_COUNT: picked.length,
+    RENDERED_COUNT: picked.length,
+    DB_WRITTEN_COUNT: null as number | null,
+    API_COUNT: null as number | null,
+    TOP_REJECTION_REASONS: topReasons,
+    WINDOW_END_SEC: windowEndSec,
+    NOW_SEC: nowSec,
+    openActiveCount: options?.openActiveCount ?? null,
+    maxPages: rawFeedMaxPages(),
+    pipelineMax: maxOut,
+  };
+
+  const footballGames = allGames.filter((g) => rawGameIsFootball(g)).length;
+  const games: CurationGamePayload[] = picked.map(({ raw: g, importanceScore }) => {
+    const gid = String(g.gameId || "").trim();
+    const slotMeta = metaByGameId.get(gid);
+    const sorted = sortParticipants(g.participants);
+    const kickoff = parseInt(String(g.startsAt), 10);
+    const homeTeam = displayTeamName(sorted[0]?.name?.trim() || "TBD");
+    const awayTeam = displayTeamName(sorted[1]?.name?.trim() || "TBD");
+    const rawTitle = typeof g.title === "string" ? g.title.trim() : "";
+    const title =
+      rawTitle.length > 0
+        ? rawTitle
+            .replace(/Inter\s+Milan/gi, "Inter")
+            .replace(/FC\s+Internazionale\s+Milano/gi, "Inter")
+        : `${homeTeam} vs ${awayTeam}`;
+    const odds = extract1x2DecimalOddsFromRawGame(g);
+    const temporalBand = getTemporalBandForUnix(wallSec, kickoff);
+    const canonicalSport = canonicalSportFromRaw(g) ?? "football";
+    const sportSlug = canonicalSportToUiSlug(canonicalSport);
+
+    return {
+      id: gid,
+      gameId: gid,
+      title,
+      sport: sportSlug,
+      sportSlug,
+      competition: g.league?.name || "",
+      leagueName: g.league?.name || "",
+      country: g.league?.country?.name || "",
+      homeTeam,
+      awayTeam,
+      homeImage: sorted[0]?.image ?? null,
+      awayImage: sorted[1]?.image ?? null,
+      startsAt: new Date(kickoff * 1000).toISOString(),
+      startsAtUnix: kickoff,
+      status: "OPEN",
+      isSelected: selectedGameIds.has(gid),
+      importanceScore,
+      autoPublish: true,
+      homeOdds: odds.homeOdds,
+      drawOdds: odds.drawOdds,
+      awayOdds: odds.awayOdds,
+      temporalBand,
+      editorialSlot: slotMeta?.slot,
+      selectionReason: slotMeta?.selectionReason,
+    };
+  });
+
+  brutal.RENDERED_COUNT = games.length;
+  brutal.API_COUNT = games.length;
+  console.log(JSON.stringify(brutal));
+  console.log(
+    JSON.stringify({
+      tag: "raw_feed_mode_counts_compact",
+      RAW_FEED_COUNT: brutal.RAW_FEED_COUNT,
+      NORMALIZED_COUNT: brutal.NORMALIZED_COUNT,
+      VALID_COUNT: brutal.VALID_COUNT,
+      RENDERED_COUNT: brutal.RENDERED_COUNT,
+    }),
+  );
+
+  return {
+    games,
+    diagnostics: {
+      totalFromAzuro: allGames.length,
+      footballGames,
+      footballInWindowCount: merged.filter((m) => rawGameIsFootball(m.raw)).length,
+      europeanLeagueGateCount: merged.length,
+      afterPrestigeStrictUnpred: merged.length,
+      combinedPoolSize: merged.length,
+      topMatchScoreOver80: 0,
+      pickedCount: games.length,
+      multisportPremiumPool: merged.filter((m) => !rawGameIsFootball(m.raw)).length,
+      multisportBySport,
+      emergencyInventory: brutal,
+    },
+  };
+}
+
+/**
  * Fetch Azuro Prematch games, filter football ~60d + allowed leagues,
  * rank by Market Appeal Score (unpredictability = bonus, not gate), pick 9 across SOON/MID/LATER.
  */
@@ -1409,6 +1591,9 @@ export async function buildEuropeanCurationGamesPayload(
 }> {
   const wallSec = Math.floor(Date.now() / 1000);
   const nowSec = wallSec - emergencyFetchNowSkewSec();
+  if (isRawFeedMode()) {
+    return buildRawFeedCatalogPayload(selectedGameIds, wallSec, nowSec, options);
+  }
   if (isEmergencyInventoryMode()) {
     return buildEmergencyInventoryCatalogPayload(selectedGameIds, wallSec, nowSec, options);
   }

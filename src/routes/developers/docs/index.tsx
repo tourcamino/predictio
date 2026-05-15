@@ -488,7 +488,7 @@ function DocsPage() {
                 <div className="bg-[#111111] border border-[#00D97E]/20 rounded-lg p-4 mb-4">
                   <h4 className="font-bold mb-2">Query Parameters</h4>
                   <ul className="space-y-2 text-sm text-[#999999]">
-                    <li><code className="text-[#00D97E]">sport</code> - Filter by sport (e.g., "football", "basketball")</li>
+                    <li><code className="text-[#00D97E]">sport</code> - Filter by sport slug (e.g. soccer lane uses <code className="text-[#00D97E]">football</code>, plus basketball, tennis, …)</li>
                     <li><code className="text-[#00D97E]">status</code> - Filter by status ("open", "closed", "resolved")</li>
                     <li><code className="text-[#00D97E]">sort</code> - Sort by "volume" or "closes_at"</li>
                     <li><code className="text-[#00D97E]">limit</code> - Results per page (default: 20, max: 100)</li>

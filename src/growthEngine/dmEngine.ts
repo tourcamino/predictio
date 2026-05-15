@@ -28,7 +28,7 @@ function generateId(): string {
 
 export function generateDM(user: TrackedUser): string {
   const templates =
-    dmTemplates[user.sport] ?? dmTemplates.Football ?? [];
+    dmTemplates[user.sport] ?? dmTemplates.Soccer ?? dmTemplates.Football ?? [];
   return (
     templates[Math.floor(Math.random() * templates.length)] ??
     "Hey — curious what you think about tonight's line on Predictio."
