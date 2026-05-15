@@ -88,7 +88,9 @@ async function runCuratedCatalogRefill(now: Date): Promise<number> {
       return 0;
     }
 
-    const { games } = await buildEuropeanCurationGamesPayload(openActiveSet);
+    const { games } = await buildEuropeanCurationGamesPayload(openActiveSet, {
+      openActiveCount: openCount,
+    });
 
     const candidates = [...games].sort((a, b) => b.importanceScore - a.importanceScore);
 

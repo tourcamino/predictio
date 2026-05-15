@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { fetchAzuroGames, type RawAzuroGame } from "./azuroCuratorGraphql";
 import {
   buildEuropeanCurationGamesPayload,
+  classifyLeagueTier,
   explainAllowedLeagueRejection,
   explainAppealPoolRejection,
   filterEuropeanUpcoming,
@@ -82,8 +83,34 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
   const nowSec = Math.floor(Date.now() / 1000);
   const windowEndSec = nowSec + LOOKAHEAD_SEC_60D;
 
+  const openActiveCount = await prisma.curatedEvent.count({
+    where: { isActive: true, status: "OPEN" },
+  });
+
   const allGames = await fetchAzuroGames({ minStartsAtSec: nowSec });
-  const filterResult = filterEuropeanUpcoming(allGames, nowSec, windowEndSec);
+  const filterResult = filterEuropeanUpcoming(allGames, nowSec, windowEndSec, {
+    openActiveCount,
+  });
+
+  const tierAccepted: { A: ReturnType<typeof sampleRows>; B: ReturnType<typeof sampleRows>; C: ReturnType<typeof sampleRows> } = {
+    A: [],
+    B: [],
+    C: [],
+  };
+  const tierRejectedSample: Array<Record<string, unknown>> = [];
+
+  for (const g of filterResult.upcoming) {
+    const league = g.league?.name ?? "";
+    const country = g.league?.country?.name ?? "";
+    const cls = classifyLeagueTier(league, country, g.league?.slug);
+    const row = sampleRows([g], 1)[0];
+    if (cls.tier === "A" && tierAccepted.A.length < 5) tierAccepted.A.push(row);
+    else if (cls.tier === "B" && tierAccepted.B.length < 5) tierAccepted.B.push(row);
+    else if (cls.tier === "C" && tierAccepted.C.length < 5) tierAccepted.C.push(row);
+    else if (!cls.tier && tierRejectedSample.length < 8) {
+      tierRejectedSample.push({ ...row, reason: cls.rejectionReason });
+    }
+  }
 
   const europeanAfterGate = filterResult.europeanGames;
   const appealPassed: RawAzuroGame[] = [];
@@ -138,7 +165,9 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
   const italianInUpcoming = filterResult.upcoming.filter((g) => isItalianPriorityFixture(g));
   const italianInAppealPool = appealPassed.filter((g) => isItalianPriorityFixture(g));
 
-  const { games: picked, diagnostics } = await buildEuropeanCurationGamesPayload(new Set());
+  const { games: picked, diagnostics } = await buildEuropeanCurationGamesPayload(new Set(), {
+    openActiveCount,
+  });
 
   const openActive = await prisma.curatedEvent.findMany({
     where: { isActive: true, status: "OPEN" },
@@ -239,6 +268,13 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
     futureFootball: filterResult.validFutureFootball,
     futureWhitelisted: filterResult.futureWhitelisted,
     futureItalianPool: filterResult.futureItalianPool,
+    tierA: filterResult.tierA,
+    tierB: filterResult.tierB,
+    tierC: filterResult.tierC,
+    tierCActivated: filterResult.tierCActivated,
+    rejectedByTier: filterResult.rejectedByTier,
+    tierAccepted,
+    tierRejectedSample,
     appealPool: appealPassed.length,
     combinedPool: diagnostics.combinedPoolSize,
     picked: diagnostics.pickedCount,
