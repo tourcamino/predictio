@@ -9,7 +9,7 @@ export function DemoBadge({ size = 'md' }: { size?: BadgeSize }) {
   
   return (
     <span
-      className={`inline-flex items-center gap-1 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded font-bold ${sizeClasses[size]}`}
+      className={`inline-flex items-center gap-1 bg-brand-green/20 text-brand-green border border-brand-green/30 rounded font-bold ${sizeClasses[size]}`}
     >
       DEMO
     </span>

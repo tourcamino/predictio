@@ -593,30 +593,6 @@ function MarketsPage() {
       />
       {/* Main Content Area with Sidebar */}
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {/* Azuro Status Indicator */}
-          {marketsQuery.isSuccess && allMarkets.length > 0 && marketsQuery.data?.source === 'curated-api' && (
-            <div className="mb-6 px-4 py-3 bg-brand-green/10 border border-brand-green/30 rounded-lg flex items-center gap-3">
-              <span className="text-brand-green text-xl">✓</span>
-              <div className="flex-1">
-                <span className="text-brand-green font-semibold">
-                  Founder-curated catalog — odds from Azuro (Predictio API)
-                </span>
-                <span className="text-gray-400 text-sm ml-2">· Updates every 60 seconds</span>
-              </div>
-            </div>
-          )}
-          {marketsQuery.isSuccess && allMarkets.length === 0 && (
-            <div className="mb-6 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center gap-3">
-              <span className="text-amber-400 text-xl">!</span>
-              <div className="flex-1 text-sm">
-                <span className="text-amber-200 font-semibold">No events loaded.</span>
-                <span className="text-gray-400 ml-2">
-                  Ensure the curated API returns rows, Postgres has active curated events, and `AZURO_DATA_FEED_URL` / indexer is reachable.
-                </span>
-              </div>
-            </div>
-          )}
-
           {/* Search Bar - Above the grid */}
           <div className="mb-6">
             <div className="relative">
@@ -909,10 +885,10 @@ function MarketsPage() {
                         <h2 className="font-syne text-2xl sm:text-3xl font-bold mb-1">
                           {canonicalCuratedCatalog ? 'Curated markets' : 'All Markets'}
                         </h2>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-xs text-gray-500">
                           {canonicalCuratedCatalog
-                            ? 'Editorial order from the protocol catalog — same ranking as the homepage'
-                            : `Browse all available ${isFootballFocusEnabled() ? 'football' : 'sports'} markets`}
+                            ? 'Curated football markets · Paper USDC · Pre-testnet'
+                            : `Browse ${isFootballFocusEnabled() ? 'football' : 'sports'} markets`}
                         </p>
                       </div>
                       
@@ -951,9 +927,10 @@ function MarketsPage() {
                           <div className="inline-flex items-center justify-center w-20 h-20 bg-white/5 rounded-full mb-6">
                             <span className="text-4xl">⚽</span>
                           </div>
-                          <h3 className="font-syne text-2xl font-bold mb-3">No markets available</h3>
-                          <p className="text-gray-400 mb-6 max-w-md mx-auto">
-                            Check back soon for new {isFootballFocusEnabled() ? 'football' : 'sports'} markets.
+                          <h3 className="font-syne text-xl font-bold mb-2">No markets right now</h3>
+                          <p className="text-sm text-gray-500 max-w-md mx-auto">
+                            The curated catalog is empty. Check back soon for new{' '}
+                            {isFootballFocusEnabled() ? 'football' : 'sports'} matches.
                           </p>
                         </div>
                       </div>

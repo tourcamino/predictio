@@ -1,5 +1,8 @@
 import { PrismaClient } from "@prisma/client";
-import { buildEuropeanCurationGamesPayload } from "../services/eventCurationPipeline";
+import {
+  buildEuropeanCurationGamesPayload,
+  type CurationGamePayload,
+} from "../services/eventCurationPipeline";
 
 const prisma = new PrismaClient();
 
@@ -32,13 +35,47 @@ async function checkAzuroResolution(gameId: string) {
     }
     return null;
   } catch (e) {
-     
     console.error("[MarketUpdater] Azuro check failed:", e instanceof Error ? e.message : e);
     return null;
   }
 }
 
-async function runAutoPublishImportant() {
+function buildRowDataFromPipeline(event: CurationGamePayload, startsAt: Date, lockedAt: Date) {
+  return {
+    title: event.title,
+    leagueName: event.leagueName,
+    country: event.country,
+    startsAt,
+    lockedAt,
+    homeTeam: event.homeTeam,
+    awayTeam: event.awayTeam,
+    homeImage: event.homeImage ?? undefined,
+    awayImage: event.awayImage ?? undefined,
+    status: "OPEN" as const,
+    resolvedAt: null,
+    result: null,
+    isActive: true,
+    selectedBy: "AUTO",
+    importanceScore: event.importanceScore,
+    autoPublish: event.autoPublish,
+    homeOdds: event.homeOdds ?? undefined,
+    drawOdds: event.drawOdds ?? undefined,
+    awayOdds: event.awayOdds ?? undefined,
+  };
+}
+
+/** Upcoming trade window only — never reopen kickoff-past fixtures. */
+function isUpcomingTradeable(startsAt: Date, lockedAt: Date, now: Date): boolean {
+  return startsAt.getTime() > now.getTime() && lockedAt.getTime() > now.getTime();
+}
+
+/**
+ * Refill curated catalog to MAX_ACTIVE_CURATED OPEN rows.
+ * Uses pipeline payload + upsert (same strategy as boot seed), never skips existing gameId.
+ */
+async function runCuratedCatalogRefill(now: Date): Promise<number> {
+  let refilled = 0;
+
   try {
     const openActiveRows = await prisma.curatedEvent.findMany({
       where: { isActive: true, status: "OPEN" },
@@ -46,56 +83,64 @@ async function runAutoPublishImportant() {
     });
     const openActiveSet = new Set(openActiveRows.map((r) => r.gameId));
     let openCount = openActiveSet.size;
-    if (openCount >= MAX_ACTIVE_CURATED) return;
+
+    if (openCount >= MAX_ACTIVE_CURATED) {
+      return 0;
+    }
 
     const { games } = await buildEuropeanCurationGamesPayload(openActiveSet);
 
-    const autoCandidates = games
-      .filter((g) => g.autoPublish && !openActiveSet.has(g.gameId))
-      .sort((a, b) => b.importanceScore - a.importanceScore);
+    const candidates = [...games].sort((a, b) => b.importanceScore - a.importanceScore);
 
-    for (const event of autoCandidates) {
+    for (const event of candidates) {
       if (openCount >= MAX_ACTIVE_CURATED) break;
+
+      const gameId = String(event.gameId || "").trim();
+      if (!gameId || openActiveSet.has(gameId)) continue;
 
       const startsAt = new Date(event.startsAt);
       const lockedAt = new Date(startsAt.getTime() - 5 * 60 * 1000);
+      if (!isUpcomingTradeable(startsAt, lockedAt, now)) continue;
 
-      const rowData = {
-        title: event.title,
-        leagueName: event.leagueName,
-        country: event.country,
-        startsAt,
-        lockedAt,
-        homeTeam: event.homeTeam,
-        awayTeam: event.awayTeam,
-        homeImage: event.homeImage ?? undefined,
-        awayImage: event.awayImage ?? undefined,
-        status: "OPEN" as const,
-        resolvedAt: null,
-        result: null,
-        isActive: true,
-        selectedBy: "AUTO",
-        importanceScore: event.importanceScore,
-        autoPublish: true,
-        homeOdds: event.homeOdds ?? undefined,
-        drawOdds: event.drawOdds ?? undefined,
-        awayOdds: event.awayOdds ?? undefined,
-      };
+      const existing = await prisma.curatedEvent.findUnique({
+        where: { gameId },
+        select: { status: true },
+      });
+
+      if (existing?.status === "RESOLVED") continue;
+
+      const rowData = buildRowDataFromPipeline(event, startsAt, lockedAt);
+      const action = existing ? "reactivated" : "created";
 
       await prisma.curatedEvent.upsert({
-        where: { gameId: event.gameId },
-        create: { gameId: event.gameId, ...rowData },
+        where: { gameId },
+        create: { gameId, ...rowData },
         update: rowData,
       });
 
       openCount += 1;
-      openActiveSet.add(event.gameId);
+      refilled += 1;
+      openActiveSet.add(gameId);
 
-      console.log("[AutoPublish]", event.title);
+      console.log(
+        JSON.stringify({
+          tag: "curated_catalog_refill",
+          gameId,
+          action,
+          title: event.title,
+          startsAt: startsAt.toISOString(),
+          openActiveAfter: openCount,
+        }),
+      );
     }
   } catch (e) {
-    console.error("[MarketUpdater] Auto-publish failed:", e instanceof Error ? e.message : e);
+    console.error(
+      "[MarketUpdater] Curated catalog refill failed:",
+      e instanceof Error ? e.message : e,
+    );
   }
+
+  return refilled;
 }
 
 export async function updateMarketStatuses() {
@@ -139,19 +184,21 @@ export async function updateMarketStatuses() {
       console.log(`[MarketUpdater] Resolved market: ${market.title} → ${resolved.result}`);
     }
 
-    await runAutoPublishImportant();
+    const refilled = await runCuratedCatalogRefill(now);
 
     const [openActive, locked, inactive] = await Promise.all([
       prisma.curatedEvent.count({ where: { isActive: true, status: "OPEN" } }),
       prisma.curatedEvent.count({ where: { status: "LOCKED" } }),
       prisma.curatedEvent.count({ where: { isActive: false } }),
     ]);
+
     console.log(
       JSON.stringify({
         tag: "curated_catalog_health",
         openActive,
         locked,
         inactive,
+        refilled,
         cap: MAX_ACTIVE_CURATED,
       }),
     );
@@ -169,8 +216,8 @@ if (!g.__predictioMarketStatusScheduler) {
   g.__predictioMarketStatusScheduler = true;
 
   /**
-   * Curated OPEN→LOCKED→RESOLVED + auto-publish top Azuro rows.
-   * One interval per Node process; Docker `--force-recreate` replaces the process (no stacking across deploys).
+   * Curated OPEN→LOCKED→RESOLVED + refill to 9 OPEN active via upsert.
+   * One interval per Node process; Docker `--force-recreate` replaces the process.
    */
   setInterval(() => {
     void updateMarketStatuses().catch((e) => {

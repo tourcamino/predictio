@@ -231,68 +231,46 @@ function MarketDetailPage() {
             
             {/* RESOLVED Banner */}
             {lifecycleStatus === 'resolved' && market.result && (
-              <div className={`p-6 rounded-lg border-2 ${
-                market.result === 'yes'
-                  ? 'bg-green-500/20 border-green-500/50'
-                  : 'bg-cyan-500/20 border-cyan-500/50'
-              }`}>
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-3xl">✅</span>
-                  <div>
-                    <h3 className={`text-2xl font-bold ${
-                      market.result === 'yes' ? 'text-green-400' : 'text-cyan-400'
-                    }`}>
-                      {market.result === 'yes' ? `${market.teamA} Won` : `${market.teamB} Won`}
-                    </h3>
-                    <p className="text-sm text-gray-300 mt-1">
-                      Final result confirmed by Azuro oracle
-                    </p>
-                  </div>
+              <div className="mb-4 px-4 py-3 border border-white/10 rounded-lg bg-white/5">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 text-xs font-semibold rounded bg-white/10 text-gray-300">
+                    Resolved
+                  </span>
+                  <span className="text-sm text-gray-300">
+                    {market.result === 'yes' ? `${market.teamA} won` : `${market.teamB} won`}
+                  </span>
+                  {market.resolved_at && (
+                    <span className="text-xs text-gray-500 font-mono">
+                      · {market.resolved_at.toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  )}
                 </div>
-                {market.resolved_at && (
-                  <div className="text-sm text-gray-400 font-mono">
-                    Resolved {market.resolved_at.toLocaleString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </div>
-                )}
-                <div className="mt-4 pt-4 border-t border-white/20 space-y-3">
-                  <p className="text-sm text-gray-300">
-                    Winning positions settle automatically; visit your portfolio to review balances and history.
-                  </p>
-                  <Link
-                    to="/portfolio"
-                    className="inline-flex text-sm font-semibold text-brand-green hover:text-brand-cyan transition-colors"
-                  >
-                    Open portfolio →
+                <p className="text-sm text-gray-500">
+                  Settlements run automatically.{' '}
+                  <Link to="/portfolio" className="text-brand-green hover:text-brand-cyan">
+                    View portfolio
                   </Link>
-                </div>
+                </p>
               </div>
             )}
 
             {/* LOCKED Banner */}
             {lifecycleStatus === 'locked' && (
-              <div className="p-6 bg-orange-500/20 border-2 border-orange-500/50 rounded-lg">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-3xl">🔒</span>
-                  <div>
-                    <h3 className="text-2xl font-bold text-orange-400">Market Locked</h3>
-                    <p className="text-sm text-gray-300 mt-1">
-                      Trading closed at kickoff
-                    </p>
-                  </div>
+              <div className="mb-4 px-4 py-3 border border-white/10 rounded-lg bg-white/5">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 text-xs font-semibold rounded bg-white/10 text-gray-300">
+                    Locked
+                  </span>
+                  <span className="text-sm text-gray-500">Trading closed at kickoff</span>
                 </div>
-                <div className="mt-4 space-y-2 text-sm text-gray-300">
-                  <p>
-                    This market will resolve automatically when the final result is confirmed.
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    Result provided by Azuro Protocol oracle
-                  </p>
-                </div>
+                <p className="text-sm text-gray-500">
+                  Resolves when the final result is confirmed by the oracle.
+                </p>
               </div>
             )}
 

@@ -11,7 +11,7 @@ import { useWallet } from '~/store/useWalletStore';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
-import { LP_SEEDED_EXPLAINER, LP_SEEDED_SHORT } from '~/lib/economySurface';
+import { LP_SEEDED_SHORT } from '~/lib/economySurface';
 
 export const Route = createFileRoute('/liquidity/')({
   component: LiquidityPage,
@@ -71,13 +71,9 @@ function LiquidityPage() {
               One protocol vault shares paper USDC across founder-curated markets.
               Earn a proportional share of trading fees when volume is live.
             </p>
-            <div className="mt-4 max-w-2xl mx-auto rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90">
-              Pre-testnet preview — deposits and allocations are simulated; on-chain vault and live trading are not live yet.
-            </div>
-            <div className="mt-6 max-w-3xl mx-auto rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-left text-sm text-gray-300">
-              <p className="font-semibold text-white/90 mb-1">{LP_SEEDED_SHORT}</p>
-              <p className="text-gray-400 leading-relaxed">{LP_SEEDED_EXPLAINER}</p>
-            </div>
+            <p className="mt-4 max-w-2xl mx-auto text-xs text-gray-500 leading-relaxed border border-white/10 rounded-lg px-4 py-3 bg-white/[0.03]">
+              Pre-testnet vault using paper USDC. Includes seeded protocol liquidity.
+            </p>
           </div>
 
           {/* Vault Stats Card */}

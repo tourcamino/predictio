@@ -629,7 +629,7 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
 
   return (
     <div className="lg:static lg:transform-none fixed bottom-0 left-0 right-0 z-40 lg:z-auto pb-safe">
-      <div className="bg-brand-bg border-2 border-brand-green/30 rounded-t-lg lg:rounded-lg p-4 sm:p-6 shadow-2xl lg:shadow-lg max-h-[85vh] lg:max-h-none overflow-y-auto">
+      <div className="bg-brand-bg border border-brand-green/30 rounded-t-lg lg:rounded-lg p-4 sm:p-6 shadow-2xl lg:shadow-lg max-h-[85vh] lg:max-h-none overflow-y-auto">
         <div className="flex items-center justify-between mb-4 max-lg:mt-[1cm] lg:mt-0">
           <div>
             <h2 className="font-syne font-bold text-xl">Place prediction</h2>
@@ -643,9 +643,11 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
             </span>
           </div>
         </div>
-        <p className="text-xs text-gray-500 mb-4 leading-relaxed">
-          {predictionBalanceFootnote()}
-        </p>
+        {!isWalletConnected && (
+          <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+            {predictionBalanceFootnote()}
+          </p>
+        )}
 
         {/* Tab Switcher */}
         <div className="flex gap-2 mb-6 bg-white/5 rounded-lg p-1">

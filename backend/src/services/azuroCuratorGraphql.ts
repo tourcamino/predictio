@@ -51,7 +51,7 @@ export type RawAzuroGame = {
   startsAt?: string | number;
   state?: string;
   sport?: { name?: string; slug?: string };
-  league?: { name?: string; country?: { name?: string } };
+  league?: { name?: string; slug?: string; country?: { name?: string } };
   participants?: Array<{ name?: string; image?: string | null; sortOrder?: number }>;
   activeConditionsCount?: number;
   conditions?: Array<{
@@ -80,6 +80,7 @@ const GAMES_PAGE_FIELDS = `
       }
       league {
         name
+        slug
         country {
           name
         }

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Clock } from 'lucide-react';
 import { Market, getSportMetadata } from '~/data/mockMarkets';
-import { AIInsightBadge } from '../AIInsightBadge';
 import { MiniSparkline } from './MiniSparkline';
 import { PriceMovement } from './PriceMovement';
 import { WatchlistButton } from './WatchlistButton';
@@ -191,15 +190,10 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
         </div>
       </div>
 
-      {/* AI Insight */}
-      <div className="mb-4">
-        <AIInsightBadge sport={market.sport} compact />
-      </div>
-
       {/* Footer */}
       <div className="flex items-center justify-between font-mono text-xs text-gray-500 mb-2">
         {shouldShowCuratedProtocolFooter(market) ? (
-          <span className="text-brand-cyan/90">{CURATED_PROTOCOL_FOOTER_LABEL}</span>
+          <span className="text-gray-500">{CURATED_PROTOCOL_FOOTER_LABEL}</span>
         ) : (
           <>
             <span>Volume: {formatVolume(market.volume)}</span>
