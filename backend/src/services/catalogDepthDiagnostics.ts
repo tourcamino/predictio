@@ -88,10 +88,47 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
   const europeanAfterGate = filterResult.europeanGames;
   const appealPassed: RawAzuroGame[] = [];
   const appealRejected: Array<{ game: RawAzuroGame; score: number }> = [];
+  const appealPoolTrace: Array<Record<string, unknown>> = [];
+
+  for (const g of filterResult.upcoming) {
+    if (!isItalianPriorityFixture(g)) continue;
+    const gameId = String(g.gameId || "").trim();
+    const league = g.league?.name ?? "";
+    const country = g.league?.country?.name ?? "";
+    const appealScore = computeAppealScore(g);
+    if (!isAllowedLeague(league, country, g.league?.slug)) {
+      const verdict = explainAllowedLeagueRejection(league, country, g.league?.slug);
+      appealPoolTrace.push({
+        tag: "appeal_pool_reject",
+        gameId,
+        league,
+        country,
+        appealScore,
+        isPrestigeFixture: false,
+        reason: "league_not_whitelisted",
+        rejectionReason: verdict.rejectionReason,
+      });
+      continue;
+    }
+    const explained = explainAppealPoolRejection(g, appealScore);
+    if (!explained.passes) {
+      appealPoolTrace.push({
+        tag: "appeal_pool_reject",
+        gameId,
+        league,
+        country,
+        appealScore,
+        isPrestigeFixture: explained.isPrestigeFixture,
+        reason: explained.reason,
+        threshold: explained.threshold,
+      });
+    }
+  }
 
   for (const g of europeanAfterGate) {
     const score = computeAppealScore(g);
-    if (qualifiesForAppealPool(g, score)) {
+    const explained = explainAppealPoolRejection(g, score);
+    if (explained.passes) {
       appealPassed.push(g);
     } else {
       appealRejected.push({ game: g, score });
