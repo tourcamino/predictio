@@ -1,9 +1,15 @@
 import type { AzuroMarket } from "~/services/azuro";
+import {
+  azuroMarketPassesStrictPremium,
+  isVerifiedItalianFootballCopy,
+  premiumCatalogTier,
+  premiumTierSortKey,
+} from "~/lib/premiumCatalogStrictClient";
 
 /**
  * Homepage featured intelligence — ranks candidates for cover-story placement.
- * Uses editorial slot, competition lane, anticipation window, and importanceScore
- * (proxy for backend premium / appeal). Does NOT weight raw liquidity or pure imminence.
+ * Uses competition lane, anticipation window, and importanceScore.
+ * Copy and hero eligibility are validated against real league/geo/entities (P5 firewall).
  */
 
 function kickoffMs(m: AzuroMarket): number {
@@ -16,6 +22,11 @@ function eventTextBlob(m: AzuroMarket): string {
   const ev = (m.event?.name ?? "").toLowerCase();
   const teams = (m.event?.teams ?? []).join(" ").toLowerCase();
   return `${q} ${ev} ${teams}`;
+}
+
+/** Cover-story hero only when strict premium validates — avoids hype on filler rows. */
+export function marketQualifiesForFeaturedHero(m: AzuroMarket): boolean {
+  return azuroMarketPassesStrictPremium(m);
 }
 
 /** Single priority score — higher wins featured. */
@@ -45,17 +56,23 @@ export function featuredPriorityScore(m: AzuroMarket, nowMs: number): number {
       comp.includes("roland") ||
       comp.includes("australian open") ||
       comp.includes("us open") ||
-      comp.includes("french open"))
+      comp.includes("french open") ||
+      /\batp|masters/.test(comp))
   ) {
     lane = Math.max(lane, 46);
   }
   if (/\b(sinner|alcaraz|djokovic|nadal)\b/i.test(blob)) {
     lane = Math.max(lane, 42);
   }
-  if (sport === "motorsport" || sport === "f1" || comp.includes("formula 1") || comp.includes("grand prix")) {
+  if (
+    sport === "motorsport" ||
+    sport === "f1" ||
+    comp.includes("formula 1") ||
+    comp.includes("grand prix")
+  ) {
     lane = Math.max(lane, 44);
   }
-  if (comp.includes("serie a") || comp.includes("coppa italia") || comp.includes("supercoppa")) {
+  if (isVerifiedItalianFootballCopy(m)) {
     lane = Math.max(lane, 34);
   }
   if (
@@ -89,14 +106,16 @@ export function featuredPriorityScore(m: AzuroMarket, nowMs: number): number {
   return s;
 }
 
-/** Re-rank API slice and cap visible density on the intelligence homepage. */
+/** Re-rank API slice and cap visible rows on the homepage (default: full nine-slot book). */
 export function orderForHomepageIntelligence(
   markets: AzuroMarket[],
   nowMs: number,
-  maxVisible = 5,
+  maxVisible = 9,
 ): AzuroMarket[] {
   if (markets.length === 0) return [];
   const ranked = [...markets].sort((a, b) => {
+    const tt = premiumTierSortKey(premiumCatalogTier(b)) - premiumTierSortKey(premiumCatalogTier(a));
+    if (tt !== 0) return tt;
     const d = featuredPriorityScore(b, nowMs) - featuredPriorityScore(a, nowMs);
     if (d !== 0) return d;
     const ia = a.importanceScore ?? 0;
@@ -110,19 +129,70 @@ export function orderForHomepageIntelligence(
   return ranked.slice(0, maxVisible);
 }
 
-/** One-line editorial framing for the briefing kicker (no odds language). */
+/**
+ * One-line editorial framing derived from verified content only — never from stale slots alone.
+ */
 export function editorialBriefingDescriptor(m: AzuroMarket): string {
   const comp = m.competition;
-  if (/champions league/i.test(comp) && !/afc|caf/i.test(comp)) return "European cup · editorial anchor";
-  if (/grand slam|wimbledon|roland|australian open|us open/i.test(comp)) return "Major draw · court signal";
-  if (/\bformula\s*1\b|grand prix/i.test(comp) || m.sport === "f1" || m.sport === "motorsport") {
+  const compL = comp.toLowerCase();
+  const blob = eventTextBlob(m);
+  const sport = m.sport.toLowerCase();
+
+  if (/champions league/i.test(comp) && !/afc|caf/i.test(comp)) {
+    return "European cup · editorial anchor";
+  }
+
+  if (isVerifiedItalianFootballCopy(m)) {
+    return "Italian football · night focus";
+  }
+
+  if (
+    sport === "tennis" &&
+    (compL.includes("grand slam") ||
+      /wimbledon|roland|australian open|us open|french open/i.test(compL) ||
+      (/\batp|masters/.test(compL) && /\b(sinner|alcaraz|djokovic|nadal)\b/i.test(blob)))
+  ) {
+    return "Court · premium lane";
+  }
+
+  if (
+    sport === "basketball" &&
+    (compL.includes("playoff") ||
+      compL.includes("finals") ||
+      compL.includes("conference") ||
+      blob.includes("playoff"))
+  ) {
+    return "Hardwood · playoff window";
+  }
+
+  if (
+    sport === "f1" ||
+    sport === "motorsport" ||
+    /\bformula\s*1\b|grand prix/i.test(compL)
+  ) {
     return "Race weekend · grid outlook";
   }
-  if (/serie a|coppa italia/i.test(comp)) return "Italian football · night focus";
-  if (m.editorialSlot === "tennisPremium") return "Court · premium lane";
-  if (m.editorialSlot === "basketballPremium") return "Hardwood · premium lane";
-  if (m.editorialSlot === "motorsportCombat") return "Motorsport · premium lane";
-  if (m.editorialSlot === "italyFirst") return "Italy-first · protocol signal";
-  if (m.editorialSlot === "premiumAnchors") return "Premium anchor · consensus window";
+
+  if (sport === "mma" && /\bufc\b/i.test(compL)) {
+    return "Combat sport · numbered card";
+  }
+
+  if (
+    compL.includes("premier league") &&
+    !compL.includes("scottish") &&
+    !compL.includes("northern ireland")
+  ) {
+    return "Premier League · anchor window";
+  }
+  if (compL.includes("la liga") || compL.includes("laliga")) {
+    return "La Liga · anchor window";
+  }
+  if (compL.includes("bundesliga")) {
+    return "Bundesliga · anchor window";
+  }
+  if (compL.includes("ligue 1")) {
+    return "Ligue 1 · anchor window";
+  }
+
   return "Curated outlook";
 }

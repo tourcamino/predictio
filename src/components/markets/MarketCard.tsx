@@ -55,7 +55,7 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
 
   // Determine button label and status badge
   let statusBadge = null;
-  let buttonLabel = 'View outlook';
+  let buttonLabel = 'Open';
   
   if (lifecycleStatus === 'resolved') {
     const winner = market.result === 'yes' ? market.teamA : market.teamB;

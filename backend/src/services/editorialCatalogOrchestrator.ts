@@ -6,6 +6,10 @@ import {
   isItalianSerieBFixture,
   normCountry,
 } from "./editorialLeagueTiers";
+import {
+  passesStrictPremiumScoredItalian,
+  STRICT_PREMIUM_WHITELIST_MODE,
+} from "./editorialPremiumFirewall";
 import { MULTISPORT_SLOT_PREFER_MIN } from "./premiumSportScoring";
 export type ScoredItalian = { raw: RawAzuroGame; importanceScore: number };
 
@@ -83,7 +87,7 @@ export type EditorialSlotId =
 
 export const CATALOG_TARGET_SIZE = 9;
 
-/** Named slot budgets (adaptive fills remainder to `CATALOG_TARGET_SIZE`). */
+/** Named slot budgets (adaptive fills remainder to `CATALOG_TARGET_SIZE` when not strict). */
 export const EDITORIAL_SLOT_TARGETS: Readonly<Record<Exclude<EditorialSlotId, "adaptiveFallback">, number>> =
   {
     premiumAnchors: 3,
@@ -93,6 +97,24 @@ export const EDITORIAL_SLOT_TARGETS: Readonly<Record<Exclude<EditorialSlotId, "a
     basketballPremium: 1,
     motorsportCombat: 1,
   };
+
+/** P5 strict mode: no Union pin, more anchor room — still capped at 9 rows total. */
+const EDITORIAL_SLOT_TARGETS_STRICT: Readonly<
+  Record<Exclude<EditorialSlotId, "adaptiveFallback">, number>
+> = {
+  premiumAnchors: 5,
+  italyFirst: 2,
+  unionBerlin: 0,
+  tennisPremium: 1,
+  basketballPremium: 1,
+  motorsportCombat: 1,
+};
+
+function editorialSlotTargetsEffective(): Readonly<
+  Record<Exclude<EditorialSlotId, "adaptiveFallback">, number>
+> {
+  return STRICT_PREMIUM_WHITELIST_MODE ? EDITORIAL_SLOT_TARGETS_STRICT : EDITORIAL_SLOT_TARGETS;
+}
 
 export type EditorialPickMeta = {
   slot: EditorialSlotId;
@@ -230,7 +252,19 @@ export function matchesPremiumAnchorSlot(it: ScoredItalian): boolean {
 
 /** Slot B — Italy-first identity (Serie A/B, Coppa, prestige Italian clubs). */
 export function matchesItalyFirstSlot(it: ScoredItalian): boolean {
-  return isFootballCandidate(it) && isItalianPriorityFixture(it.raw);
+  if (!isFootballCandidate(it)) return false;
+  if (STRICT_PREMIUM_WHITELIST_MODE) {
+    const leagueName = it.raw.league?.name ?? "";
+    const country = it.raw.league?.country?.name ?? "";
+    const slug = it.raw.league?.slug;
+    if (isItalianSerieBFixture(leagueName, country, slug)) return false;
+    const ln = leagueName.toLowerCase();
+    if (isItalianSerieA(leagueName, country, slug)) return true;
+    if (ln.includes("coppa italia") && normCountry(country) === "italy") return true;
+    if (ln.includes("supercoppa") && normCountry(country) === "italy") return true;
+    return false;
+  }
+  return isItalianPriorityFixture(it.raw);
 }
 
 /** Slot C — Union Berlin protocol anchor. */
@@ -477,11 +511,17 @@ export function orchestrateEditorialCatalog(
   const metaByGameId = new Map<string, EditorialPickMeta>();
   const redistributions: string[] = [];
 
-  const footballPool = pool.filter(isFootballCandidate);
-  const multisportPool = options?.multisportPool ?? [];
+  const slotTargets = editorialSlotTargetsEffective();
+
+  let footballPool = pool.filter(isFootballCandidate);
+  let multisportPool = options?.multisportPool ?? [];
+  if (STRICT_PREMIUM_WHITELIST_MODE) {
+    footballPool = footballPool.filter(passesStrictPremiumScoredItalian);
+    multisportPool = multisportPool.filter(passesStrictPremiumScoredItalian);
+  }
 
   for (const slot of FOOTBALL_SLOT_FILL_ORDER) {
-    const target = EDITORIAL_SLOT_TARGETS[slot];
+    const target = slotTargets[slot];
     const filled = fillNamedSlot(slot, target, footballPool, used, picked, metaByGameId);
     if (filled < target) {
       redistributions.push(
@@ -491,7 +531,7 @@ export function orchestrateEditorialCatalog(
   }
 
   for (const slot of MULTISPORT_SLOT_FILL_ORDER) {
-    const target = EDITORIAL_SLOT_TARGETS[slot];
+    const target = slotTargets[slot];
     const filled = fillNamedSlot(slot, target, multisportPool, used, picked, metaByGameId);
     if (filled < target) {
       redistributions.push(
@@ -500,16 +540,20 @@ export function orchestrateEditorialCatalog(
     }
   }
 
-  fillAdaptiveFallback(footballPool, used, picked, metaByGameId, tierCActivated, nowSec);
+  if (!STRICT_PREMIUM_WHITELIST_MODE) {
+    fillAdaptiveFallback(footballPool, used, picked, metaByGameId, tierCActivated, nowSec);
+  }
 
   const combinedPool = [...footballPool, ...multisportPool];
   let ordered = sortPickedEditorialOrder(picked, metaByGameId).slice(0, CATALOG_TARGET_SIZE);
-  ordered = relaxAdaptiveSameDayClustering(
-    ordered,
-    metaByGameId,
-    combinedPool,
-    MAX_CATALOG_EVENTS_PER_DAY,
-  );
+  if (!STRICT_PREMIUM_WHITELIST_MODE) {
+    ordered = relaxAdaptiveSameDayClustering(
+      ordered,
+      metaByGameId,
+      combinedPool,
+      MAX_CATALOG_EVENTS_PER_DAY,
+    );
+  }
 
   const editorialSlots: Record<EditorialSlotId, number> = {
     premiumAnchors: 0,
@@ -525,8 +569,10 @@ export function orchestrateEditorialCatalog(
     if (m) editorialSlots[m.slot] += 1;
   }
 
-  const namedSlotSum = Object.values(EDITORIAL_SLOT_TARGETS).reduce((s, n) => s + n, 0);
-  const adaptiveFallbackTarget = Math.max(0, CATALOG_TARGET_SIZE - namedSlotSum);
+  const namedSlotSum = Object.values(slotTargets).reduce((s, n) => s + n, 0);
+  const adaptiveFallbackTarget = STRICT_PREMIUM_WHITELIST_MODE
+    ? 0
+    : Math.max(0, CATALOG_TARGET_SIZE - namedSlotSum);
 
   const samples = ordered.slice(0, 8).map((it) => {
     const gid = scoredGameId(it);
@@ -544,7 +590,7 @@ export function orchestrateEditorialCatalog(
     metaByGameId,
     diagnostics: {
       editorialSlots,
-      slotTargets: { ...EDITORIAL_SLOT_TARGETS, adaptiveFallback: adaptiveFallbackTarget },
+      slotTargets: { ...slotTargets, adaptiveFallback: adaptiveFallbackTarget },
       redistributions,
       samples,
     },
@@ -581,6 +627,10 @@ export function inferEditorialSlotForFixture(input: {
     raw,
     importanceScore: input.importanceScore ?? 0,
   };
+
+  if (STRICT_PREMIUM_WHITELIST_MODE && !passesStrictPremiumScoredItalian(it)) {
+    return { slot: "adaptiveFallback", selectionReason: "strict-firewall-miss" };
+  }
 
   if (matchesTennisPremiumSlot(it)) {
     return { slot: "tennisPremium", selectionReason: "tennis-premium" };

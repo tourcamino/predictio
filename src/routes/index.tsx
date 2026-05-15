@@ -5,6 +5,7 @@ import { SportsGrid } from "~/components/SportsGrid";
 import { HowItWorks } from "~/components/HowItWorks";
 import { LiveMarkets } from "~/components/LiveMarkets";
 import { WhyPredictio } from "~/components/WhyPredictio";
+import { HomeSocialTradingLayer } from "~/components/HomeSocialTradingLayer";
 import { CTASection } from "~/components/CTASection";
 import { OGImagePreloader } from "~/components/OGImagePreloader";
 import { MetaTags } from "~/components/MetaTags";
@@ -39,13 +40,14 @@ function Home() {
   return (
     <div className="min-h-screen">
       <MetaTags
-        title="Predictio.live — European premium prediction markets"
-        description="Curated multisport prediction intelligence on Base — European premium lanes, editorial catalogue, and calm conviction tooling."
+        title="Predictio · European sports copy-trading"
+        description="Copy top traders on nine canonical premium markets — vault-backed AMM book on Base. Football, tennis, F1, UFC, playoffs."
         url={typeof window !== 'undefined' ? window.location.href : undefined}
       />
       <OGImagePreloader />
       <Hero />
       <LiveMarkets />
+      <HomeSocialTradingLayer />
       <HowItWorks />
       <WhyPredictio />
       <TrustSection />

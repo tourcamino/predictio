@@ -1,4 +1,5 @@
 import type { AzuroMarket } from "~/services/azuro";
+import { isVerifiedItalianFootballCopy } from "~/lib/premiumCatalogStrictClient";
 
 export type HomepageNarrativeKey =
   | "championsLeagueNight"
@@ -64,36 +65,29 @@ function isChampionsLeagueLeague(name: string): boolean {
 }
 
 function isItalianLane(m: AzuroMarket): boolean {
-  if (m.editorialSlot === "italyFirst") return true;
-  const c = m.competition.toLowerCase();
-  return (
-    c.includes("serie a") ||
-    c.includes("serie b") ||
-    c.includes("coppa italia") ||
-    c.includes("supercoppa") ||
-    (m.event.location ?? "").toLowerCase().includes("italy")
-  );
+  return isVerifiedItalianFootballCopy(m);
 }
 
 function isGrandSlamOrPremiumTennis(m: AzuroMarket): boolean {
-  if (m.editorialSlot === "tennisPremium") return true;
   if (m.sport !== "tennis") return false;
   const c = m.competition.toLowerCase();
-  return (
+  const teams = (m.event?.teams ?? []).join(" ").toLowerCase();
+  const star = /\b(sinner|alcaraz|djokovic|nadal)\b/.test(teams);
+  const compPrem =
     c.includes("grand slam") ||
     c.includes("wimbledon") ||
     c.includes("roland") ||
     c.includes("french open") ||
     c.includes("australian open") ||
-    c.includes("us open")
-  );
+    c.includes("us open") ||
+    /\batp|masters/.test(c);
+  return compPrem && star;
 }
 
 function isFormulaLane(m: AzuroMarket): boolean {
-  if (m.editorialSlot === "motorsportCombat") return true;
   const c = m.competition.toLowerCase();
   const s = m.sport.toLowerCase();
-  return s === "f1" || s === "motorsport" || c.includes("formula 1") || c.includes("f1");
+  return s === "f1" || s === "motorsport" || c.includes("formula 1") || c.includes("grand prix");
 }
 
 function isThisWeekend(k: number, now: number): boolean {

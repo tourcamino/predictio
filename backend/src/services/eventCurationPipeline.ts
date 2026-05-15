@@ -17,6 +17,10 @@ import {
   canonicalSportToUiSlug,
 } from "./canonicalSportTaxonomy";
 import { buildMultisportPremiumPool } from "./multisportIngestion";
+import {
+  passesStrictPremiumScoredItalian,
+  STRICT_PREMIUM_WHITELIST_MODE,
+} from "./editorialPremiumFirewall";
 
 export { isItalianPriorityFixture, isUnionBerlinFixture };
 
@@ -742,7 +746,8 @@ export function filterEuropeanUpcoming(
   const openActive = options?.openActiveCount ?? MIN_CATALOG_SLOTS_FOR_TIER_C;
   const gateOptions = {
     activateTierC:
-      options?.forceTierC === true || openActive < MIN_CATALOG_SLOTS_FOR_TIER_C,
+      !STRICT_PREMIUM_WHITELIST_MODE &&
+      (options?.forceTierC === true || openActive < MIN_CATALOG_SLOTS_FOR_TIER_C),
   };
 
   const tiered = buildEuropeanGamesFromUpcoming(upcoming, gateOptions);
@@ -1116,6 +1121,9 @@ export async function buildEuropeanCurationGamesPayload(
       );
       continue;
     }
+    if (STRICT_PREMIUM_WHITELIST_MODE && !passesStrictPremiumScoredItalian(item)) {
+      continue;
+    }
     allowedPool.push(item);
   }
   allowedPool.sort(byImportanceThenKickoff);
@@ -1138,8 +1146,10 @@ export async function buildEuropeanCurationGamesPayload(
     }
     combinedPool.sort(byImportanceThenKickoff);
   };
-  if (combinedPool.length < TARGET_POOL) fillFallback(72);
-  if (combinedPool.length < TARGET_POOL) fillFallback(60);
+  if (!STRICT_PREMIUM_WHITELIST_MODE) {
+    if (combinedPool.length < TARGET_POOL) fillFallback(72);
+    if (combinedPool.length < TARGET_POOL) fillFallback(60);
+  }
 
   const relaxIntoPool = (cap: number) => {
     const relaxGateOpts: LeagueGateOptions = {
@@ -1166,11 +1176,17 @@ export async function buildEuropeanCurationGamesPayload(
     }
     combinedPool.sort(byImportanceThenKickoff);
   };
-  if (combinedPool.length < TARGET_POOL) relaxIntoPool(48);
-  if (combinedPool.length < TARGET_POOL) relaxIntoPool(56);
+  if (!STRICT_PREMIUM_WHITELIST_MODE) {
+    if (combinedPool.length < TARGET_POOL) relaxIntoPool(48);
+    if (combinedPool.length < TARGET_POOL) relaxIntoPool(56);
+  }
 
   const MAX_SOURCE = 120;
-  const sourceForPick = combinedPool.slice(0, MAX_SOURCE);
+  const sourceForPick = (
+    STRICT_PREMIUM_WHITELIST_MODE
+      ? combinedPool.filter(passesStrictPremiumScoredItalian)
+      : combinedPool
+  ).slice(0, MAX_SOURCE);
 
   const multisportIngestion = buildMultisportPremiumPool(allGames, nowSec, windowEndSec);
 
