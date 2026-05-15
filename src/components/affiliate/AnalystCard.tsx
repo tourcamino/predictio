@@ -144,7 +144,7 @@ export function AnalystCard({ analyst }: AnalystCardProps) {
                 className="truncate font-mono text-[11px] leading-tight text-gray-400 sm:text-xs"
                 title={analyst.wallet}
               >
-                {shortenWallet(analyst.wallet, 8, 6)}
+                {shortenWallet(analyst.wallet, 6, 5)}
               </p>
               <button
                 type="button"

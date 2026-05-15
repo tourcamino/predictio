@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import toast from "react-hot-toast";
+import { WALLET_TOAST_IDS, walletToastError } from "~/lib/walletToast";
 import { getExpectedPredictioChain } from "~/config/chains";
 import { useWallet } from "~/store/useWalletStore";
 import { useWalletRuntimeState } from "~/hooks/useWalletRuntimeState";
@@ -52,9 +52,9 @@ export function useWalletGate() {
     }
     if (isWrongChain) {
       const target = getExpectedPredictioChain();
-      toast.error(
+      walletToastError(
         `Wrong network — switch to ${target.shortLabel} in your wallet to continue (use the banner or header).`,
-        { id: "predictio-wrong-network-gate", duration: 5200 },
+        { id: WALLET_TOAST_IDS.wrongNetworkGate, duration: 6200 },
       );
       return false;
     }

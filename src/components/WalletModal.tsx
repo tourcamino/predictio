@@ -3,7 +3,7 @@ import { Dialog, Transition } from '@headlessui/react';
 import { X, Check, Loader2, Copy, ExternalLink, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { useWallet } from '~/store/useWalletStore';
 import { useNavigate } from '@tanstack/react-router';
-import toast from 'react-hot-toast';
+import { WALLET_TOAST_IDS, walletToastSuccess } from '~/lib/walletToast';
 import {
   BASE_SEPOLIA_FAUCET_URL,
   getExpectedPredictioChain,
@@ -106,7 +106,7 @@ export function WalletModal() {
   const copyAddress = () => {
     if (address) {
       navigator.clipboard.writeText(address);
-      toast.success('Address copied!');
+      walletToastSuccess('Address copied', { id: WALLET_TOAST_IDS.addressCopied });
     }
   };
 

@@ -129,6 +129,15 @@ export interface AzuroMarket extends SeedMarket {
   azuroResult?: string;
   /** From curated API — higher = more editorial priority (UCL, WC, etc.). */
   importanceScore?: number;
+  editorialSlot?:
+    | "premiumAnchors"
+    | "italyFirst"
+    | "unionBerlin"
+    | "tennisPremium"
+    | "basketballPremium"
+    | "motorsportCombat"
+    | "adaptiveFallback";
+  selectionReason?: string;
   /** Azuro decimal odds for draw (1X2 middle outcome), when available */
   drawOdds?: string | null;
 }

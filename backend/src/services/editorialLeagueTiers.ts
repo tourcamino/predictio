@@ -128,7 +128,7 @@ export function isItalianSerieA(leagueName: string, country: string, slug?: stri
   return league.includes("serie a") && !league.includes("serie b");
 }
 
-function isBrasileiraoSerieA(leagueName: string, country: string, slug?: string): boolean {
+export function isBrasileiraoSerieA(leagueName: string, country: string, slug?: string): boolean {
   const cnt = normCountry(country);
   if (cnt !== "brazil") return false;
   const s = normLeagueSlug(slug);

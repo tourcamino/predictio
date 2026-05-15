@@ -13,6 +13,8 @@ import {
   isCuratedCatalogMarket,
   shouldShowCuratedProtocolFooter,
 } from '~/lib/curatedMarketPresentation';
+import { editorialSlotLabel } from '~/lib/editorialCatalogPresentation';
+import type { AzuroMarket } from '~/services/azuro';
 
 interface MarketCardProps {
   market: Market;
@@ -25,6 +27,7 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
   const countryCode = getMarketCountryCode(market);
   const flag = countryCode ? COUNTRY_FLAG[countryCode] : null;
   const elite = isEliteMarket(market);
+  const editorialLabel = editorialSlotLabel((market as AzuroMarket).editorialSlot);
 
   const formatVolume = (volume: number) => {
     if (volume >= 1000000) {
@@ -94,6 +97,11 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
           {elite && (
             <span className="ml-1 px-2 py-0.5 bg-brand-cyan/15 border border-brand-cyan/30 text-brand-cyan text-[10px] font-bold rounded">
               GLOBAL
+            </span>
+          )}
+          {editorialLabel && (market as AzuroMarket).editorialSlot !== 'adaptiveFallback' && (
+            <span className="ml-1 px-2 py-0.5 bg-white/[0.04] border border-white/10 text-gray-500 text-[10px] font-medium rounded">
+              {editorialLabel}
             </span>
           )}
         </span>

@@ -32,6 +32,7 @@ import {
 } from '~/utils/seedMarketTrading';
 import type { AzuroMarket } from '~/services/azuro';
 import { isCanonicalCuratedCatalog } from '~/lib/curatedMarketPresentation';
+import { groupMarketsByEditorialSlot } from '~/lib/editorialCatalogPresentation';
 import { marketMatchesSearch } from '~/lib/markets/filterMarketsSearch';
 import { expandSearchQuery, logSearchAliasExpansion } from '~/lib/markets/teamPlayerAliases';
 
@@ -333,6 +334,11 @@ function MarketsPage() {
   );
   
   // Sort markets; canonical catalog + featured preserves API editorial order
+  const editorialCatalogSections = useMemo(() => {
+    if (!canonicalCuratedCatalog || sortBy !== 'featured') return [];
+    return groupMarketsByEditorialSlot(filteredMarkets as AzuroMarket[]);
+  }, [canonicalCuratedCatalog, sortBy, filteredMarkets]);
+
   const sortedMarkets = useMemo(() => {
     if (canonicalCuratedCatalog && sortBy === 'featured') {
       return filteredMarkets;
@@ -887,7 +893,7 @@ function MarketsPage() {
                         </h2>
                         <p className="text-xs text-gray-500">
                           {canonicalCuratedCatalog
-                            ? 'Curated football markets · Paper USDC · Pre-testnet'
+                            ? 'Editorial slot order — premium anchors, Italy-first, protocol identity — not raw score ranking'
                             : `Browse ${isFootballFocusEnabled() ? 'football' : 'sports'} markets`}
                         </p>
                       </div>
@@ -933,6 +939,27 @@ function MarketsPage() {
                             {isFootballFocusEnabled() ? 'football' : 'sports'} matches.
                           </p>
                         </div>
+                      </div>
+                    ) : editorialCatalogSections.length > 0 ? (
+                      <div className="space-y-10">
+                        {editorialCatalogSections.map((section) => (
+                          <div key={section.slot}>
+                            <div className="flex items-baseline justify-between gap-3 mb-4">
+                              <h3 className="font-syne text-lg font-semibold text-white">
+                                {section.label}
+                              </h3>
+                              <span className="text-[11px] text-gray-600 uppercase tracking-wider">
+                                {section.markets.length} fixture
+                                {section.markets.length === 1 ? '' : 's'}
+                              </span>
+                            </div>
+                            <MarketsGrid
+                              markets={section.markets}
+                              viewMode={viewMode}
+                              onMarketClick={handleMarketClick}
+                            />
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <>

@@ -1,6 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import toast from 'react-hot-toast';
+import {
+  WALLET_TOAST_IDS,
+  walletToastDismiss,
+  walletToastError,
+  walletToastLoading,
+  walletToastSuccess,
+} from '~/lib/walletToast';
 import { useTRPC } from '~/trpc/react';
 import { useWallet, useWalletStore } from '~/store/useWalletStore';
 import {
@@ -73,6 +79,7 @@ export function WalletSync() {
       syncInFlightRef.current = false;
       silentRetryCountRef.current = 0;
       setSyncing(false);
+      walletToastDismiss(WALLET_TOAST_IDS.syncLoading);
       return;
     }
 
@@ -117,6 +124,7 @@ export function WalletSync() {
           clearRetry();
 
           setSyncing(false);
+          walletToastDismiss(WALLET_TOAST_IDS.syncLoading);
 
           invalidateAllWalletScopedQueries(queryClient, trpc, walletKey);
 
@@ -130,9 +138,13 @@ export function WalletSync() {
             console.log(
               `[Paper Trading] New account created with $${data.virtualBalance} virtual balance`,
             );
-            toast.success(
-              `Welcome! You've been credited with $${data.virtualBalance} USDC for trading.`,
-              { duration: 5000, icon: '🎉' },
+            walletToastSuccess(
+              `Welcome! You've been credited with $${data.virtualBalance} USDC for paper trading.`,
+              {
+                id: WALLET_TOAST_IDS.syncWelcome,
+                duration: 5200,
+                icon: '🎉',
+              },
             );
           } else {
             console.log(
@@ -175,9 +187,10 @@ export function WalletSync() {
 
           const suffix = userFacingSyncFailureDetail(error);
 
-          toast.error(
+          walletToastDismiss(WALLET_TOAST_IDS.syncLoading);
+          walletToastError(
             `Could not load your account from the server.${suffix} Your wallet stays connected — try again in a moment or refresh the page.`,
-            { duration: 6500 },
+            { id: WALLET_TOAST_IDS.syncError, duration: 6400 },
           );
         };
 

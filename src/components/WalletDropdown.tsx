@@ -9,7 +9,7 @@ import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { formatPaperCashDisplay } from '~/lib/formatPaperCash';
 import { explorerAddressUrl, walletNetworkBadgeLabelFromChainId, predictionBalanceFootnote } from '~/lib/economySurface';
 import { Link, useNavigate } from '@tanstack/react-router';
-import toast from 'react-hot-toast';
+import { WALLET_TOAST_IDS, walletToastSuccess } from '~/lib/walletToast';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
 
 interface WalletDropdownProps {
@@ -44,14 +44,17 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
   const copyAddress = () => {
     if (address) {
       navigator.clipboard.writeText(address);
-      toast.success('Address copied!');
+      walletToastSuccess('Address copied', { id: WALLET_TOAST_IDS.addressCopied });
     }
   };
 
   const handleDisconnect = (e: MouseEvent<HTMLButtonElement>, close: () => void) => {
     if (showDisconnectConfirm) {
       disconnectWallet();
-      toast.success('Wallet disconnected');
+      walletToastSuccess('Wallet disconnected', {
+        id: WALLET_TOAST_IDS.disconnected,
+        duration: 4200,
+      });
       onClose?.();
       setShowDisconnectConfirm(false);
       close();

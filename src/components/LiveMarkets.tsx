@@ -64,7 +64,7 @@ export function LiveMarkets() {
 
           <p className="text-lg text-gray-400 max-w-2xl mx-auto mb-8">
             {isFootballFocusEnabled()
-              ? 'Nine founder-curated matches with shared paper liquidity routing. Odds from Azuro; order reflects editorial priority.'
+              ? 'Nine editorially orchestrated fixtures — premium anchors, Italy-first, and protocol identity slots — with shared paper liquidity routing.'
               : 'A focused set of curated markets with editorial paper liquidity allocation.'}
           </p>
 

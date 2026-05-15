@@ -1,5 +1,6 @@
 import { getApiBaseUrl } from "~/lib/predictioApi";
 import type { SeedMarket } from "~/data/seedMarkets";
+import { getSportMetadata } from "~/data/mockMarkets";
 import type { AzuroMarket } from "~/services/azuro";
 import { transformAzuroThreeWayOdds } from "~/utils/azuroThreeWayOdds";
 import {
@@ -7,6 +8,7 @@ import {
   curateFeaturedAzuroMarkets,
   rankAzuroMarketsByCurationScore,
 } from "~/lib/markets/curateFeaturedEvents";
+import { compareEditorialCatalogOrder } from "~/lib/editorialCatalogOrder";
 
 /** Quota pareggio sintetica se Azuro/API non espone draw (calcio 1X2 sempre 3 esiti in UI). */
 const SYNTHETIC_DRAW_DECIMAL = 3.35;
@@ -34,6 +36,17 @@ export type CuratedMarketApiRow = {
   awayOdds?: number | null;
   paperLiquidityAllocation?: number | null;
   paperLiquiditySharePct?: number | null;
+  editorialSlot?:
+    | "premiumAnchors"
+    | "italyFirst"
+    | "unionBerlin"
+    | "tennisPremium"
+    | "basketballPremium"
+    | "motorsportCombat"
+    | "adaptiveFallback";
+  selectionReason?: string;
+  sport?: string;
+  sportSlug?: string;
 };
 
 function slugifyCompetition(name: string): string {
@@ -91,11 +104,14 @@ export function curatedApiRowToAzuroMarket(row: CuratedMarketApiRow): AzuroMarke
     ];
   }
 
+  const sportKey = row.sportSlug ?? row.sport ?? "football";
+  const sportMeta = getSportMetadata(sportKey);
+
   return {
     id: row.id,
     question: `${row.homeTeam} vs ${row.awayTeam}`,
-    sport: "football",
-    sportEmoji: "⚽",
+    sport: sportKey,
+    sportEmoji: sportMeta.emoji,
     competition: row.leagueName,
     competitionSlug: slug,
     event: {
@@ -124,6 +140,8 @@ export function curatedApiRowToAzuroMarket(row: CuratedMarketApiRow): AzuroMarke
     azuroStatus: row.status,
     azuroResult: row.result ?? undefined,
     importanceScore: row.importanceScore,
+    editorialSlot: row.editorialSlot,
+    selectionReason: row.selectionReason,
     drawOdds: drawOddsField,
   };
 }
@@ -138,13 +156,22 @@ function kickoffMsForSort(m: AzuroMarket): number {
   return Number.isFinite(e) ? e : Number.MAX_SAFE_INTEGER;
 }
 
-/** Backend canonical order: appeal stored as `importanceScore`, then earliest kickoff. */
+/** Backend canonical order: editorial slot bands, then appeal, then kickoff. */
 export function sortByBackendCuratedRanking(markets: AzuroMarket[]): AzuroMarket[] {
-  return [...markets].sort((a, b) => {
-    const scoreDiff = (b.importanceScore ?? 0) - (a.importanceScore ?? 0);
-    if (scoreDiff !== 0) return scoreDiff;
-    return kickoffMsForSort(a) - kickoffMsForSort(b);
-  });
+  return [...markets].sort((a, b) =>
+    compareEditorialCatalogOrder(
+      {
+        editorialSlot: a.editorialSlot,
+        importanceScore: a.importanceScore,
+        startsAtMs: kickoffMsForSort(a),
+      },
+      {
+        editorialSlot: b.editorialSlot,
+        importanceScore: b.importanceScore,
+        startsAtMs: kickoffMsForSort(b),
+      },
+    ),
+  );
 }
 
 /** Public GET /api/markets (≤9 rows with scores) — skip client balance re-curation. */

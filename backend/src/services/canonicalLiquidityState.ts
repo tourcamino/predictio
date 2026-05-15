@@ -81,6 +81,8 @@ async function loadOpenCuratedSlots(
       awayTeam: true,
       leagueName: true,
       importanceScore: true,
+      sport: true,
+      sportSlug: true,
     },
   });
 
@@ -101,7 +103,7 @@ async function loadOpenCuratedSlots(
       gameId: c.gameId,
       marketName: m?.event ?? `${c.homeTeam} vs ${c.awayTeam}`,
       league: m?.league ?? c.leagueName,
-      sport: m?.sport ?? "football",
+      sport: m?.sport ?? c.sportSlug ?? c.sport ?? "football",
       appealScore: c.importanceScore ?? 0,
       volume: m?.volume ?? 0,
     };

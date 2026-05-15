@@ -17,6 +17,10 @@ import {
 import { collectCatalogDepthDiagnostics } from "../services/catalogDepthDiagnostics";
 import { resolveCanonicalLiquidityState } from "../services/canonicalLiquidityState";
 import { notifyCatalogLiquidityChanged } from "../services/catalogLiquidityRebalance";
+import {
+  compareEditorialCatalogOrder,
+  inferEditorialSlotForFixture,
+} from "../services/editorialCatalogOrchestrator";
 
 const CACHE_KEY = "admin:azuro:football:14d:v2";
 const MAX_ACTIVE = 9;
@@ -382,9 +386,36 @@ export function registerAdminCurationRoutes(
       }
 
       const sorted = [...rows].sort((a, b) => {
-        const scoreDiff = (b.importanceScore ?? 0) - (a.importanceScore ?? 0);
-        if (scoreDiff !== 0) return scoreDiff;
-        return a.startsAt.getTime() - b.startsAt.getTime();
+        const slotA = inferEditorialSlotForFixture({
+          leagueName: a.leagueName,
+          country: a.country,
+          homeTeam: a.homeTeam,
+          awayTeam: a.awayTeam,
+          importanceScore: a.importanceScore ?? 0,
+          sport: a.sport,
+          sportSlug: a.sportSlug,
+        });
+        const slotB = inferEditorialSlotForFixture({
+          leagueName: b.leagueName,
+          country: b.country,
+          homeTeam: b.homeTeam,
+          awayTeam: b.awayTeam,
+          importanceScore: b.importanceScore ?? 0,
+          sport: b.sport,
+          sportSlug: b.sportSlug,
+        });
+        return compareEditorialCatalogOrder(
+          {
+            editorialSlot: slotA.slot,
+            importanceScore: a.importanceScore ?? 0,
+            startsAtMs: a.startsAt.getTime(),
+          },
+          {
+            editorialSlot: slotB.slot,
+            importanceScore: b.importanceScore ?? 0,
+            startsAtMs: b.startsAt.getTime(),
+          },
+        );
       });
 
       const top = sorted.slice(0, MAX_ACTIVE);
@@ -414,6 +445,15 @@ export function registerAdminCurationRoutes(
         const kickSec = Math.floor(r.startsAt.getTime() / 1000);
         const marketId = `azuro-${r.gameId}`;
         const paperLiq = allocationByMarketId[marketId];
+        const editorial = inferEditorialSlotForFixture({
+          leagueName: r.leagueName,
+          country: r.country,
+          homeTeam: r.homeTeam,
+          awayTeam: r.awayTeam,
+          importanceScore: r.importanceScore ?? 0,
+          sport: r.sport,
+          sportSlug: r.sportSlug,
+        });
         return {
           id: marketId,
           gameId: r.gameId,
@@ -431,7 +471,11 @@ export function registerAdminCurationRoutes(
           timeToLock,
           importanceScore: r.importanceScore ?? 0,
           autoPublish: r.autoPublish ?? false,
+          sport: r.sportSlug ?? r.sport ?? "football",
+          sportSlug: r.sportSlug ?? r.sport ?? "football",
           temporalBand: getTemporalBandForUnix(nowSec, kickSec),
+          editorialSlot: editorial.slot,
+          selectionReason: editorial.selectionReason,
           homeOdds: r.homeOdds ?? null,
           drawOdds: r.drawOdds ?? null,
           awayOdds: r.awayOdds ?? null,

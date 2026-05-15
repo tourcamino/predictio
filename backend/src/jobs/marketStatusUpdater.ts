@@ -62,6 +62,8 @@ function buildRowDataFromPipeline(event: CurationGamePayload, startsAt: Date, lo
     homeOdds: event.homeOdds ?? undefined,
     drawOdds: event.drawOdds ?? undefined,
     awayOdds: event.awayOdds ?? undefined,
+    sport: event.sportSlug ?? event.sport ?? "football",
+    sportSlug: event.sportSlug ?? event.sport ?? "football",
   };
 }
 

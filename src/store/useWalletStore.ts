@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import toast from 'react-hot-toast';
+import {
+  WALLET_TOAST_IDS,
+  walletToastError,
+  walletToastSuccess,
+} from '~/lib/walletToast';
 import { getExpectedChainId } from '~/config/chains';
 import { getInjectedEip1193Provider } from '~/lib/wallet/injectedProvider';
 import {
@@ -340,9 +344,9 @@ export const useWalletStore = create<WalletStore>()(
         if (switchNetworkPending) return;
         const provider = walletType ? getInjectedEip1193Provider(walletType) : null;
         if (!provider) {
-          toast.error(
+          walletToastError(
             "No browser wallet found. Install MetaMask / Coinbase Wallet or open Predictio inside your wallet app.",
-            { id: "predictio-no-provider", duration: 5000 },
+            { id: WALLET_TOAST_IDS.noProvider, duration: 6200 },
           );
           return;
         }
@@ -354,12 +358,15 @@ export const useWalletStore = create<WalletStore>()(
           const ok = cid === expected;
           set({ chainId: cid, wrongNetwork: !ok });
           if (ok) {
-            toast.success("Network updated", { id: "predictio-net-ok", duration: 2500 });
+            walletToastSuccess('Network updated — you are on the expected chain.', {
+              id: WALLET_TOAST_IDS.networkOk,
+              duration: 4200,
+            });
           }
         } catch (e) {
-          toast.error(formatWalletSwitchUserMessage(e), {
-            id: "predictio-net-err",
-            duration: 5500,
+          walletToastError(formatWalletSwitchUserMessage(e), {
+            id: WALLET_TOAST_IDS.networkErr,
+            duration: 6400,
           });
         } finally {
           set({ switchNetworkPending: false });

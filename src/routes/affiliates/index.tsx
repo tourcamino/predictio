@@ -10,12 +10,15 @@ import {
   Shield,
   ChevronDown,
   X,
+  Copy,
 } from "lucide-react";
 import { mockAnalysts } from "~/data/mockAffiliates";
 import { useWalletStore } from "~/store/useWalletStore";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTRPC } from "~/trpc/react";
 import toast from "react-hot-toast";
+import { shortenWallet } from "~/utils/formatCopyTrading";
+import { WALLET_TOAST_IDS, walletToastSuccess } from "~/lib/walletToast";
 
 export const Route = createFileRoute("/affiliates/")({
   component: AffiliatesPage,
@@ -515,6 +518,43 @@ function HowItWorksSection() {
   );
 }
 
+function FeaturedAnalystWalletLine({ wallet }: { wallet: string }) {
+  const [copied, setCopied] = useState(false);
+  const short = shortenWallet(wallet, 6, 5);
+
+  return (
+    <div className="mt-1 flex min-w-0 max-w-full items-center gap-1">
+      <span
+        className="min-w-0 flex-1 truncate font-mono text-xs text-gray-500 tabular-nums"
+        title={wallet}
+      >
+        {short}
+      </span>
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(wallet);
+            setCopied(true);
+            walletToastSuccess("Address copied", { id: WALLET_TOAST_IDS.addressCopied });
+            window.setTimeout(() => setCopied(false), 2000);
+          } catch {
+            /* clipboard denied — ignore */
+          }
+        }}
+        className="shrink-0 rounded p-1 text-gray-500 transition-colors hover:bg-white/10 hover:text-brand-green focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green/40"
+        title="Copy full address"
+        aria-label="Copy analyst wallet address"
+      >
+        <Copy className="h-3.5 w-3.5" />
+      </button>
+      {copied ? (
+        <span className="shrink-0 text-[10px] font-medium text-brand-green">Copied</span>
+      ) : null}
+    </div>
+  );
+}
+
 function FeaturedAnalystsSection() {
   const featured = mockAnalysts.slice(0, 3);
 
@@ -532,19 +572,17 @@ function FeaturedAnalystsSection() {
           {featured.map((analyst) => (
             <div
               key={analyst.id}
-              className="bg-white/5 border border-white/10 rounded-lg p-6"
+              className="flex h-full flex-col bg-white/5 border border-white/10 rounded-lg p-6 min-w-0"
             >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center text-3xl">
+              <div className="flex items-start gap-3 mb-4 min-w-0">
+                <div className="w-16 h-16 shrink-0 bg-white/10 rounded-full flex items-center justify-center text-3xl">
                   {analyst.avatar}
                 </div>
-                <div>
-                  <h3 className="font-syne font-bold text-lg">
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-syne font-bold text-lg truncate">
                     {analyst.displayName}
                   </h3>
-                  <div className="text-xs text-gray-500 font-mono">
-                    {analyst.wallet}
-                  </div>
+                  <FeaturedAnalystWalletLine wallet={analyst.wallet} />
                 </div>
               </div>
 
@@ -552,7 +590,7 @@ function FeaturedAnalystsSection() {
                 &ldquo;{analyst.featuredQuote ?? analyst.bio}&rdquo;
               </p>
 
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10 mt-auto">
                 <div>
                   <div className="text-xs text-gray-500">Total Earned</div>
                   <div className="font-mono font-bold text-brand-green">

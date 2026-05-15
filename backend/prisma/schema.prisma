@@ -651,6 +651,9 @@ model CuratedEvent {
   selectedBy  String
   importanceScore Int     @default(0)
   autoPublish     Boolean @default(false)
+  /// Canonical sport slug for UI + liquidity (`football`, `tennis`, `f1`, …)
+  sport           String  @default("football")
+  sportSlug       String  @default("football")
   /// Decimal odds (European) from Azuro 1X2 — home / draw / away
   homeOdds    Float?
   drawOdds    Float?

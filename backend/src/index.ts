@@ -191,6 +191,8 @@ async function autoSeedEventsOnBoot() {
           homeOdds: event.homeOdds ?? null,
           drawOdds: event.drawOdds ?? null,
           awayOdds: event.awayOdds ?? null,
+          sport: event.sportSlug ?? "football",
+          sportSlug: event.sportSlug ?? "football",
         },
         update: {
           title: event.title,
@@ -212,6 +214,8 @@ async function autoSeedEventsOnBoot() {
           homeOdds: event.homeOdds ?? null,
           drawOdds: event.drawOdds ?? null,
           awayOdds: event.awayOdds ?? null,
+          sport: event.sportSlug ?? "football",
+          sportSlug: event.sportSlug ?? "football",
         },
       });
     }

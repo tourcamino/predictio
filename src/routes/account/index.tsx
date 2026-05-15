@@ -5,6 +5,7 @@ import { useWallet } from '~/store/useWalletStore';
 import { useState, useEffect, useMemo } from 'react';
 import { User, FileText, Wallet, BarChart3, Settings, Copy, ExternalLink, TrendingUp, Trophy, Calendar, ArrowDownCircle, ArrowUpCircle, TrendingDown, RefreshCw, Users, Hexagon, CheckCircle, Circle, Gift, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { WALLET_TOAST_IDS, walletToastSuccess } from '~/lib/walletToast';
 import { ShareButton } from '~/components/ShareButton';
 import { generateWinShareText, generatePredictionShareText } from '~/utils/shareUtils';
 import { DepositWithdrawModal } from '~/components/DepositWithdrawModal';
@@ -536,24 +537,32 @@ function AccountPage() {
           {activeTab === 'points' && (
             <div className="space-y-6">
               {/* Loading State */}
-              {pointsQuery.isLoading && (
+              {pointsQuery.isPointsLoading && (
                 <div className="bg-white/5 border border-white/10 rounded-lg p-12 text-center">
                   <RefreshCw className="w-8 h-8 text-brand-green mx-auto mb-4 animate-spin" />
-                  <p className="text-gray-400">Loading points data...</p>
+                  <p className="text-gray-400">Loading rewards…</p>
                 </div>
               )}
 
               {/* Error State */}
-              {pointsQuery.isError && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-6 text-center space-y-2">
-                  <p className="text-red-400 font-medium">Failed to load points</p>
-                  <p className="text-sm text-gray-400 max-w-lg mx-auto">
-                    This uses the same server as wallet sync. If production shows errors here, fix{" "}
-                    <span className="text-gray-300">DATABASE_URL</span> on Vercel (Neon{" "}
-                    <span className="text-gray-300">pooled</span> host) and check Vercel Runtime logs —
-                    the UI cannot show points until the API responds.
+              {pointsQuery.pointsLoadFailed && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="bg-white/5 border border-white/10 rounded-lg p-6 text-center space-y-3"
+                >
+                  <p className="text-gray-300 font-medium">Unable to load rewards data</p>
+                  <p className="text-sm text-gray-500 max-w-lg mx-auto">
+                    Rewards data temporarily unavailable. Retrying…
                   </p>
-                </div>
+                  <button
+                    type="button"
+                    onClick={() => void pointsQuery.refetch()}
+                    className="text-sm text-brand-green hover:underline"
+                  >
+                    Try again
+                  </button>
+                </motion.div>
               )}
 
               {/* Points Summary */}
@@ -1334,7 +1343,10 @@ function AccountPage() {
                     onClick={() => {
                       if (window.confirm('Are you sure you want to disconnect your wallet?')) {
                         disconnectWallet();
-                        toast.success('Wallet disconnected');
+                        walletToastSuccess('Wallet disconnected', {
+                          id: WALLET_TOAST_IDS.disconnected,
+                          duration: 4200,
+                        });
                         navigate({ to: '/' });
                       }
                     }}

@@ -141,22 +141,33 @@ function RootComponent() {
         <div className="min-h-screen flex flex-col">
         <Toaster
           position="top-right"
+          gutter={14}
+          containerClassName="predictio-toast-stack"
           toastOptions={{
-            duration: 4000,
+            duration: 4200,
+            className: 'predictio-hot-toast',
             style: {
               background: '#1a1a1a',
               color: '#fff',
               border: '1px solid rgba(255, 255, 255, 0.1)',
             },
             success: {
+              duration: 4200,
               iconTheme: {
                 primary: '#00FF87',
                 secondary: '#1a1a1a',
               },
             },
             error: {
+              duration: 6000,
               iconTheme: {
                 primary: '#ef4444',
+                secondary: '#1a1a1a',
+              },
+            },
+            loading: {
+              iconTheme: {
+                primary: '#00FF87',
                 secondary: '#1a1a1a',
               },
             },
