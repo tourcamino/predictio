@@ -10,8 +10,11 @@ import {
   isAllowedLeague,
   computeAppealScore,
   LOOKAHEAD_SEC_60D,
-  POOL_MIN_APPEAL_THRESHOLD,
 } from "./eventCurationPipeline";
+import {
+  getAppealThresholdsByTier,
+  type LeagueTier,
+} from "./editorialLeagueTiers";
 
 function leagueHistogram(games: RawAzuroGame[], limit = 12): Record<string, number> {
   const map: Record<string, number> = {};
@@ -116,6 +119,15 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
   const appealPassed: RawAzuroGame[] = [];
   const appealRejected: Array<{ game: RawAzuroGame; score: number }> = [];
   const appealPoolTrace: Array<Record<string, unknown>> = [];
+  const appealThresholds = getAppealThresholdsByTier();
+  const rejectedByAppealThreshold: Record<LeagueTier, number> = { A: 0, B: 0, C: 0 };
+  const appealRejectedByTierSamples: Array<{
+    league: string;
+    tier: LeagueTier;
+    appealScore: number;
+    requiredThreshold: number;
+    reason: string;
+  }> = [];
 
   for (const g of filterResult.upcoming) {
     if (!isItalianPriorityFixture(g)) continue;
@@ -147,7 +159,8 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
         appealScore,
         isPrestigeFixture: explained.isPrestigeFixture,
         reason: explained.reason,
-        threshold: explained.threshold,
+        threshold: explained.requiredThreshold,
+        tier: explained.tier,
       });
     }
   }
@@ -159,6 +172,18 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
       appealPassed.push(g);
     } else {
       appealRejected.push({ game: g, score });
+      if (explained.tier && explained.reason === "appeal_below_threshold") {
+        rejectedByAppealThreshold[explained.tier] += 1;
+        if (appealRejectedByTierSamples.length < 12) {
+          appealRejectedByTierSamples.push({
+            league: g.league?.name ?? "",
+            tier: explained.tier,
+            appealScore: score,
+            requiredThreshold: explained.requiredThreshold,
+            reason: explained.reason,
+          });
+        }
+      }
     }
   }
 
@@ -182,6 +207,12 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
     },
   });
 
+  const selectedByTier: Record<LeagueTier, number> = { A: 0, B: 0, C: 0 };
+  for (const g of picked) {
+    const cls = classifyLeagueTier(g.leagueName, g.country);
+    if (cls.tier) selectedByTier[cls.tier] += 1;
+  }
+
   const sampleWhitelisted = sampleRows(europeanAfterGate, 8);
   const sampleRejected = appealRejected.slice(0, 8).map(({ game, score }) => {
     const leagueName = game.league?.name ?? "";
@@ -190,8 +221,9 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
     return {
       league: leagueName,
       country,
+      tier: explained.tier,
       appealScore: score,
-      appealThreshold: explained.threshold,
+      requiredThreshold: explained.requiredThreshold,
       isPrestigeFixture: explained.isPrestigeFixture,
       reason: explained.reason,
     };
@@ -218,7 +250,7 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
       layer: "5_appealPool",
       count: appealPassed.length,
       sampleLeagues: leagueHistogram(appealPassed),
-      note: `rejectedByAppeal=${appealRejected.length} threshold=${POOL_MIN_APPEAL_THRESHOLD}`,
+      note: `rejectedByAppeal=${appealRejected.length} thresholds=A${appealThresholds.A}/B${appealThresholds.B}/C${appealThresholds.C}`,
     },
     {
       layer: "6_italianQuota_inputs",
@@ -244,7 +276,7 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
         futureItalianInUpcoming: italianInUpcoming.length,
         futureItalianInAppealPool: italianInAppealPool.length,
         whyItalianPool2ButCombined1:
-          "futureItalianPool counts upcoming Italy-priority fixtures; combinedPool requires appeal>=110 or prestige/UCL",
+          "futureItalianPool counts upcoming Italy-priority fixtures; combinedPool uses tier appeal thresholds (A110/B80/C60) or prestige/UCL",
       },
     }),
   );
@@ -275,6 +307,10 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
     rejectedByTier: filterResult.rejectedByTier,
     tierAccepted,
     tierRejectedSample,
+    appealThresholds,
+    selectedByTier,
+    rejectedByAppealThreshold,
+    appealRejectedByTierSamples,
     appealPool: appealPassed.length,
     combinedPool: diagnostics.combinedPoolSize,
     picked: diagnostics.pickedCount,

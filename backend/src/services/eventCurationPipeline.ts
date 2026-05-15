@@ -120,7 +120,7 @@ function isEventUnpredictableWithParams(
   return true;
 }
 
-/** Minimum appeal to enter curation pool without prestige fixture. */
+/** Tier A appeal floor (legacy alias — use `getTierAppealThreshold` for tier-aware gates). */
 export const POOL_MIN_APPEAL_THRESHOLD = 110;
 /** Auto-publish when appeal is high even without strict prestige gate. */
 const AUTO_PUBLISH_APPEAL_THRESHOLD = 130;
@@ -380,6 +380,8 @@ export function normalizeLeagueMetadata(leagueName: string, country: string): {
 import {
   classifyLeagueTier,
   explainAllowedLeagueRejection,
+  getAppealThresholdsByTier,
+  getTierAppealThreshold,
   isAllowedLeague,
   isItalianSerieBFixture,
   isItalianSerieA,
@@ -394,12 +396,15 @@ import {
 export {
   classifyLeagueTier,
   explainAllowedLeagueRejection,
+  getAppealThresholdsByTier,
+  getTierAppealThreshold,
   isAllowedLeague,
   isItalianSerieBFixture,
   isItalianSerieA,
   normCountry,
   normLeagueSlug,
   MIN_CATALOG_SLOTS_FOR_TIER_C,
+  APPEAL_THRESHOLDS_BY_TIER,
   type LeagueGateVerdict,
   type LeagueGateOptions,
   type LeagueTier,
@@ -758,6 +763,14 @@ export function qualifiesForAppealPool(g: RawAzuroGame, appealScore: number): bo
   return explainAppealPoolRejection(g, appealScore).passes;
 }
 
+function leagueTierForAppealGate(g: RawAzuroGame): LeagueTier | null {
+  return classifyLeagueTier(
+    g.league?.name ?? "",
+    g.league?.country?.name ?? "",
+    g.league?.slug,
+  ).tier;
+}
+
 export function explainAppealPoolRejection(
   g: RawAzuroGame,
   appealScore: number,
@@ -767,8 +780,12 @@ export function explainAppealPoolRejection(
   isPrestigeFixture: boolean;
   appealScore: number;
   threshold: number;
+  tier: LeagueTier | null;
+  requiredThreshold: number;
 } {
   const leagueName = g.league?.name || "";
+  const tier = leagueTierForAppealGate(g);
+  const requiredThreshold = getTierAppealThreshold(tier);
   const prestige = isPrestigeFixture({ raw: g, importanceScore: appealScore });
   if (isUefaChampionsLeague(leagueName)) {
     return {
@@ -776,7 +793,9 @@ export function explainAppealPoolRejection(
       reason: "ucl",
       isPrestigeFixture: prestige,
       appealScore,
-      threshold: POOL_MIN_APPEAL_THRESHOLD,
+      threshold: requiredThreshold,
+      tier,
+      requiredThreshold,
     };
   }
   if (prestige) {
@@ -785,24 +804,30 @@ export function explainAppealPoolRejection(
       reason: "prestige_fixture",
       isPrestigeFixture: true,
       appealScore,
-      threshold: POOL_MIN_APPEAL_THRESHOLD,
+      threshold: requiredThreshold,
+      tier,
+      requiredThreshold,
     };
   }
-  if (appealScore >= POOL_MIN_APPEAL_THRESHOLD) {
+  if (appealScore >= requiredThreshold) {
     return {
       passes: true,
       reason: "above_threshold",
       isPrestigeFixture: false,
       appealScore,
-      threshold: POOL_MIN_APPEAL_THRESHOLD,
+      threshold: requiredThreshold,
+      tier,
+      requiredThreshold,
     };
   }
   return {
     passes: false,
-    reason: "below_threshold",
+    reason: "appeal_below_threshold",
     isPrestigeFixture: false,
     appealScore,
-    threshold: POOL_MIN_APPEAL_THRESHOLD,
+    threshold: requiredThreshold,
+    tier,
+    requiredThreshold,
   };
 }
 
@@ -844,7 +869,8 @@ export function logItalianAppealPoolTrace(upcoming: RawAzuroGame[]): void {
           appealScore,
           isPrestigeFixture: explained.isPrestigeFixture,
           reason: explained.reason,
-          threshold: explained.threshold,
+          threshold: explained.requiredThreshold,
+          tier: explained.tier,
         }),
       );
     }
@@ -1230,7 +1256,8 @@ export async function buildEuropeanCurationGamesPayload(
           appealScore: explained.appealScore,
           isPrestigeFixture: explained.isPrestigeFixture,
           reason: explained.reason,
-          threshold: explained.threshold,
+          threshold: explained.requiredThreshold,
+          tier: explained.tier,
         }),
       );
       continue;
@@ -1346,7 +1373,7 @@ export async function buildEuropeanCurationGamesPayload(
       allowedPoolAfterAppeal: allowedPool.length,
       combinedPool: combinedPool.length,
       picked: picked.length,
-      appealThreshold: POOL_MIN_APPEAL_THRESHOLD,
+      appealThresholds: getAppealThresholdsByTier(),
     }),
   );
   logAppealCurationDiagnostics(picked, sourceForPick, pipelineLog);

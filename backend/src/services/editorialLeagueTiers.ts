@@ -368,3 +368,23 @@ export function isAllowedLeague(
 ): boolean {
   return explainAllowedLeagueRejection(leagueName, country, leagueSlug, options).passesLeagueGate;
 }
+
+/** Minimum appeal to enter curation pool without prestige/UCL bypass, per editorial tier. */
+export const APPEAL_THRESHOLDS_BY_TIER: Readonly<Record<LeagueTier, number>> = {
+  A: 110,
+  B: 80,
+  C: 60,
+};
+
+export const DEFAULT_TIER_APPEAL_THRESHOLD = APPEAL_THRESHOLDS_BY_TIER.A;
+
+export function getTierAppealThreshold(tier: LeagueTier | null | undefined): number {
+  if (tier === "B") return APPEAL_THRESHOLDS_BY_TIER.B;
+  if (tier === "C") return APPEAL_THRESHOLDS_BY_TIER.C;
+  if (tier === "A") return APPEAL_THRESHOLDS_BY_TIER.A;
+  return DEFAULT_TIER_APPEAL_THRESHOLD;
+}
+
+export function getAppealThresholdsByTier(): Readonly<Record<LeagueTier, number>> {
+  return APPEAL_THRESHOLDS_BY_TIER;
+}
