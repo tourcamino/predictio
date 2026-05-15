@@ -114,7 +114,7 @@ function AccountPage() {
     enabled: !!walletKey && activeTab === 'points',
   });
   
-  const getTierColor = (tier: string) => {
+  const getTierColor = (tier: string | undefined) => {
     switch (tier) {
       case 'DIAMOND': return '#00D4FF';
       case 'GOLD': return '#FFD700';
@@ -546,9 +546,7 @@ function AccountPage() {
 
               {/* Error State */}
               {pointsQuery.pointsLoadFailed && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
+                <div
                   className="bg-white/5 border border-white/10 rounded-lg p-6 text-center space-y-3"
                 >
                   <p className="text-gray-300 font-medium">Unable to load rewards data</p>
@@ -562,7 +560,7 @@ function AccountPage() {
                   >
                     Try again
                   </button>
-                </motion.div>
+                </div>
               )}
 
               {/* Points Summary */}
@@ -610,7 +608,7 @@ function AccountPage() {
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm text-gray-400">Next: {pointsQuery.data.nextTier}</span>
                           <span className="text-sm text-gray-400">
-                            {pointsQuery.data.pointsToNextTier.toLocaleString()} pts to go
+                            {(pointsQuery.data.pointsToNextTier ?? 0).toLocaleString()} pts to go
                           </span>
                         </div>
                         <div className="h-2 bg-white/10 rounded-full overflow-hidden">
@@ -619,7 +617,7 @@ function AccountPage() {
                             style={{
                               width: `${(() => {
                                 const t = pointsQuery.data.totalPoints;
-                                const g = pointsQuery.data.pointsToNextTier;
+                                const g = pointsQuery.data.pointsToNextTier ?? 0;
                                 const denom = t + g;
                                 if (denom <= 0) return 0;
                                 return Math.min(100, (t / denom) * 100);
@@ -680,7 +678,7 @@ function AccountPage() {
                     <div className="px-6 py-4 bg-white/5 border-b border-white/10">
                       <h3 className="font-syne font-bold text-lg">RECENT ACTIVITY</h3>
                     </div>
-                    {pointsQuery.data.recentActivity.length === 0 ? (
+                    {((pointsQuery.data.recentActivity ?? []).length) === 0 ? (
                       <div className="p-12 text-center">
                         <Hexagon className="w-12 h-12 text-gray-500 mx-auto mb-4" />
                         <p className="text-gray-400">No activity yet</p>
@@ -698,7 +696,7 @@ function AccountPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-white/10">
-                            {pointsQuery.data.recentActivity.map((activity: any, index: number) => (
+                            {(pointsQuery.data.recentActivity ?? []).map((activity: any, index: number) => (
                               <tr key={index} className="hover:bg-white/5">
                                 <td className="px-6 py-4">
                                   <span className="text-sm font-semibold">{getActionLabel(activity.actionType)}</span>

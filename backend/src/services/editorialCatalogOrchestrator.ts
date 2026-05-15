@@ -326,6 +326,9 @@ function fillNamedSlot(
   return filled;
 }
 
+/** Raw appeal floor for adaptive slots — suppresses marginal tournaments in the nine-row book. */
+const ADAPTIVE_MIN_RAW_IMPORTANCE = 75;
+
 function fillAdaptiveFallback(
   pool: ScoredItalian[],
   used: Set<string>,
@@ -347,10 +350,11 @@ function fillAdaptiveFallback(
       score: adaptiveScore(it, tierCActivated),
       band: getTemporalBandForUnix(nowSec, parseInt(String(it.raw.startsAt), 10)),
     }))
-    .filter((x) => x.score >= 0)
+    .filter((x) => x.score >= 0 && x.it.importanceScore >= ADAPTIVE_MIN_RAW_IMPORTANCE)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      const bandPri = (band: string) => (band === "SOON" ? 3 : band === "MID" ? 2 : 1);
+      /** Prefer MID/LATER kickoffs in adaptive fill to avoid “everything tonight” clustering. */
+      const bandPri = (band: string) => (band === "LATER" ? 3 : band === "MID" ? 2 : 1);
       const bp = bandPri(b.band) - bandPri(a.band);
       if (bp !== 0) return bp;
       return byAppealThenKickoff(a.it, b.it);
@@ -380,6 +384,76 @@ function sortPickedEditorialOrder(
     if (sp !== 0) return sp;
     return byAppealThenKickoff(a, b);
   });
+}
+
+const MAX_CATALOG_EVENTS_PER_DAY = 2;
+
+function kickoffDayKey(it: ScoredItalian): string {
+  const sec = parseInt(String(it.raw.startsAt), 10);
+  if (!Number.isFinite(sec)) return "";
+  return new Date(sec * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * Swap lowest-priority adaptive picks on overloaded calendar days with higher-appeal
+ * off-day candidates — preserves named slots; only adaptive rows move.
+ */
+function relaxAdaptiveSameDayClustering(
+  ordered: ScoredItalian[],
+  metaByGameId: Map<string, EditorialPickMeta>,
+  replacementPool: ScoredItalian[],
+  maxPerDay: number,
+): ScoredItalian[] {
+  const gidOf = (it: ScoredItalian) => scoredGameId(it);
+
+  function countsByDay(list: ScoredItalian[]): Map<string, number> {
+    const m = new Map<string, number>();
+    for (const x of list) {
+      const d = kickoffDayKey(x);
+      if (!d) continue;
+      m.set(d, (m.get(d) ?? 0) + 1);
+    }
+    return m;
+  }
+
+  const result = [...ordered];
+
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const counts = countsByDay(result);
+    const overflow = [...counts.entries()].find(([, n]) => n > maxPerDay);
+    if (!overflow) break;
+    const badDay = overflow[0];
+
+    const onDay = result
+      .filter((it) => kickoffDayKey(it) === badDay)
+      .sort((a, b) => a.importanceScore - b.importanceScore);
+
+    const victim = onDay.find((it) => metaByGameId.get(gidOf(it))?.slot === "adaptiveFallback");
+    if (!victim) break;
+
+    const taken = new Set(result.map(gidOf).filter(Boolean));
+    const victimGid = gidOf(victim);
+    const replacement = [...replacementPool]
+      .filter((it) => {
+        const g = gidOf(it);
+        return Boolean(g) && !taken.has(g) && kickoffDayKey(it) !== badDay;
+      })
+      .sort((a, b) => b.importanceScore - a.importanceScore)[0];
+
+    if (!replacement) break;
+
+    const repGid = gidOf(replacement);
+    const idx = result.findIndex((it) => gidOf(it) === victimGid);
+    if (idx === -1) break;
+    result[idx] = replacement;
+    metaByGameId.delete(victimGid);
+    metaByGameId.set(repGid, {
+      slot: "adaptiveFallback",
+      selectionReason: selectionReasonFor("adaptiveFallback", replacement),
+    });
+  }
+
+  return result;
 }
 
 export type OrchestrateEditorialCatalogOptions = {
@@ -428,7 +502,14 @@ export function orchestrateEditorialCatalog(
 
   fillAdaptiveFallback(footballPool, used, picked, metaByGameId, tierCActivated, nowSec);
 
-  const ordered = sortPickedEditorialOrder(picked, metaByGameId).slice(0, CATALOG_TARGET_SIZE);
+  const combinedPool = [...footballPool, ...multisportPool];
+  let ordered = sortPickedEditorialOrder(picked, metaByGameId).slice(0, CATALOG_TARGET_SIZE);
+  ordered = relaxAdaptiveSameDayClustering(
+    ordered,
+    metaByGameId,
+    combinedPool,
+    MAX_CATALOG_EVENTS_PER_DAY,
+  );
 
   const editorialSlots: Record<EditorialSlotId, number> = {
     premiumAnchors: 0,

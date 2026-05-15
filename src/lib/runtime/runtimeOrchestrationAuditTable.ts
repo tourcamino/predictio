@@ -5,8 +5,8 @@
 export type RuntimeOrchestrationAuditRow = {
   file: string;
   role: string;
-  dbWriter: boolean;
-  retrySafe: boolean;
+  dbWriter: boolean | string;
+  retrySafe: boolean | string;
   idempotent: string;
   sideEffects: string;
   polling: boolean;

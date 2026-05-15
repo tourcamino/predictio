@@ -1,5 +1,6 @@
 import type { SeedMarket } from "~/data/seedMarkets";
 import type { Market } from "~/data/mockMarkets";
+import type { AzuroMarket } from "~/services/azuro";
 
 /**
  * Maps Seed/Azuro-shaped markets to legacy `Market` used by `LiveMarketCard` and lifecycle helpers.
@@ -45,6 +46,11 @@ export function seedMarketToLiveMarket(m: SeedMarket): Market {
 
   if (typeof m.importanceScore === "number" && Number.isFinite(m.importanceScore)) {
     market.importanceScore = m.importanceScore;
+  }
+
+  const editorialSlot = (m as AzuroMarket).editorialSlot;
+  if (editorialSlot != null) {
+    market.editorialSlot = editorialSlot;
   }
 
   if (m.liquidity > 0) {

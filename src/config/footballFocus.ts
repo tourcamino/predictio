@@ -13,8 +13,8 @@
  */
 
 export const FOOTBALL_FOCUS_CONFIG = {
-  // Master toggle - set to false to restore multi-sport mode
-  ENABLED: true,
+  /** When true, UI limits sport scope to football — off for premium multisport identity. */
+  ENABLED: false,
   
   // Allowed sport slug (only used when ENABLED is true)
   ALLOWED_SPORT: 'football' as const,
@@ -35,22 +35,16 @@ export const FOOTBALL_FOCUS_CONFIG = {
     'Serie A',
   ] as const,
   
-  // Redirect behavior for non-football requests
-  REDIRECT_TO_FOOTBALL: true,
-  
-  // Show "Coming Soon" section for other sports on homepage
-  SHOW_COMING_SOON_SECTION: true,
-  
-  // Hide sport selector in navigation
-  HIDE_SPORT_SELECTOR: true,
-  
-  // Homepage hero copy (football-specific)
+  REDIRECT_TO_FOOTBALL: false,
+  SHOW_COMING_SOON_SECTION: false,
+  HIDE_SPORT_SELECTOR: false,
+  /** Legacy hero strings — unused while multisport hero is default; kept for optional narrow mode. */
   HERO: {
-    headline: 'Trade Football Markets',
-    subheadline: 'Predict outcomes. Trade live matches. Profit from your football knowledge.',
-    ctaPrimary: 'Start Trading',
-    ctaSecondary: 'Explore Matches',
-    supportingLine: 'Champions League • Serie A • Top European Competitions',
+    headline: 'European football — premium lane',
+    subheadline: 'Serie A, cups, and continental football as one curated lane alongside other sports.',
+    ctaPrimary: 'Open markets',
+    ctaSecondary: 'Curated outlook',
+    supportingLine: 'UCL · Serie A · top European competitions',
   },
   
   // Stats to show (football-focused)

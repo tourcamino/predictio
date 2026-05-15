@@ -38,6 +38,8 @@ export interface Market {
   lifecycleState?: import("~/lib/market/marketLifecycleStateMachine").MarketLifecycleState;
   /** Curated catalog appeal score (GET /api/markets). */
   importanceScore?: number;
+  /** Editorial band from curated orchestrator (optional on legacy markets). */
+  editorialSlot?: import("~/lib/editorialCatalogPresentation").EditorialSlotId;
   // Liquidity & Market Making fields
   liquidity?: {
     totalPool: number;

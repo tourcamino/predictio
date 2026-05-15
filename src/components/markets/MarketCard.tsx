@@ -12,9 +12,20 @@ import {
   hasRealMarketSocialMetrics,
   isCuratedCatalogMarket,
   shouldShowCuratedProtocolFooter,
+  type CuratedCatalogMarket,
 } from '~/lib/curatedMarketPresentation';
 import { editorialSlotLabel } from '~/lib/editorialCatalogPresentation';
 import type { AzuroMarket } from '~/services/azuro';
+
+function editorialFields(market: Market): Pick<AzuroMarket, 'editorialSlot'> {
+  return market as unknown as Pick<AzuroMarket, 'editorialSlot'>;
+}
+
+function shortOutcomeLabel(name: string, max = 12): string {
+  const t = name.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1)}…`;
+}
 
 interface MarketCardProps {
   market: Market;
@@ -27,7 +38,8 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
   const countryCode = getMarketCountryCode(market);
   const flag = countryCode ? COUNTRY_FLAG[countryCode] : null;
   const elite = isEliteMarket(market);
-  const editorialLabel = editorialSlotLabel((market as AzuroMarket).editorialSlot);
+  const { editorialSlot } = editorialFields(market);
+  const editorialLabel = editorialSlotLabel(editorialSlot);
 
   const formatVolume = (volume: number) => {
     if (volume >= 1000000) {
@@ -43,7 +55,7 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
 
   // Determine button label and status badge
   let statusBadge = null;
-  let buttonLabel = 'Trade Now';
+  let buttonLabel = 'View outlook';
   
   if (lifecycleStatus === 'resolved') {
     const winner = market.result === 'yes' ? market.teamA : market.teamB;
@@ -99,7 +111,7 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
               GLOBAL
             </span>
           )}
-          {editorialLabel && (market as AzuroMarket).editorialSlot !== 'adaptiveFallback' && (
+          {editorialLabel && editorialSlot !== 'adaptiveFallback' && (
             <span className="ml-1 px-2 py-0.5 bg-white/[0.04] border border-white/10 text-gray-500 text-[10px] font-medium rounded">
               {editorialLabel}
             </span>
@@ -155,19 +167,20 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
         </div>
       )}
 
-      {/* YES/NO Price Display with Sparklines - Trader Style */}
+      {/* Binary outcome probability — institutional framing */}
       <div className="mb-4 flex-grow">
         <div className="grid grid-cols-2 gap-3">
-          {/* YES Card */}
-          <div className="relative bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/30 rounded-lg p-3 group-hover:border-green-500/50 transition-all overflow-hidden">
+          <div className="relative bg-gradient-to-br from-white/[0.04] to-white/[0.02] border border-green-500/20 rounded-lg p-3 group-hover:border-green-500/35 transition-all overflow-hidden">
             <div className="flex items-start justify-between mb-2">
               <div>
-                <div className="text-xs text-gray-400 mb-1">YES</div>
-                <div className="font-mono font-bold text-2xl text-brand-green">
+                <div className="text-xs text-gray-600 mb-1 tracking-wide">
+                  Implied · {shortOutcomeLabel(market.teamA, 14)}
+                </div>
+                <div className="font-mono font-bold text-2xl text-brand-green/90">
                   {Math.round(market.yesPrice * 100)}¢
                 </div>
-                <div className="text-xs text-gray-400 mt-1">
-                  {yesPercent.toFixed(1)}%
+                <div className="text-xs text-gray-600 mt-1">
+                  {yesPercent.toFixed(1)}% weight
                 </div>
               </div>
               <PriceMovement percentA={yesPercent} />
@@ -179,16 +192,17 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
             />
           </div>
 
-          {/* NO Card */}
-          <div className="relative bg-gradient-to-br from-red-500/10 to-red-500/5 border border-red-500/30 rounded-lg p-3 group-hover:border-red-500/50 transition-all overflow-hidden">
+          <div className="relative bg-gradient-to-br from-white/[0.04] to-white/[0.02] border border-white/15 rounded-lg p-3 group-hover:border-white/25 transition-all overflow-hidden">
             <div className="flex items-start justify-between mb-2">
               <div>
-                <div className="text-xs text-gray-400 mb-1">NO</div>
-                <div className="font-mono font-bold text-2xl text-red-500">
+                <div className="text-xs text-gray-600 mb-1 tracking-wide">
+                  Implied · {shortOutcomeLabel(market.teamB, 14)}
+                </div>
+                <div className="font-mono font-bold text-2xl text-gray-400/90">
                   {Math.round(market.noPrice * 100)}¢
                 </div>
-                <div className="text-xs text-gray-400 mt-1">
-                  {noPercent.toFixed(1)}%
+                <div className="text-xs text-gray-600 mt-1">
+                  {noPercent.toFixed(1)}% weight
                 </div>
               </div>
               <PriceMovement percentA={noPercent} />
@@ -196,7 +210,7 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
             <MiniSparkline
               percentA={noPercent}
               className="w-full h-8 mt-1"
-              color="#EF4444"
+              color="#9CA3AF"
             />
           </div>
         </div>
@@ -204,7 +218,7 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
 
       {/* Footer */}
       <div className="flex items-center justify-between font-mono text-xs text-gray-500 mb-2">
-        {shouldShowCuratedProtocolFooter(market) ? (
+        {shouldShowCuratedProtocolFooter(market as unknown as CuratedCatalogMarket) ? (
           <span className="text-gray-500">{CURATED_PROTOCOL_FOOTER_LABEL}</span>
         ) : (
           <>

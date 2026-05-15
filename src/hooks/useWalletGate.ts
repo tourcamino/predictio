@@ -44,8 +44,8 @@ export function useWalletGate() {
       return false;
     }
     if (runtime === "hydrating") {
-      toast.error("Wallet network is still syncing — try again in a moment.", {
-        id: "predictio-wallet-hydrating-gate",
+      walletToastError("Wallet network is still syncing — try again in a moment.", {
+        id: WALLET_TOAST_IDS.hydratingGate,
         duration: 3800,
       });
       return false;

@@ -6,9 +6,8 @@ import { AZURO_FEED_LIST_CAP } from "~/constants/azuro";
 import { type AzuroMarket, fetchAzuroGames } from "~/services/azuro";
 import { prioritizeFeaturedAzuroMarkets } from "~/lib/markets/curateFeaturedEvents";
 
-// Server-side football focus check
-// In production, this could be an environment variable
-const FOOTBALL_FOCUS_ENABLED = true;
+// Match `src/config/footballFocus.ts` — premium multisport feed by default.
+const FOOTBALL_FOCUS_ENABLED = false;
 const PRIORITY_COMPETITIONS = ["UEFA Champions League", "Serie A"];
 /** When founder curation is active, match Express `GET /api/markets` (max 12, importance ↓ then kickoff ↑). */
 const CURATED_MARKETS_CAP = 12;
@@ -153,11 +152,7 @@ export const getAzuroMarkets = baseProcedure
       });
     }
 
-    if (
-      curatedByGameId &&
-      curatedByGameId.size > 0 &&
-      FOOTBALL_FOCUS_ENABLED
-    ) {
+    if (curatedByGameId && curatedByGameId.size > 0) {
       filteredMarkets = sortByCuratedMeta(filteredMarkets, curatedByGameId);
     }
 
