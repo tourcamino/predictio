@@ -1,4 +1,4 @@
-import { getMethod, getRequestURL, type H3Event } from "vinxi/http";
+import { getRequestURL, type H3Event } from "vinxi/http";
 
 /** Dev or explicit flag — request timing/path diagnostics only (no secrets). */
 export function isRuntimeHandlerDiagnosticsEnabled(): boolean {
@@ -23,7 +23,11 @@ export function handlerRequestContext(event: H3Event): {
   pathname: string;
 } {
   const url = getRequestURL(event);
-  return { method: getMethod(event), pathname: url.pathname };
+  const method =
+    (event as { method?: string }).method ??
+    (event as { node?: { req?: { method?: string } } }).node?.req?.method ??
+    "GET";
+  return { method: method.toUpperCase(), pathname: url.pathname };
 }
 
 export function errorMessage(err: unknown, maxLen = 200): string {
