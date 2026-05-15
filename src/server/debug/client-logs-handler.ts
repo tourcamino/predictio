@@ -1,10 +1,11 @@
 import {
   defineEventHandler,
+  getMethod,
   type H3Event,
 } from "vinxi/http";
 
 export default defineEventHandler(async (event: H3Event) => {
-  if (event.node.req.method !== "POST") {
+  if (getMethod(event) !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
 

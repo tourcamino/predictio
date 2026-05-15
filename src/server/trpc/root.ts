@@ -109,16 +109,19 @@ import { getTraderPerformanceHistory } from "./procedures/getTraderPerformanceHi
 import { chatbotStream } from "./procedures/chatbotStream";
 import { marketAiInsight } from "./procedures/marketAiInsight";
 import { expandMarketSearch } from "./procedures/expandMarketSearch";
+import { askMarketAi } from "./procedures/askMarketAi";
 import {
   verifyAnalyst,
   unverifyAnalyst,
 } from "./procedures/admin/verifyAnalyst";
+import { runtimeReconciliationReport } from "./procedures/runtimeReconciliationReport";
 
 export const appRouter = createTRPCRouter({
   getMarketDetail,
   getMarketSummaries,
   getAzuroMarkets,
   checkAzuroResolutions,
+  runtimeReconciliationReport,
   placePrediction,
   closePosition,
   syncUserAccount,
@@ -229,6 +232,7 @@ export const appRouter = createTRPCRouter({
   chatbotStream,
   marketAiInsight,
   expandMarketSearch,
+  askMarketAi,
   // Admin procedures
   verifyAnalyst,
   unverifyAnalyst,

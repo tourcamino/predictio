@@ -105,9 +105,9 @@ export function curatedApiRowToAzuroMarket(row: CuratedMarketApiRow): AzuroMarke
       location: row.country,
     },
     outcomes,
-    volume24h: 25_000,
-    liquidity: 12_000,
-    traders: 150,
+    volume24h: 0,
+    liquidity: 0,
+    traders: 0,
     status: deriveSeedStatus(row),
     createdAt: startsAt,
     creator: "predictio",
@@ -121,6 +121,44 @@ export function curatedApiRowToAzuroMarket(row: CuratedMarketApiRow): AzuroMarke
     drawOdds: drawOddsField,
   };
 }
+
+function kickoffMsForSort(m: AzuroMarket): number {
+  const s = m.event?.startsAt;
+  if (s) {
+    const t = Date.parse(s);
+    if (Number.isFinite(t)) return t;
+  }
+  const e = Date.parse(m.endsAt);
+  return Number.isFinite(e) ? e : Number.MAX_SAFE_INTEGER;
+}
+
+/** Backend canonical order: appeal stored as `importanceScore`, then earliest kickoff. */
+export function sortByBackendCuratedRanking(markets: AzuroMarket[]): AzuroMarket[] {
+  return [...markets].sort((a, b) => {
+    const scoreDiff = (b.importanceScore ?? 0) - (a.importanceScore ?? 0);
+    if (scoreDiff !== 0) return scoreDiff;
+    return kickoffMsForSort(a) - kickoffMsForSort(b);
+  });
+}
+
+/** Public GET /api/markets (≤9 rows with scores) — skip client balance re-curation. */
+function shouldUseBackendCuratedPassThrough(markets: AzuroMarket[]): boolean {
+  if (markets.length === 0 || markets.length > CURATED_FEATURED_MAX) return false;
+  return markets.every(
+    (m) => typeof m.importanceScore === "number" && Number.isFinite(m.importanceScore),
+  );
+}
+
+function logCuratedRankingPath(path: "backend-pass-through" | "featured-recuration"): void {
+  if (!import.meta.env.DEV) return;
+  const msg =
+    path === "backend-pass-through"
+      ? "[curatedMarketsApi] frontend using backend curated ranking"
+      : "[curatedMarketsApi] frontend applying featured recuration";
+  console.debug(msg);
+}
+
+export { isCanonicalCuratedCatalog } from "~/lib/curatedMarketPresentation";
 
 export async function fetchCuratedMarketsFromApi(): Promise<{
   markets: AzuroMarket[];
@@ -141,11 +179,19 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
       total: number;
     };
     const mapped = (data.markets ?? []).map(curatedApiRowToAzuroMarket);
-    const featured = curateFeaturedAzuroMarkets(mapped, { limit: CURATED_FEATURED_MAX });
-    const markets =
-      featured.length > 0
-        ? featured
-        : rankAzuroMarketsByCurationScore(mapped).slice(0, CURATED_FEATURED_MAX);
+
+    let markets: AzuroMarket[];
+    if (shouldUseBackendCuratedPassThrough(mapped)) {
+      logCuratedRankingPath("backend-pass-through");
+      markets = sortByBackendCuratedRanking(mapped);
+    } else {
+      logCuratedRankingPath("featured-recuration");
+      const featured = curateFeaturedAzuroMarkets(mapped, { limit: CURATED_FEATURED_MAX });
+      markets =
+        featured.length > 0
+          ? featured
+          : rankAzuroMarketsByCurationScore(mapped).slice(0, CURATED_FEATURED_MAX);
+    }
     if (markets.length === 0) {
       return {
         markets: [],

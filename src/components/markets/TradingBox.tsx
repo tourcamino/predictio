@@ -592,15 +592,41 @@ export function TradingBox({ market }: TradingBoxProps) {
     }, 1500);
   };
 
-  const handleAskAI = () => {
-    if (!aiQuestion.trim()) return;
+  const askMarketAiMutation = useMutation(trpc.askMarketAi.mutationOptions());
+
+  const handleAskAI = async () => {
+    const q = aiQuestion.trim();
+    if (!q || askMarketAiMutation.isPending) return;
     setIsAIThinking(true);
-    setTimeout(() => {
-      setAiResponse(
-        `Based on current market dynamics, the ${selectedOutcome} token at $${currentPrice.toFixed(2)} represents a ${estProbability.toFixed(0)}% implied probability. Trading volume of $${market.volume.toLocaleString()} with ${market.traders} traders suggests strong market confidence. Historical data shows similar matchups with comparable odds have resolved favorably ${Math.floor(Math.random() * 20 + 60)}% of the time.`
-      );
+    setAiResponse('');
+    try {
+      const lifecycle = getMarketStatus(market);
+      const lifecycleParam =
+        lifecycle === 'open' || lifecycle === 'locked' || lifecycle === 'resolved'
+          ? lifecycle
+          : undefined;
+      const data = await askMarketAiMutation.mutateAsync({
+        marketId: market.id,
+        teamA: market.teamA,
+        teamB: market.teamB,
+        league: market.league,
+        sport: market.sport,
+        question: q,
+        yesPrice: market.yesPrice,
+        noPrice: market.noPrice,
+        kickoffIso:
+          market.start_time instanceof Date
+            ? market.start_time.toISOString()
+            : undefined,
+        lifecycle: lifecycleParam,
+        status: market.status,
+      });
+      setAiResponse(data.response);
+    } catch {
+      toast.error('AI assistant unavailable — try again shortly.');
+    } finally {
       setIsAIThinking(false);
-    }, 2000);
+    }
   };
 
   const quickAmounts = [10, 50, 100, 500];
@@ -1265,11 +1291,14 @@ export function TradingBox({ market }: TradingBoxProps) {
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-cyan"
                 />
                 <button
-                  onClick={handleAskAI}
-                  disabled={isAIThinking}
+                  type="button"
+                  onClick={() => void handleAskAI()}
+                  disabled={isAIThinking || askMarketAiMutation.isPending}
                   className="mt-2 w-full py-2 bg-brand-cyan text-brand-bg font-semibold rounded-lg hover:bg-brand-cyan/90 transition-all disabled:opacity-50 text-sm"
                 >
-                  {isAIThinking ? 'AI is thinking...' : 'Ask AI →'}
+                  {isAIThinking || askMarketAiMutation.isPending
+                    ? 'AI is thinking...'
+                    : 'Ask AI →'}
                 </button>
               </div>
 

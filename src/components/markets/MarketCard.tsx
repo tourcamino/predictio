@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Clock } from 'lucide-react';
 import { Market, getSportMetadata } from '~/data/mockMarkets';
-import { useLiveCounter } from '~/hooks/useLiveCounter';
 import { AIInsightBadge } from '../AIInsightBadge';
 import { MiniSparkline } from './MiniSparkline';
 import { PriceMovement } from './PriceMovement';
@@ -9,6 +8,11 @@ import { WatchlistButton } from './WatchlistButton';
 import { MarketCountdown } from '../MarketCountdown';
 import { getMarketStatus } from '~/utils/marketLifecycle';
 import { COUNTRY_FLAG, getMarketCountryCode, isEliteMarket } from '~/config/marketGeo';
+import {
+  CURATED_PROTOCOL_FOOTER_LABEL,
+  hasRealMarketSocialMetrics,
+  shouldShowCuratedProtocolFooter,
+} from '~/lib/curatedMarketPresentation';
 
 interface MarketCardProps {
   market: Market;
@@ -21,13 +25,6 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
   const countryCode = getMarketCountryCode(market);
   const flag = countryCode ? COUNTRY_FLAG[countryCode] : null;
   const elite = isEliteMarket(market);
-
-  const volumeCounter = useLiveCounter({
-    initialValue: market.volume,
-    interval: 15000,
-    minIncrement: 10,
-    maxIncrement: 100,
-  });
 
   const formatVolume = (volume: number) => {
     if (volume >= 1000000) {
@@ -201,9 +198,15 @@ export function MarketCard({ market, onClick }: MarketCardProps) {
 
       {/* Footer */}
       <div className="flex items-center justify-between font-mono text-xs text-gray-500 mb-2">
-        <span>Volume: {formatVolume(volumeCounter.value)}</span>
-        <span>·</span>
-        <span>{market.traders} traders</span>
+        {shouldShowCuratedProtocolFooter(market) ? (
+          <span className="text-brand-cyan/90">{CURATED_PROTOCOL_FOOTER_LABEL}</span>
+        ) : (
+          <>
+            <span>Volume: {formatVolume(market.volume)}</span>
+            <span>·</span>
+            <span>{market.traders} traders</span>
+          </>
+        )}
       </div>
       
       {/* Countdown - Only show for open markets */}

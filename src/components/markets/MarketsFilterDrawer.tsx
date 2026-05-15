@@ -116,6 +116,7 @@ export function MarketsFilterDrawer(props: MarketsFilterDrawerProps) {
   ];
 
   const sortOptions = [
+    { id: 'featured', name: 'Featured', icon: Star },
     { id: 'trending', name: 'Trending', icon: TrendingUp },
     { id: 'volume', name: 'Volume', icon: TrendingUp },
     { id: 'closing-soon', name: 'Kickoff / lock soon', icon: Clock },

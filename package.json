@@ -24,6 +24,8 @@
     "smoke": "prisma validate && npm run typecheck",
     "test:points": "tsx --test src/server/utils/pointsPure.test.ts",
     "smoke:endpoints": "node ./scripts/smoke-endpoints.mjs",
+    "smoke:vinxi-handlers": "node ./scripts/smoke-vinxi-handlers.mjs",
+    "check:vinxi-runtime": "node ./scripts/check-vinxi-runtime-contract.mjs",
     "smoke:runtime": "node ./scripts/smoke-runtime.mjs",
     "vps:docker-migrate": "bash scripts/vps-docker-migrate.sh",
     "vps:bootstrap": "bash scripts/vps-bootstrap-full.sh",

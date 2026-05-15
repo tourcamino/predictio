@@ -47,9 +47,10 @@ const envSchema = z.object({
   AZURO_DATA_FEED_URL: z.string().optional(),
   AZURO_GRAPHQL_URL: z.string().optional(),
   
-  // OpenRouter (AI) — server: OPENROUTER_KEY or OPENROUTER_API_KEY; VITE_* only for local/dev parity
+  // OpenRouter (AI) — production: OPENROUTER_KEY or OPENROUTER_API_KEY on server only (never VITE_* in prod)
   OPENROUTER_KEY: z.string().optional(),
   OPENROUTER_API_KEY: z.string().optional(),
+  /** Dev-only parity; ignored by server AI when NODE_ENV is production */
   VITE_OPENROUTER_KEY: z.string().optional(),
   
   // Unsplash API
@@ -90,6 +91,11 @@ const envSchema = z.object({
   REFERRAL_COOKIE_DAYS: z.string().optional().default("120"),
   REFERRAL_COOKIE_NAME: z.string().optional().default("predictio_ref"),
   
+  // Runtime reconciliation (stale thresholds, hours)
+  STALE_LOCKED_HOURS: z.string().optional(),
+  STALE_RESOLVING_HOURS: z.string().optional(),
+  STALE_DISPUTED_HOURS: z.string().optional(),
+
   // Chain config
   BASE_CHAIN_ID: z.string().optional().default("8453"),
   BASE_SEPOLIA_CHAIN_ID: z.string().optional().default("84532"),

@@ -1,94 +1,161 @@
-import { defineEventHandler, setResponseHeader } from "h3";
+import { defineEventHandler, getHeader, getRequestURL } from "vinxi/http";
 import { minioBaseUrl } from "./minio";
 import { getBaseUrl } from "./utils/base-url";
+import {
+  handlerInternalError,
+  handlerRequestContext,
+  logHandlerDiag,
+  logHandlerFailure,
+} from "./lib/runtimeHandlerDiagnostics";
+
+const HTML_HEADERS = { "Content-Type": "text/html; charset=utf-8" } as const;
+
+function htmlResponse(body: string): Response {
+  return new Response(body, { status: 200, headers: HTML_HEADERS });
+}
 
 export default defineEventHandler(async (event) => {
-  const req = event.node?.req;
-  if (!req) {
-    return;
-  }
+  const handler = "og-meta";
+  const started = Date.now();
+  const reqCtx = handlerRequestContext(event);
+  logHandlerDiag(handler, "start", {
+    method: reqCtx.method,
+    pathname: reqCtx.pathname,
+  });
 
-  const url = req.url || "";
-  const userAgent = req.headers["user-agent"] || "";
+  try {
+    const requestUrl = getRequestURL(event);
+    const url = requestUrl.pathname + requestUrl.search;
+    const userAgent = getHeader(event, "user-agent") ?? "";
 
-  // Check if this is a social media crawler
-  const isCrawler =
-    /facebookexternalhit|twitterbot|linkedinbot|slackbot|telegrambot|whatsapp|discordbot/i.test(
-      userAgent
-    );
+    const isCrawler =
+      /facebookexternalhit|twitterbot|linkedinbot|slackbot|telegrambot|whatsapp|discordbot/i.test(
+        userAgent,
+      );
 
-  // Extract blog slug from URL (e.g., /blog/my-article-slug)
-  const blogSlugMatch = url.match(/\/blog\/([^/?]+)/);
-  
-  if (blogSlugMatch) {
-    const slug = blogSlugMatch[1];
-    if (isCrawler) {
-      const baseUrl = getBaseUrl();
-      setResponseHeader(event, "Content-Type", "text/html");
-      return generateBasicBlogMetaHTML(`${baseUrl}/blog/${slug}`);
+    const blogSlugMatch = url.match(/\/blog\/([^/?]+)/);
+
+    if (blogSlugMatch) {
+      const slug = blogSlugMatch[1];
+      if (isCrawler) {
+        const baseUrl = getBaseUrl();
+        const response = htmlResponse(
+          generateBasicBlogMetaHTML(`${baseUrl}/blog/${slug}`),
+        );
+        logHandlerDiag(handler, "done", {
+          ...reqCtx,
+          status: response.status,
+          durationMs: Date.now() - started,
+        });
+        return response;
+      }
+      logHandlerDiag(handler, "done", {
+        ...reqCtx,
+        status: "pass-through",
+        durationMs: Date.now() - started,
+      });
+      return;
     }
 
-    return;
-  }
+    const marketIdMatch = url.match(/\/markets\/([^/?]+)/);
 
-  // Extract market ID from URL (e.g., /markets/market-1)
-  const marketIdMatch = url.match(/\/markets\/([^/?]+)/);
-  
-  if (!marketIdMatch) {
-    // Not a market or blog URL, pass through to SPA
-    if (isCrawler) {
-      setResponseHeader(event, "Content-Type", "text/html");
-      return generateBasicHTML();
+    if (!marketIdMatch) {
+      if (isCrawler) {
+        const response = htmlResponse(generateBasicHTML());
+        logHandlerDiag(handler, "done", {
+          ...reqCtx,
+          status: response.status,
+          durationMs: Date.now() - started,
+        });
+        return response;
+      }
+      logHandlerDiag(handler, "done", {
+        ...reqCtx,
+        status: "pass-through",
+        durationMs: Date.now() - started,
+      });
+      return;
     }
-    return; // Let SPA handle it
-  }
 
-  const marketId = marketIdMatch[1];
-  if (!marketId) {
-    if (isCrawler) {
-      setResponseHeader(event, "Content-Type", "text/html");
-      return generateBasicHTML();
+    const marketId = marketIdMatch[1];
+    if (!marketId) {
+      if (isCrawler) {
+        const response = htmlResponse(generateBasicHTML());
+        logHandlerDiag(handler, "done", {
+          ...reqCtx,
+          status: response.status,
+          durationMs: Date.now() - started,
+        });
+        return response;
+      }
+      logHandlerDiag(handler, "done", {
+        ...reqCtx,
+        status: "pass-through",
+        durationMs: Date.now() - started,
+      });
+      return;
     }
-    return;
-  }
 
-  const market = await fetchMarketMeta(marketId);
+    const market = await fetchMarketMeta(marketId);
 
-  if (!market) {
-    // Market not found
-    if (isCrawler) {
-      setResponseHeader(event, "Content-Type", "text/html");
-      return generateBasicHTML();
+    if (!market) {
+      if (isCrawler) {
+        const response = htmlResponse(generateBasicHTML());
+        logHandlerDiag(handler, "done", {
+          ...reqCtx,
+          status: response.status,
+          durationMs: Date.now() - started,
+        });
+        return response;
+      }
+      logHandlerDiag(handler, "done", {
+        ...reqCtx,
+        status: "pass-through",
+        durationMs: Date.now() - started,
+      });
+      return;
     }
-    return; // Let SPA handle 404
-  }
 
-  // Generate OG image URL
-  const ogImageUrl = `${minioBaseUrl}/og-images/market-${marketId}.png`;
-  const baseUrl = getBaseUrl();
-  const pageUrl = `${baseUrl}/markets/${marketId}`;
+    const ogImageUrl = `${minioBaseUrl}/og-images/market-${marketId}.png`;
+    const baseUrl = getBaseUrl();
+    const pageUrl = `${baseUrl}/markets/${marketId}`;
 
-  // Generate title and description
-  const title = `${market.sportEmoji} ${market.teamA} vs ${market.teamB} - ${market.league}`;
-  const predictionCount = market.predictions ?? market.traders ?? 0;
-  const pctA = market.percentA ?? Math.round(market.yesPrice * 100);
-  const pctB = market.percentB ?? Math.round(market.noPrice * 100);
-  const description = `Predict the outcome on Predictio! ${pctA}% ${market.teamA} / ${pctB}% ${market.teamB}. $${(market.volume / 1000).toFixed(0)}K volume, ${predictionCount.toLocaleString()} predictions.`;
+    const title = `${market.sportEmoji} ${market.teamA} vs ${market.teamB} - ${market.league}`;
+    const predictionCount = market.predictions ?? market.traders ?? 0;
+    const pctA = market.percentA ?? Math.round(market.yesPrice * 100);
+    const pctB = market.percentB ?? Math.round(market.noPrice * 100);
+    const description = `Predict the outcome on Predictio! ${pctA}% ${market.teamA} / ${pctB}% ${market.teamB}. $${(market.volume / 1000).toFixed(0)}K volume, ${predictionCount.toLocaleString()} predictions.`;
 
-  if (isCrawler) {
-    // Return HTML with meta tags for crawlers
-    setResponseHeader(event, "Content-Type", "text/html");
-    return generateMetaHTML({
-      title,
-      description,
-      imageUrl: ogImageUrl,
-      url: pageUrl,
-      market,
+    if (isCrawler) {
+      const response = htmlResponse(
+        generateMetaHTML({
+          title,
+          description,
+          imageUrl: ogImageUrl,
+          url: pageUrl,
+          market,
+        }),
+      );
+      logHandlerDiag(handler, "done", {
+        ...reqCtx,
+        status: response.status,
+        durationMs: Date.now() - started,
+      });
+      return response;
+    }
+
+    logHandlerDiag(handler, "done", {
+      ...reqCtx,
+      status: "pass-through",
+      durationMs: Date.now() - started,
     });
+    return;
+  } catch (err) {
+    logHandlerFailure(handler, "handler", err, {
+      durationMs: Date.now() - started,
+    });
+    return handlerInternalError(handler, err);
   }
-  
-  // For regular browsers, let the SPA handle it
-  return;
 });
 
 function generateBasicHTML() {
@@ -134,7 +201,7 @@ async function fetchMarketMeta(marketId: string): Promise<any | null> {
     const data = await res.json();
     return data?.market ?? data ?? null;
   } catch (error) {
-    console.warn("[OG Meta] Market REST lookup failed:", marketId, error);
+    logHandlerFailure("og-meta", "fetchMarketMeta", error, { marketId });
     return null;
   }
 }

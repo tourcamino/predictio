@@ -3,6 +3,12 @@ import { SeedMarket } from '~/data/seedMarkets';
 import { formatCurrency } from '~/utils/marketUtils';
 import { useState, useEffect } from 'react';
 import { COUNTRY_FLAG, getMarketCountryCode, isEliteMarket } from '~/config/marketGeo';
+import {
+  CURATED_PROTOCOL_FOOTER_LABEL,
+  hasRealMarketSocialMetrics,
+  shouldShowCuratedProtocolFooter,
+} from '~/lib/curatedMarketPresentation';
+import type { AzuroMarket } from '~/services/azuro';
 
 interface MarketCardCompactProps {
   market: SeedMarket;
@@ -57,8 +63,10 @@ export function MarketCardCompact({ market, onClick, variant = 'card' }: MarketC
   const flag = countryCode ? COUNTRY_FLAG[countryCode] : null;
   const elite = isEliteMarket(market);
   
-  // Determine badges
-  const isHot = market.volume24h > 50000;
+  const importanceScore = (market as AzuroMarket).importanceScore ?? 0;
+  const isHot = hasRealMarketSocialMetrics(market)
+    ? market.volume24h > 50_000
+    : importanceScore >= 120;
   const isMoving = market.outcomes.some(o => Math.abs(o.price - 0.5) > 0.3); // Significant odds
   const isEndingSoon = isUrgent;
   
@@ -105,9 +113,15 @@ export function MarketCardCompact({ market, onClick, variant = 'card' }: MarketC
             
             {/* Social Proof */}
             <div className="flex items-center gap-3 text-xs text-gray-500 mt-2">
-              <span className="font-semibold">{formatCurrency(market.volume24h)} traded</span>
-              <span>•</span>
-              <span>{market.traders} traders</span>
+              {shouldShowCuratedProtocolFooter(market) ? (
+                <span className="font-medium text-brand-cyan/90">{CURATED_PROTOCOL_FOOTER_LABEL}</span>
+              ) : (
+                <>
+                  <span className="font-semibold">{formatCurrency(market.volume24h)} traded</span>
+                  <span>•</span>
+                  <span>{market.traders} traders</span>
+                </>
+              )}
             </div>
           </div>
           
@@ -219,8 +233,14 @@ export function MarketCardCompact({ market, onClick, variant = 'card' }: MarketC
       {/* Footer - Social Proof (Leggero) */}
       <div className="px-4 py-3 bg-white/[0.02] border-t border-white/10">
         <div className="flex items-center justify-between text-xs text-gray-500">
-          <span className="font-semibold">{formatCurrency(market.volume24h)} traded</span>
-          <span>{market.traders} traders</span>
+          {shouldShowCuratedProtocolFooter(market) ? (
+            <span className="font-medium text-brand-cyan/90">{CURATED_PROTOCOL_FOOTER_LABEL}</span>
+          ) : (
+            <>
+              <span className="font-semibold">{formatCurrency(market.volume24h)} traded</span>
+              <span>{market.traders} traders</span>
+            </>
+          )}
         </div>
       </div>
     </div>

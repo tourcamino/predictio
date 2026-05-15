@@ -31,6 +31,9 @@ import {
   isSeedMarketTradable,
 } from '~/utils/seedMarketTrading';
 import type { AzuroMarket } from '~/services/azuro';
+import { isCanonicalCuratedCatalog } from '~/lib/curatedMarketPresentation';
+import { marketMatchesSearch } from '~/lib/markets/filterMarketsSearch';
+import { expandSearchQuery, logSearchAliasExpansion } from '~/lib/markets/teamPlayerAliases';
 
 const marketSearchSchema = z.object({
   sport: fallback(z.string(), isFootballFocusEnabled() ? 'football' : 'all').default(isFootballFocusEnabled() ? 'football' : 'all'),
@@ -38,6 +41,7 @@ const marketSearchSchema = z.object({
   status: fallback(z.string(), 'all').default('all'),
   sortBy: fallback(
     z.enum([
+      'featured',
       'trending',
       'volume',
       'liquidity',
@@ -48,8 +52,8 @@ const marketSearchSchema = z.object({
       'most-popular',
       'most-predicted',
     ]),
-    'trending',
-  ).default('trending'),
+    'featured',
+  ).default('featured'),
   search: fallback(z.string(), '').default(''),
   viewMode: fallback(z.enum(['grid', 'list']), 'grid').default('grid'),
   endsIn: fallback(z.string(), 'all').default('all'),
@@ -130,17 +134,9 @@ function filterMarkets(
       return false;
     }
     
-    // Search filter
-    if (filters.search) {
-      const query = filters.search.toLowerCase();
-      const searchableText = [
-        market.question,
-        market.event.name,
-        market.competition,
-        ...market.event.teams,
-      ].join(' ').toLowerCase();
-      
-      if (!searchableText.includes(query)) {
+    // Search filter — token + alias aware (football / curated)
+    if (filters.search.trim()) {
+      if (!marketMatchesSearch(market, filters.search)) {
         return false;
       }
     }
@@ -165,6 +161,8 @@ function sortMarkets(markets: SeedMarket[], sortBy: string): SeedMarket[] {
   const sorted = [...markets];
   
   switch (sortBy) {
+    case 'featured':
+      return sorted;
     case 'trending':
       return sorted.sort((a, b) => {
         const scoreA = a.volume24h * a.traders;
@@ -265,6 +263,7 @@ function MarketsPage() {
   });
   
   const allMarkets = marketsQuery.data?.markets || [];
+  const canonicalCuratedCatalog = isCanonicalCuratedCatalog(allMarkets);
 
   /** True until the first successful response (includes automatic retry fetches). */
   const awaitingFirstSuccess =
@@ -307,6 +306,15 @@ function MarketsPage() {
         endsIn,
       });
 
+      if (searchQuery.trim()) {
+        const { expandedTokens } = expandSearchQuery(searchQuery);
+        logSearchAliasExpansion(
+          searchQuery,
+          expandedTokens,
+          base.map((m) => m.id),
+        );
+      }
+
       if (!selectedRegion || selectedRegion === 'all') return base;
       if (selectedRegion === 'elite') return base.filter((m) => isEliteMarket(m));
 
@@ -324,9 +332,15 @@ function MarketsPage() {
     ]
   );
   
-  // Sort markets + overlay: tradable markets, then local, then volume
+  // Sort markets; canonical catalog + featured preserves API editorial order
   const sortedMarkets = useMemo(() => {
+    if (canonicalCuratedCatalog && sortBy === 'featured') {
+      return filteredMarkets;
+    }
     const base = sortMarkets(filteredMarkets, sortBy);
+    if (canonicalCuratedCatalog) {
+      return base;
+    }
     const cc = userCountry.countryCode;
 
     const score = (m: SeedMarket) => {
@@ -338,7 +352,7 @@ function MarketsPage() {
     };
 
     return [...base].sort((a, b) => score(b) - score(a));
-  }, [filteredMarkets, sortBy, userCountry.countryCode]);
+  }, [filteredMarkets, sortBy, userCountry.countryCode, canonicalCuratedCatalog]);
   
   // Get curated sections (only show when no filters active)
   const hasActiveFilters = selectedSport !== (isFootballFocusEnabled() ? 'football' : 'all') || 
@@ -487,7 +501,7 @@ function MarketsPage() {
         competition: 'all',
         status: 'all',
         search: '',
-        sortBy: 'trending',
+        sortBy: 'featured',
         viewMode: 'grid',
         endsIn: 'all',
         displayCount: 20,
@@ -794,8 +808,8 @@ function MarketsPage() {
             <div className={isSidebarCollapsed ? 'lg:col-span-1' : 'lg:col-span-3'}>
               {!hasActiveFilters ? (
                 <>
-                  {/* Feed Structure */}
-                  {spotlightMarkets.length > 0 && (
+                  {/* Feed Structure — hidden for canonical curated catalog (API order in grid) */}
+                  {!canonicalCuratedCatalog && spotlightMarkets.length > 0 && (
                     <MarketSection
                       title="Major events"
                       subtitle="Champions League, cups, internationals & editorial highlights — still open for trading"
@@ -808,7 +822,7 @@ function MarketsPage() {
                     />
                   )}
 
-                  {mostTradedMarkets.length > 0 && (
+                  {!canonicalCuratedCatalog && mostTradedMarkets.length > 0 && (
                     <MarketSection
                       title="Most active"
                       subtitle="Markets with the highest trader participation"
@@ -821,7 +835,7 @@ function MarketsPage() {
                     />
                   )}
 
-                  {locksSoonMarkets.length > 0 && (
+                  {!canonicalCuratedCatalog && locksSoonMarkets.length > 0 && (
                     <MarketSection
                       title="Locks soon"
                       subtitle="Trading stops at kickoff — last hours before the match"
@@ -834,7 +848,7 @@ function MarketsPage() {
                     />
                   )}
 
-                  {localMarkets.length > 0 && (
+                  {!canonicalCuratedCatalog && localMarkets.length > 0 && (
                     <MarketSection
                       title={`${userCountry.flag} Your Nation`}
                       subtitle={`Top local markets in ${userCountry.label}`}
@@ -849,7 +863,7 @@ function MarketsPage() {
                     />
                   )}
 
-                  {eliteMarkets.length > 0 && (
+                  {!canonicalCuratedCatalog && eliteMarkets.length > 0 && (
                     <MarketSection
                       title="World Class"
                       subtitle="Top leagues still open before kickoff"
@@ -862,7 +876,7 @@ function MarketsPage() {
                     />
                   )}
 
-                  {trendingMarkets.length > 0 && (
+                  {!canonicalCuratedCatalog && trendingMarkets.length > 0 && (
                     <MarketSection
                       title="Trending Global"
                       subtitle="High volume among markets still open for trading"
@@ -875,7 +889,7 @@ function MarketsPage() {
                     />
                   )}
 
-                  {upcomingMarkets.length > 0 && (
+                  {!canonicalCuratedCatalog && upcomingMarkets.length > 0 && (
                     <MarketSection
                       title="Upcoming Matches"
                       subtitle="Kickoff in more than ~3 days — still plenty of time to trade"
@@ -893,10 +907,12 @@ function MarketsPage() {
                     <div className="flex items-center justify-between mb-6">
                       <div>
                         <h2 className="font-syne text-2xl sm:text-3xl font-bold mb-1">
-                          All Markets
+                          {canonicalCuratedCatalog ? 'Curated markets' : 'All Markets'}
                         </h2>
                         <p className="text-sm text-gray-400">
-                          Browse all available {isFootballFocusEnabled() ? 'football' : 'sports'} markets
+                          {canonicalCuratedCatalog
+                            ? 'Editorial order from the protocol catalog — same ranking as the homepage'
+                            : `Browse all available ${isFootballFocusEnabled() ? 'football' : 'sports'} markets`}
                         </p>
                       </div>
                       

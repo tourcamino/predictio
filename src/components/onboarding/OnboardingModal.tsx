@@ -48,7 +48,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
   const trpc = useTRPC();
   const { address } = useWallet();
   const walletKey = normalizeWalletForQuery(address);
-
+  
   const completeOnboardingMutation = useMutation(
     trpc.completeOnboarding.mutationOptions(),
   );
@@ -77,7 +77,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
       const steps = 45;
       const increment = 1000 / steps;
       const interval = duration / steps;
-
+      
       const timer = setInterval(() => {
         setBalanceCounter((prev) => {
           const next = prev + increment;
@@ -88,11 +88,11 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
           return next;
         });
       }, interval);
-
+      
       return () => clearInterval(timer);
     }
   }, [step, balanceCounter]);
-
+  
   const persistDismissLocal = useCallback(() => {
     if (!dontShowAgain || !walletKey) return;
     try {
@@ -135,9 +135,9 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, handleSkip]);
-
+  
   if (!isOpen) return null;
-
+  
   return (
     <div
       className={`fixed inset-0 ${ONBOARDING_Z} flex flex-col motion-safe:animate-fade-in`}
@@ -180,16 +180,16 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
                 ))}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleSkip}
+        <button
+          type="button"
+          onClick={handleSkip}
               className="shrink-0 rounded-xl border border-white/10 bg-white/5 p-2.5 text-gray-300 transition-colors hover:border-white/20 hover:bg-white/10 hover:text-white"
-              aria-label="Close onboarding"
-            >
+          aria-label="Close onboarding"
+        >
               <X className="h-5 w-5" />
-            </button>
-          </div>
-
+        </button>
+            </div>
+            
           {/* Body */}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
             {step === 1 && (
@@ -199,8 +199,8 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
                     id="onboarding-title"
                     className="font-syne text-xl font-bold tracking-tight text-white sm:text-2xl"
                   >
-                    Welcome to Predictio
-                  </h2>
+              Welcome to Predictio
+            </h2>
                   <p className="mt-1.5 text-sm text-gray-400">
                     Sports prediction markets on {getExpectedPredictioChain().shortLabel}
                     {isPredictioTestnet() ? ' (testnet)' : ''} — trade outcomes, not fixed book odds.
@@ -272,7 +272,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
                       faucet
                     </a>{' '}
                     for gas. Test tokens have no cash value.
-                  </div>
+                </div>
                 )}
                 <ul className="space-y-2.5 text-sm text-gray-300">
                   <li className="flex gap-2.5">
@@ -331,8 +331,8 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
                 </Link>
               </div>
             )}
-          </div>
-
+            </div>
+            
           {/* Footer */}
           <div className="shrink-0 space-y-3 border-t border-white/10 bg-brand-bg/40 px-4 py-3 sm:px-5 sm:py-4">
             <label className="flex cursor-pointer items-start gap-2.5 text-sm text-gray-400">
@@ -352,12 +352,12 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
             >
               Continue to platform
             </button>
-
+            
             {step === 1 && (
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={handleSkip}
+            <button
+              type="button"
+              onClick={handleSkip}
                   className="rounded-xl py-2.5 text-sm text-gray-500 hover:text-gray-300 sm:px-4"
                 >
                   Skip tour
@@ -369,54 +369,54 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
                 >
                   Next
                   <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-
-            {step === 2 && (
+            </button>
+          </div>
+        )}
+        
+        {step === 2 && (
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
+              <button
+                type="button"
+                onClick={() => setStep(1)}
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/5 py-2.5 text-sm font-semibold text-white hover:bg-white/10"
-                >
+              >
                   <ArrowLeft className="h-4 w-4" />
-                  Back
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStep(3)}
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep(3)}
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-green py-2.5 text-sm font-bold text-brand-bg hover:bg-brand-green/90"
-                >
+              >
                   Next
                   <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-
-            {step === 3 && (
-              <div className="flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  className="inline-flex items-center gap-2 rounded-xl py-2 text-sm text-gray-500 hover:text-gray-300"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Back
-                </button>
-              </div>
-            )}
+              </button>
           </div>
-
+        )}
+        
+        {step === 3 && (
+              <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => setStep(2)}
+                  className="inline-flex items-center gap-2 rounded-xl py-2 text-sm text-gray-500 hover:text-gray-300"
+            >
+                  <ArrowLeft className="h-4 w-4" />
+              Back
+            </button>
+          </div>
+        )}
+          </div>
+        
           <div className="flex shrink-0 justify-center gap-1.5 border-t border-white/5 py-2.5">
-            {[1, 2, 3].map((s) => (
-              <div
-                key={s}
+          {[1, 2, 3].map((s) => (
+            <div
+              key={s}
                 className={`h-1.5 rounded-full transition-all ${
                   s === step ? 'w-6 bg-brand-green' : 'w-1.5 bg-white/20'
-                }`}
-              />
-            ))}
+              }`}
+            />
+          ))}
           </div>
         </div>
       </div>

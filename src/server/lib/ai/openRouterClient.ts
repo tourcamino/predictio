@@ -12,21 +12,62 @@ const RETRYABLE = new Set([429, 502, 503, 504]);
 /** When primary model returns 400/404 (unknown id), try once. */
 const NETWORK_FALLBACK_MODEL = "meta-llama/llama-3.2-3b-instruct";
 
+function isDevRuntime(): boolean {
+  const nodeEnv =
+    typeof process !== "undefined" ? process.env.NODE_ENV : undefined;
+  return nodeEnv === "development" || nodeEnv === "test";
+}
+
 function resolveOpenRouterKey(): string | undefined {
-  const a =
+  const fromEnv =
     env.OPENROUTER_KEY?.trim() || env.OPENROUTER_API_KEY?.trim();
-  if (a) return a;
-  const b = env.VITE_OPENROUTER_KEY?.trim();
-  if (b) return b;
+  if (fromEnv) return fromEnv;
   if (typeof process !== "undefined" && process.env) {
-    return (
+    const raw =
       process.env.OPENROUTER_KEY?.trim() ||
-      process.env.OPENROUTER_API_KEY?.trim() ||
-      process.env.VITE_OPENROUTER_KEY?.trim() ||
-      undefined
-    );
+      process.env.OPENROUTER_API_KEY?.trim();
+    if (raw) return raw;
+  }
+  if (isDevRuntime()) {
+    const dev =
+      env.VITE_OPENROUTER_KEY?.trim() ||
+      (typeof process !== "undefined"
+        ? process.env.VITE_OPENROUTER_KEY?.trim()
+        : undefined);
+    if (dev) return dev;
   }
   return undefined;
+}
+
+export type OpenRouterKeySource =
+  | "OPENROUTER_KEY"
+  | "OPENROUTER_API_KEY"
+  | "VITE_OPENROUTER_KEY"
+  | "none";
+
+/** Which env var backs the key (for ops logs only). */
+export function resolveOpenRouterKeySource(): OpenRouterKeySource {
+  const pick = (k: string, v: string | undefined): OpenRouterKeySource | null =>
+    v?.trim() ? (k as OpenRouterKeySource) : null;
+
+  const a = pick("OPENROUTER_KEY", env.OPENROUTER_KEY);
+  if (a) return a;
+  const b = pick("OPENROUTER_API_KEY", env.OPENROUTER_API_KEY);
+  if (b) return b;
+  if (typeof process !== "undefined" && process.env) {
+    const pk = pick("OPENROUTER_KEY", process.env.OPENROUTER_KEY);
+    if (pk) return pk;
+    const pak = pick("OPENROUTER_API_KEY", process.env.OPENROUTER_API_KEY);
+    if (pak) return pak;
+  }
+  if (isDevRuntime()) {
+    const vk = pick("VITE_OPENROUTER_KEY", env.VITE_OPENROUTER_KEY);
+    if (vk) return vk;
+    if (typeof process !== "undefined" && process.env.VITE_OPENROUTER_KEY?.trim()) {
+      return "VITE_OPENROUTER_KEY";
+    }
+  }
+  return "none";
 }
 
 export function hasOpenRouterKey(): boolean {
@@ -39,7 +80,8 @@ export function logOpenRouterKeyMissingOnce(): void {
   if (loggedMissingKey || hasOpenRouterKey()) return;
   loggedMissingKey = true;
   logOpenRouter("warn", "openrouter_unconfigured", {
-    hint: "set OPENROUTER_KEY or OPENROUTER_API_KEY (optional VITE_OPENROUTER_KEY in dev)",
+    hint: "set OPENROUTER_KEY or OPENROUTER_API_KEY on the server (VITE_* is dev-only)",
+    keySource: resolveOpenRouterKeySource(),
   });
 }
 
@@ -120,11 +162,17 @@ export async function openRouterChatCompletion(params: {
 }): Promise<{ text: string } | null> {
   const apiKey = resolveOpenRouterKey();
   if (!apiKey) {
-    logOpenRouter("warn", "missing_api_key");
+    logOpenRouter("warn", "missing_api_key", {
+      keySource: resolveOpenRouterKeySource(),
+    });
     return null;
   }
 
-  logOpenRouter("info", "request_started", { model: params.model });
+  logOpenRouter("info", "request_started", {
+    model: params.model,
+    provider: "openrouter",
+    keySource: resolveOpenRouterKeySource(),
+  });
 
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
@@ -174,7 +222,11 @@ export async function openRouterChatCompletion(params: {
       logOpenRouter("warn", "empty_choices", { model });
       throw new Error("OpenRouter returned empty content");
     }
-    logOpenRouter("info", "ok", { model, chars: text.length });
+    logOpenRouter("info", "ok", {
+      model,
+      chars: text.length,
+      provider: "openrouter",
+    });
     return { text };
   };
 

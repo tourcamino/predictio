@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
 import { AI_MODELS } from "~/config/aiModels";
+import { logAiProcedureStart, logAiRuntimeBootstrapOnce } from "~/server/lib/ai/aiRuntime";
+import {
+  buildCuratedCatalogContextBlock,
+  getCuratedCatalogForAi,
+} from "~/server/lib/ai/curatedCatalogContext";
 import { buildChatAssistantSystemPrompt } from "~/server/lib/ai/prompts";
 import {
   hasOpenRouterKey,
@@ -24,10 +29,17 @@ export const chatbotStream = baseProcedure
     }),
   )
   .mutation(async ({ input }) => {
+    logAiRuntimeBootstrapOnce();
     const { message, history = [], walletAddress } = input;
 
+    const catalog = await getCuratedCatalogForAi();
+    const catalogBlock = buildCuratedCatalogContextBlock(catalog);
+
     const messages = [
-      { role: "system" as const, content: buildChatAssistantSystemPrompt(walletAddress) },
+      {
+        role: "system" as const,
+        content: buildChatAssistantSystemPrompt(walletAddress, catalogBlock),
+      },
       ...history.map((msg) => ({
         role: msg.role,
         content: msg.content,
@@ -40,11 +52,22 @@ export const chatbotStream = baseProcedure
     try {
       if (!hasOpenRouterKey()) {
         logOpenRouterKeyMissingOnce();
+        logAiProcedureStart("chatbotStream", {
+          modelKey: "chatbot",
+          catalogMarkets: catalog.markets.length,
+          usedFallback: true,
+          source: "offline",
+        });
         return {
           response:
-            "I'm in offline mode: set OPENROUTER_KEY or OPENROUTER_API_KEY on the server (VITE_OPENROUTER_KEY is read in some dev setups). Until then, browse Markets for events, open any match to trade YES/NO in USDC on Base, and check the Glossary for terms.",
+            "I'm in offline mode: set OPENROUTER_KEY or OPENROUTER_API_KEY on the server. Until then, browse Markets for the curated catalog (up to 9 football matches), open any event to trade YES/NO in paper USDC (pre-testnet), and check Liquidity for vault exposure.",
         };
       }
+
+      logAiProcedureStart("chatbotStream", {
+        modelKey: "chatbot",
+        catalogMarkets: catalog.markets.length,
+      });
 
       const out = await openRouterChatCompletion({
         model: cfg.model,
@@ -56,17 +79,23 @@ export const chatbotStream = baseProcedure
 
       const aiResponse =
         out?.text ||
-        "I couldn't reach the AI service just now — try again in a moment. Meanwhile: Markets lists events; each market trades YES/NO in USDC on Base; use Portfolio for positions; Glossary for terms.";
+        "I couldn't reach the AI service just now — try again in a moment. Browse Markets for the active curated catalog; each event page shows implied YES/NO prices.";
 
       return {
         response: aiResponse,
       };
     } catch (error) {
       console.error("[Chatbot] Error:", error);
+      logAiProcedureStart("chatbotStream", {
+        modelKey: "chatbot",
+        catalogMarkets: catalog.markets.length,
+        usedFallback: true,
+        source: "error",
+      });
 
       return {
         response:
-          "I'm having trouble connecting right now. Here are some quick answers:\n\n• To trade: Go to Markets, select an event, choose YES or NO, enter amount, and confirm.\n• Fees: confirm the live split in-app (vault / analysts / referrals).\n• Analyst program: open the Analyst area from the app navigation.\n• More help: Glossary or support@predictio.live",
+          "I'm having trouble connecting right now. Quick answers:\n\n• Curated markets: Markets page lists up to 9 founder-selected football events (editorial order).\n• Vault: Liquidity page explains protocol vault exposure across those slots (pre-testnet paper USDC).\n• Trade: open a match, choose YES or NO, confirm in-app.\n• Help: Glossary or support@predictio.live",
       };
     }
   });

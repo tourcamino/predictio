@@ -13,9 +13,12 @@ export type AiMarketSnapshot = {
   question?: string;
   yesPrice: number;
   noPrice: number;
+  /** Omit or 0 when no real paper volume — server will not send to the model. */
   volume24h?: number;
   status?: string;
   lifecycle?: MarketLifecycleStatus;
+  importanceScore?: number;
+  curatedRank?: number;
 };
 
 interface AIInsightBadgeProps {
@@ -26,9 +29,9 @@ interface AIInsightBadgeProps {
 }
 
 const footballInsights = [
-  'Sharp liquidity moves can tighten spreads — watch implied % vs your own read of form and fixtures.',
-  'Home pitch and rest matter in tight leagues; compare that to what the YES price embeds before sizing up.',
-  'Late news moves markets fast; confirm anything material in trusted sources — prices are not prophecies.',
+  'Vault-backed curated slot — compare implied YES/NO % to your own read of form and fixtures before sizing.',
+  'Home pitch and rest matter in tight leagues; check whether the price already embeds that narrative.',
+  'Prices are a snapshot of positioning, not a forecast — confirm kickoff lock and rules in-app.',
 ];
 
 const basketballInsights = [
@@ -47,8 +50,8 @@ const cricketInsights = [
 ];
 
 const defaultInsights = [
-  'Implied probability prices consensus and incentives — pair it with your own research.',
-  'Higher volume usually means tighter discovery; thin books can gap around news.',
+  'Implied probability prices consensus — pair it with your own research on the matchup.',
+  'Pre-testnet paper markets: no live trader or volume claims until real activity exists.',
 ];
 
 const insightsBySport: Record<string, string[]> = {
@@ -91,6 +94,7 @@ export function AIInsightBadge({
     queryFn: () =>
       trpcClient.marketAiInsight.query({
         snapshot: {
+          marketId: marketSnapshot!.marketId,
           teamA: marketSnapshot!.teamA,
           teamB: marketSnapshot!.teamB,
           league: marketSnapshot!.league,
@@ -98,9 +102,14 @@ export function AIInsightBadge({
           question: marketSnapshot!.question,
           yesPrice: marketSnapshot!.yesPrice,
           noPrice: marketSnapshot!.noPrice,
-          volume24h: marketSnapshot!.volume24h,
+          volume24h:
+            marketSnapshot!.volume24h != null && marketSnapshot!.volume24h > 0
+              ? marketSnapshot!.volume24h
+              : undefined,
           status: marketSnapshot!.status,
           lifecycle: marketSnapshot!.lifecycle,
+          importanceScore: marketSnapshot!.importanceScore,
+          curatedRank: marketSnapshot!.curatedRank,
         },
       }),
   });

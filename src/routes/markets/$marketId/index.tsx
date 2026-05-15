@@ -416,7 +416,10 @@ function MarketDetailPage() {
                   question: market.event,
                   yesPrice: market.yesPrice,
                   noPrice: market.noPrice,
-                  volume24h: market.liquidity?.volume24h ?? market.volume,
+                  volume24h: (() => {
+                    const v = market.liquidity?.volume24h ?? market.volume ?? 0;
+                    return v > 0 ? v : undefined;
+                  })(),
                   status: market.status,
                   lifecycle: lifecycleStatus,
                 }}

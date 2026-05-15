@@ -4,6 +4,7 @@ import { PriceMovement } from './PriceMovement';
 import { MiniSparkline } from './MiniSparkline';
 import { MarketCountdown } from '../MarketCountdown';
 import { getMarketStatus } from '~/utils/marketLifecycle';
+import { CURATED_PROTOCOL_FOOTER_LABEL } from '~/lib/curatedMarketPresentation';
 
 interface LiveMarketCardProps {
   market: Market;
@@ -13,6 +14,7 @@ interface LiveMarketCardProps {
 export function LiveMarketCard({ market, onClick }: LiveMarketCardProps) {
   const sportMeta = getSportMetadata(market.sport);
   const lifecycleStatus = getMarketStatus(market);
+  const hasRealMetrics = (market.volume ?? 0) > 0 && (market.traders ?? 0) > 0;
 
   const formatVolume = (volume: number) => {
     if (volume >= 1000000) {
@@ -153,21 +155,25 @@ export function LiveMarketCard({ market, onClick }: LiveMarketCardProps) {
         </div>
       </div>
 
-      {/* Stats Footer - Enhanced */}
+      {/* Stats Footer */}
       <div className="flex items-center justify-between pt-3 border-t border-white/10 relative z-10 mb-3">
-        <div className="flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5 text-brand-cyan" />
-            <span className="font-mono text-gray-300">
-              <span className="text-brand-cyan font-bold">{formatVolume(market.volume)}</span>
-            </span>
+        {hasRealMetrics ? (
+          <div className="flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-brand-cyan" />
+              <span className="font-mono text-gray-300">
+                <span className="text-brand-cyan font-bold">{formatVolume(market.volume)}</span>
+              </span>
+            </div>
+            <div className="w-px h-3 bg-white/10" />
+            <div className="flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-gray-400" />
+              <span className="font-mono text-gray-300 font-semibold">{market.traders.toLocaleString()}</span>
+            </div>
           </div>
-          <div className="w-px h-3 bg-white/10" />
-          <div className="flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5 text-gray-400" />
-            <span className="font-mono text-gray-300 font-semibold">{market.traders.toLocaleString()}</span>
-          </div>
-        </div>
+        ) : (
+          <span className="text-xs text-gray-400 font-medium">{CURATED_PROTOCOL_FOOTER_LABEL}</span>
+        )}
         <ArrowRight className="w-4 h-4 text-gray-500 group-hover:text-brand-green group-hover:translate-x-1 transition-all" />
       </div>
 

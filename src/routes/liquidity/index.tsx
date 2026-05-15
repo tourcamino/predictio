@@ -68,9 +68,12 @@ function LiquidityPage() {
               Protocol Vault
             </h1>
             <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-              Single vault pools USDC across all active prediction markets. 
-              Earn 50% of all trading fees.
+              One protocol vault shares paper USDC across founder-curated markets.
+              Earn a proportional share of trading fees when volume is live.
             </p>
+            <div className="mt-4 max-w-2xl mx-auto rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90">
+              Pre-testnet preview — deposits and allocations are simulated; on-chain vault and live trading are not live yet.
+            </div>
             <div className="mt-6 max-w-3xl mx-auto rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-left text-sm text-gray-300">
               <p className="font-semibold text-white/90 mb-1">{LP_SEEDED_SHORT}</p>
               <p className="text-gray-400 leading-relaxed">{LP_SEEDED_EXPLAINER}</p>
@@ -115,7 +118,7 @@ function LiquidityPage() {
                 <div className="font-mono font-bold text-4xl">
                   {vaultStats?.marketsActive || 0}
                 </div>
-                <div className="text-sm text-gray-500">Live predictions</div>
+                <div className="text-sm text-gray-500">Curated protocol markets</div>
               </div>
             </div>
 
@@ -156,7 +159,7 @@ function LiquidityPage() {
                 <div className="flex-1">
                   <h3 className="font-semibold text-lg mb-2">Provide Liquidity to the Protocol Vault</h3>
                   <p className="text-gray-400 text-sm">
-                    Deposit USDC to earn a share of all trading fees across the protocol. Your liquidity is automatically allocated to active markets based on trading volume.
+                    Deposit paper USDC to earn a share of protocol trading fees. Exposure is spread across curated markets — weighted by live volume when available, otherwise by editorial appeal score.
                   </p>
                 </div>
               </div>
@@ -171,7 +174,7 @@ function LiquidityPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-purple-400"></div>
-                  <span className="text-gray-300">Non-custodial smart contract</span>
+                  <span className="text-gray-300">On-chain vault (pre-testnet)</span>
                 </div>
               </div>
             </div>
@@ -244,7 +247,7 @@ function LiquidityPage() {
                   <div>
                     <h3 className="font-semibold text-lg mb-2">Set & Forget</h3>
                     <p className="text-sm text-gray-400 leading-relaxed">
-                      No active management required. The algorithm automatically allocates your liquidity to high-volume markets.
+                      No active management required. Exposure tracks the curated catalog and reweights as trading volume grows.
                     </p>
                   </div>
                 </div>
@@ -477,9 +480,9 @@ function LiquidityPage() {
                   2
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg mb-2">Algorithm Allocates by Volume</h3>
+                  <h3 className="font-semibold text-lg mb-2">Exposure Across Curated Markets</h3>
                   <p className="text-gray-400">
-                    Smart allocation algorithm distributes liquidity based on trading volume per market, ensuring optimal coverage where it's needed most.
+                    Vault liquidity is allocated across the active curated catalog. When aggregate volume is low, weights fall back to editorial appeal scores until real trading data exists.
                   </p>
                 </div>
               </div>
