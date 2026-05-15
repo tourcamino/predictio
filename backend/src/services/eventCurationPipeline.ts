@@ -5,6 +5,16 @@ import {
   type NormalizedCuratorGame,
   type RawAzuroGame,
 } from "./azuroCuratorGraphql";
+import { computeEditorialAppealBoosts } from "./editorialAppealBoosts";
+
+export {
+  getClubPrestigeBoost,
+  getNarrativeFixtureBoost,
+  computeEditorialAppealBoosts,
+  MAX_EDITORIAL_APPEAL_BOOST,
+  type EditorialFixtureContext,
+  type EditorialAppealBoostBreakdown,
+} from "./editorialAppealBoosts";
 
 export type CurationGamePayload = {
   id: string;
@@ -272,26 +282,64 @@ function isUefaChampionsLeague(leagueName: string): boolean {
   return ln.includes("champions league") && !ln.includes("afc") && !ln.includes("caf");
 }
 
-/**
- * Market Appeal Score — canonical ranking for curation (stored as `importanceScore` in DB).
- * Reversible: set pool gate back to `rawPassesUnpredictability` to restore legacy behavior.
- */
-export function computeAppealScore(
+export type AppealScoreBreakdown = {
+  leagueAppeal: number;
+  clubAppeal: number;
+  narrativeAppeal: number;
+  unpredictabilityBonus: number;
+  baseAppeal: number;
+  clubPrestigeBoost: number;
+  narrativeFixtureBoost: number;
+  editorialBoostApplied: number;
+  finalAppeal: number;
+};
+
+function appealScoreParts(
   game: RawAzuroGame | RawForScore,
   oddsOverride?: { homeOdds: number | null; drawOdds: number | null; awayOdds: number | null },
-): number {
+): AppealScoreBreakdown {
   const leagueName = game.league?.name || "";
   const countryName =
     "country" in (game.league || {}) && game.league && "country" in game.league
       ? String((game.league as { country?: { name?: string } }).country?.name || "")
       : "";
   const { home, away } = teamNamesFromRaw(game);
-  const league = computeLeagueAppeal(leagueName, countryName);
-  const club = computeClubAppeal(home, away);
-  const narrative = computeNarrativeAppeal(home, away);
+  const leagueAppeal = computeLeagueAppeal(leagueName, countryName);
+  const clubAppeal = computeClubAppeal(home, away);
+  const narrativeAppeal = computeNarrativeAppeal(home, away);
   const o = oddsOverride ?? extract1x2DecimalOddsFromRawGame(game as RawAzuroGame);
-  const unpred = computeUnpredictabilityBonus(o.homeOdds, o.awayOdds);
-  return league + club + narrative + unpred;
+  const unpredictabilityBonus = computeUnpredictabilityBonus(o.homeOdds, o.awayOdds);
+  const baseAppeal = leagueAppeal + clubAppeal + narrativeAppeal + unpredictabilityBonus;
+  const editorial = computeEditorialAppealBoosts(home, away, { leagueName, countryName });
+  return {
+    leagueAppeal,
+    clubAppeal,
+    narrativeAppeal,
+    unpredictabilityBonus,
+    baseAppeal,
+    clubPrestigeBoost: editorial.clubPrestigeBoostRaw,
+    narrativeFixtureBoost: editorial.narrativeFixtureBoost,
+    editorialBoostApplied: editorial.editorialBoostApplied,
+    finalAppeal: baseAppeal + editorial.editorialBoostApplied,
+  };
+}
+
+/**
+ * Market Appeal Score — canonical ranking for curation (stored as `importanceScore` in DB).
+ * Reversible: set pool gate back to `rawPassesUnpredictability` to restore legacy behavior.
+ */
+export function explainAppealScore(
+  game: RawAzuroGame | RawForScore,
+  oddsOverride?: { homeOdds: number | null; drawOdds: number | null; awayOdds: number | null },
+): AppealScoreBreakdown {
+  return appealScoreParts(game, oddsOverride);
+}
+
+export function computeAppealScore(
+  game: RawAzuroGame | RawForScore,
+  oddsOverride?: { homeOdds: number | null; drawOdds: number | null; awayOdds: number | null },
+): number {
+  return appealScoreParts(game, oddsOverride).finalAppeal;
 }
 
 /** League + big-club importance (legacy); prefer `computeAppealScore` for curation. */

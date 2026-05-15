@@ -9,6 +9,7 @@ import {
   isItalianPriorityFixture,
   isAllowedLeague,
   computeAppealScore,
+  explainAppealScore,
   LOOKAHEAD_SEC_60D,
 } from "./eventCurationPipeline";
 import {
@@ -128,6 +129,16 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
     requiredThreshold: number;
     reason: string;
   }> = [];
+  let editorialClubPrestigeCount = 0;
+  let editorialNarrativeCount = 0;
+  const appealScoreBoostSamples: Array<{
+    fixture: string;
+    baseAppeal: number;
+    prestigeBoost: number;
+    narrativeBoost: number;
+    editorialBoostApplied: number;
+    finalAppeal: number;
+  }> = [];
 
   for (const g of filterResult.upcoming) {
     if (!isItalianPriorityFixture(g)) continue;
@@ -166,7 +177,28 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
   }
 
   for (const g of europeanAfterGate) {
-    const score = computeAppealScore(g);
+    const breakdown = explainAppealScore(g);
+    const score = breakdown.finalAppeal;
+    if (breakdown.clubPrestigeBoost > 0) editorialClubPrestigeCount += 1;
+    if (breakdown.narrativeFixtureBoost > 0) editorialNarrativeCount += 1;
+    if (
+      breakdown.editorialBoostApplied > 0 &&
+      appealScoreBoostSamples.length < 10
+    ) {
+      const sorted = [...(g.participants ?? [])].sort(
+        (a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0),
+      );
+      const home = sorted[0]?.name ?? "Home";
+      const away = sorted[1]?.name ?? "Away";
+      appealScoreBoostSamples.push({
+        fixture: `${home} vs ${away}`,
+        baseAppeal: breakdown.baseAppeal,
+        prestigeBoost: breakdown.clubPrestigeBoost,
+        narrativeBoost: breakdown.narrativeFixtureBoost,
+        editorialBoostApplied: breakdown.editorialBoostApplied,
+        finalAppeal: breakdown.finalAppeal,
+      });
+    }
     const explained = explainAppealPoolRejection(g, score);
     if (explained.passes) {
       appealPassed.push(g);
@@ -311,6 +343,11 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
     selectedByTier,
     rejectedByAppealThreshold,
     appealRejectedByTierSamples,
+    editorialBoostsApplied: {
+      clubPrestige: editorialClubPrestigeCount,
+      narrativeFixture: editorialNarrativeCount,
+    },
+    appealScoreBoostSamples,
     appealPool: appealPassed.length,
     combinedPool: diagnostics.combinedPoolSize,
     picked: diagnostics.pickedCount,
