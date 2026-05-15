@@ -366,7 +366,7 @@ export function getImportanceScoreFromNormalized(meta: NormalizedCuratorGame): n
   });
 }
 
-/** Normalize for audit display only — gate matching uses legacy `.toLowerCase()` (see `isAllowedLeague`). */
+/** Normalize for audit display only. */
 export function normalizeLeagueMetadata(leagueName: string, country: string): {
   league: string;
   country: string;
@@ -377,23 +377,142 @@ export function normalizeLeagueMetadata(leagueName: string, country: string): {
   };
 }
 
+function normLeagueSlug(slug: string | undefined): string {
+  return (slug || "").toLowerCase().trim().replace(/\s+/g, "-");
+}
+
+/** Hard reject known false-positive league slugs (no whitelist expansion). */
 export type LeagueGateVerdict = {
   passesLeagueGate: boolean;
   rejectionReason: string;
 };
 
+function isRejectedLeagueSlug(slug: string): boolean {
+  if (!slug) return false;
+  const s = normLeagueSlug(slug);
+  if (s.includes("brasileir")) return true;
+  if (s.includes("serie-b")) return true;
+  if (s.includes("austrian") && s.includes("bundesliga")) return true;
+  if (s.includes("bundesliga") && s.includes("austria")) return true;
+  if (s.includes("premier-division")) return true;
+  if (s.includes("premier-league") && s.includes("scottish")) return true;
+  if (s.includes("premier-league") && s.includes("northern-ireland")) return true;
+  if (s.includes("premier-league") && s.includes("welsh")) return true;
+  return false;
+}
+
+function slugMatchesTopLeague(slug: string, cnt: string): LeagueGateVerdict | null {
+  const s = normLeagueSlug(slug);
+  if (!s || isRejectedLeagueSlug(s)) {
+    if (s && isRejectedLeagueSlug(s)) {
+      return { passesLeagueGate: false, rejectionReason: `slug_rejected:${s}` };
+    }
+    return null;
+  }
+
+  if (s.includes("coppa-italia")) {
+    return { passesLeagueGate: true, rejectionReason: "pass:slug_coppa_italia" };
+  }
+  if (s.includes("supercoppa") && s.includes("ital")) {
+    return { passesLeagueGate: true, rejectionReason: "pass:slug_supercoppa_italia" };
+  }
+  if (s.includes("champions-league") && !s.includes("afc") && !s.includes("caf")) {
+    return { passesLeagueGate: true, rejectionReason: "pass:slug_uefa_champions_league" };
+  }
+  if (s.includes("europa-league") && !s.includes("conference")) {
+    return { passesLeagueGate: true, rejectionReason: "pass:slug_uefa_europa_league" };
+  }
+  if (s.includes("conference-league")) {
+    return { passesLeagueGate: true, rejectionReason: "pass:slug_uefa_conference_league" };
+  }
+
+  if (s === "serie-a" || s.endsWith("-serie-a") || (s.includes("serie-a") && !s.includes("brasileir"))) {
+    if (!cnt.includes("ital")) {
+      return { passesLeagueGate: false, rejectionReason: "slug_serie_a_country_not_italy" };
+    }
+    return { passesLeagueGate: true, rejectionReason: "pass:slug_serie_a" };
+  }
+
+  if (s === "premier-league" || (s.includes("premier-league") && !s.includes("scottish"))) {
+    if (!(cnt.includes("england") || cnt.includes("united kingdom"))) {
+      return {
+        passesLeagueGate: false,
+        rejectionReason: `slug_premier_league_country_gate:country="${cnt}"`,
+      };
+    }
+    return { passesLeagueGate: true, rejectionReason: "pass:slug_premier_league" };
+  }
+
+  if (s === "la-liga" || s === "laliga" || s.includes("la-liga") || s.includes("laliga")) {
+    if (!cnt.includes("spain")) {
+      return { passesLeagueGate: false, rejectionReason: `slug_la_liga_country_gate:country="${cnt}"` };
+    }
+    return { passesLeagueGate: true, rejectionReason: "pass:slug_la_liga" };
+  }
+
+  if (s === "bundesliga" || (s.includes("bundesliga") && !s.includes("austria"))) {
+    if (!cnt.includes("germany")) {
+      return {
+        passesLeagueGate: false,
+        rejectionReason: `slug_bundesliga_country_gate:country="${cnt}"`,
+      };
+    }
+    return { passesLeagueGate: true, rejectionReason: "pass:slug_bundesliga" };
+  }
+
+  if (s.includes("ligue-1") || s === "ligue-1") {
+    if (!cnt.includes("france")) {
+      return { passesLeagueGate: false, rejectionReason: `slug_ligue1_country_gate:country="${cnt}"` };
+    }
+    return { passesLeagueGate: true, rejectionReason: "pass:slug_ligue_1" };
+  }
+
+  if (s.includes("eredivisie")) {
+    if (!cnt.includes("netherlands")) {
+      return {
+        passesLeagueGate: false,
+        rejectionReason: `slug_eredivisie_country_gate:country="${cnt}"`,
+      };
+    }
+    return { passesLeagueGate: true, rejectionReason: "pass:slug_eredivisie" };
+  }
+
+  if (s.includes("primeira-liga")) {
+    if (!cnt.includes("portugal")) {
+      return {
+        passesLeagueGate: false,
+        rejectionReason: `slug_primeira_liga_country_gate:country="${cnt}"`,
+      };
+    }
+    return { passesLeagueGate: true, rejectionReason: "pass:slug_primeira_liga" };
+  }
+
+  return null;
+}
+
 /**
- * Explains why `isAllowedLeague` accepts or rejects — mirrors gate logic exactly (no bypass).
+ * Explains why `isAllowedLeague` accepts or rejects — slug-first when available, then name fallback.
  */
 export function explainAllowedLeagueRejection(
   leagueName: string,
   country: string,
+  leagueSlug?: string,
 ): LeagueGateVerdict {
   const league = leagueName.toLowerCase();
   const cnt = country.toLowerCase();
+  const slugNorm = normLeagueSlug(leagueSlug);
+
+  if (slugNorm) {
+    const slugVerdict = slugMatchesTopLeague(slugNorm, cnt);
+    if (slugVerdict) return slugVerdict;
+  }
 
   if (!league) {
     return { passesLeagueGate: false, rejectionReason: "missing_league_name" };
+  }
+
+  if (league.includes("brasileir") || league.includes("serie b")) {
+    return { passesLeagueGate: false, rejectionReason: "name_brasileir_or_serie_b_excluded" };
   }
 
   if (league.includes("serie a")) {
@@ -429,6 +548,9 @@ export function explainAllowedLeagueRejection(
     if (league.includes("northern ireland")) {
       return { passesLeagueGate: false, rejectionReason: "premier_league_ni_excluded" };
     }
+    if (league.includes("premier division")) {
+      return { passesLeagueGate: false, rejectionReason: "premier_division_excluded" };
+    }
     if (!(cnt.includes("england") || cnt.includes("united kingdom"))) {
       return {
         passesLeagueGate: false,
@@ -449,6 +571,9 @@ export function explainAllowedLeagueRejection(
   }
 
   if (league.includes("bundesliga")) {
+    if (cnt.includes("austria") && !cnt.includes("germany")) {
+      return { passesLeagueGate: false, rejectionReason: "bundesliga_austria_excluded" };
+    }
     if (!cnt.includes("germany")) {
       return {
         passesLeagueGate: false,
@@ -491,33 +616,61 @@ export function explainAllowedLeagueRejection(
   return { passesLeagueGate: false, rejectionReason: "league_not_in_whitelist" };
 }
 
-/** Italy + UEFA cups + major European domestic (country-gated). */
-export function isAllowedLeague(leagueName: string, country: string): boolean {
-  const league = leagueName.toLowerCase();
-  const cnt = country.toLowerCase();
+/** Italy + UEFA cups + major European domestic (country-gated, slug-aware). */
+export function isAllowedLeague(
+  leagueName: string,
+  country: string,
+  leagueSlug?: string,
+): boolean {
+  return explainAllowedLeagueRejection(leagueName, country, leagueSlug).passesLeagueGate;
+}
 
-  if (league.includes("serie a") && cnt.includes("ital")) return true;
-  if (league.includes("coppa italia")) return true;
-  if (league.includes("supercoppa") && league.includes("ital")) return true;
-  if (league.includes("champions league") && !league.includes("afc") && !league.includes("caf"))
-    return true;
-  if (league.includes("europa league")) return true;
-  if (league.includes("conference league")) return true;
+const KICKOFF_LOCK_BUFFER_SEC = 5 * 60;
 
-  if (
-    league.includes("premier league") &&
-    !league.includes("scottish") &&
-    !league.includes("northern ireland") &&
-    (cnt.includes("england") || cnt.includes("united kingdom"))
-  )
-    return true;
-  if ((league.includes("la liga") || league.includes("laliga")) && cnt.includes("spain")) return true;
-  if (league.includes("bundesliga") && cnt.includes("germany")) return true;
-  if (league.includes("ligue 1") && cnt.includes("france")) return true;
-  if (league.includes("eredivisie") && cnt.includes("netherlands")) return true;
-  if (league.includes("primeira liga") && cnt.includes("portugal")) return true;
+export function kickoffSecFromRaw(g: RawAzuroGame): number | null {
+  const kickoff = parseInt(String(g.startsAt), 10);
+  return Number.isFinite(kickoff) ? kickoff : null;
+}
 
+export function lockedAtSecFromRaw(g: RawAzuroGame): number | null {
+  const kickoff = kickoffSecFromRaw(g);
+  if (kickoff == null) return null;
+  return kickoff - KICKOFF_LOCK_BUFFER_SEC;
+}
+
+/** Stale Prematch rows: kickoff or derived lock time already passed. */
+export function isStalePrematchGame(g: RawAzuroGame, nowSec: number): boolean {
+  const kickoff = kickoffSecFromRaw(g);
+  if (kickoff != null && kickoff <= nowSec) return true;
+  const locked = lockedAtSecFromRaw(g);
+  if (locked != null && locked <= nowSec) return true;
   return false;
+}
+
+const STALE_PREMATCH_LOG_LIMIT = 30;
+const STALE_PREMATCH_LOG_COOLDOWN_MS = 5 * 60 * 1000;
+let stalePrematchLogCount = 0;
+let stalePrematchLogWindowStart = 0;
+
+function maybeLogStalePrematch(g: RawAzuroGame, nowSec: number): void {
+  const nowMs = Date.now();
+  if (nowMs - stalePrematchLogWindowStart > STALE_PREMATCH_LOG_COOLDOWN_MS) {
+    stalePrematchLogWindowStart = nowMs;
+    stalePrematchLogCount = 0;
+  }
+  if (stalePrematchLogCount >= STALE_PREMATCH_LOG_LIMIT) return;
+  stalePrematchLogCount += 1;
+  const kickoff = kickoffSecFromRaw(g);
+  console.log(
+    JSON.stringify({
+      tag: "stale_prematch",
+      gameId: String(g.gameId ?? "").trim(),
+      league: g.league?.name ?? "",
+      leagueSlug: g.league?.slug ?? "",
+      startsAt: kickoff != null ? new Date(kickoff * 1000).toISOString() : String(g.startsAt ?? ""),
+      now: new Date(nowSec * 1000).toISOString(),
+    }),
+  );
 }
 
 function teamLineHasPrestigeClub(g: RawAzuroGame): boolean {
@@ -595,7 +748,11 @@ export function logEuropeanLeagueGateAudit(
   for (const g of sample) {
     const leagueName = g.league?.name ?? "";
     const countryName = g.league?.country?.name ?? "";
-    const verdict = explainAllowedLeagueRejection(leagueName, countryName);
+    const verdict = explainAllowedLeagueRejection(
+      leagueName,
+      countryName,
+      g.league?.slug,
+    );
     const leagueKey = `${leagueName} | ${countryName}`;
     leagueCounts[leagueKey] = (leagueCounts[leagueKey] ?? 0) + 1;
 
@@ -639,12 +796,38 @@ export function logEuropeanLeagueGateAudit(
   );
 }
 
-function filterEuropeanUpcoming(rawGames: RawAzuroGame[], nowSec: number, windowEndSec: number) {
-  const footballGames = rawGames.filter((g) => rawGameIsFootball(g));
+export type EuropeanUpcomingFilterResult = {
+  footballGames: RawAzuroGame[];
+  upcoming: RawAzuroGame[];
+  europeanGames: RawAzuroGame[];
+  stalePrematchRejected: number;
+  validFutureFootball: number;
+  futureWhitelisted: number;
+  futureItalianPool: number;
+};
+
+export function filterEuropeanUpcoming(
+  rawGames: RawAzuroGame[],
+  nowSec: number,
+  windowEndSec: number,
+): EuropeanUpcomingFilterResult {
+  let stalePrematchRejected = 0;
+  const liveGames: RawAzuroGame[] = [];
+
+  for (const g of rawGames) {
+    if (isStalePrematchGame(g, nowSec)) {
+      stalePrematchRejected += 1;
+      maybeLogStalePrematch(g, nowSec);
+      continue;
+    }
+    liveGames.push(g);
+  }
+
+  const footballGames = liveGames.filter((g) => rawGameIsFootball(g));
 
   const upcoming = footballGames.filter((g) => {
-    const kickoff = parseInt(String(g.startsAt), 10);
-    return Number.isFinite(kickoff) && kickoff > nowSec && kickoff < windowEndSec;
+    const kickoff = kickoffSecFromRaw(g);
+    return kickoff != null && kickoff > nowSec && kickoff < windowEndSec;
   });
 
   logEuropeanLeagueGateAudit(upcoming);
@@ -652,10 +835,20 @@ function filterEuropeanUpcoming(rawGames: RawAzuroGame[], nowSec: number, window
   const europeanGames = upcoming.filter((g) => {
     const leagueName = g.league?.name || "";
     const countryName = g.league?.country?.name || "";
-    return isAllowedLeague(leagueName, countryName);
+    return isAllowedLeague(leagueName, countryName, g.league?.slug);
   });
 
-  return { footballGames, upcoming, europeanGames };
+  const futureItalianPool = upcoming.filter((g) => isItalianPriorityFixture(g)).length;
+
+  return {
+    footballGames,
+    upcoming,
+    europeanGames,
+    stalePrematchRejected,
+    validFutureFootball: upcoming.length,
+    futureWhitelisted: europeanGames.length,
+    futureItalianPool,
+  };
 }
 
 /** Nomi display (Azuro spesso usa “Inter Milan”). */
@@ -1075,8 +1268,16 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
   const nowSec = Math.floor(Date.now() / 1000);
   const windowEndSec = nowSec + LOOKAHEAD_SEC_60D;
 
-  const allGames = await fetchAzuroGames();
-  const { footballGames, upcoming, europeanGames } = filterEuropeanUpcoming(allGames, nowSec, windowEndSec);
+  const allGames = await fetchAzuroGames({ minStartsAtSec: nowSec });
+  const {
+    footballGames,
+    upcoming,
+    europeanGames,
+    stalePrematchRejected,
+    validFutureFootball,
+    futureWhitelisted,
+    futureItalianPool,
+  } = filterEuropeanUpcoming(allGames, nowSec, windowEndSec);
 
   const allowedPool: ScoredItalian[] = [];
   for (const g of europeanGames) {
@@ -1113,7 +1314,10 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
       const leagueName = g.league?.name || "";
       const country = g.league?.country?.name || "";
       const item = scoredFromRaw(g);
-      if (!isAllowedLeague(leagueName, country) && !isFallbackTopFiveLeague(g, item.importanceScore, 52))
+      if (
+        !isAllowedLeague(leagueName, country, g.league?.slug) &&
+        !isFallbackTopFiveLeague(g, item.importanceScore, 52)
+      )
         continue;
       if (!qualifiesForAppealPool(g, item.importanceScore)) continue;
       const gid = String(g.gameId || "").trim();
@@ -1150,8 +1354,12 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
   const pipelineLog = {
     tag: "azuro_curation_pipeline",
     rawIndexer: allGames.length,
+    stalePrematchRejected,
     afterFootballFilter: footballGames.length,
+    validFutureFootball,
     upcomingIn60d: upcoming.length,
+    futureWhitelisted,
+    futureItalianPool,
     europeanLeagueGate: europeanGames.length,
     afterPrestigeStrictUnpred: allowedPool.length,
     combinedPool: combinedPool.length,

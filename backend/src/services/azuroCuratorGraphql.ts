@@ -99,19 +99,38 @@ const GAMES_PAGE_FIELDS = `
       }
 `;
 
-export async function fetchAzuroGames(): Promise<RawAzuroGame[]> {
-  if (!AZURO_FEED_URL) {
-    throw new Error("AZURO_DATA_FEED_URL is not set");
-  }
+export type FetchAzuroGamesOptions = {
+  /** When set, request `startsAt_gte` server-side (falls back if subgraph rejects). */
+  minStartsAtSec?: number;
+};
 
-  const PAGE = 250;
-  const MAX_PAGES = 5;
-  const merged: RawAzuroGame[] = [];
-  const seen = new Set<string>();
+async function fetchAzuroGamesPage(
+  page: number,
+  pageSize: number,
+  minStartsAtSec?: number,
+): Promise<{ batch: RawAzuroGame[]; graphqlStartsAtGte: boolean; aborted: boolean }> {
+  const skip = page * pageSize;
+  const useGte = minStartsAtSec != null && Number.isFinite(minStartsAtSec) && minStartsAtSec > 0;
 
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const skip = page * PAGE;
-    const query = `
+  const queryWithGte = `
+      query GamesPage($first: Int!, $skip: Int!, $minStartsAt: BigInt!) {
+        games(
+          first: $first
+          skip: $skip
+          where: {
+            state: Prematch
+            activeConditionsCount_gt: 0
+            startsAt_gte: $minStartsAt
+          }
+          orderBy: startsAt
+          orderDirection: asc
+        ) {
+${GAMES_PAGE_FIELDS}
+        }
+      }
+    `;
+
+  const queryPlain = `
       query GamesPage($first: Int!, $skip: Int!) {
         games(
           first: $first
@@ -128,35 +147,77 @@ ${GAMES_PAGE_FIELDS}
       }
     `;
 
+  const runQuery = async (query: string, variables: Record<string, unknown>) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12_000);
-    let response: Response;
     try {
-      response = await fetch(AZURO_FEED_URL, {
+      const response = await fetch(AZURO_FEED_URL!, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, variables: { first: PAGE, skip } }),
+        body: JSON.stringify({ query, variables }),
         signal: controller.signal,
       });
+      const json = (await response.json()) as {
+        data?: { games?: RawAzuroGame[] };
+        errors?: unknown;
+      };
+      return { response, json };
     } finally {
       clearTimeout(timeoutId);
     }
+  };
 
-    const json = (await response.json()) as {
-      data?: { games?: RawAzuroGame[] };
-      errors?: unknown;
-    };
-
-    if (!response.ok) {
-      console.warn("[Azuro] fetchAzuroGames HTTP", response.status, "page", page);
-      break;
+  if (useGte && page === 0) {
+    const { response, json } = await runQuery(queryWithGte, {
+      first: pageSize,
+      skip,
+      minStartsAt: String(minStartsAtSec),
+    });
+    if (response.ok && !json.errors) {
+      return { batch: json.data?.games ?? [], graphqlStartsAtGte: true, aborted: false };
     }
-    if ((json as { errors?: unknown }).errors) {
-      console.warn("[Azuro] fetchAzuroGames GraphQL errors page", page, (json as { errors: unknown }).errors);
-      break;
-    }
+    console.warn(
+      JSON.stringify({
+        tag: "azuro_indexer_fetch",
+        msg: "startsAt_gte_unsupported_fallback",
+        status: response.status,
+        errors: json.errors ?? null,
+      }),
+    );
+  }
 
-    const batch = json.data?.games ?? [];
+  const { response, json } = await runQuery(queryPlain, { first: pageSize, skip });
+  if (!response.ok) {
+    console.warn("[Azuro] fetchAzuroGames HTTP", response.status, "page", page);
+    return { batch: [], graphqlStartsAtGte: false, aborted: true };
+  }
+  if (json.errors) {
+    console.warn("[Azuro] fetchAzuroGames GraphQL errors page", page, json.errors);
+    return { batch: [], graphqlStartsAtGte: false, aborted: true };
+  }
+  return { batch: json.data?.games ?? [], graphqlStartsAtGte: false, aborted: false };
+}
+
+export async function fetchAzuroGames(opts?: FetchAzuroGamesOptions): Promise<RawAzuroGame[]> {
+  if (!AZURO_FEED_URL) {
+    throw new Error("AZURO_DATA_FEED_URL is not set");
+  }
+
+  const PAGE = 250;
+  const MAX_PAGES = 5;
+  const merged: RawAzuroGame[] = [];
+  const seen = new Set<string>();
+  let graphqlStartsAtGte = false;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const { batch, graphqlStartsAtGte: usedGte, aborted } = await fetchAzuroGamesPage(
+      page,
+      PAGE,
+      opts?.minStartsAtSec,
+    );
+    if (usedGte) graphqlStartsAtGte = true;
+    if (aborted) break;
+
     for (const g of batch) {
       const id = String(g.gameId || g.id || "").trim();
       if (!id || seen.has(id)) continue;
@@ -173,6 +234,8 @@ ${GAMES_PAGE_FIELDS}
       msg: "games_merged",
       pages: Math.ceil(merged.length / PAGE) || 0,
       count: merged.length,
+      graphqlStartsAtGte,
+      minStartsAtSec: opts?.minStartsAtSec ?? null,
     }),
   );
 
