@@ -232,3 +232,97 @@ export function passesStrictPremiumScoredItalian(it: {
   if (sport === "football") return strictPremiumFootballPasses(it.raw, it.importanceScore);
   return strictPremiumMultisportPasses(it.raw, it.importanceScore);
 }
+
+/**
+ * Protocol continuity (Tier D): canonical market continuity > editorial purity.
+ * Superset of strict ladder — used ONLY to reach CATALOG_TARGET_SIZE without garbage leagues.
+ */
+export function isContinuityHeadlineFootballLeague(
+  leagueName: string,
+  country: string,
+  leagueSlug?: string,
+): boolean {
+  if (isStrictHeadlineFootballLeague(leagueName, country, leagueSlug)) return true;
+  const ln = leagueName.toLowerCase();
+  const cnt = normCountry(country);
+  if (cnt === "brazil" || isBrasileiraoSerieA(leagueName, country, leagueSlug)) return false;
+  if (isItalianSerieBFixture(leagueName, country, leagueSlug)) return false;
+  if (cnt === "finland" && ln.includes("veikkausliiga")) return false;
+  const uefaEl = ln.includes("europa league") && !ln.includes("conference");
+  const uefaConf = ln.includes("conference league");
+  if (!uefaEl && !uefaConf) return false;
+  const banned = [
+    "senegal",
+    "thailand",
+    "saudi",
+    "qatar",
+    "malaysia",
+  ];
+  if (banned.some((b) => cnt.includes(b))) return false;
+  return true;
+}
+
+export function strictPremiumFootballContinuityOnly(g: RawAzuroGame, importanceScore: number): boolean {
+  if (canonicalSportFromRaw(g) !== "football") return false;
+  const leagueName = g.league?.name ?? "";
+  const country = g.league?.country?.name ?? "";
+  const slug = g.league?.slug;
+  if (!isContinuityHeadlineFootballLeague(leagueName, country, slug)) return false;
+  const imp = importanceScore;
+  if (imp < 64) return false;
+  const blob = teamBlobLower(g);
+  const founder = hasFounderWhitelistClub(blob);
+  const ln = leagueName.toLowerCase();
+  const ucl = ln.includes("champions league") && !ln.includes("afc") && !ln.includes("caf");
+  const el = ln.includes("europa league") && !ln.includes("conference");
+  const conf = ln.includes("conference league");
+  if (ucl && imp >= 92) return true;
+  if ((el || conf) && imp >= 70) return true;
+  if (isStrictHeadlineFootballLeague(leagueName, country, slug) && (founder || imp >= 72))
+    return true;
+  if (isItalianSerieA(leagueName, country, slug) && imp >= 74) return true;
+  return false;
+}
+
+export function strictPremiumMultisportContinuityOnly(g: RawAzuroGame, importanceScore: number): boolean {
+  const sport = canonicalSportFromRaw(g);
+  if (sport == null || sport === "football") return false;
+  const leagueTitle = `${g.league?.name || ""} ${g.title || ""}`.toLowerCase();
+  const blob = teamBlobLower(g);
+  const imp = importanceScore;
+  const minRel = 72;
+
+  if (sport === "tennis") {
+    const compOk =
+      /\batp\b/.test(leagueTitle) || /\bwta\b/.test(leagueTitle) || /grand slam|wimbledon|roland/i.test(leagueTitle);
+    return compOk && imp >= minRel;
+  }
+  if (sport === "basketball") {
+    const nba = /\bnba\b/.test(leagueTitle);
+    const euro = /euroleague/.test(leagueTitle);
+    return ((nba || euro) && imp >= minRel) || (nba && imp >= 78);
+  }
+  if (sport === "motorsport") {
+    const f1 =
+      /\bformula\s*1\b|\bf1\b|grand prix/.test(leagueTitle) || /\bformula\s*1\b|\bf1\b|grand prix/.test(blob);
+    return f1 && imp >= 72;
+  }
+  if (sport === "mma") {
+    const ufc = /\bufc\b/.test(leagueTitle) || /\bufc\b/.test(blob);
+    return ufc && imp >= 72;
+  }
+  return false;
+}
+
+export function passesProtocolContinuityTierD(it: {
+  raw: RawAzuroGame;
+  importanceScore: number;
+}): boolean {
+  if (!STRICT_PREMIUM_WHITELIST_MODE) return true;
+  if (passesStrictPremiumScoredItalian(it)) return true;
+  const sport = canonicalSportFromRaw(it.raw);
+  if (sport === "football") {
+    return strictPremiumFootballContinuityOnly(it.raw, it.importanceScore);
+  }
+  return strictPremiumMultisportContinuityOnly(it.raw, it.importanceScore);
+}

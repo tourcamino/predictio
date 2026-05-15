@@ -34,10 +34,10 @@ export function explorerTxUrl(txHash: string): string {
 export const BASE_SEPOLIA_FAUCET_URL =
   "https://docs.base.org/docs/tools/network-faucet/";
 
-export const LP_SEEDED_SHORT = "Editorial paper liquidity allocation";
+export const LP_SEEDED_SHORT = "Pool tracks the live board you trade";
 
 export const LP_SEEDED_EXPLAINER =
-  "Simulated liquidity routing across curated prediction markets — not on-chain TVL, LP depth, or external market-maker capital.";
+  "Display pool sizes follow the same open markets as the homepage — not a separate admin list, not off-chain TVL claims.";
 
 export {
   PRE_TESTNET_LIQUIDITY_HEADLINE,

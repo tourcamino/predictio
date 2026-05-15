@@ -1,45 +1,19 @@
 import { Shield, Globe, TrendingUp, Users } from 'lucide-react';
+import { homeWhy } from '~/copy/homePremium';
+
+const icons = [TrendingUp, Shield, Globe, Users];
 
 export function WhyPredictio() {
-  const features = [
-    {
-      icon: TrendingUp,
-      title: 'Trade Before Kickoff',
-      description:
-        'Markets are open until the match starts. Place your prediction, then watch it unfold. No bookmakers. Pure market dynamics driven by trader activity.',
-    },
-    {
-      icon: Shield,
-      title: 'Exit Before Kickoff',
-      description:
-        "Changed your mind? Sell your position anytime before the match starts. Lock in gains or cut losses — you're always in control.",
-    },
-    {
-      icon: Globe,
-      title: 'Market-Driven Odds',
-      description:
-        'No bookmakers setting the lines. Real-time prices powered by trader activity — pure market dynamics.',
-    },
-    {
-      icon: Users,
-      title: 'Copy the Best Traders',
-      description:
-        'See what top traders are betting on. Copy their positions in one click. When they win — you win.',
-      link: '/leaderboard',
-      linkText: 'Open leaderboard →',
-    },
-  ];
-
   return (
     <section id="about" className="bg-brand-bg py-20 lg:py-32">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-16 text-center">
-          <h2 className="font-syne text-4xl font-bold sm:text-5xl lg:text-6xl">Why Trade Here?</h2>
+          <h2 className="font-syne text-4xl font-bold sm:text-5xl lg:text-6xl">{homeWhy.title}</h2>
         </div>
 
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
-          {features.map((feature) => {
-            const Icon = feature.icon;
+          {homeWhy.cards.map((feature, i) => {
+            const Icon = icons[i % icons.length]!;
             return (
               <div
                 key={feature.title}
@@ -51,16 +25,7 @@ export function WhyPredictio() {
 
                 <h3 className="mb-4 font-syne text-2xl font-bold">{feature.title}</h3>
 
-                <p className="mb-4 leading-relaxed text-gray-400">{feature.description}</p>
-
-                {'link' in feature && feature.link ? (
-                  <a
-                    href={feature.link}
-                    className="inline-flex items-center font-semibold text-brand-green hover:text-brand-green/80 transition-colors"
-                  >
-                    {feature.linkText}
-                  </a>
-                ) : null}
+                <p className="leading-relaxed text-gray-400">{feature.body}</p>
               </div>
             );
           })}

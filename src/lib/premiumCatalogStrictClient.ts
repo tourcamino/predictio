@@ -235,6 +235,84 @@ function multisportPremiumTier(m: AzuroMarket): PremiumTier | null {
   return null;
 }
 
+function isContinuityFootballLeague(m: AzuroMarket): boolean {
+  if (isStrictFootballLeague(m)) return true;
+  const comp = m.competition.toLowerCase();
+  const loc = normCountryToken(m.event?.location ?? "");
+  if (loc === "brazil" || comp.includes("brasileir")) return false;
+  if (comp.includes("serie b") && loc === "italy") return false;
+  if (loc === "finland" && comp.includes("veikkausliiga")) return false;
+  const el = comp.includes("europa league") && !comp.includes("conference");
+  const conf = comp.includes("conference league");
+  if (!el && !conf) return false;
+  const banned = ["senegal", "thailand", "saudi", "qatar", "malaysia"];
+  if (banned.some((b) => loc.includes(b))) return false;
+  return true;
+}
+
+/** Client mirror of `strictPremiumFootballContinuityOnly` — Tier D surface only. */
+function footballProtocolContinuityOnly(m: AzuroMarket): boolean {
+  if (m.sport !== "football") return false;
+  if (!isContinuityFootballLeague(m)) return false;
+  const imp = m.importanceScore ?? 0;
+  if (imp < 64) return false;
+  const blob = teamBlob(m);
+  const founder = hasFounderWhitelistClub(blob);
+  const comp = m.competition.toLowerCase();
+  const ucl = comp.includes("champions league") && !comp.includes("afc") && !comp.includes("caf");
+  const el = comp.includes("europa league") && !comp.includes("conference");
+  const conf = comp.includes("conference league");
+  if (ucl && imp >= 92) return true;
+  if ((el || conf) && imp >= 70) return true;
+  if (isStrictFootballLeague(m) && (founder || imp >= 72)) return true;
+  if (isItalianSerieAItalyMarket(m) && imp >= 74) return true;
+  return false;
+}
+
+/** Client mirror of `strictPremiumMultisportContinuityOnly`. */
+function multisportProtocolContinuityOnly(m: AzuroMarket): boolean {
+  const sport = m.sport.toLowerCase();
+  if (sport === "football") return false;
+  const compFull = `${m.competition} ${m.event?.name ?? ""}`.toLowerCase();
+  const blob = eventTextBlob(m);
+  const imp = m.importanceScore ?? 0;
+  const minRel = 72;
+
+  if (sport === "tennis") {
+    const compOk =
+      /\batp\b/.test(compFull) ||
+      /\bwta\b/.test(compFull) ||
+      /grand slam|wimbledon|roland/i.test(compFull);
+    return compOk && imp >= minRel;
+  }
+  if (sport === "basketball") {
+    const nba = /\bnba\b/.test(compFull);
+    const euro = /euroleague/.test(compFull);
+    return ((nba || euro) && imp >= minRel) || (nba && imp >= 78);
+  }
+  if (sport === "f1" || sport === "motorsport") {
+    const f1 =
+      /\bformula\s*1\b|\bf1\b|grand prix/.test(compFull) ||
+      /\bformula\s*1\b|\bf1\b|grand prix/.test(blob);
+    return f1 && imp >= minRel;
+  }
+  if (sport === "mma") {
+    const ufc = /\bufc\b/.test(compFull) || /\bufc\b/.test(blob);
+    return ufc && imp >= minRel;
+  }
+  return false;
+}
+
+export function protocolContinuityOnlyPasses(m: AzuroMarket): boolean {
+  if (m.sport === "football") return footballProtocolContinuityOnly(m);
+  return multisportProtocolContinuityOnly(m);
+}
+
+export function azuroMarketPassesProtocolCatalogSurface(m: AzuroMarket): boolean {
+  if (azuroMarketPassesStrictPremium(m)) return true;
+  return protocolContinuityOnlyPasses(m);
+}
+
 export function premiumCatalogTier(m: AzuroMarket): PremiumTier | null {
   if (m.sport === "football") return footballPremiumTier(m);
   return multisportPremiumTier(m);

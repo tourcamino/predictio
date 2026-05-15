@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router';
+import { homeSports } from '~/copy/homePremium';
 
 const SPORTS: { name: string; key: string }[] = [
   { name: 'Football', key: 'football' },
@@ -24,8 +25,9 @@ export function SportsGrid() {
         <div className="mb-16 flex flex-col items-center gap-5 sm:mb-20">
           <div className="h-px w-10 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
           <h2 className="font-syne text-2xl font-light tracking-[-0.02em] text-white/90 sm:text-3xl">
-            Sports
+            {homeSports.title}
           </h2>
+          <p className="mt-3 max-w-lg text-center text-sm text-white/45">{homeSports.sub}</p>
         </div>
 
         <div className="rounded-2xl bg-white/[0.065] p-px shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset]">

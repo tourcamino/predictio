@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { ArrowRight, Radio, Users } from 'lucide-react';
 import { useTRPC } from '~/trpc/react';
+import { homeSocialLayer } from '~/copy/homePremium';
 
 const DISPLAY_LIMIT = 6;
 
@@ -43,15 +44,12 @@ export function HomeSocialTradingLayer() {
           <div className="max-w-2xl space-y-4">
             <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.28em] text-brand-green/85">
               <Radio className="h-3.5 w-3.5 opacity-80" aria-hidden />
-              Copy trading · Analyst discovery
+              {homeSocialLayer.eyebrow}
             </p>
             <h2 className="font-syne text-3xl font-semibold tracking-[-0.02em] text-white sm:text-4xl lg:text-[2.75rem]">
-              Follow the traders who size with conviction
+              {homeSocialLayer.title}
             </h2>
-            <p className="text-sm leading-relaxed text-white/50 sm:text-base">
-              See performance, recent positioning, and win rates — then mirror their entries on the same
-              nine canonical markets routed through shared liquidity.
-            </p>
+            <p className="text-sm leading-relaxed text-white/50 sm:text-base">{homeSocialLayer.sub}</p>
           </div>
           <Link
             to="/leaderboard"
@@ -74,10 +72,8 @@ export function HomeSocialTradingLayer() {
         ) : rows.length === 0 ? (
           <div className="rounded-2xl bg-white/[0.03] px-8 py-14 text-center ring-1 ring-white/[0.06]">
             <Users className="mx-auto mb-4 h-9 w-9 text-white/25" aria-hidden />
-            <p className="font-syne text-lg text-white/55">Analyst leaderboard warming up</p>
-            <p className="mt-2 text-sm text-white/40">
-              Connect a wallet to trade — every participant can earn analyst rewards when others copy their flow.
-            </p>
+            <p className="font-syne text-lg text-white/55">{homeSocialLayer.emptyTitle}</p>
+            <p className="mt-2 text-sm text-white/40">{homeSocialLayer.emptySub}</p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -127,19 +123,19 @@ export function HomeSocialTradingLayer() {
                     </p>
                   ) : (
                     <p className="relative mt-4 border-t border-white/[0.06] pt-4 text-xs text-white/35">
-                      Building a public track record on canonical markets.
+                      Building a public tape on the live book.
                     </p>
                   )}
 
                   <div className="relative mt-auto flex items-center justify-between pt-5">
                     <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/30">
-                      Copy-ready
+                      {homeSocialLayer.copyReady}
                     </span>
                     <Link
                       to="/affiliates"
                       className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-green/90 transition-colors hover:text-brand-green"
                     >
-                      Program
+                      {homeSocialLayer.programLink}
                     </Link>
                   </div>
                 </div>

@@ -8,6 +8,7 @@ import {
 } from "./editorialLeagueTiers";
 import {
   passesStrictPremiumScoredItalian,
+  passesProtocolContinuityTierD,
   STRICT_PREMIUM_WHITELIST_MODE,
 } from "./editorialPremiumFirewall";
 import { MULTISPORT_SLOT_PREFER_MIN } from "./premiumSportScoring";
@@ -125,6 +126,13 @@ export type EditorialOrchestrationDiagnostics = {
   editorialSlots: Record<EditorialSlotId, number>;
   slotTargets: typeof EDITORIAL_SLOT_TARGETS & { adaptiveFallback: number };
   redistributions: string[];
+  /** Sizes after strict filter, before slot fill — protocol observability. */
+  strictFootballPool?: number;
+  strictMultisportPool?: number;
+  /** Continuity ladder candidates passed from pipeline (appeal + Tier D gate). */
+  protocolContinuityPoolIn?: number;
+  /** Rows added from `protocolContinuityPool` when book &lt; CATALOG_TARGET_SIZE. */
+  protocolContinuityTierDFill?: number;
   samples: Array<{
     fixture: string;
     slot: EditorialSlotId;
@@ -495,7 +503,43 @@ export type OrchestrateEditorialCatalogOptions = {
   nowSec?: number;
   /** Premium-scored non-football pool (tennis / basketball / motorsport / MMA). */
   multisportPool?: ScoredItalian[];
+  /**
+   * Appeal-qualified pool (football + multisport) for protocol continuity when strict pool
+   * cannot fill CATALOG_TARGET_SIZE. Tier D only; never sent without passing `passesProtocolContinuityTierD`.
+   */
+  protocolContinuityPool?: ScoredItalian[];
 };
+
+function fillProtocolContinuityTierD(
+  pool: ScoredItalian[],
+  used: Set<string>,
+  picked: ScoredItalian[],
+  metaByGameId: Map<string, EditorialPickMeta>,
+): number {
+  let added = 0;
+  const candidates = pool
+    .filter((it) => {
+      const gid = scoredGameId(it);
+      if (!gid || used.has(gid)) return false;
+      return passesProtocolContinuityTierD(it);
+    })
+    .sort(byAppealThenKickoff);
+
+  for (const it of candidates) {
+    if (picked.length >= CATALOG_TARGET_SIZE) break;
+    const gid = scoredGameId(it);
+    if (!gid || used.has(gid)) continue;
+    used.add(gid);
+    picked.push(it);
+    const strictRow = passesStrictPremiumScoredItalian(it);
+    metaByGameId.set(gid, {
+      slot: "adaptiveFallback",
+      selectionReason: strictRow ? "protocol-continuity-strict-reserve" : "protocol-continuity-tier-d",
+    });
+    added += 1;
+  }
+  return added;
+}
 
 /**
  * Editorial Identity Orchestration — slot guarantees with appeal ranking inside each slot.
@@ -515,7 +559,11 @@ export function orchestrateEditorialCatalog(
 
   let footballPool = pool.filter(isFootballCandidate);
   let multisportPool = options?.multisportPool ?? [];
+  let strictFootballPool = 0;
+  let strictMultisportPool = 0;
   if (STRICT_PREMIUM_WHITELIST_MODE) {
+    strictFootballPool = footballPool.filter(passesStrictPremiumScoredItalian).length;
+    strictMultisportPool = multisportPool.filter(passesStrictPremiumScoredItalian).length;
     footballPool = footballPool.filter(passesStrictPremiumScoredItalian);
     multisportPool = multisportPool.filter(passesStrictPremiumScoredItalian);
   }
@@ -536,6 +584,25 @@ export function orchestrateEditorialCatalog(
     if (filled < target) {
       redistributions.push(
         `${slot}: filled ${filled}/${target} — no low-tier multisport backfill`,
+      );
+    }
+  }
+
+  let protocolContinuityFillCount = 0;
+  if (
+    STRICT_PREMIUM_WHITELIST_MODE &&
+    picked.length < CATALOG_TARGET_SIZE &&
+    options?.protocolContinuityPool?.length
+  ) {
+    protocolContinuityFillCount = fillProtocolContinuityTierD(
+      options.protocolContinuityPool,
+      used,
+      picked,
+      metaByGameId,
+    );
+    if (protocolContinuityFillCount > 0) {
+      redistributions.push(
+        `protocolContinuity: filled ${protocolContinuityFillCount} Tier D rows (canonical market continuity)`,
       );
     }
   }
@@ -592,6 +659,10 @@ export function orchestrateEditorialCatalog(
       editorialSlots,
       slotTargets: { ...slotTargets, adaptiveFallback: adaptiveFallbackTarget },
       redistributions,
+      strictFootballPool: STRICT_PREMIUM_WHITELIST_MODE ? strictFootballPool : undefined,
+      strictMultisportPool: STRICT_PREMIUM_WHITELIST_MODE ? strictMultisportPool : undefined,
+      protocolContinuityPoolIn: options?.protocolContinuityPool?.length,
+      protocolContinuityTierDFill: protocolContinuityFillCount,
       samples,
     },
   };
@@ -628,8 +699,13 @@ export function inferEditorialSlotForFixture(input: {
     importanceScore: input.importanceScore ?? 0,
   };
 
-  if (STRICT_PREMIUM_WHITELIST_MODE && !passesStrictPremiumScoredItalian(it)) {
-    return { slot: "adaptiveFallback", selectionReason: "strict-firewall-miss" };
+  if (STRICT_PREMIUM_WHITELIST_MODE) {
+    if (!passesStrictPremiumScoredItalian(it)) {
+      if (passesProtocolContinuityTierD(it)) {
+        return { slot: "adaptiveFallback", selectionReason: "protocol-continuity-tier-d" };
+      }
+      return { slot: "adaptiveFallback", selectionReason: "strict-firewall-miss" };
+    }
   }
 
   if (matchesTennisPremiumSlot(it)) {

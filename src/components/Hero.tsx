@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { useWallet } from '~/store/useWalletStore';
 import { useNavigate } from '@tanstack/react-router';
 import { FOOTBALL_FOCUS_CONFIG, isFootballFocusEnabled } from '~/config/footballFocus';
+import { getActiveHomeMultisportCopy } from '~/copy/homePremium';
 import { mockPlatformStats } from '~/data/mockData';
 
 export function Hero() {
   const [isVisible, setIsVisible] = useState(false);
   const { isConnected, openWalletModal } = useWallet();
   const navigate = useNavigate();
+  const multisportCopy = getActiveHomeMultisportCopy();
 
   useEffect(() => {
     setIsVisible(true);
@@ -57,9 +59,9 @@ export function Hero() {
             <>{FOOTBALL_FOCUS_CONFIG.HERO.headline}</>
           ) : (
             <>
-              Trade the Future.
+              {multisportCopy.heroHeadlineBefore}
               <br />
-              <span className="text-brand-green">Own the Outcome.</span>
+              <span className="text-brand-green">{multisportCopy.heroHeadlineAccent}</span>
             </>
           )}
         </h1>
@@ -71,7 +73,7 @@ export function Hero() {
         >
           {isFootballFocusEnabled()
             ? FOOTBALL_FOCUS_CONFIG.HERO.subheadline
-            : 'Premium European sports copy-trading on Base. Nine canonical AMM markets — copy analyst conviction on football, tennis, F1, UFC, and playoff hardwood in one shared book.'}
+            : multisportCopy.heroSub}
         </p>
 
         <div
@@ -85,17 +87,19 @@ export function Hero() {
             className="w-full rounded bg-brand-green px-8 py-4 text-base font-semibold text-brand-bg transition-all hover:scale-105 hover:bg-brand-green/90 sm:w-auto"
           >
             {isConnected
-              ? 'Go to Markets →'
+              ? `${multisportCopy.heroCtaPrimaryConnected} →`
               : isFootballFocusEnabled()
                 ? FOOTBALL_FOCUS_CONFIG.HERO.ctaPrimary
-                : 'Start Trading'}
+                : multisportCopy.heroCtaPrimaryGuest}
           </button>
           <button
             type="button"
             onClick={handleExploreMatches}
             className="w-full rounded border-2 border-white/20 bg-transparent px-8 py-4 text-base font-semibold text-white transition-all hover:border-brand-green hover:text-brand-green sm:w-auto"
           >
-            {isFootballFocusEnabled() ? FOOTBALL_FOCUS_CONFIG.HERO.ctaSecondary : 'How It Works'}
+            {isFootballFocusEnabled()
+              ? FOOTBALL_FOCUS_CONFIG.HERO.ctaSecondary
+              : multisportCopy.heroCtaSecondary}
           </button>
         </div>
 
@@ -128,7 +132,7 @@ export function Hero() {
             </>
           ) : (
             <>
-              <span className="font-medium text-brand-cyan">9 canonical events</span>
+              <span className="font-medium text-brand-cyan">{multisportCopy.heroRibbonLabel}</span>
               <span className="hidden h-1 w-1 rounded-full bg-gray-600 sm:block" />
               <span className="font-medium text-brand-cyan">
                 ${(mockPlatformStats.totalVolume / 1000).toFixed(0)}K+ Volume

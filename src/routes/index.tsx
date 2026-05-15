@@ -40,8 +40,8 @@ function Home() {
   return (
     <div className="min-h-screen">
       <MetaTags
-        title="Predictio · European sports copy-trading"
-        description="Copy top traders on nine canonical premium markets — vault-backed AMM book on Base. Football, tennis, F1, UFC, playoffs."
+        title="Predictio · Sports prediction markets"
+        description="Trade live games, mirror sharp traders, ride real flow — football, courts, octagon, grid. The sports-native prediction market."
         url={typeof window !== 'undefined' ? window.location.href : undefined}
       />
       <OGImagePreloader />

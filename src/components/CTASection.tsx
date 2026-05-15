@@ -1,6 +1,7 @@
 import { useWallet } from '~/store/useWalletStore';
 import { useNavigate } from '@tanstack/react-router';
 import { isFootballFocusEnabled } from '~/config/footballFocus';
+import { homeCta } from '~/copy/homePremium';
 
 export function CTASection() {
   const { isConnected, openWalletModal } = useWallet();
@@ -20,12 +21,12 @@ export function CTASection() {
 
       <div className="relative z-10 mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
         <h2 className="mb-6 font-syne text-4xl font-bold sm:text-5xl lg:text-6xl">
-          {isFootballFocusEnabled() ? 'Ready to Start Trading?' : 'Ready to copy-trade?'}
+          {isFootballFocusEnabled() ? 'Laces tight?' : homeCta.title}
         </h2>
         <p className="mx-auto mb-10 max-w-2xl text-lg text-gray-400 sm:text-xl">
           {isFootballFocusEnabled()
-            ? 'Trade live football matches with real-time odds. No bookmakers, no limits — just pure market dynamics.'
-            : 'Nine premium European sports markets, one vault-backed book. Follow analysts, mirror conviction, trade before lock.'}
+            ? 'Europe’s biggest games, live prices, exit before kickoff — no bookmaker friction.'
+            : homeCta.sub}
         </p>
 
         <button
@@ -34,20 +35,18 @@ export function CTASection() {
           className="mb-8 rounded bg-brand-green px-10 py-5 text-lg font-bold text-brand-bg transition-all hover:scale-105 hover:bg-brand-green/90"
         >
           {isConnected
-            ? isFootballFocusEnabled()
-              ? 'Explore Matches →'
-              : 'Start Predicting →'
+            ? homeCta.buttonConnected
             : isFootballFocusEnabled()
-              ? 'Connect & Trade'
-              : 'Connect Wallet & Start'}
+              ? 'Connect & trade'
+              : homeCta.buttonGuest}
         </button>
 
         <div className="flex flex-col items-center justify-center gap-3 text-sm text-gray-500 sm:flex-row sm:gap-4">
-          <span>Powered by Azuro Protocol</span>
+          <span>{homeCta.footLine1}</span>
           <span className="hidden h-1 w-1 rounded-full bg-gray-600 sm:block" />
-          <span>Non-custodial</span>
+          <span>{homeCta.footLine2}</span>
           <span className="hidden h-1 w-1 rounded-full bg-gray-600 sm:block" />
-          <span>USDC</span>
+          <span>{homeCta.footLine3}</span>
         </div>
       </div>
     </section>

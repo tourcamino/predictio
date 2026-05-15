@@ -404,3 +404,42 @@ input[type='range'].slider-red::-webkit-slider-runnable-track {
 .predictio-wallet-toast {
   animation: predictio-toast-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+@keyframes liquidity-pulse-bar {
+  0% {
+    opacity: 0.75;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.15);
+  }
+  100% {
+    opacity: 0.85;
+    filter: brightness(1.05);
+  }
+}
+
+.animate-liquidity-pulse {
+  animation: liquidity-pulse-bar 2.4s ease-in-out infinite;
+}
+
+@keyframes ticker-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.predictio-liquidity-ticker {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 255, 135, 0.08),
+    rgba(0, 212, 255, 0.12),
+    rgba(0, 255, 135, 0.08)
+  );
+  background-size: 200% 100%;
+  animation: ticker-shimmer 8s linear infinite;
+}

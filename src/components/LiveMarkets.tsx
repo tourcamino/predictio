@@ -10,7 +10,8 @@ import {
   marketQualifiesForFeaturedHero,
   orderForHomepageIntelligence,
 } from '~/lib/featuredIntelligenceLayer';
-import { azuroMarketPassesStrictPremium, premiumCatalogTier } from '~/lib/premiumCatalogStrictClient';
+import { azuroMarketPassesProtocolCatalogSurface, premiumCatalogTier } from '~/lib/premiumCatalogStrictClient';
+import { homeMarketSection } from '~/copy/homePremium';
 
 /** Canonical homepage book — same cap as `/markets` featured rail. */
 const HOME_MARKET_CARD_COUNT = 9;
@@ -38,7 +39,7 @@ export function LiveMarkets() {
       return { displayedMarkets: [], premiumCount: 0, ready: true };
     }
     const pool = rows.slice(0, HOME_MARKET_CARD_COUNT);
-    const premium = pool.filter(azuroMarketPassesStrictPremium);
+    const premium = pool.filter(azuroMarketPassesProtocolCatalogSurface);
     const ordered =
       premium.length === 0
         ? []
@@ -75,17 +76,17 @@ export function LiveMarkets() {
         <div className="mb-12 text-center">
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand-green/30 bg-brand-green/10 px-4 py-2">
             <Activity className="h-4 w-4 text-brand-green" />
-            <span className="text-sm font-bold text-brand-green">LIVE · COPY-TRADE BOOK</span>
+            <span className="text-sm font-bold text-brand-green">{homeMarketSection.badge}</span>
           </div>
 
           <h2 className="mb-6 bg-gradient-to-r from-white via-gray-100 to-gray-300 bg-clip-text font-syne text-4xl font-bold text-transparent sm:text-5xl lg:text-6xl">
-            {isFootballFocusEnabled() ? 'Premium Football Markets' : 'Nine Premium Markets'}
+            {isFootballFocusEnabled() ? 'Premium Football Markets' : homeMarketSection.title}
           </h2>
 
           <p className="mx-auto mb-8 max-w-2xl text-lg text-gray-400">
             {isFootballFocusEnabled()
-              ? 'Nine founder-curated matches backed by the protocol vault. Odds from Azuro; order reflects strict premium tiers.'
-              : 'Founder-curated multisport book: same vault liquidity and AMM rails traders copy on — ranked Tier A → B → C, never long-tail filler.'}
+              ? 'Hand-picked European football — live prices, copy flows, real positioning before lock.'
+              : homeMarketSection.sub}
           </p>
 
           <div className="mb-10 flex flex-wrap items-center justify-center gap-6 lg:gap-10">
@@ -93,14 +94,14 @@ export function LiveMarkets() {
               <Shield className="h-5 w-5 text-brand-cyan" />
               <div className="text-left">
                 <p className="m-0 font-mono text-2xl font-bold text-brand-cyan">{curatedCount}</p>
-                <p className="m-0 text-xs font-medium text-gray-400">Premium slots filled</p>
+                <p className="m-0 text-xs font-medium text-gray-400">{homeMarketSection.statBookLabel}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
               <Activity className="h-5 w-5 text-brand-green" />
               <div className="text-left">
-                <p className="m-0 text-sm font-semibold text-white/90">Vault-backed AMM</p>
-                <p className="m-0 text-xs text-gray-400">Canonical routing</p>
+                <p className="m-0 text-sm font-semibold text-white/90">{homeMarketSection.statFlowLabel}</p>
+                <p className="m-0 text-xs text-gray-400">{homeMarketSection.statFlowHint}</p>
               </div>
             </div>
           </div>
@@ -108,17 +109,14 @@ export function LiveMarkets() {
 
         {ready && premiumCount === 0 ? (
           <div className="mb-12 rounded-xl border border-white/10 bg-white/5 px-6 py-16 text-center">
-            <p className="font-syne text-xl text-gray-300">Strict tier ladder is refilling this cycle</p>
-            <p className="mx-auto mt-3 max-w-lg text-sm text-gray-500">
-              Nine slots stay reserved for Tier A/B/C sport only. Open the terminal for the full book while the
-              orchestrator brings the next premium set online.
-            </p>
+            <p className="font-syne text-xl text-gray-300">{homeMarketSection.emptyTitle}</p>
+            <p className="mx-auto mt-3 max-w-lg text-sm text-gray-500">{homeMarketSection.emptySub}</p>
             <button
               type="button"
               onClick={handleViewAllMarkets}
               className="mt-8 text-sm font-semibold text-brand-green hover:text-brand-green/80"
             >
-              Open markets →
+              {homeMarketSection.cta} →
             </button>
           </div>
         ) : (
@@ -157,10 +155,10 @@ export function LiveMarkets() {
             onClick={handleViewAllMarkets}
             className="group inline-flex items-center gap-3 rounded-xl bg-gradient-to-r from-brand-green to-brand-cyan px-8 py-4 text-lg font-bold text-brand-bg transition-all hover:scale-105 hover:shadow-2xl hover:shadow-brand-green/40"
           >
-            <span>View all curated markets</span>
+            <span>{homeMarketSection.cta}</span>
             <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
           </button>
-          <p className="mt-4 m-0 text-sm text-gray-500">Same catalog and premium ranking as the Markets page</p>
+          <p className="mt-4 m-0 text-sm text-gray-500">{homeMarketSection.ctaHint}</p>
         </div>
       </div>
     </section>
