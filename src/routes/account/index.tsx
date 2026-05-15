@@ -16,6 +16,7 @@ import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/wallet
 import type { LedgerHistoryFilter } from '~/lib/ledger/ledgerTransactionTypes';
 import { dbActivityAmountPrefix, dbActivityTypeLabel } from '~/lib/wallet/dbActivityDisplay';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
+import { usePointsSummary } from '~/hooks/usePointsSummary';
 
 const ACCOUNT_TAB_KEYS = [
   'overview',
@@ -108,11 +109,7 @@ function AccountPage() {
     enabled: !!walletKey && (activeTab === 'overview' || activeTab === 'predictions' || activeTab === 'stats'),
   });
 
-  // Fetch points summary
-  const pointsQuery = useQuery({
-    ...trpc.getPointsSummary.queryOptions({
-      walletAddress: walletKey,
-    }),
+  const pointsQuery = usePointsSummary({
     enabled: !!walletKey && activeTab === 'points',
   });
   

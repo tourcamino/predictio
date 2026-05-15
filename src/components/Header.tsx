@@ -19,10 +19,7 @@ import { useTopChromeManaged } from '~/components/TopChromeContext';
 import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
 import { getExpectedPredictioChain, getSwitchNetworkCtaLabel } from '~/config/chains';
 import { CHAIN_CONFIG } from '~/config/chain';
-import {
-  expressGetPointsSummary,
-  shouldUseExpressForWalletCritical,
-} from '~/lib/expressCriticalWalletApi';
+import { usePointsSummary } from '~/hooks/usePointsSummary';
 import { pushBodyScrollLock } from '~/lib/bodyScrollLock';
 
 export function Header() {
@@ -66,37 +63,14 @@ export function HeaderInner() {
 
   const openPositionsCount = positionsQuery.data?.positions.length || 0;
 
-  // Fetch user points
-  type HeaderPointsRow = { totalPoints: number; tier?: string };
-  const pointsQuery = useQuery<HeaderPointsRow>({
-    queryKey: ['walletPointsSummary', walletQueryKey ?? '', chainScope] as const,
-    enabled: !!walletQueryKey && isConnected,
-    refetchInterval: 120_000,
-    retry: 3,
-    retryDelay: (attempt) => Math.min(2500, 400 * 2 ** attempt),
-    queryFn: async (): Promise<HeaderPointsRow> => {
-      const w = walletQueryKey!;
-      if (shouldUseExpressForWalletCritical()) {
-        return expressGetPointsSummary(w);
-      }
-      const r = await trpcClient.getPointsSummary.query({ walletAddress: w });
-      return { totalPoints: r.totalPoints, tier: r.tier };
-    },
-  });
-
-  /** When tRPC fails, `data` is undefined — do not show "0" (that looked like missing points for weeks). */
-  const pointsLoadFailed = pointsQuery.isError;
-  const pointsLoading =
-    !pointsLoadFailed &&
-    !pointsQuery.data &&
-    pointsQuery.isPending;
-  const userPoints =
-    !pointsLoadFailed && pointsQuery.data != null
-      ? pointsQuery.data.totalPoints
-      : null;
-  const userTier = pointsQuery.data?.tier ?? "BRONZE";
+  const {
+    totalPoints: userPoints,
+    tier: userTier,
+    isPointsLoading: pointsLoading,
+    pointsLoadFailed,
+  } = usePointsSummary();
   const pointsFailureTitle =
-    "Score unavailable — the server did not return points (often the same outage as wallet sync). On Vercel: use Neon pooled DATABASE_URL and check Runtime logs for this request.";
+    "Rewards data temporarily unavailable. Retrying…";
   
   const getTierColor = (tier: string) => {
     switch (tier) {

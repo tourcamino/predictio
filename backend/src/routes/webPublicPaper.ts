@@ -4,7 +4,7 @@ import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { newPurchaseRequestId, logPurchaseFlowExpress } from "../lib/purchaseFlowDiagnostic";
 import { validate } from "../middleware/validate";
-import { runGetPointsSummaryWeb } from "../web/pointsSummaryWeb";
+import { runGetPointsSummaryWeb, runGetUserPointsWeb } from "../web/pointsSummaryWeb";
 import { runPlacePaperPredictionWeb } from "../web/placePaperPredictionWeb";
 import { runSyncUserAccountWeb } from "../web/syncUserWeb";
 import { runGetPaperWalletBalanceWeb } from "../web/paperWalletBalanceWeb";
@@ -60,11 +60,57 @@ export function createWebPublicPaperRouter(prisma: PrismaClient): Router {
   });
 
   r.get("/points-summary", validate({ query: pointsQuery }), async (req, res, next) => {
+    const { walletAddress } = req.query as z.infer<typeof pointsQuery>;
     try {
-      const { walletAddress } = req.query as z.infer<typeof pointsQuery>;
       const out = await runGetPointsSummaryWeb(prisma, walletAddress);
+      console.log(
+        JSON.stringify({
+          tag: "user_points_read",
+          wallet: walletAddress,
+          points: out.totalPoints,
+          source: "express-web-route",
+          route: "GET points-summary",
+        }),
+      );
       res.json(out);
     } catch (e) {
+      console.error(
+        JSON.stringify({
+          tag: "user_points_error",
+          wallet: walletAddress,
+          error: e instanceof Error ? e.message : String(e),
+          runtime: "express-vps",
+          route: "GET points-summary",
+        }),
+      );
+      next(e);
+    }
+  });
+
+  r.get("/user-points", validate({ query: pointsQuery }), async (req, res, next) => {
+    const { walletAddress } = req.query as z.infer<typeof pointsQuery>;
+    try {
+      const out = await runGetUserPointsWeb(prisma, walletAddress);
+      console.log(
+        JSON.stringify({
+          tag: "user_points_read",
+          wallet: walletAddress,
+          points: out.points,
+          source: "express-web-route",
+          route: "GET user-points",
+        }),
+      );
+      res.json(out);
+    } catch (e) {
+      console.error(
+        JSON.stringify({
+          tag: "user_points_error",
+          wallet: walletAddress,
+          error: e instanceof Error ? e.message : String(e),
+          runtime: "express-vps",
+          route: "GET user-points",
+        }),
+      );
       next(e);
     }
   });

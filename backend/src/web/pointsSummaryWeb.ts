@@ -4,6 +4,26 @@ import {
   TIER_THRESHOLDS,
   calculateTier,
 } from "./pointsLedgerWeb";
+import {
+  countConsecutiveLoginStreakDays,
+  localDayKey,
+} from "./pointsPure";
+
+async function computeLoginStreak(
+  prisma: PrismaClient,
+  walletAddress: string,
+): Promise<number> {
+  const logins = await prisma.pointsLedger.findMany({
+    where: { walletAddress, actionType: "DAILY_LOGIN" },
+    select: { createdAt: true },
+    orderBy: { createdAt: "desc" },
+    take: 120,
+  });
+  const keys = new Set(logins.map((r) => localDayKey(r.createdAt)));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return countConsecutiveLoginStreakDays(today, keys);
+}
 
 export async function runGetPointsSummaryWeb(
   prisma: PrismaClient,
@@ -53,13 +73,30 @@ export async function runGetPointsSummaryWeb(
     };
   });
 
+  const streak = await computeLoginStreak(prisma, normalizedAddress);
+
+  const lastLedger = await prisma.pointsLedger.findFirst({
+    where: { walletAddress: normalizedAddress },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  const lastUpdatedAt =
+    pointsTotal?.updatedAt?.toISOString() ??
+    lastLedger?.createdAt?.toISOString() ??
+    null;
+
   if (!pointsTotal) {
     return {
+      wallet: normalizedAddress,
       totalPoints: 0,
+      points: 0,
       tier: "BRONZE",
+      rank: null,
+      globalRank: null,
+      streak,
+      lastUpdatedAt,
       nextTier: "SILVER",
       pointsToNextTier: TIER_THRESHOLDS.SILVER,
-      globalRank: null,
       recentActivity: [],
       earnGuide,
     };
@@ -95,11 +132,16 @@ export async function runGetPointsSummaryWeb(
   });
 
   return {
+    wallet: normalizedAddress,
     totalPoints: pointsTotal.totalPoints,
+    points: pointsTotal.totalPoints,
     tier: pointsTotal.tier,
+    rank: globalRank,
+    globalRank,
+    streak,
+    lastUpdatedAt: lastUpdatedAt ?? pointsTotal.updatedAt.toISOString(),
     nextTier,
     pointsToNextTier,
-    globalRank,
     recentActivity: recentActivity.map((entry) => ({
       actionType: entry.actionType,
       points: entry.points,
@@ -107,5 +149,23 @@ export async function runGetPointsSummaryWeb(
       createdAt: entry.createdAt,
     })),
     earnGuide,
+  };
+}
+
+/** Compact canonical points read for header / widgets. */
+export async function runGetUserPointsWeb(
+  prisma: PrismaClient,
+  walletAddress: string,
+) {
+  const full = await runGetPointsSummaryWeb(prisma, walletAddress);
+  return {
+    wallet: full.wallet,
+    points: full.points,
+    rank: full.rank ?? full.globalRank,
+    streak: full.streak,
+    lastUpdatedAt: full.lastUpdatedAt,
+    tier: full.tier,
+    totalPoints: full.totalPoints,
+    globalRank: full.globalRank,
   };
 }

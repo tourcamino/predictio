@@ -162,13 +162,67 @@ export type ExpressPointsSummary = {
   tier?: string;
 };
 
+export type ExpressPointsSummaryFull = ExpressPointsSummary & {
+  wallet?: string;
+  points?: number;
+  rank?: number | null;
+  globalRank?: number | null;
+  streak?: number;
+  lastUpdatedAt?: string | null;
+  nextTier?: string | null;
+  pointsToNextTier?: number;
+  recentActivity?: Array<{
+    actionType: string;
+    points: number;
+    metadata: unknown;
+    createdAt: Date | string;
+  }>;
+  earnGuide?: Array<{
+    actionType: string;
+    label: string;
+    pointsLabel: string;
+    repeatable: boolean;
+    timesEarned: number;
+    completed: boolean;
+  }>;
+};
+
+export type ExpressUserPoints = {
+  wallet: string;
+  points: number;
+  rank: number | null;
+  streak: number;
+  lastUpdatedAt: string | null;
+  tier: string;
+  totalPoints: number;
+  globalRank: number | null;
+};
+
+export async function expressGetPointsSummaryFull(
+  walletAddress: string,
+): Promise<ExpressPointsSummaryFull> {
+  const q = new URLSearchParams({ walletAddress }).toString();
+  return paperGetJson<ExpressPointsSummaryFull>([
+    `/api/v1/web/points-summary?${q}`,
+    `/api/web/points-summary?${q}`,
+  ]);
+}
+
+/** Header / compact widgets. */
 export async function expressGetPointsSummary(
   walletAddress: string,
 ): Promise<ExpressPointsSummary> {
+  const full = await expressGetPointsSummaryFull(walletAddress);
+  return { totalPoints: full.totalPoints, tier: full.tier };
+}
+
+export async function expressGetUserPoints(
+  walletAddress: string,
+): Promise<ExpressUserPoints> {
   const q = new URLSearchParams({ walletAddress }).toString();
-  return paperGetJson<ExpressPointsSummary>([
-    `/api/v1/web/points-summary?${q}`,
-    `/api/web/points-summary?${q}`,
+  return paperGetJson<ExpressUserPoints>([
+    `/api/v1/web/user-points?${q}`,
+    `/api/web/user-points?${q}`,
   ]);
 }
 

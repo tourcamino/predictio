@@ -4,6 +4,8 @@ const PROTOCOL_LIQUIDITY_MARKERS = [
   "getProtocolVaultStats",
   "getCanonicalLiquidityState",
   "paperWalletBalance",
+  "walletPointsSummary",
+  "getPointsSummary",
   "getLPMarkets",
   "getUserLPPositions",
   "curatedMarkets",
