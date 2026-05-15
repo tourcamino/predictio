@@ -40,61 +40,60 @@ async function checkAzuroResolution(gameId: string) {
 
 async function runAutoPublishImportant() {
   try {
-    const activeRows = await prisma.curatedEvent.findMany({
-      where: { isActive: true },
+    const openActiveRows = await prisma.curatedEvent.findMany({
+      where: { isActive: true, status: "OPEN" },
       select: { gameId: true },
     });
-    let currentCount = activeRows.length;
-    if (currentCount >= MAX_ACTIVE_CURATED) return;
+    const openActiveSet = new Set(openActiveRows.map((r) => r.gameId));
+    let openCount = openActiveSet.size;
+    if (openCount >= MAX_ACTIVE_CURATED) return;
 
-    const selectedSet = new Set(activeRows.map((r) => r.gameId));
-    const { games } = await buildEuropeanCurationGamesPayload(selectedSet);
+    const { games } = await buildEuropeanCurationGamesPayload(openActiveSet);
 
     const autoCandidates = games
-      .filter((g) => g.autoPublish && !selectedSet.has(g.gameId))
+      .filter((g) => g.autoPublish && !openActiveSet.has(g.gameId))
       .sort((a, b) => b.importanceScore - a.importanceScore);
 
     for (const event of autoCandidates) {
-      if (currentCount >= MAX_ACTIVE_CURATED) break;
-
-      const existing = await prisma.curatedEvent.findUnique({
-        where: { gameId: event.gameId },
-      });
-      if (existing) continue;
+      if (openCount >= MAX_ACTIVE_CURATED) break;
 
       const startsAt = new Date(event.startsAt);
       const lockedAt = new Date(startsAt.getTime() - 5 * 60 * 1000);
 
-      await prisma.curatedEvent.create({
-        data: {
-          gameId: event.gameId,
-          title: event.title,
-          leagueName: event.leagueName,
-          country: event.country,
-          startsAt,
-          lockedAt,
-          homeTeam: event.homeTeam,
-          awayTeam: event.awayTeam,
-          homeImage: event.homeImage ?? undefined,
-          awayImage: event.awayImage ?? undefined,
-          status: "OPEN",
-          isActive: true,
-          selectedBy: "AUTO",
-          importanceScore: event.importanceScore,
-          autoPublish: true,
-          homeOdds: event.homeOdds ?? undefined,
-          drawOdds: event.drawOdds ?? undefined,
-          awayOdds: event.awayOdds ?? undefined,
-        },
+      const rowData = {
+        title: event.title,
+        leagueName: event.leagueName,
+        country: event.country,
+        startsAt,
+        lockedAt,
+        homeTeam: event.homeTeam,
+        awayTeam: event.awayTeam,
+        homeImage: event.homeImage ?? undefined,
+        awayImage: event.awayImage ?? undefined,
+        status: "OPEN" as const,
+        resolvedAt: null,
+        result: null,
+        isActive: true,
+        selectedBy: "AUTO",
+        importanceScore: event.importanceScore,
+        autoPublish: true,
+        homeOdds: event.homeOdds ?? undefined,
+        drawOdds: event.drawOdds ?? undefined,
+        awayOdds: event.awayOdds ?? undefined,
+      };
+
+      await prisma.curatedEvent.upsert({
+        where: { gameId: event.gameId },
+        create: { gameId: event.gameId, ...rowData },
+        update: rowData,
       });
 
-      currentCount += 1;
-      selectedSet.add(event.gameId);
-       
+      openCount += 1;
+      openActiveSet.add(event.gameId);
+
       console.log("[AutoPublish]", event.title);
     }
   } catch (e) {
-     
     console.error("[MarketUpdater] Auto-publish failed:", e instanceof Error ? e.message : e);
   }
 }
@@ -141,6 +140,21 @@ export async function updateMarketStatuses() {
     }
 
     await runAutoPublishImportant();
+
+    const [openActive, locked, inactive] = await Promise.all([
+      prisma.curatedEvent.count({ where: { isActive: true, status: "OPEN" } }),
+      prisma.curatedEvent.count({ where: { status: "LOCKED" } }),
+      prisma.curatedEvent.count({ where: { isActive: false } }),
+    ]);
+    console.log(
+      JSON.stringify({
+        tag: "curated_catalog_health",
+        openActive,
+        locked,
+        inactive,
+        cap: MAX_ACTIVE_CURATED,
+      }),
+    );
   } catch (e) {
     console.warn(
       "[MarketUpdater] cycle skipped (DB offline or transient Prisma error):",

@@ -396,7 +396,7 @@ function MarketDetailPage() {
                   </div>
                 </div>
               )}
-              <TradingBox market={market} />
+              <TradingBox market={market} initialOutcome={selectedOutcome} />
             </div>
 
             {/* AI Market Insight - Always visible */}
@@ -513,7 +513,7 @@ function MarketDetailPage() {
                     </div>
                   </div>
                 )}
-                <TradingBox market={market} />
+                <TradingBox market={market} initialOutcome={selectedOutcome} />
               </div>
             </div>
           </div>

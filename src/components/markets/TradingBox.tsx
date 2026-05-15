@@ -33,6 +33,8 @@ import {
 
 interface TradingBoxProps {
   market: Market;
+  /** Syncs buy-side selection when user picks a team in DecisionBlock */
+  initialOutcome?: OutcomeType;
 }
 
 type TabType = 'buy' | 'sell';
@@ -94,7 +96,16 @@ function Tooltip({ children, content }: { children: React.ReactNode; content: st
   );
 }
 
-export function TradingBox({ market }: TradingBoxProps) {
+function outcomeTeamLabel(
+  outcome: OutcomeType,
+  market: Market,
+): string {
+  if (outcome === 'YES') return market.teamA;
+  if (outcome === 'DRAW') return 'Draw';
+  return market.teamB;
+}
+
+export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
   const trpc = useTRPC();
   const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
@@ -117,7 +128,13 @@ export function TradingBox({ market }: TradingBoxProps) {
   const currentBalance = isDemoActive ? demoBalance : isWalletConnected ? paperCashUsdc : demoBalance;
   
   const [activeTab, setActiveTab] = useState<TabType>('buy');
-  const [selectedOutcome, setSelectedOutcome] = useState<OutcomeType>('YES');
+  const [selectedOutcome, setSelectedOutcome] = useState<OutcomeType>(
+    initialOutcome ?? 'YES',
+  );
+
+  useEffect(() => {
+    if (initialOutcome) setSelectedOutcome(initialOutcome);
+  }, [initialOutcome]);
   const [orderType, setOrderType] = useState<'MARKET' | 'LIMIT'>('MARKET');
   const [txModalState, setTxModalState] = useState<'review' | 'pending' | 'mining' | 'success' | 'error'>('review');
   const [txError, setTxError] = useState<string | undefined>(undefined);
@@ -280,15 +297,11 @@ export function TradingBox({ market }: TradingBoxProps) {
       setTxError(undefined);
       setTxModalState('success');
 
-      toast.success(`Trade executed successfully! ${selectedOutcome} shares purchased.`, {
-        duration: 4000,
+      const side = outcomeTeamLabel(selectedOutcome, market);
+      toast.success(`Paper prediction placed on ${side}.`, {
+        duration: 5000,
         icon: '✅',
       });
-
-      setTimeout(() => {
-        setShowTxModal(false);
-        buyForm.reset();
-      }, 2000);
 
       queryClient.invalidateQueries({
         queryKey: trpc.getMarketDetail.queryKey({ marketId: market.id }),
@@ -533,22 +546,9 @@ export function TradingBox({ market }: TradingBoxProps) {
     // #endregion
 
     setTxError(undefined);
-    setTxModalState('pending');
-    setTimeout(() => {
-      // #region agent log
-      logPurchaseFlowClient({
-        requestId: flowId ?? newClientPurchaseRequestId(),
-        userId: walletKey,
-        flowCorrelationId: flowId,
-        location: 'TradingBox.tsx:handleConfirmTransaction',
-        phase: 'tradingbox.confirm.after_ui_delay',
-        payloadReceived: { note: 'setTimeout 1500ms fired before mutate' },
-      });
-      // #endregion
+    setTxModalState('mining');
 
-      setTxModalState('mining');
-      
-      if (activeTab === 'buy') {
+    if (activeTab === 'buy') {
         // Get limit price if it's a limit order
         const limitPriceInput = document.getElementById('limitPrice') as HTMLInputElement;
         const limitPrice = orderType === 'LIMIT' && limitPriceInput ? parseFloat(limitPriceInput.value) : undefined;
@@ -573,23 +573,19 @@ export function TradingBox({ market }: TradingBoxProps) {
         });
         // #endregion
 
-        placeTradeMutation.mutate(mutatePayload);
-      } else {
-        // Sell flow
-        if (userPosition && userPosition.id) {
-          closePositionMutation.mutate({
-            orderId: userPosition.id,
-            walletAddress: walletKey,
-            sharesToSell: sellShares,
-            currentPrice,
-          });
-        } else {
-          setTxError('Position not found');
-          setTxModalState('error');
-          toast.error('Position not found');
-        }
-      }
-    }, 1500);
+      placeTradeMutation.mutate(mutatePayload);
+    } else if (userPosition?.id) {
+      closePositionMutation.mutate({
+        orderId: userPosition.id,
+        walletAddress: walletKey,
+        sharesToSell: sellShares,
+        currentPrice,
+      });
+    } else {
+      setTxError('Position not found');
+      setTxModalState('error');
+      toast.error('Position not found');
+    }
   };
 
   const askMarketAiMutation = useMutation(trpc.askMarketAi.mutationOptions());
@@ -635,14 +631,21 @@ export function TradingBox({ market }: TradingBoxProps) {
     <div className="lg:static lg:transform-none fixed bottom-0 left-0 right-0 z-40 lg:z-auto pb-safe">
       <div className="bg-brand-bg border-2 border-brand-green/30 rounded-t-lg lg:rounded-lg p-4 sm:p-6 shadow-2xl lg:shadow-lg max-h-[85vh] lg:max-h-none overflow-y-auto">
         <div className="flex items-center justify-between mb-4 max-lg:mt-[1cm] lg:mt-0">
-          <h2 className="font-syne font-bold text-xl">Trade Shares</h2>
-          {(isDemoActive || !isWalletConnected) && (
-            <div className="flex items-center gap-2">
-              <DemoBadge size="sm" />
-              <span className="text-sm text-purple-400 font-mono">${currentBalance.toFixed(0)}</span>
-            </div>
-          )}
+          <div>
+            <h2 className="font-syne font-bold text-xl">Place prediction</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Pre-testnet · paper USDC</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {isDemoActive && <DemoBadge size="sm" />}
+            <span className="text-sm text-gray-300 font-mono">
+              ${currentBalance.toFixed(0)}{' '}
+              <span className="text-gray-500 text-xs">paper</span>
+            </span>
+          </div>
         </div>
+        <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+          {predictionBalanceFootnote()}
+        </p>
 
         {/* Tab Switcher */}
         <div className="flex gap-2 mb-6 bg-white/5 rounded-lg p-1">
@@ -813,7 +816,7 @@ export function TradingBox({ market }: TradingBoxProps) {
               {/* Amount Input */}
               <div>
                 <label htmlFor="amount" className="block text-sm font-medium text-gray-300 mb-2">
-                  Amount (USDC)
+                  Amount (paper USDC)
                 </label>
                 <div className="relative">
                   <span className="absolute left-4 sm:left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl sm:text-lg">
@@ -874,9 +877,11 @@ export function TradingBox({ market }: TradingBoxProps) {
                     <div className="text-4xl sm:text-3xl font-bold text-brand-green mb-2 sm:mb-1">
                       ${potentialReturn.toFixed(2)}
                     </div>
-                    <div className="text-sm text-gray-400 leading-relaxed px-2">
-                      If you deposit <span className="font-semibold text-white">${totalCost.toFixed(2)}</span>, you will win <span className="font-semibold text-brand-green">${potentialReturn.toFixed(2)}</span>
-                    </div>
+                    <p className="text-sm text-gray-400 leading-relaxed px-2">
+                      Stake <span className="font-semibold text-white">${totalCost.toFixed(2)} paper USDC</span>
+                      {' '}→ if {outcomeTeamLabel(selectedOutcome, market)} wins, payout{' '}
+                      <span className="font-semibold text-brand-green">${potentialReturn.toFixed(2)}</span>
+                    </p>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4 sm:gap-3 pt-4 sm:pt-3 border-t border-white/10">
@@ -902,7 +907,7 @@ export function TradingBox({ market }: TradingBoxProps) {
                   <div className="flex justify-between">
                     <span className="text-gray-400">You pay</span>
                     <span className="font-mono font-bold text-brand-green">
-                      ${totalCost.toFixed(2)} USDC
+                      ${totalCost.toFixed(2)} paper USDC
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -1102,7 +1107,7 @@ export function TradingBox({ market }: TradingBoxProps) {
                     </div>
                   </div>
                   <div className="font-mono text-2xl font-bold mb-1">
-                    {userPosition.shares} {selectedOutcome} shares
+                    {userPosition.shares} {outcomeTeamLabel(userPosition.outcome, market)} shares
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-400">Avg price: ${userPosition.avgPrice.toFixed(2)}</span>
@@ -1139,7 +1144,9 @@ export function TradingBox({ market }: TradingBoxProps) {
                             : 'border-white/10 bg-white/5 hover:border-orange-500/50'
                         }`}
                       >
-                        <div className="font-bold text-base sm:text-sm">{pos.outcome}</div>
+                        <div className="font-bold text-base sm:text-sm">
+                          {outcomeTeamLabel(pos.outcome, market)}
+                        </div>
                         <div className="font-mono text-xl sm:text-lg">{pos.shares} shares</div>
                       </button>
                     ))}
@@ -1243,12 +1250,14 @@ export function TradingBox({ market }: TradingBoxProps) {
               </>
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-400 mb-4">You don't have any {selectedOutcome} shares in this market.</p>
+                <p className="text-gray-400 mb-4">
+                  You don&apos;t have any {outcomeTeamLabel(selectedOutcome, market)} shares in this market.
+                </p>
                 <button
                   onClick={() => setActiveTab('buy')}
                   className="px-6 py-3 bg-brand-green text-brand-bg font-semibold rounded-lg hover:bg-brand-green/90 transition-all"
                 >
-                  Buy {selectedOutcome} shares
+                  Buy {outcomeTeamLabel(selectedOutcome, market)}
                 </button>
               </div>
             )}
@@ -1327,14 +1336,14 @@ export function TradingBox({ market }: TradingBoxProps) {
         }}
         state={txModalState}
         type="bet"
+        paperTrade
         marketName={market.teamA + ' vs ' + market.teamB}
         marketId={market.id}
-        outcome={selectedOutcome}
+        outcome={outcomeTeamLabel(selectedOutcome, market)}
         amount={activeTab === 'buy' ? buyAmount : proceedsFromSell}
         potentialWin={activeTab === 'buy' ? potentialReturn : proceedsFromSell}
         fee={0}
         netProfit={activeTab === 'buy' ? potentialProfit : profitFromSell}
-        txHash="0x1234567890abcdef"
         error={txError}
         onConfirm={handleConfirmTransaction}
         onRetry={() => {

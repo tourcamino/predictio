@@ -8,7 +8,7 @@ interface WalletGateModalProps {
 }
 
 const BENEFITS: ReadonlyArray<readonly [string, string]> = [
-  ["💰", "1,000 USDC demo balance — free"],
+  ["💰", "1,000 paper USDC demo balance — free"],
   ["📊", "Save your predictions & history"],
   ["🔁", "Copy top traders automatically"],
   ["💎", "Earn analyst rewards lifetime"],
