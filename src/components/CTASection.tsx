@@ -1,7 +1,5 @@
 import { useWallet } from '~/store/useWalletStore';
 import { useNavigate } from '@tanstack/react-router';
-import { isFootballFocusEnabled } from '~/config/footballFocus';
-import { homeCta } from '~/copy/homePremium';
 
 export function CTASection() {
   const { isConnected, openWalletModal } = useWallet();
@@ -16,37 +14,32 @@ export function CTASection() {
   };
 
   return (
-    <section className="relative overflow-hidden bg-brand-navy py-20 lg:py-32">
-      <div className="absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-green/20 blur-[150px]" />
+    <section className="relative py-20 lg:py-28 bg-brand-navy overflow-hidden">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] bg-brand-green/12 blur-[150px] rounded-full" />
 
-      <div className="relative z-10 mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
-        <h2 className="mb-6 font-syne text-4xl font-bold sm:text-5xl lg:text-6xl">
-          {isFootballFocusEnabled() ? 'Laces tight?' : homeCta.title}
+      <div className="relative z-10 max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h2 className="font-syne font-bold text-3xl sm:text-4xl lg:text-5xl mb-5 text-white">
+          Build through conviction
         </h2>
-        <p className="mx-auto mb-10 max-w-2xl text-lg text-gray-400 sm:text-xl">
-          {isFootballFocusEnabled()
-            ? 'Europe’s biggest games, live prices, exit before kickoff — no bookmaker friction.'
-            : homeCta.sub}
+        <p className="text-base sm:text-lg text-gray-500 mb-10 max-w-xl mx-auto leading-relaxed">
+          Non-custodial positioning on curated outcomes — fewer events, clearer narratives, and a
+          visual language tuned for intelligence over spectacle.
         </p>
 
         <button
           type="button"
           onClick={handleCTA}
-          className="mb-8 rounded bg-brand-green px-10 py-5 text-lg font-bold text-brand-bg transition-all hover:scale-105 hover:bg-brand-green/90"
+          className="px-9 py-4 bg-brand-green text-brand-bg font-semibold text-base rounded-lg hover:bg-brand-green/90 transition-colors mb-8"
         >
-          {isConnected
-            ? homeCta.buttonConnected
-            : isFootballFocusEnabled()
-              ? 'Connect & trade'
-              : homeCta.buttonGuest}
+          {isConnected ? 'Open markets →' : 'Connect wallet'}
         </button>
 
-        <div className="flex flex-col items-center justify-center gap-3 text-sm text-gray-500 sm:flex-row sm:gap-4">
-          <span>{homeCta.footLine1}</span>
-          <span className="hidden h-1 w-1 rounded-full bg-gray-600 sm:block" />
-          <span>{homeCta.footLine2}</span>
-          <span className="hidden h-1 w-1 rounded-full bg-gray-600 sm:block" />
-          <span>{homeCta.footLine3}</span>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 text-xs text-gray-600">
+          <span>Azuro protocol</span>
+          <span className="hidden sm:block w-1 h-1 bg-gray-700 rounded-full" />
+          <span>Self-custody</span>
+          <span className="hidden sm:block w-1 h-1 bg-gray-700 rounded-full" />
+          <span>USDC margin</span>
         </div>
       </div>
     </section>

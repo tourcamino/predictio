@@ -68,12 +68,12 @@ export function isPreTestnetLiquidityMode(config: ProtocolLiquidityConfig): bool
 }
 
 export const PRE_TESTNET_LIQUIDITY_HEADLINE =
-  "Practice pool · live book";
+  "Pre-testnet paper liquidity environment";
 
 export const PRE_TESTNET_LIQUIDITY_SUBLINE =
-  "Weights ride the same OPEN markets as the homepage — they breathe with attention and (later) real volume. Not your wallet balance.";
+  "Paper liquidity allocation adapts dynamically to curated markets — one simulated routing budget, not on-chain TVL or LP capital.";
 
 export const PRE_TESTNET_ALLOCATION_EXPLAINER =
-  "One pool, many events: size tilts toward the lines with heat today. When tape is thin, weight spreads evenly across the board — no empty lanes.";
+  "Paper liquidity allocation adapts dynamically to curated markets. A single simulated budget is split across OPEN slots by editorial appeal (or paper volume when live), with min/max caps per market.";
 
-export const CURATED_MARKET_ROUTING_LABEL = "Live board sync";
+export const CURATED_MARKET_ROUTING_LABEL = "Adaptive paper liquidity routing";

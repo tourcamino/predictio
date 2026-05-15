@@ -40,12 +40,11 @@ export const FOOTBALL_FOCUS_CONFIG = {
   HIDE_SPORT_SELECTOR: false,
   /** Legacy hero strings — unused while multisport hero is default; kept for optional narrow mode. */
   HERO: {
-    headline: 'Europe’s big games, priced live',
-    subheadline:
-      'Trade before kickoff, peel size anytime, copy traders who show receipts — no house edge narrative.',
+    headline: 'European football — premium lane',
+    subheadline: 'Serie A, cups, and continental football as one curated lane alongside other sports.',
     ctaPrimary: 'Open markets',
-    ctaSecondary: 'Live board',
-    supportingLine: 'UCL · Serie A · top European nights',
+    ctaSecondary: 'Curated outlook',
+    supportingLine: 'UCL · Serie A · top European competitions',
   },
   
   // Stats to show (football-focused)

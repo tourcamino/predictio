@@ -1,7 +1,6 @@
 import { Globe, Send, MessageCircle, ExternalLink } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { useTopChromeManaged } from '~/components/TopChromeContext';
-import { footerTagline } from '~/copy/homePremium';
 
 export function Footer() {
   const isManaged = useTopChromeManaged();
@@ -21,7 +20,9 @@ export function FooterInner() {
               <div className="w-2 h-2 bg-brand-green rounded-full"></div>
               <span className="text-xl font-syne font-bold">PREDICTIO</span>
             </div>
-            <p className="text-gray-400 text-sm">{footerTagline}</p>
+            <p className="text-gray-400 text-sm">
+              The global sports prediction exchange.
+            </p>
           </div>
 
           {/* Product Links */}

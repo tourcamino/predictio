@@ -7,6 +7,7 @@ import {
   normCountry,
   normLeagueSlug,
 } from "./editorialLeagueTiers";
+import { isEmergencyRelaxMode, isEmergencyInventoryMode } from "./emergencyRelaxMode";
 import { MULTISPORT_SLOT_PREFER_MIN } from "./premiumSportScoring";
 
 const TIER_B_FRAGMENTS = [
@@ -46,6 +47,18 @@ function hasControlledPremiumPair(blob: string): boolean {
  * conflicts with European premium editorial copy.
  */
 export const STRICT_PREMIUM_WHITELIST_MODE = true;
+
+/**
+ * Strict premium ladder for catalog slots — default OFF (interest-first).
+ * Set `PREDICTIO_LEGACY_STRICT_PREMIUM=true` to restore strict ideology.
+ */
+export function isStrictPremiumWhitelistEffective(): boolean {
+  if (isEmergencyRelaxMode() || isEmergencyInventoryMode()) return false;
+  if (String(process.env.PREDICTIO_LEGACY_STRICT_PREMIUM ?? "").trim().toLowerCase() === "true") {
+    return STRICT_PREMIUM_WHITELIST_MODE;
+  }
+  return false;
+}
 
 function sortParticipants(g: RawAzuroGame): Array<{ name?: string; sortOrder?: number }> {
   const parts = g.participants;
@@ -132,7 +145,7 @@ export function isStrictHeadlineFootballLeague(
 }
 
 export function strictPremiumFootballPasses(g: RawAzuroGame, importanceScore: number): boolean {
-  if (!STRICT_PREMIUM_WHITELIST_MODE) return true;
+  if (!isStrictPremiumWhitelistEffective()) return true;
   if (canonicalSportFromRaw(g) !== "football") return false;
 
   const leagueName = g.league?.name ?? "";
@@ -160,7 +173,7 @@ export function strictPremiumFootballPasses(g: RawAzuroGame, importanceScore: nu
 }
 
 export function strictPremiumMultisportPasses(g: RawAzuroGame, importanceScore: number): boolean {
-  if (!STRICT_PREMIUM_WHITELIST_MODE) return true;
+  if (!isStrictPremiumWhitelistEffective()) return true;
   const sport = canonicalSportFromRaw(g);
   const leagueTitle = `${g.league?.name || ""} ${g.title || ""}`.toLowerCase();
   const blob = teamBlobLower(g);
@@ -227,7 +240,7 @@ export function passesStrictPremiumScoredItalian(it: {
   raw: RawAzuroGame;
   importanceScore: number;
 }): boolean {
-  if (!STRICT_PREMIUM_WHITELIST_MODE) return true;
+  if (!isStrictPremiumWhitelistEffective()) return true;
   const sport = canonicalSportFromRaw(it.raw);
   if (sport === "football") return strictPremiumFootballPasses(it.raw, it.importanceScore);
   return strictPremiumMultisportPasses(it.raw, it.importanceScore);
@@ -318,7 +331,7 @@ export function passesProtocolContinuityTierD(it: {
   raw: RawAzuroGame;
   importanceScore: number;
 }): boolean {
-  if (!STRICT_PREMIUM_WHITELIST_MODE) return true;
+  if (!isStrictPremiumWhitelistEffective()) return true;
   if (passesStrictPremiumScoredItalian(it)) return true;
   const sport = canonicalSportFromRaw(it.raw);
   if (sport === "football") {

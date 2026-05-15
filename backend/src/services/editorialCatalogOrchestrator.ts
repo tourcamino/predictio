@@ -9,8 +9,9 @@ import {
 import {
   passesStrictPremiumScoredItalian,
   passesProtocolContinuityTierD,
-  STRICT_PREMIUM_WHITELIST_MODE,
+  isStrictPremiumWhitelistEffective,
 } from "./editorialPremiumFirewall";
+import { passesSurvivalInventoryScoredItalian } from "./survivalInventoryGate";
 import { MULTISPORT_SLOT_PREFER_MIN } from "./premiumSportScoring";
 export type ScoredItalian = { raw: RawAzuroGame; importanceScore: number };
 
@@ -114,7 +115,7 @@ const EDITORIAL_SLOT_TARGETS_STRICT: Readonly<
 function editorialSlotTargetsEffective(): Readonly<
   Record<Exclude<EditorialSlotId, "adaptiveFallback">, number>
 > {
-  return STRICT_PREMIUM_WHITELIST_MODE ? EDITORIAL_SLOT_TARGETS_STRICT : EDITORIAL_SLOT_TARGETS;
+  return isStrictPremiumWhitelistEffective() ? EDITORIAL_SLOT_TARGETS_STRICT : EDITORIAL_SLOT_TARGETS;
 }
 
 export type EditorialPickMeta = {
@@ -133,6 +134,8 @@ export type EditorialOrchestrationDiagnostics = {
   protocolContinuityPoolIn?: number;
   /** Rows added from `protocolContinuityPool` when book &lt; CATALOG_TARGET_SIZE. */
   protocolContinuityTierDFill?: number;
+  /** Rows added from survival pool when book still &lt; CATALOG_TARGET_SIZE after continuity. */
+  survivalInventoryFill?: number;
   samples: Array<{
     fixture: string;
     slot: EditorialSlotId;
@@ -261,7 +264,7 @@ export function matchesPremiumAnchorSlot(it: ScoredItalian): boolean {
 /** Slot B — Italy-first identity (Serie A/B, Coppa, prestige Italian clubs). */
 export function matchesItalyFirstSlot(it: ScoredItalian): boolean {
   if (!isFootballCandidate(it)) return false;
-  if (STRICT_PREMIUM_WHITELIST_MODE) {
+  if (isStrictPremiumWhitelistEffective()) {
     const leagueName = it.raw.league?.name ?? "";
     const country = it.raw.league?.country?.name ?? "";
     const slug = it.raw.league?.slug;
@@ -508,6 +511,10 @@ export type OrchestrateEditorialCatalogOptions = {
    * cannot fill CATALOG_TARGET_SIZE. Tier D only; never sent without passing `passesProtocolContinuityTierD`.
    */
   protocolContinuityPool?: ScoredItalian[];
+  /**
+   * Scored upcoming + multisport candidates for hard minimum inventory (never an empty book when Azuro has data).
+   */
+  survivalInventoryPool?: ScoredItalian[];
 };
 
 function fillProtocolContinuityTierD(
@@ -541,6 +548,68 @@ function fillProtocolContinuityTierD(
   return added;
 }
 
+function survivalInventorySortKey(it: ScoredItalian, nowSec: number): [number, number, number] {
+  const sport = canonicalSportFromRaw(it.raw);
+  const leagueName = it.raw.league?.name ?? "";
+  const country = it.raw.league?.country?.name ?? "";
+  const slug = it.raw.league?.slug;
+  const k = parseInt(String(it.raw.startsAt), 10);
+  const delta = Number.isFinite(k) ? k - nowSec : 1e12;
+
+  let band: number;
+  if (sport === "football") {
+    band = isTopEuropeanLeague(leagueName, country, slug) ? 0 : 2;
+  } else if (sport != null) {
+    band = 1;
+  } else {
+    band = 3;
+  }
+  return [band, -it.importanceScore, delta];
+}
+
+function compareSurvivalInventory(a: ScoredItalian, b: ScoredItalian, nowSec: number): number {
+  const ka = survivalInventorySortKey(a, nowSec);
+  const kb = survivalInventorySortKey(b, nowSec);
+  for (let i = 0; i < 3; i++) {
+    if (ka[i] !== kb[i]) return ka[i] - kb[i];
+  }
+  return 0;
+}
+
+/**
+ * Hard continuity: fill until `CATALOG_TARGET_SIZE` with survival-gated rows (European football first, then multisport).
+ */
+export function fillSurvivalInventoryMinimum(
+  pool: ScoredItalian[],
+  used: Set<string>,
+  picked: ScoredItalian[],
+  metaByGameId: Map<string, EditorialPickMeta>,
+  nowSec: number,
+): number {
+  let added = 0;
+  const candidates = pool
+    .filter((it) => {
+      const gid = scoredGameId(it);
+      if (!gid || used.has(gid)) return false;
+      return passesSurvivalInventoryScoredItalian(it);
+    })
+    .sort((a, b) => compareSurvivalInventory(a, b, nowSec));
+
+  for (const it of candidates) {
+    if (picked.length >= CATALOG_TARGET_SIZE) break;
+    const gid = scoredGameId(it);
+    if (!gid || used.has(gid)) continue;
+    used.add(gid);
+    picked.push(it);
+    metaByGameId.set(gid, {
+      slot: "adaptiveFallback",
+      selectionReason: "survival-inventory-minimum",
+    });
+    added += 1;
+  }
+  return added;
+}
+
 /**
  * Editorial Identity Orchestration — slot guarantees with appeal ranking inside each slot.
  */
@@ -561,7 +630,7 @@ export function orchestrateEditorialCatalog(
   let multisportPool = options?.multisportPool ?? [];
   let strictFootballPool = 0;
   let strictMultisportPool = 0;
-  if (STRICT_PREMIUM_WHITELIST_MODE) {
+  if (isStrictPremiumWhitelistEffective()) {
     strictFootballPool = footballPool.filter(passesStrictPremiumScoredItalian).length;
     strictMultisportPool = multisportPool.filter(passesStrictPremiumScoredItalian).length;
     footballPool = footballPool.filter(passesStrictPremiumScoredItalian);
@@ -590,7 +659,7 @@ export function orchestrateEditorialCatalog(
 
   let protocolContinuityFillCount = 0;
   if (
-    STRICT_PREMIUM_WHITELIST_MODE &&
+    isStrictPremiumWhitelistEffective() &&
     picked.length < CATALOG_TARGET_SIZE &&
     options?.protocolContinuityPool?.length
   ) {
@@ -607,13 +676,29 @@ export function orchestrateEditorialCatalog(
     }
   }
 
-  if (!STRICT_PREMIUM_WHITELIST_MODE) {
+  if (!isStrictPremiumWhitelistEffective()) {
     fillAdaptiveFallback(footballPool, used, picked, metaByGameId, tierCActivated, nowSec);
+  }
+
+  let survivalInventoryFillCount = 0;
+  if (picked.length < CATALOG_TARGET_SIZE && options?.survivalInventoryPool?.length) {
+    survivalInventoryFillCount = fillSurvivalInventoryMinimum(
+      options.survivalInventoryPool,
+      used,
+      picked,
+      metaByGameId,
+      nowSec,
+    );
+    if (survivalInventoryFillCount > 0) {
+      redistributions.push(
+        `survivalInventory: filled ${survivalInventoryFillCount} row(s) (minimum book continuity)`,
+      );
+    }
   }
 
   const combinedPool = [...footballPool, ...multisportPool];
   let ordered = sortPickedEditorialOrder(picked, metaByGameId).slice(0, CATALOG_TARGET_SIZE);
-  if (!STRICT_PREMIUM_WHITELIST_MODE) {
+  if (!isStrictPremiumWhitelistEffective()) {
     ordered = relaxAdaptiveSameDayClustering(
       ordered,
       metaByGameId,
@@ -637,7 +722,7 @@ export function orchestrateEditorialCatalog(
   }
 
   const namedSlotSum = Object.values(slotTargets).reduce((s, n) => s + n, 0);
-  const adaptiveFallbackTarget = STRICT_PREMIUM_WHITELIST_MODE
+  const adaptiveFallbackTarget = isStrictPremiumWhitelistEffective()
     ? 0
     : Math.max(0, CATALOG_TARGET_SIZE - namedSlotSum);
 
@@ -659,10 +744,11 @@ export function orchestrateEditorialCatalog(
       editorialSlots,
       slotTargets: { ...slotTargets, adaptiveFallback: adaptiveFallbackTarget },
       redistributions,
-      strictFootballPool: STRICT_PREMIUM_WHITELIST_MODE ? strictFootballPool : undefined,
-      strictMultisportPool: STRICT_PREMIUM_WHITELIST_MODE ? strictMultisportPool : undefined,
+      strictFootballPool: isStrictPremiumWhitelistEffective() ? strictFootballPool : undefined,
+      strictMultisportPool: isStrictPremiumWhitelistEffective() ? strictMultisportPool : undefined,
       protocolContinuityPoolIn: options?.protocolContinuityPool?.length,
       protocolContinuityTierDFill: protocolContinuityFillCount,
+      survivalInventoryFill: survivalInventoryFillCount,
       samples,
     },
   };
@@ -699,7 +785,7 @@ export function inferEditorialSlotForFixture(input: {
     importanceScore: input.importanceScore ?? 0,
   };
 
-  if (STRICT_PREMIUM_WHITELIST_MODE) {
+  if (isStrictPremiumWhitelistEffective()) {
     if (!passesStrictPremiumScoredItalian(it)) {
       if (passesProtocolContinuityTierD(it)) {
         return { slot: "adaptiveFallback", selectionReason: "protocol-continuity-tier-d" };

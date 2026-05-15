@@ -1,19 +1,17 @@
-import { ArrowRight, Activity, Shield } from 'lucide-react';
+import { ArrowRight, Activity } from 'lucide-react';
 import { useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { LiveMarketCard } from './markets/LiveMarketCard';
-import { isFootballFocusEnabled } from '~/config/footballFocus';
 import { seedMarketToLiveMarket } from '~/utils/seedMarketToLiveMarket';
 import { fetchCuratedMarketsFromApi } from '~/utils/curatedMarketsApi';
+import { formatKickoffPreview } from '~/lib/homepageCuratedNarrative';
 import {
-  marketQualifiesForFeaturedHero,
+  editorialBriefingDescriptor,
   orderForHomepageIntelligence,
 } from '~/lib/featuredIntelligenceLayer';
-import { azuroMarketPassesProtocolCatalogSurface, premiumCatalogTier } from '~/lib/premiumCatalogStrictClient';
-import { homeMarketSection } from '~/copy/homePremium';
 
-/** Canonical homepage book — same cap as `/markets` featured rail. */
+/** Match curated cap (9) — same pool as `/markets`. */
 const HOME_MARKET_CARD_COUNT = 9;
 
 export function LiveMarkets() {
@@ -24,35 +22,27 @@ export function LiveMarkets() {
     staleTime: 50_000,
   });
 
+  const curatedSlice = useMemo(() => {
+    if (marketsQuery.isPending && !marketsQuery.data) return [];
+    const rows = marketsQuery.data?.markets;
+    if (!rows?.length) return [];
+    return rows.slice(0, HOME_MARKET_CARD_COUNT);
+  }, [marketsQuery.isPending, marketsQuery.data]);
+
   const catalogClock = marketsQuery.dataUpdatedAt ?? Date.now();
 
-  const { displayedMarkets, premiumCount, ready } = useMemo(() => {
-    if (marketsQuery.isPending && !marketsQuery.data) {
-      return {
-        displayedMarkets: [] as ReturnType<typeof seedMarketToLiveMarket>[],
-        premiumCount: 0,
-        ready: false,
-      };
-    }
-    const rows = marketsQuery.data?.markets;
-    if (!rows?.length) {
-      return { displayedMarkets: [], premiumCount: 0, ready: true };
-    }
-    const pool = rows.slice(0, HOME_MARKET_CARD_COUNT);
-    const premium = pool.filter(azuroMarketPassesProtocolCatalogSurface);
-    const ordered =
-      premium.length === 0
-        ? []
-        : orderForHomepageIntelligence(premium, catalogClock, HOME_MARKET_CARD_COUNT);
-    return {
-      displayedMarkets: ordered.map(seedMarketToLiveMarket),
-      premiumCount: premium.length,
-      poolCount: pool.length,
-      ready: true,
-    };
-  }, [marketsQuery.isPending, marketsQuery.data, catalogClock]);
+  /** Foreground density cap — featured + two supporting + optional compact strip. */
+  const intelligenceSlice = useMemo(() => {
+    if (curatedSlice.length === 0) return [];
+    return orderForHomepageIntelligence(curatedSlice, catalogClock, 5);
+  }, [curatedSlice, catalogClock]);
 
-  const curatedCount = displayedMarkets.length;
+  const featuredRow = intelligenceSlice[0];
+  const supportingRows = intelligenceSlice.slice(1, 3);
+  const compactRows = intelligenceSlice.slice(3, 5);
+
+  const poolCount = curatedSlice.length;
+  const foregroundCount = intelligenceSlice.length;
 
   const handleViewAllMarkets = () => {
     navigate({ to: '/markets', search: { sortBy: 'featured' } });
@@ -63,102 +53,126 @@ export function LiveMarkets() {
   };
 
   return (
-    <section
-      id="markets"
-      className="relative overflow-hidden bg-gradient-to-b from-brand-navy to-brand-bg py-20 lg:py-32"
-    >
-      <div className="absolute inset-0 opacity-30" aria-hidden>
-        <div className="absolute left-1/4 top-0 h-96 w-96 rounded-full bg-brand-green/10 blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-brand-cyan/10 blur-3xl" />
-      </div>
+    <section id="markets" className="py-20 lg:py-32 bg-brand-bg relative overflow-hidden">
+      <div
+        className="absolute inset-0 opacity-[0.06] pointer-events-none"
+        aria-hidden
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)',
+          backgroundSize: '64px 64px',
+        }}
+      />
 
-      <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-12 text-center">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand-green/30 bg-brand-green/10 px-4 py-2">
-            <Activity className="h-4 w-4 text-brand-green" />
-            <span className="text-sm font-bold text-brand-green">{homeMarketSection.badge}</span>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="max-w-3xl mb-16 lg:mb-24">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 border-b border-white/[0.08] mb-8">
+            <Activity className="w-3.5 h-3.5 text-gray-500" />
+            <span className="text-[11px] font-semibold text-gray-500 tracking-[0.22em] uppercase">
+              Editorial catalogue
+            </span>
           </div>
 
-          <h2 className="mb-6 bg-gradient-to-r from-white via-gray-100 to-gray-300 bg-clip-text font-syne text-4xl font-bold text-transparent sm:text-5xl lg:text-6xl">
-            {isFootballFocusEnabled() ? 'Premium Football Markets' : homeMarketSection.title}
+          <h2 className="font-syne font-bold text-3xl sm:text-4xl lg:text-[2.75rem] text-white mb-6 leading-[1.1] tracking-tight">
+            European premium multisport outlook
           </h2>
 
-          <p className="mx-auto mb-8 max-w-2xl text-lg text-gray-400">
-            {isFootballFocusEnabled()
-              ? 'Hand-picked European football — live prices, copy flows, real positioning before lock.'
-              : homeMarketSection.sub}
+          <p className="text-base sm:text-lg text-gray-500 leading-[1.65] mb-8 max-w-2xl">
+            High-signal events only — a cover outlook, two supporting contexts, and a compact radar
+            strip when the book allows. Ordering favours anticipation and editorial priority over raw
+            grid sequence.
           </p>
 
-          <div className="mb-10 flex flex-wrap items-center justify-center gap-6 lg:gap-10">
-            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-              <Shield className="h-5 w-5 text-brand-cyan" />
-              <div className="text-left">
-                <p className="m-0 font-mono text-2xl font-bold text-brand-cyan">{curatedCount}</p>
-                <p className="m-0 text-xs font-medium text-gray-400">{homeMarketSection.statBookLabel}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-              <Activity className="h-5 w-5 text-brand-green" />
-              <div className="text-left">
-                <p className="m-0 text-sm font-semibold text-white/90">{homeMarketSection.statFlowLabel}</p>
-                <p className="m-0 text-xs text-gray-400">{homeMarketSection.statFlowHint}</p>
-              </div>
-            </div>
-          </div>
+          <p className="text-xs text-gray-600 font-mono tabular-nums m-0">
+            {foregroundCount} foreground outlook{foregroundCount === 1 ? '' : 's'}
+            {poolCount > 0 ? ` · drawn from ${poolCount}-row curated pool` : ''}
+          </p>
         </div>
 
-        {ready && premiumCount === 0 ? (
-          <div className="mb-12 rounded-xl border border-white/10 bg-white/5 px-6 py-16 text-center">
-            <p className="font-syne text-xl text-gray-300">{homeMarketSection.emptyTitle}</p>
-            <p className="mx-auto mt-3 max-w-lg text-sm text-gray-500">{homeMarketSection.emptySub}</p>
-            <button
-              type="button"
-              onClick={handleViewAllMarkets}
-              className="mt-8 text-sm font-semibold text-brand-green hover:text-brand-green/80"
-            >
-              {homeMarketSection.cta} →
-            </button>
+        {marketsQuery.isPending && !marketsQuery.data ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+            <div className="lg:col-span-7 min-h-[360px] rounded-2xl bg-white/[0.02] border border-white/[0.06] animate-pulse" />
+            <div className="lg:col-span-5 flex flex-col gap-6">
+              <div className="min-h-[200px] rounded-xl bg-white/[0.02] border border-white/[0.06] animate-pulse flex-1" />
+              <div className="min-h-[200px] rounded-xl bg-white/[0.02] border border-white/[0.06] animate-pulse flex-1" />
+            </div>
           </div>
-        ) : (
-          <div className="mb-12 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {!ready
-              ? Array.from({ length: HOME_MARKET_CARD_COUNT }).map((_, index) => (
-                  <div
-                    key={`sk-${index}`}
-                    className="h-[280px] animate-pulse rounded-xl border border-white/10 bg-white/5"
-                  />
-                ))
-              : displayedMarkets.map((market, index) => {
-                  const az = marketsQuery.data?.markets?.find((m) => m.id === market.id);
-                  const featured =
-                    az && marketQualifiesForFeaturedHero(az) && index === 0 && premiumCatalogTier(az) === 'A';
+        ) : featuredRow ? (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 lg:items-start mb-16 lg:mb-20">
+              <div className="lg:col-span-7 min-w-0">
+                <LiveMarketCard
+                  variant="featured"
+                  market={seedMarketToLiveMarket(featuredRow)}
+                  narrativeLabel={
+                    [
+                      editorialBriefingDescriptor(featuredRow),
+                      formatKickoffPreview(featuredRow),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || undefined
+                  }
+                  onClick={() => handleMarketClick(featuredRow.id)}
+                />
+              </div>
+
+              <div className="lg:col-span-5 flex flex-col gap-6">
+                {supportingRows.map((row) => {
+                  const kick = formatKickoffPreview(row);
+                  const kicker = [editorialBriefingDescriptor(row), kick].filter(Boolean).join(' · ');
                   return (
-                    <div
-                      key={market.id}
-                      className="animate-fade-in"
-                      style={{ animationDelay: `${index * 50}ms` }}
-                    >
+                    <div key={row.id} className="min-h-[200px] min-w-0">
                       <LiveMarketCard
-                        market={market}
-                        featured={featured}
-                        onClick={() => handleMarketClick(market.id)}
+                        variant="standard"
+                        market={seedMarketToLiveMarket(row)}
+                        narrativeLabel={kicker || undefined}
+                        onClick={() => handleMarketClick(row.id)}
                       />
                     </div>
                   );
                 })}
-          </div>
-        )}
+              </div>
+            </div>
 
-        <div className="text-center">
+            {compactRows.length > 0 && (
+              <div className="border-t border-white/[0.05] pt-12 lg:pt-16 mb-16">
+                <div className="mb-8 max-w-2xl">
+                  <h3 className="font-syne text-lg sm:text-xl font-bold text-white m-0 tracking-tight">
+                    Compact radar
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-2 m-0 leading-relaxed">
+                    Additional curated gates — same protocol, lower visual weight.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6">
+                  {compactRows.map((row) => (
+                    <div key={row.id}>
+                      <LiveMarketCard
+                        variant="compact"
+                        market={seedMarketToLiveMarket(row)}
+                        onClick={() => handleMarketClick(row.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        ) : null}
+
+        <div className="text-center pt-6 border-t border-white/[0.04]">
           <button
             type="button"
             onClick={handleViewAllMarkets}
-            className="group inline-flex items-center gap-3 rounded-xl bg-gradient-to-r from-brand-green to-brand-cyan px-8 py-4 text-lg font-bold text-brand-bg transition-all hover:scale-105 hover:shadow-2xl hover:shadow-brand-green/40"
+            className="inline-flex items-center gap-2 px-7 py-3 border border-white/15 text-sm font-semibold text-gray-300 rounded-lg hover:border-white/25 hover:text-white transition-colors"
           >
-            <span>{homeMarketSection.cta}</span>
-            <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+            <span>Full research terminal</span>
+            <ArrowRight className="w-4 h-4 opacity-70" />
           </button>
-          <p className="mt-4 m-0 text-sm text-gray-500">{homeMarketSection.ctaHint}</p>
+          <p className="text-[11px] text-gray-600 mt-4 m-0">
+            Full terminal lists the complete curated book; homepage sequence is intelligence-ranked
+            for this surface.
+          </p>
         </div>
       </div>
     </section>

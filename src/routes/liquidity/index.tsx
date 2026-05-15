@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Header } from '~/components/Header';
 import { Droplet, TrendingUp, Shield } from 'lucide-react';
 import { useTRPC } from '~/trpc/react';
@@ -7,61 +7,22 @@ import { useQuery } from '@tanstack/react-query';
 import { ProtocolVaultDepositModal } from '~/components/liquidity/ProtocolVaultDepositModal';
 import { ProtocolVaultWithdrawModal } from '~/components/liquidity/ProtocolVaultWithdrawModal';
 import { LPEarningsHistoryDashboard } from '~/components/liquidity/LPEarningsHistoryDashboard';
-import { LiquidityLiveBook } from '~/components/liquidity/LiquidityLiveBook';
 import { useWallet } from '~/store/useWalletStore';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
-import { fetchCuratedMarketsFromApi } from '~/utils/curatedMarketsApi';
-import { mirrorLiquidityRowsFromMarkets } from '~/lib/curatedLiquidityMirror';
-import type { CanonicalMarketLiquidityRow } from '~/server/services/canonicalLiquidityAllocation';
 import {
   LP_SEEDED_EXPLAINER,
   LP_SEEDED_SHORT,
+  PRE_TESTNET_ALLOCATION_EXPLAINER,
+  PRE_TESTNET_LIQUIDITY_HEADLINE,
+  PRE_TESTNET_LIQUIDITY_SUBLINE,
   getProtocolLiquidityConfigClient,
 } from '~/lib/economySurface';
-import {
-  liquidityBottomCta,
-  liquidityDepositPanel,
-  liquidityFaq,
-  liquidityHowItWorks,
-  liquidityPageHero,
-  liquidityStats,
-  liquidityValueProp,
-} from '~/copy/liquidityPremium';
 
 export const Route = createFileRoute('/liquidity/')({
   component: LiquidityPage,
 });
-
-function vaultAllocationsToCanonical(
-  alloc: Array<{
-    marketId: string;
-    marketName: string;
-    league: string;
-    sport: string;
-    allocation: number;
-    percentage: number;
-    volume?: number;
-    appealScore?: number;
-  }>,
-): CanonicalMarketLiquidityRow[] {
-  return alloc
-    .filter((a) => a.allocation > 0)
-    .map((a) => ({
-      marketId: a.marketId,
-      gameId: a.marketId.replace(/^azuro-/i, ''),
-      marketName: a.marketName,
-      league: a.league,
-      sport: a.sport,
-      appealScore: a.appealScore ?? 0,
-      volume: a.volume ?? 0,
-      allocation: a.allocation,
-      percentage: a.percentage,
-      normalizedWeight: 0,
-      weightSource: 'curated-appeal' as const,
-    }));
-}
 
 function LiquidityPage() {
   const trpc = useTRPC();
@@ -84,51 +45,6 @@ function LiquidityPage() {
   const simulatedPool =
     vaultStats?.totalSimulatedLiquidity ?? liquidityMode.simulatedLiquidityUsdc;
 
-  const curatedQuery = useQuery({
-    queryKey: ['curatedMarkets', 'liquidity-sync'],
-    queryFn: fetchCuratedMarketsFromApi,
-    staleTime: 15_000,
-    refetchInterval: 30_000,
-  });
-
-  const totalBudget =
-    vaultStats?.totalLiquidity && vaultStats.totalLiquidity > 0
-      ? vaultStats.totalLiquidity
-      : simulatedPool;
-
-  const { liquidityDisplayRows, liquidityDataSource, liquidityUpdatedAtMs } = useMemo(() => {
-    const markets = curatedQuery.data?.markets ?? [];
-    const mirror = mirrorLiquidityRowsFromMarkets(markets, totalBudget);
-    const updated =
-      Math.max(curatedQuery.dataUpdatedAt ?? 0, vaultQuery.dataUpdatedAt ?? 0) || Date.now();
-    if (mirror.length > 0) {
-      return {
-        liquidityDisplayRows: mirror,
-        liquidityDataSource: 'live-feed' as const,
-        liquidityUpdatedAtMs: updated,
-      };
-    }
-    const v = vaultStats?.marketAllocations?.filter((a) => a.allocation > 0) ?? [];
-    if (v.length > 0) {
-      return {
-        liquidityDisplayRows: vaultAllocationsToCanonical(v),
-        liquidityDataSource: 'vault' as const,
-        liquidityUpdatedAtMs: updated,
-      };
-    }
-    return {
-      liquidityDisplayRows: [] as CanonicalMarketLiquidityRow[],
-      liquidityDataSource: 'live-feed' as const,
-      liquidityUpdatedAtMs: updated,
-    };
-  }, [
-    curatedQuery.data?.markets,
-    curatedQuery.dataUpdatedAt,
-    vaultQuery.dataUpdatedAt,
-    vaultStats?.marketAllocations,
-    totalBudget,
-  ]);
-
   // Fetch user's Protocol Vault position
   const userPositionQuery = useQuery({
     ...trpc.getProtocolVaultPosition.queryOptions({
@@ -138,16 +54,16 @@ function LiquidityPage() {
   });
 
   const handleDepositSuccess = () => {
+    // Refetch vault stats and user position after successful deposit
     vaultQuery.refetch();
-    curatedQuery.refetch();
     if (isConnected) {
       userPositionQuery.refetch();
     }
   };
 
   const handleWithdrawSuccess = () => {
+    // Refetch vault stats and user position after successful withdrawal
     vaultQuery.refetch();
-    curatedQuery.refetch();
     if (isConnected) {
       userPositionQuery.refetch();
     }
@@ -162,14 +78,19 @@ function LiquidityPage() {
           {/* Hero Section */}
           <div className="text-center mb-12">
             <h1 className="font-syne font-bold text-5xl mb-4">
-              {isPreTestnet ? liquidityPageHero.preTestnetTitle : liquidityPageHero.liveTitle}
+              {isPreTestnet ? 'Paper Liquidity Routing' : 'Protocol Vault'}
             </h1>
-            <p className="text-xl text-gray-300 max-w-2xl mx-auto leading-snug">
-              {isPreTestnet ? liquidityPageHero.preTestnetSub : liquidityPageHero.liveSub}
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              {isPreTestnet
+                ? 'Simulated liquidity routing across the curated OPEN catalog. Protocol in build — preparing for Base testnet.'
+                : 'Shared testnet USDC pool across founder-curated markets with visible allocation.'}
             </p>
-            <p className="mt-4 max-w-2xl mx-auto text-xs text-gray-500 leading-relaxed border border-emerald-500/20 rounded-lg px-4 py-3 bg-emerald-500/[0.04]">
+            <p className="mt-4 max-w-2xl mx-auto text-xs text-gray-500 leading-relaxed border border-white/10 rounded-lg px-4 py-3 bg-white/[0.03]">
               {isPreTestnet ? (
-                <span className="text-gray-300">{liquidityPageHero.microPre}</span>
+                <>
+                  <span className="text-gray-300 font-medium">{PRE_TESTNET_LIQUIDITY_HEADLINE}.</span>{' '}
+                  {PRE_TESTNET_LIQUIDITY_SUBLINE}
+                </>
               ) : (
                 LP_SEEDED_EXPLAINER
               )}
@@ -182,27 +103,29 @@ function LiquidityPage() {
               {/* Total Liquidity */}
               <div>
                 <div className="text-sm text-gray-400 mb-2">
-                  {isPreTestnet ? liquidityStats.poolLabelPractice : liquidityStats.poolLabelLive}
+                  {isPreTestnet ? 'Simulated routing pool' : 'Total liquidity'}
                 </div>
                 <div className="font-mono font-bold text-4xl text-brand-green mb-1">
                   {isPreTestnet
-                    ? `${simulatedPool.toLocaleString()} USDC`
+                    ? `${simulatedPool.toLocaleString()} USDC (simulated)`
                     : `$${(vaultStats?.totalLiquidity ?? simulatedPool).toLocaleString()}`}
                 </div>
                 <div className="text-sm text-gray-500">
-                  {isPreTestnet ? liquidityStats.poolHintPractice : LP_SEEDED_SHORT}
+                  {isPreTestnet
+                    ? 'Editorial paper allocation model · not on-chain TVL'
+                    : LP_SEEDED_SHORT}
                 </div>
               </div>
 
               {/* Vault APY */}
               <div>
                 <div className="text-sm text-gray-400 mb-2">
-                  {isPreTestnet ? liquidityStats.apyPracticeTitle : liquidityStats.apyWhenLive}
+                  {isPreTestnet ? 'Fee share (when live)' : 'Vault APY'}
                 </div>
                 {isPreTestnet ? (
                   <>
                     <div className="font-mono font-bold text-4xl text-gray-500">—</div>
-                    <div className="text-sm text-gray-500">{liquidityStats.apyPracticeBody}</div>
+                    <div className="text-sm text-gray-500">No APY until testnet volume</div>
                   </>
                 ) : vaultStats && vaultStats.vaultAPY !== null ? (
                   <>
@@ -223,13 +146,11 @@ function LiquidityPage() {
 
               {/* Markets Active */}
               <div>
-                <div className="text-sm text-gray-400 mb-2">{liquidityStats.marketsOpen}</div>
+                <div className="text-sm text-gray-400 mb-2">Markets Active</div>
                 <div className="font-mono font-bold text-4xl">
-                  {liquidityDisplayRows.length > 0
-                    ? liquidityDisplayRows.length
-                    : vaultStats?.marketsActive || 0}
+                  {vaultStats?.marketsActive || 0}
                 </div>
-                <div className="text-sm text-gray-500">{liquidityStats.marketsOpenHint}</div>
+                <div className="text-sm text-gray-500">Curated protocol markets</div>
               </div>
             </div>
 
@@ -244,7 +165,7 @@ function LiquidityPage() {
                 className="w-full py-4 bg-gradient-to-r from-brand-green to-brand-cyan text-brand-bg font-bold text-lg rounded-lg hover:opacity-90 transition-all shadow-xl shadow-brand-green/20 flex items-center justify-center gap-2"
               >
                 <Droplet className="w-5 h-5" />
-                {liquidityDepositPanel.cta}
+                Add Liquidity to Vault
               </button>
             </div>
 
@@ -253,10 +174,11 @@ function LiquidityPage() {
               <div className="mb-8 p-4 bg-brand-green/10 border border-brand-green/30 rounded-lg flex items-start gap-3">
                 <TrendingUp className="w-5 h-5 text-brand-green flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm text-brand-green font-semibold mb-1">External LPs on the book</p>
+                  <p className="text-sm text-brand-green font-semibold mb-1">
+                    ✓ Phase 1 Active: External LPs Now Participating
+                  </p>
                   <p className="text-sm text-gray-300">
-                    {vaultStats.externalLPs} provider{vaultStats.externalLPs !== 1 ? 's' : ''} · $
-                    {vaultStats.externalLPTotal.toFixed(2)} USDC live in vault
+                    {vaultStats.externalLPs} external liquidity provider{vaultStats.externalLPs !== 1 ? 's' : ''} have deposited ${vaultStats.externalLPTotal.toFixed(2)} USDC
                   </p>
                 </div>
               </div>
@@ -267,17 +189,25 @@ function LiquidityPage() {
               <div className="flex items-start gap-3 mb-4">
                 <Droplet className="w-6 h-6 text-brand-cyan flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <h3 className="font-semibold text-lg mb-2">{liquidityDepositPanel.title}</h3>
-                  <p className="text-gray-400 text-sm">{liquidityDepositPanel.body}</p>
+                  <h3 className="font-semibold text-lg mb-2">Provide Liquidity to the Protocol Vault</h3>
+                  <p className="text-gray-400 text-sm">
+                    Deposit paper USDC to earn a share of protocol trading fees. Exposure is spread across curated markets — weighted by live volume when available, otherwise by editorial appeal score.
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                {liquidityDepositPanel.bullets.map((b) => (
-                  <div key={b} className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-brand-green" />
-                    <span className="text-gray-300">{b}</span>
-                  </div>
-                ))}
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-brand-green"></div>
+                  <span className="text-gray-300">Earn 50% of trading fees</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-brand-cyan"></div>
+                  <span className="text-gray-300">Withdraw anytime</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-purple-400"></div>
+                  <span className="text-gray-300">On-chain vault (pre-testnet)</span>
+                </div>
               </div>
             </div>
           </div>
@@ -318,37 +248,70 @@ function LiquidityPage() {
           {/* Value Proposition */}
           <div className="mb-8 p-8 bg-gradient-to-br from-brand-green/10 to-brand-cyan/10 border-2 border-brand-green/30 rounded-xl">
             <div className="text-center mb-6">
-              <h2 className="font-syne font-bold text-3xl mb-3">{liquidityValueProp.title}</h2>
-              <p className="text-gray-200 text-lg max-w-2xl mx-auto">{liquidityValueProp.sub}</p>
+              <h2 className="font-syne font-bold text-3xl mb-3">
+                Why Provide Liquidity to the Protocol Vault?
+              </h2>
+              <p className="text-gray-300 text-lg max-w-2xl mx-auto">
+                Earn passive income by providing liquidity to prediction markets. Your capital works for you 24/7.
+              </p>
             </div>
-
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {liquidityValueProp.cards.map((card, i) => {
-                const Icon = i % 4 === 0 ? TrendingUp : i % 4 === 1 ? Droplet : i % 4 === 2 ? Shield : TrendingUp;
-                const hue =
-                  i % 4 === 0
-                    ? 'bg-brand-green/20 text-brand-green'
-                    : i % 4 === 1
-                      ? 'bg-brand-cyan/20 text-brand-cyan'
-                      : i % 4 === 2
-                        ? 'bg-purple-400/20 text-purple-400'
-                        : 'bg-amber-400/20 text-amber-300';
-                return (
-                  <div key={card.title} className="p-6 bg-white/5 rounded-lg ring-1 ring-white/[0.06]">
-                    <div className="flex items-start gap-3 mb-3">
-                      <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${hue}`}
-                      >
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-lg mb-2">{card.title}</h3>
-                        <p className="text-sm text-gray-400 leading-relaxed">{card.body}</p>
-                      </div>
-                    </div>
+              <div className="p-6 bg-white/5 rounded-lg">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 bg-brand-green/20 rounded-full flex items-center justify-center flex-shrink-0">
+                    <TrendingUp className="w-5 h-5 text-brand-green" />
                   </div>
-                );
-              })}
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Earn 50% of All Trading Fees</h3>
+                    <p className="text-sm text-gray-400 leading-relaxed">
+                      Receive a proportional share of every trade fee across all markets. More trading volume = more earnings for you.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-white/5 rounded-lg">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 bg-brand-cyan/20 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Droplet className="w-5 h-5 text-brand-cyan" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Set & Forget</h3>
+                    <p className="text-sm text-gray-400 leading-relaxed">
+                      No active management required. Exposure tracks the curated catalog and reweights as trading volume grows.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-white/5 rounded-lg">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 bg-purple-400/20 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Shield className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Non-Custodial & Secure</h3>
+                    <p className="text-sm text-gray-400 leading-relaxed">
+                      Your funds remain in audited smart contracts. Withdraw anytime with no penalties or lock-up periods.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-white/5 rounded-lg">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 bg-yellow-400/20 rounded-full flex items-center justify-center flex-shrink-0">
+                    <TrendingUp className="w-5 h-5 text-yellow-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Diversified Risk</h3>
+                    <p className="text-sm text-gray-400 leading-relaxed">
+                      Your liquidity is spread across multiple markets, reducing exposure to any single event outcome.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="mt-6 text-center">
@@ -360,7 +323,7 @@ function LiquidityPage() {
                 }}
                 className="px-8 py-4 bg-brand-green text-brand-bg font-bold text-lg rounded-lg hover:opacity-90 transition-all shadow-xl shadow-brand-green/20"
               >
-                {liquidityDepositPanel.cta} →
+                Start Earning Now →
               </button>
             </div>
           </div>
@@ -489,57 +452,118 @@ function LiquidityPage() {
           </div>
           )}
 
-          {/* Live allocation — synced with homepage book when feed is live */}
+          {/* Market Allocation Section */}
           <div className="mb-12">
-            <h2 className="font-syne font-bold text-3xl mb-1">Where the pool is leaning right now</h2>
-            <p className="text-sm text-gray-400 mb-6 max-w-3xl">
-              Capital weights track the same OPEN markets you can trade — updates as the book changes. Hotter lines pull more
-              size automatically.
+            <h2 className="font-syne font-bold text-3xl mb-6">Curated market allocation</h2>
+            <p className="text-sm text-gray-500 mb-4 max-w-3xl">
+              {PRE_TESTNET_ALLOCATION_EXPLAINER}
             </p>
             {isPreTestnet && vaultStats?.allocationCoherent === false && (
               <p className="text-xs text-amber-400/90 mb-4">
-                Still syncing vault math with the board — refresh in a moment.
+                Allocation reconcile pending — refresh after catalog sync.
               </p>
             )}
-            <LiquidityLiveBook
-              rows={liquidityDisplayRows}
-              isPreTestnet={isPreTestnet}
-              dataSource={liquidityDataSource}
-              updatedAtMs={liquidityUpdatedAtMs}
-            />
+            <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
+              {vaultStats?.marketAllocations && vaultStats.marketAllocations.length > 0 ? (
+                vaultStats.marketAllocations
+                  .filter((a) => a.allocation > 0)
+                  .map((allocation) => (
+                  <div key={allocation.marketId} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{allocation.sportEmoji}</span>
+                        <div>
+                          <div className="font-semibold">{allocation.marketName}</div>
+                          <div className="text-xs text-gray-400">{allocation.league}</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono font-bold text-brand-green">
+                          {isPreTestnet
+                            ? `${allocation.percentage.toFixed(1)}%`
+                            : `$${allocation.allocation.toFixed(0)}`}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {isPreTestnet
+                            ? `~${allocation.allocation.toFixed(0)} USDC simulated`
+                            : `${allocation.percentage.toFixed(0)}%`}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-brand-green to-brand-cyan transition-all duration-500"
+                        style={{ width: `${allocation.percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  <Droplet className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>No active markets yet</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* How It Works Section */}
           <div className="mb-12">
-            <h2 className="font-syne font-bold text-3xl mb-6">{liquidityHowItWorks.title}</h2>
+            <h2 className="font-syne font-bold text-3xl mb-6">How It Works</h2>
             <div className="bg-white/5 border border-white/10 rounded-xl p-8 space-y-6">
-              {liquidityHowItWorks.steps.map((step, idx) => {
-                const accent =
-                  idx === 0
-                    ? 'bg-brand-green/20 text-brand-green'
-                    : idx === 1
-                      ? 'bg-brand-cyan/20 text-brand-cyan'
-                      : 'bg-purple-400/20 text-purple-400';
-                return (
-                  <div key={step.title} className="flex gap-4">
-                    <div
-                      className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold ${accent}`}
-                    >
-                      {idx + 1}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg mb-2">{step.title}</h3>
-                      <p className="text-gray-400">{step.body}</p>
-                    </div>
-                  </div>
-                );
-              })}
+              <div className="flex gap-4">
+                <div className="flex-shrink-0 w-8 h-8 bg-brand-green/20 rounded-full flex items-center justify-center text-brand-green font-bold">
+                  1
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-2">Single Vault Pools USDC</h3>
+                  <p className="text-gray-400">
+                    One global vault pools USDC across all active markets, eliminating fragmentation and maximizing capital efficiency.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-shrink-0 w-8 h-8 bg-brand-cyan/20 rounded-full flex items-center justify-center text-brand-cyan font-bold">
+                  2
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-2">Exposure Across Curated Markets</h3>
+                  <p className="text-gray-400">
+                    Vault liquidity is allocated across the active curated catalog. When aggregate volume is low, weights fall back to editorial appeal scores until real trading data exists.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-shrink-0 w-8 h-8 bg-purple-400/20 rounded-full flex items-center justify-center text-purple-400 font-bold">
+                  3
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-2">LPs Earn Protocol Fees</h3>
+                  <p className="text-gray-400">
+                    Liquidity providers earn a proportional share of all protocol trading fees, not just from individual markets.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-shrink-0 w-8 h-8 bg-yellow-400/20 rounded-full flex items-center justify-center text-yellow-400 font-bold">
+                  4
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-2">Non-Custodial Smart Contract</h3>
+                  <p className="text-gray-400">
+                    Built on Polymarket CTF (Conditional Token Framework) — audited by Sigma Prime and Chainsafe. Your funds remain under your control.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* FAQ Section */}
           <div className="mb-12">
-            <h2 className="font-syne font-bold text-3xl mb-6 text-center">{liquidityFaq.title}</h2>
+            <h2 className="font-syne font-bold text-3xl mb-6 text-center">Frequently Asked Questions</h2>
             <div className="space-y-4 max-w-3xl mx-auto">
               <details className="p-6 bg-white/5 border border-white/10 rounded-lg group">
                 <summary className="font-semibold cursor-pointer list-none flex items-center justify-between">
@@ -596,13 +620,15 @@ function LiquidityPage() {
           {/* Browse Markets CTA */}
           <div className="p-8 bg-gradient-to-br from-brand-green/10 to-brand-cyan/10 border border-brand-green/30 rounded-xl text-center">
             <Shield className="w-16 h-16 mx-auto mb-4 text-brand-green" />
-            <h3 className="font-syne font-bold text-2xl mb-3">{liquidityBottomCta.title}</h3>
-            <p className="text-gray-400 mb-6 max-w-2xl mx-auto">{liquidityBottomCta.sub}</p>
+            <h3 className="font-syne font-bold text-2xl mb-3">Ready to Provide Liquidity?</h3>
+            <p className="text-gray-400 mb-6 max-w-2xl mx-auto">
+              Browse active markets and add liquidity to start earning trading fees. Your deposits are protected by audited smart contracts.
+            </p>
             <a
               href="/markets"
               className="inline-block px-8 py-4 bg-brand-green text-brand-bg font-bold text-lg rounded-lg hover:bg-brand-green/90 transition-all shadow-xl shadow-brand-green/20"
             >
-              {liquidityBottomCta.button} →
+              Browse Markets →
             </a>
           </div>
         </div>

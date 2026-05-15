@@ -5,7 +5,6 @@ import { SportsGrid } from "~/components/SportsGrid";
 import { HowItWorks } from "~/components/HowItWorks";
 import { LiveMarkets } from "~/components/LiveMarkets";
 import { WhyPredictio } from "~/components/WhyPredictio";
-import { HomeSocialTradingLayer } from "~/components/HomeSocialTradingLayer";
 import { CTASection } from "~/components/CTASection";
 import { OGImagePreloader } from "~/components/OGImagePreloader";
 import { MetaTags } from "~/components/MetaTags";
@@ -40,14 +39,13 @@ function Home() {
   return (
     <div className="min-h-screen">
       <MetaTags
-        title="Predictio · Sports prediction markets"
-        description="Trade live games, mirror sharp traders, ride real flow — football, courts, octagon, grid. The sports-native prediction market."
+        title="Predictio.live — European premium prediction markets"
+        description="Curated multisport prediction intelligence on Base — European premium lanes, editorial catalogue, and calm conviction tooling."
         url={typeof window !== 'undefined' ? window.location.href : undefined}
       />
       <OGImagePreloader />
       <Hero />
       <LiveMarkets />
-      <HomeSocialTradingLayer />
       <HowItWorks />
       <WhyPredictio />
       <TrustSection />

@@ -6,6 +6,8 @@ import {
   qualifiesMultisportPremiumPool,
 } from "./premiumSportScoring";
 import type { ScoredItalian } from "./editorialCatalogOrchestrator";
+import { isEmergencyCatalogBypass } from "./emergencyRelaxMode";
+import { computeGlobalInterestScore, isInterestFirstCatalogMode } from "./globalInterestScore";
 
 function kickoffSecFromRaw(g: RawAzuroGame): number | null {
   const kickoff = parseInt(String(g.startsAt), 10);
@@ -28,7 +30,9 @@ export type MultisportIngestionResult = {
 };
 
 /**
- * Build premium multisport candidates from raw Azuro feed (non-football only).
+ * Build multisport candidates from raw Azuro (non-football only).
+ * Interest-first mode: all in-window games with markets, ranked by `computeGlobalInterestScore` (no premium floor).
+ * Legacy: premium gate + `computePremiumScore` floor.
  */
 export function buildMultisportPremiumPool(
   rawGames: RawAzuroGame[],
@@ -46,6 +50,10 @@ export function buildMultisportPremiumPool(
   const multisportUpcoming: RawAzuroGame[] = [];
   let rejectedLowPremium = 0;
 
+  const relax = isEmergencyCatalogBypass();
+  const premiumFloor = relax ? 58 : MULTISPORT_PREMIUM_POOL_MIN;
+  const interestFirst = isInterestFirstCatalogMode();
+
   for (const g of rawGames) {
     if (isStalePrematchGame(g, nowSec)) continue;
     const sport = canonicalSportFromRaw(g);
@@ -55,26 +63,53 @@ export function buildMultisportPremiumPool(
     const kickoff = kickoffSecFromRaw(g);
     if (kickoff == null || kickoff <= nowSec || kickoff >= windowEndSec) continue;
 
-    if (!qualifiesMultisportPremiumPool(g)) {
-      rejectedLowPremium += 1;
+    if (interestFirst) {
+      const ac = Number(g.activeConditionsCount ?? 0);
+      if (ac <= 0) {
+        rejectedLowPremium += 1;
+        continue;
+      }
+      multisportUpcoming.push(g);
       continue;
+    }
+
+    if (!qualifiesMultisportPremiumPool(g)) {
+      if (!relax) {
+        rejectedLowPremium += 1;
+        continue;
+      }
+      const scoredProbe = computePremiumScore(g);
+      if (!scoredProbe || scoredProbe.premiumScore < 58) {
+        rejectedLowPremium += 1;
+        continue;
+      }
     }
     multisportUpcoming.push(g);
   }
 
-  const premiumPool: ScoredItalian[] = multisportUpcoming
-    .map((raw) => {
-      const scored = computePremiumScore(raw);
-      return {
-        raw,
-        importanceScore: scored?.premiumScore ?? 0,
-      };
-    })
-    .filter((it) => it.importanceScore >= MULTISPORT_PREMIUM_POOL_MIN)
-    .sort((a, b) => {
-      if (b.importanceScore !== a.importanceScore) return b.importanceScore - a.importanceScore;
-      return parseInt(String(a.raw.startsAt), 10) - parseInt(String(b.raw.startsAt), 10);
-    });
+  const premiumPool: ScoredItalian[] = interestFirst
+    ? multisportUpcoming
+        .map((raw) => ({
+          raw,
+          importanceScore: computeGlobalInterestScore(raw),
+        }))
+        .sort((a, b) => {
+          if (b.importanceScore !== a.importanceScore) return b.importanceScore - a.importanceScore;
+          return parseInt(String(a.raw.startsAt), 10) - parseInt(String(b.raw.startsAt), 10);
+        })
+    : multisportUpcoming
+        .map((raw) => {
+          const scored = computePremiumScore(raw);
+          return {
+            raw,
+            importanceScore: scored?.premiumScore ?? 0,
+          };
+        })
+        .filter((it) => it.importanceScore >= premiumFloor)
+        .sort((a, b) => {
+          if (b.importanceScore !== a.importanceScore) return b.importanceScore - a.importanceScore;
+          return parseInt(String(a.raw.startsAt), 10) - parseInt(String(b.raw.startsAt), 10);
+        });
 
   return {
     multisportUpcoming,

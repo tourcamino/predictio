@@ -12,7 +12,14 @@
     "start": "node --dns-result-order=ipv4first dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "publish-events": "node --env-file=.env --import tsx src/scripts/publishEvents.ts"
+    "publish-events": "node --env-file=.env --import tsx src/scripts/publishEvents.ts",
+    "debug:dump-azuro": "node --env-file=.env --import tsx src/scripts/debug/dumpRawAzuroFeed.ts",
+    "debug:filter-waterfall": "node --env-file=.env --import tsx src/scripts/debug/filterWaterfallDiagnostics.ts",
+    "debug:frontend-backend-diff": "node --env-file=.env --import tsx src/scripts/debug/frontendBackendDiff.ts",
+    "debug:env-audit": "node --env-file=.env --import tsx src/scripts/debug/productionEnvAudit.ts",
+    "debug:normalization": "node --env-file=.env --import tsx src/scripts/debug/normalizationFailures.ts",
+    "debug:sport-density": "node --env-file=.env --import tsx src/scripts/debug/sportDensityMap.ts",
+    "debug:temporal-windows": "node --env-file=.env --import tsx src/scripts/debug/temporalWindowDensity.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.8.2",
