@@ -9,6 +9,7 @@ import { runPlacePaperPredictionWeb } from "../web/placePaperPredictionWeb";
 import { runSyncUserAccountWeb } from "../web/syncUserWeb";
 import { runGetPaperWalletBalanceWeb } from "../web/paperWalletBalanceWeb";
 import { resolveCanonicalLiquidityState } from "../services/canonicalLiquidityState";
+import { getCatalogLiquidityVersionMeta } from "../services/catalogLiquidityRebalance";
 
 const walletParam = z
   .string()
@@ -68,13 +69,32 @@ export function createWebPublicPaperRouter(prisma: PrismaClient): Router {
     }
   });
 
-  r.get("/canonical-liquidity", async (_req, res, next) => {
+  r.get("/canonical-liquidity", async (req, res, next) => {
     try {
       const out = await resolveCanonicalLiquidityState(prisma);
+      if (process.env.PREDICTIO_LOG_CANONICAL_LIQUIDITY === "1" || req.query.verbose === "1") {
+        console.log(
+          JSON.stringify({
+            tag: "canonical_liquidity_state",
+            route: "GET canonical-liquidity",
+            openMarkets: out.canonicalOpenSlots,
+            allocationSum: out.allocationSum,
+            source: "express-web-route",
+          }),
+        );
+      }
       res.json(out);
     } catch (e) {
       next(e);
     }
+  });
+
+  r.get("/catalog-liquidity-version", (_req, res) => {
+    const meta = getCatalogLiquidityVersionMeta();
+    res.json({
+      ...meta,
+      source: "canonical-liquidity-state",
+    });
   });
 
   r.get(

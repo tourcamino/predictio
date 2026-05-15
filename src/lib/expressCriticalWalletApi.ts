@@ -192,6 +192,19 @@ export type ExpressCanonicalLiquidityState = {
   }>;
 };
 
+export type ExpressCatalogLiquidityVersion = {
+  allocationVersion: string;
+  rebalanceTriggeredAt: string;
+  source?: string;
+};
+
+export async function expressGetCatalogLiquidityVersion(): Promise<ExpressCatalogLiquidityVersion> {
+  return paperGetJson<ExpressCatalogLiquidityVersion>([
+    "/api/v1/web/catalog-liquidity-version",
+    "/api/web/catalog-liquidity-version",
+  ]);
+}
+
 export async function expressGetCanonicalLiquidityState(): Promise<ExpressCanonicalLiquidityState> {
   return paperGetJson<ExpressCanonicalLiquidityState>([
     "/api/v1/web/canonical-liquidity",

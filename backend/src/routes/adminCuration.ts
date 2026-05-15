@@ -16,6 +16,7 @@ import {
 } from "../services/eventCurationPipeline";
 import { collectCatalogDepthDiagnostics } from "../services/catalogDepthDiagnostics";
 import { resolveCanonicalLiquidityState } from "../services/canonicalLiquidityState";
+import { notifyCatalogLiquidityChanged } from "../services/catalogLiquidityRebalance";
 
 const CACHE_KEY = "admin:azuro:football:14d:v2";
 const MAX_ACTIVE = 9;
@@ -353,6 +354,7 @@ export function registerAdminCurationRoutes(
       }
 
       await cacheDel(CACHE_KEY);
+      await notifyCatalogLiquidityChanged(prisma, "admin_curation_toggle");
 
       res.json({ ok: true });
     } catch (e) {

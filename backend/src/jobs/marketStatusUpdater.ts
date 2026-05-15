@@ -3,6 +3,7 @@ import {
   buildEuropeanCurationGamesPayload,
   type CurationGamePayload,
 } from "../services/eventCurationPipeline";
+import { notifyCatalogLiquidityChanged } from "../services/catalogLiquidityRebalance";
 
 const prisma = new PrismaClient();
 
@@ -169,10 +170,12 @@ export async function updateMarketStatuses() {
       orderBy: { startsAt: "asc" },
     });
 
+    let resolvedCount = 0;
     for (const market of lockedMarkets) {
       const resolved = await checkAzuroResolution(market.gameId);
       if (!resolved) continue;
 
+      resolvedCount += 1;
       await prisma.curatedEvent.update({
         where: { id: market.id },
         data: {
@@ -204,6 +207,17 @@ export async function updateMarketStatuses() {
         cap: MAX_ACTIVE_CURATED,
       }),
     );
+
+    if (toLock.count > 0 || refilled > 0 || resolvedCount > 0) {
+      await notifyCatalogLiquidityChanged(
+        prisma,
+        toLock.count > 0
+          ? "lifecycle_lock"
+          : refilled > 0
+            ? "lifecycle_refill"
+            : "lifecycle_resolve",
+      );
+    }
   } catch (e) {
     console.warn(
       "[MarketUpdater] cycle skipped (DB offline or transient Prisma error):",

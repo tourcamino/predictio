@@ -17,6 +17,7 @@ import { FooterInner } from '~/components/Footer';
 import { Chatbot } from '~/components/Chatbot';
 import { ScrollToTop } from '~/components/ScrollToTop';
 import { useAzuroResolutionPolling } from '~/hooks/useAzuroResolutionPolling';
+import { CatalogVaultSync } from '~/components/CatalogVaultSync';
 import { OnboardingTour } from '~/components/onboarding/OnboardingTour';
 import { useState, useEffect } from 'react';
 import { captureException } from '~/lib/errorMonitoring';
@@ -162,6 +163,7 @@ function RootComponent() {
           }}
         />
         <WalletSync />
+        <CatalogVaultSync />
         <WalletChainSync />
         <WalletScopedQueryLifecycle />
         <WalletRuntimeScrollCleanup />

@@ -326,6 +326,7 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
     ...canonicalLiquidityDebugPayload(canonicalLiquidity),
     dbOpenActiveCount: openActive.length,
     appealScoreSum: appealSum,
+    vaultAlignment: canonicalLiquidity.vaultAlignment,
   };
   const paperWalletStats = await collectPaperWalletDiagnostics(prisma);
 

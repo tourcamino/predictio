@@ -33,9 +33,11 @@ function LiquidityPage() {
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
 
   // Fetch Protocol Vault stats
-  const vaultQuery = useQuery(
-    trpc.getProtocolVaultStats.queryOptions({})
-  );
+  const vaultQuery = useQuery({
+    ...trpc.getProtocolVaultStats.queryOptions({}),
+    staleTime: 0,
+    refetchInterval: 30_000,
+  });
 
   const vaultStats = vaultQuery.data;
   const liquidityMode = getProtocolLiquidityConfigClient();
@@ -463,7 +465,9 @@ function LiquidityPage() {
             )}
             <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
               {vaultStats?.marketAllocations && vaultStats.marketAllocations.length > 0 ? (
-                vaultStats.marketAllocations.map((allocation) => (
+                vaultStats.marketAllocations
+                  .filter((a) => a.allocation > 0)
+                  .map((allocation) => (
                   <div key={allocation.marketId} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">

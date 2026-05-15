@@ -11,6 +11,11 @@ import {
   getProtocolLiquidityConfigFromEnv,
   type ProtocolLiquidityMode,
 } from "~/lib/protocolLiquidityMode";
+import {
+  enrichCanonicalStateWithVault,
+  type CanonicalVaultAllocationSnapshot,
+  type VaultAlignmentReport,
+} from "~/server/services/catalogLiquidityRebalance";
 
 export const CANONICAL_OPEN_MARKET_CAP = 9;
 
@@ -41,6 +46,10 @@ export type CanonicalLiquidityState = {
   liquidityPerMarket: CanonicalMarketLiquidityRow[];
   allocationByMarketId: Record<string, CanonicalMarketLiquidityRow>;
   diagnostics: CanonicalLiquidityDiagnostics;
+  allocationVersion: string;
+  rebalanceTriggeredAt: string;
+  vaultSnapshots: CanonicalVaultAllocationSnapshot[];
+  vaultAlignment: VaultAlignmentReport;
 };
 
 function allocationModeFor(
@@ -135,7 +144,7 @@ export async function resolveCanonicalLiquidityState(): Promise<CanonicalLiquidi
     allocationByMarketId[row.marketId] = row;
   }
 
-  return {
+  const base = {
     at,
     protocolMode: config.mode,
     allocationMode: allocationModeFor(config.mode, externalLpTotal),
@@ -158,6 +167,8 @@ export async function resolveCanonicalLiquidityState(): Promise<CanonicalLiquidi
       staleExposureMarketIds,
     },
   };
+
+  return enrichCanonicalStateWithVault(base, "canonical_resolve");
 }
 
 export type { CanonicalMarketLiquidityRow, LiquidityWeightSource };

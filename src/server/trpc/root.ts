@@ -75,6 +75,7 @@ import { getPointsLeaderboard } from "./procedures/points/getPointsLeaderboard";
 import { registerLPWaitlist } from "./procedures/registerLPWaitlist";
 import { getProtocolVaultStats } from "./procedures/getProtocolVaultStats";
 import { getCanonicalLiquidityState } from "./procedures/getCanonicalLiquidityState";
+import { getCatalogLiquidityVersion } from "./procedures/getCatalogLiquidityVersion";
 import { getLPWaitlistCount } from "./procedures/getLPWaitlistCount";
 import { getProtocolVaultPosition } from "./procedures/getProtocolVaultPosition";
 import { getLPEarningsHistory } from "./procedures/getLPEarningsHistory";
@@ -192,6 +193,7 @@ export const appRouter = createTRPCRouter({
   registerLPWaitlist,
   getProtocolVaultStats,
   getCanonicalLiquidityState,
+  getCatalogLiquidityVersion,
   getLPWaitlistCount,
   getProtocolVaultPosition,
   getLPEarningsHistory,

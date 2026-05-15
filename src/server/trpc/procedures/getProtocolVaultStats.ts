@@ -74,5 +74,9 @@ export const getProtocolVaultStats = baseProcedure
       showExternalLpAsReal: liquidityConfig.showExternalLpAsReal,
       vaultExposureDiagnostics: canonical.diagnostics,
       canonicalLiquidityAt: canonical.at,
+      allocationVersion: canonical.allocationVersion,
+      rebalanceTriggeredAt: canonical.rebalanceTriggeredAt,
+      vaultAlignment: canonical.vaultAlignment,
+      vaultSnapshots: canonical.vaultSnapshots,
     };
   });

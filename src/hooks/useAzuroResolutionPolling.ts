@@ -5,6 +5,7 @@ import { useTRPC } from "~/trpc/react";
 import { useWalletStore } from "~/store/useWalletStore";
 import { invalidateAllPointsSummaryQueries } from "~/utils/invalidateWalletNotifications";
 import { invalidateAllPredictionPortfolioCachesForAnyWallet } from "~/utils/invalidateWalletPortfolioLpQueries";
+import { invalidateProtocolLiquidityQueries } from "~/utils/invalidateProtocolLiquidityQueries";
 import { clientChainScopeForTrpc, normalizeWalletForQuery } from "~/utils/walletQuery";
 
 /**
@@ -71,6 +72,7 @@ export function useAzuroResolutionPolling() {
             oracleSource: "azuro_graphql",
           });
           invalidateAllPredictionPortfolioCachesForAnyWallet(queryClient);
+          invalidateProtocolLiquidityQueries(queryClient, trpc);
           toast(`Market update: ${item.disputeReason} — under review`, { icon: "⚠️", duration: 6000 });
           console.log(`[Azuro] Dispute queued for ${item.marketId}: ${item.disputeReason}`);
           return;
@@ -87,6 +89,7 @@ export function useAzuroResolutionPolling() {
           });
           invalidateAllPredictionPortfolioCachesForAnyWallet(queryClient);
           invalidateAllPointsSummaryQueries(queryClient);
+          invalidateProtocolLiquidityQueries(queryClient, trpc);
           toast.success(`Stakes refunded (${item.refundReason}). Check your portfolio.`, {
             duration: 6000,
             icon: "💸",
@@ -114,6 +117,7 @@ export function useAzuroResolutionPolling() {
 
         invalidateAllPredictionPortfolioCachesForAnyWallet(queryClient);
         invalidateAllPointsSummaryQueries(queryClient);
+        invalidateProtocolLiquidityQueries(queryClient, trpc);
 
         console.log(`[Paper Trading] Resolved positions for market ${item.marketId}`);
         toast.success(`Market resolved! Check your portfolio to see results.`, {

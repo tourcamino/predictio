@@ -14,9 +14,14 @@ import {
 } from "./canonicalLiquidityAllocation";
 import {
   getProtocolLiquidityConfigFromEnv,
-  type ProtocolLiquidityConfig,
   type ProtocolLiquidityMode,
 } from "./protocolLiquidityMode";
+import {
+  enrichCanonicalStateWithVault,
+  vaultAlignmentDebugPayload,
+  type CanonicalVaultAllocationSnapshot,
+  type VaultAlignmentReport,
+} from "./catalogLiquidityRebalance";
 
 export const CANONICAL_OPEN_MARKET_CAP = 9;
 
@@ -47,6 +52,10 @@ export type CanonicalLiquidityState = {
   liquidityPerMarket: CanonicalMarketLiquidityRow[];
   allocationByMarketId: Record<string, CanonicalMarketLiquidityRow>;
   diagnostics: CanonicalLiquidityDiagnostics;
+  allocationVersion: string;
+  rebalanceTriggeredAt: string;
+  vaultSnapshots: CanonicalVaultAllocationSnapshot[];
+  vaultAlignment: VaultAlignmentReport;
 };
 
 function allocationModeFor(
@@ -152,7 +161,7 @@ export async function resolveCanonicalLiquidityState(
   const totalCanonicalVolume = slots.reduce((s, x) => s + x.volume, 0);
   const appealScoreSum = slots.reduce((s, x) => s + x.appealScore, 0);
 
-  return {
+  const base = {
     at,
     protocolMode: config.mode,
     allocationMode: allocationModeFor(config.mode, externalLpTotal),
@@ -175,6 +184,22 @@ export async function resolveCanonicalLiquidityState(
       staleExposureMarketIds,
     },
   };
+
+  const enriched = enrichCanonicalStateWithVault(base, "canonical_resolve");
+
+  console.log(
+    JSON.stringify({
+      tag: "canonical_liquidity_state",
+      openMarkets: enriched.canonicalOpenSlots,
+      allocationSum: enriched.allocationSum,
+      totalSimulatedLiquidity: enriched.totalSimulatedLiquidity,
+      allocationMode: enriched.allocationMode,
+      allocationVersion: enriched.allocationVersion,
+      orphanCount: enriched.diagnostics.orphanAllocationCount,
+    }),
+  );
+
+  return enriched;
 }
 
 /** Catalog-debug / admin snapshot (subset of full state). */
@@ -196,9 +221,15 @@ export function canonicalLiquidityDebugPayload(state: CanonicalLiquidityState) {
       percentage: r.percentage,
     })),
     orphanAllocationCount: state.diagnostics.orphanAllocationCount,
+    vaultAlignment: vaultAlignmentDebugPayload(
+      state.vaultAlignment,
+      state.vaultSnapshots,
+    ),
     note: "OPEN CuratedEvent only — LOCKED/RESOLVED/inactive excluded",
   };
 }
+
+export type { CanonicalVaultAllocationSnapshot, VaultAlignmentReport };
 
 export type { CanonicalMarketLiquidityRow, LiquidityWeightSource };
 export { computeCanonicalMarketAllocations, curatedMarketIdFromGameId };
