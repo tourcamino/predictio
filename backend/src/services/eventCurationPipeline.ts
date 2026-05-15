@@ -833,6 +833,188 @@ function partitionItalianTemporal(nowSec: number, items: ScoredItalian[]) {
   return { soon, mid, later };
 }
 
+const MIN_ITALIAN_EVENTS = 6;
+
+/** Italian prestige clubs for editorial quota (Serie A narrative; not Serie B by default). */
+const ITALIAN_PRESTIGE_CLUB_SNIPPETS = [
+  "juventus",
+  "inter",
+  "milan",
+  "roma",
+  "lazio",
+  "napoli",
+  "fiorentina",
+  "atalanta",
+  "bologna",
+] as const;
+
+const UNION_BERLIN_SNIPPETS = ["union berlin", "1. fc union berlin", "fc union berlin"] as const;
+
+function normMeta(s: string): string {
+  return s.toLowerCase().trim();
+}
+
+function italianPrestigeClubInFixture(raw: RawAzuroGame): boolean {
+  const { home, away } = teamNamesFromRaw(raw);
+  const blob = normTeamBlob(home, away);
+  return ITALIAN_PRESTIGE_CLUB_SNIPPETS.some((club) => blob.includes(club));
+}
+
+/** Italy-first editorial fixture (excludes Serie B unless prestige-club override). */
+export function isItalianPriorityFixture(raw: RawAzuroGame): boolean {
+  const leagueName = normMeta(String(raw.league?.name || ""));
+  const countryName = normMeta(String(raw.league?.country?.name || ""));
+  const isSerieB =
+    leagueName.includes("serie b") && countryName.includes("ital");
+
+  if (leagueName.includes("coppa italia")) return true;
+
+  if (
+    leagueName.includes("serie a") &&
+    countryName.includes("ital") &&
+    !leagueName.includes("serie b")
+  ) {
+    return true;
+  }
+
+  if (italianPrestigeClubInFixture(raw)) return true;
+
+  if (countryName.includes("ital")) {
+    if (isSerieB) return false;
+    if (leagueName.includes("supercoppa") && leagueName.includes("ital")) return true;
+    return true;
+  }
+
+  return false;
+}
+
+export function isUnionBerlinFixture(raw: RawAzuroGame): boolean {
+  const { home, away } = teamNamesFromRaw(raw);
+  const blob = `${home} ${away}`;
+  return UNION_BERLIN_SNIPPETS.some((s) => blob.includes(s));
+}
+
+function scoredGameId(it: ScoredItalian): string {
+  return String(it.raw.gameId || "").trim();
+}
+
+function kickoffUnix(raw: RawAzuroGame): number {
+  return parseInt(String(raw.startsAt), 10);
+}
+
+/** Lowest appeal; tie-break toward LATER bucket (sacrificial slot). */
+function indexOfEditorialReplacementVictim(
+  picked: ScoredItalian[],
+  nowSec: number,
+  protectedIds: Set<string>,
+  opts?: { skipItalianVictims?: boolean },
+): number {
+  let bestIdx = -1;
+  let bestAppeal = Infinity;
+  let bestBandPri = -1;
+
+  for (let i = 0; i < picked.length; i++) {
+    const it = picked[i];
+    const gid = scoredGameId(it);
+    if (!gid || protectedIds.has(gid)) continue;
+    if (isUnionBerlinFixture(it.raw)) continue;
+    if (opts?.skipItalianVictims && isItalianPriorityFixture(it.raw)) continue;
+
+    const appeal = it.importanceScore;
+    const band = getTemporalBandForUnix(nowSec, kickoffUnix(it.raw));
+    const bandPri = band === "LATER" ? 3 : band === "MID" ? 2 : 1;
+
+    if (appeal < bestAppeal || (appeal === bestAppeal && bandPri > bestBandPri)) {
+      bestAppeal = appeal;
+      bestBandPri = bandPri;
+      bestIdx = i;
+    }
+  }
+
+  return bestIdx;
+}
+
+/**
+ * Post-pick editorial: Union Berlin pin + Italy-first quota (pool = valid combined curation pool).
+ */
+function ensureEditorialPinnedEvents(
+  picked: ScoredItalian[],
+  pool: ScoredItalian[],
+  nowSec: number,
+): ScoredItalian[] {
+  const MAX = 9;
+  let result = [...picked].slice(0, MAX);
+
+  const unionCandidate = pool.find((it) => isUnionBerlinFixture(it.raw));
+  if (unionCandidate) {
+    const unionGid = scoredGameId(unionCandidate);
+    const alreadyIn = result.some((it) => scoredGameId(it) === unionGid);
+    if (!alreadyIn && unionGid) {
+      const victimIdx = indexOfEditorialReplacementVictim(result, nowSec, new Set());
+      if (victimIdx >= 0) {
+        result[victimIdx] = unionCandidate;
+        console.log(
+          JSON.stringify({ tag: "editorial_pin", type: "union_berlin", inserted: true }),
+        );
+      } else {
+        console.log(
+          JSON.stringify({ tag: "editorial_pin", type: "union_berlin", inserted: false }),
+        );
+      }
+    } else {
+      console.log(
+        JSON.stringify({
+          tag: "editorial_pin",
+          type: "union_berlin",
+          inserted: alreadyIn,
+          alreadyPresent: alreadyIn,
+        }),
+      );
+    }
+  }
+
+  const protectedIds = new Set<string>();
+  for (const it of result) {
+    if (isUnionBerlinFixture(it.raw)) {
+      const gid = scoredGameId(it);
+      if (gid) protectedIds.add(gid);
+    }
+  }
+
+  const italianPool = pool
+    .filter((it) => isItalianPriorityFixture(it.raw))
+    .sort(byImportanceThenKickoff);
+  const availableItalianPool = italianPool.length;
+
+  let italianCount = result.filter((it) => isItalianPriorityFixture(it.raw)).length;
+
+  for (const candidate of italianPool) {
+    if (italianCount >= MIN_ITALIAN_EVENTS) break;
+    const gid = scoredGameId(candidate);
+    if (!gid || result.some((it) => scoredGameId(it) === gid)) continue;
+
+    const victimIdx = indexOfEditorialReplacementVictim(result, nowSec, protectedIds, {
+      skipItalianVictims: true,
+    });
+    if (victimIdx < 0) break;
+
+    result[victimIdx] = candidate;
+    italianCount += 1;
+  }
+
+  console.log(
+    JSON.stringify({
+      tag: "editorial_quota",
+      italianPicked: italianCount,
+      target: MIN_ITALIAN_EVENTS,
+      availableItalianPool,
+    }),
+  );
+
+  result.sort(byImportanceThenKickoff);
+  return result.slice(0, MAX);
+}
+
 /** Max 9: top 3 per fascia (SOON/MID/LATER), poi compensazione dal pool globale per importanza. */
 function pickDistributedNineFromBuckets(source: ScoredItalian[], soon: ScoredItalian[], mid: ScoredItalian[], later: ScoredItalian[]) {
   const MAX = 9;
@@ -952,14 +1134,18 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     sourceForPick,
   );
 
-  const picked = pickDistributedNineFromBuckets(
+  const bucketPicked = pickDistributedNineFromBuckets(
     sourceForPick,
     soonEvents,
     midEvents,
     laterEvents,
   );
 
+  const picked = ensureEditorialPinnedEvents(bucketPicked, combinedPool, nowSec);
+
   const topOver80 = sourceForPick.filter((x) => x.importanceScore > 80).length;
+  const editorialItalian = picked.filter((it) => isItalianPriorityFixture(it.raw)).length;
+  const unionBerlinPresent = picked.some((it) => isUnionBerlinFixture(it.raw));
 
   const pipelineLog = {
     tag: "azuro_curation_pipeline",
@@ -974,6 +1160,8 @@ export async function buildEuropeanCurationGamesPayload(selectedGameIds: Set<str
     midBucket: midEvents.length,
     laterBucket: laterEvents.length,
     picked: picked.length,
+    editorialItalian,
+    unionBerlinPresent,
   };
   console.log(JSON.stringify(pipelineLog));
   logAppealCurationDiagnostics(picked, sourceForPick, pipelineLog);

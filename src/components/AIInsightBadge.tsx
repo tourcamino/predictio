@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { ChevronDown, Loader2 } from 'lucide-react';
 import { useTRPCClient } from '~/trpc/react';
 import type { MarketLifecycleStatus } from '~/utils/marketLifecycle';
 
@@ -61,6 +61,9 @@ const insightsBySport: Record<string, string[]> = {
   cricket: cricketInsights,
 };
 
+const mutedNoteClass =
+  'text-xs text-gray-400 border border-white/10 bg-white/[0.02] rounded-lg';
+
 export function AIInsightBadge({
   sport,
   compact = false,
@@ -69,6 +72,7 @@ export function AIInsightBadge({
   const trpcClient = useTRPCClient();
   const fallbackPool = insightsBySport[sport] ?? defaultInsights;
   const [rotating, setRotating] = useState(fallbackPool[0]);
+  const [expanded, setExpanded] = useState(false);
 
   const insightReady =
     Boolean(marketSnapshot?.marketId) &&
@@ -81,13 +85,13 @@ export function AIInsightBadge({
         Math.round(marketSnapshot.yesPrice * 1000),
         Math.round(marketSnapshot.noPrice * 1000),
         Math.round((marketSnapshot.volume24h ?? 0) / 100),
-        marketSnapshot.lifecycle ?? "",
-        marketSnapshot.status ?? "",
-      ].join(":")
-    : "idle";
+        marketSnapshot.lifecycle ?? '',
+        marketSnapshot.status ?? '',
+      ].join(':')
+    : 'idle';
 
   const insightQuery = useQuery({
-    queryKey: ["marketAiInsight", insightFingerprint],
+    queryKey: ['marketAiInsight', insightFingerprint],
     enabled: insightReady && !!marketSnapshot,
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
@@ -124,21 +128,17 @@ export function AIInsightBadge({
 
   if (compact) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-brand-cyan/10 border border-brand-cyan/30 rounded text-xs">
-        <span className="text-brand-cyan">🤖</span>
-        <span className="text-brand-cyan font-semibold">AI INSIGHT</span>
-      </div>
+      <span className={`inline-flex items-center gap-1.5 px-2 py-1 ${mutedNoteClass}`}>
+        <span className="text-brand-cyan/80 font-medium">AI</span>
+        <span className="text-gray-500">Context note</span>
+      </span>
     );
   }
 
   const showLoader =
-    Boolean(marketSnapshot) &&
-    insightQuery.isFetching &&
-    !insightQuery.data?.insight;
+    Boolean(marketSnapshot) && insightQuery.isFetching && !insightQuery.data?.insight;
 
-  const resolvedInsight = marketSnapshot
-    ? insightQuery.data?.insight
-    : rotating;
+  const resolvedInsight = marketSnapshot ? insightQuery.data?.insight : rotating;
 
   const displayBody = marketSnapshot
     ? showLoader
@@ -147,23 +147,41 @@ export function AIInsightBadge({
         'Insight temporarily unavailable — prices and markets still load normally.'
     : rotating;
 
-  return (
-    <div className="bg-brand-cyan/5 border border-brand-cyan/30 rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-brand-cyan text-lg">🤖</span>
-        <span className="text-brand-cyan font-semibold text-sm">AI INSIGHT</span>
-        {showLoader && (
-          <Loader2 className="w-4 h-4 animate-spin text-brand-cyan ml-auto" aria-hidden />
+  if (marketSnapshot) {
+    return (
+      <div className={mutedNoteClass}>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-white/[0.02] transition-colors"
+          aria-expanded={expanded}
+        >
+          <span className="text-brand-cyan/90 font-medium">AI insight</span>
+          <span className="flex items-center gap-2 text-gray-500">
+            {showLoader && <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-cyan" aria-hidden />}
+            <ChevronDown
+              className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
+              aria-hidden
+            />
+          </span>
+        </button>
+        {expanded && (
+          <div className="px-3 pb-3 border-t border-white/10">
+            <p className="text-xs text-gray-400 leading-relaxed whitespace-pre-wrap pt-2">
+              {displayBody}
+            </p>
+            <p className="text-[11px] text-gray-500 mt-2 leading-snug">
+              AI-generated from match context and prices — not financial advice.
+            </p>
+          </div>
         )}
       </div>
-      <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
-        {displayBody}
-      </p>
-      {marketSnapshot && (
-        <p className="text-[11px] text-gray-500 mt-3 leading-snug">
-          AI-generated from match context and live prices — not financial advice; verify fees and rules on Predictio.
-        </p>
-      )}
+    );
+  }
+
+  return (
+    <div className={`px-3 py-2 ${mutedNoteClass}`}>
+      <p className="text-xs text-gray-400 leading-relaxed">{displayBody}</p>
     </div>
   );
 }

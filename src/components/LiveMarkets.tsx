@@ -38,23 +38,25 @@ export function LiveMarkets() {
   };
 
   return (
-    <section
-      id="markets"
-      className="py-20 lg:py-32 bg-gradient-to-b from-brand-navy to-brand-bg relative overflow-hidden"
-    >
-      <div className="absolute inset-0 opacity-30" aria-hidden>
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-green/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-brand-cyan/10 rounded-full blur-3xl" />
-      </div>
+    <section id="markets" className="py-20 lg:py-32 bg-brand-bg relative overflow-hidden">
+      <div
+        className="absolute inset-0 opacity-[0.12] pointer-events-none"
+        aria-hidden
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
+        }}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-green/10 border border-brand-green/30 rounded-full mb-6">
-            <Activity className="w-4 h-4 text-brand-green" />
-            <span className="text-sm font-bold text-brand-green">CURATED MARKETS</span>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.02] border border-white/10 rounded-full mb-6">
+            <Activity className="w-3.5 h-3.5 text-brand-green" />
+            <span className="text-xs font-semibold text-gray-400 tracking-wide">CURATED MARKETS</span>
           </div>
 
-          <h2 className="font-syne font-bold text-4xl sm:text-5xl lg:text-6xl mb-6 bg-gradient-to-r from-white via-gray-100 to-gray-300 bg-clip-text text-transparent">
+          <h2 className="font-syne font-bold text-4xl sm:text-5xl lg:text-6xl mb-6 text-white">
             {isFootballFocusEnabled()
               ? 'Premium Football Markets'
               : 'Curated Prediction Markets'}
@@ -66,18 +68,18 @@ export function LiveMarkets() {
               : 'A focused set of curated markets with shared vault liquidity.'}
           </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-6 lg:gap-10 mb-10">
-            <div className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-xl">
-              <Shield className="w-5 h-5 text-brand-cyan" />
+          <div className="flex flex-wrap items-center justify-center gap-4 lg:gap-8 mb-10">
+            <div className="flex items-center gap-3 px-4 py-3 bg-white/[0.02] border border-white/10 rounded-lg">
+              <Shield className="w-4 h-4 text-gray-500" />
               <div className="text-left">
-                <p className="font-mono text-2xl font-bold text-brand-cyan m-0">{curatedCount}</p>
-                <p className="text-xs text-gray-400 font-medium m-0">Active curated markets</p>
+                <p className="font-mono text-xl font-bold text-white m-0">{curatedCount}</p>
+                <p className="text-xs text-gray-400 m-0">Active curated markets</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-xl">
-              <Activity className="w-5 h-5 text-brand-green" />
+            <div className="flex items-center gap-3 px-4 py-3 bg-white/[0.02] border border-white/10 rounded-lg">
+              <Activity className="w-4 h-4 text-brand-green" />
               <div className="text-left">
-                <p className="text-sm font-semibold text-white/90 m-0">Vault-backed</p>
+                <p className="text-sm font-medium text-gray-300 m-0">Vault-backed</p>
                 <p className="text-xs text-gray-400 m-0">Pre-testnet · paper USDC</p>
               </div>
             </div>
@@ -89,15 +91,11 @@ export function LiveMarkets() {
             ? Array.from({ length: HOME_MARKET_CARD_COUNT }).map((_, index) => (
                 <div
                   key={`sk-${index}`}
-                  className="h-[280px] rounded-xl bg-white/5 border border-white/10 animate-pulse"
+                  className="h-[280px] rounded-xl bg-white/[0.02] border border-white/10 animate-pulse"
                 />
               ))
-            : displayedMarkets.map((market, index) => (
-                <div
-                  key={market.id}
-                  className="animate-fade-in"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
+            : displayedMarkets.map((market) => (
+                <div key={market.id}>
                   <LiveMarketCard market={market} onClick={() => handleMarketClick(market.id)} />
                 </div>
               ))}
@@ -107,10 +105,10 @@ export function LiveMarkets() {
           <button
             type="button"
             onClick={handleViewAllMarkets}
-            className="group inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-brand-green to-brand-cyan text-brand-bg font-bold text-lg rounded-xl hover:shadow-2xl hover:shadow-brand-green/40 hover:scale-105 transition-all"
+            className="inline-flex items-center gap-2 px-8 py-3.5 bg-brand-green text-brand-bg font-semibold text-base rounded-lg hover:bg-brand-green/90 transition-colors"
           >
             <span>View all curated markets</span>
-            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="w-4 h-4" />
           </button>
           <p className="text-sm text-gray-500 mt-4 m-0">
             Same catalog and ranking as the Markets page

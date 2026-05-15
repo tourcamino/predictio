@@ -7,21 +7,9 @@ interface WalletGateModalProps {
   onClose: () => void;
 }
 
-const BENEFITS: ReadonlyArray<readonly [string, string]> = [
-  ["💰", "1,000 paper USDC demo balance — free"],
-  ["📊", "Save your predictions & history"],
-  ["🔁", "Copy top traders automatically"],
-  ["💎", "Earn analyst rewards lifetime"],
-  ["🔗", "Your personal referral link"],
-] as const;
-
 /**
  * Guest-mode gate modal: prompts the user to connect a wallet to unlock saving
  * & trading actions, while letting them keep browsing if they decline.
- *
- * The "Connect Wallet" CTA delegates to the existing wallet picker
- * (`openWalletModal()` from `useWalletStore`), so this modal does not duplicate
- * any wallet connection logic.
  */
 export function WalletGateModal({ isOpen, onClose }: WalletGateModalProps) {
   const openWalletModal = useWallet().openWalletModal;
@@ -43,10 +31,7 @@ export function WalletGateModal({ isOpen, onClose }: WalletGateModalProps) {
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div
-            className="fixed inset-0"
-            style={{ backgroundColor: "rgba(0, 0, 0, 0.85)" }}
-          />
+          <div className="fixed inset-0 bg-black/70" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
@@ -60,45 +45,32 @@ export function WalletGateModal({ isOpen, onClose }: WalletGateModalProps) {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel
-                className="w-full max-w-md rounded-2xl border border-[#1a2332] p-8 shadow-2xl"
-                style={{ backgroundColor: "#0D1117" }}
-              >
+              <Dialog.Panel className="w-full max-w-md rounded-xl border border-white/10 bg-brand-bg p-6 sm:p-8">
                 <div className="text-center">
-                  <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#00FF87]/10">
-                    <span className="text-3xl" aria-hidden="true">
-                      🔐
-                    </span>
-                  </div>
-
                   <Dialog.Title
                     as="h2"
-                    className="font-syne mb-2 text-2xl font-bold text-white"
+                    className="font-syne mb-2 text-xl font-bold text-white"
                   >
-                    Connect Wallet to Continue
+                    Connect wallet
                   </Dialog.Title>
 
-                  <p className="mb-6 text-gray-400">
-                    Save your progress and unlock all features
+                  <p className="mb-6 text-sm text-gray-400 leading-relaxed">
+                    Receive{' '}
+                    <span className="font-mono text-white">1,000</span> paper USDC and trade
+                    founder-curated football markets. Your balance syncs to this address.
                   </p>
 
-                  <div className="mb-8 rounded-xl bg-white/5 p-4 text-left">
-                    <ul className="space-y-3">
-                      {BENEFITS.map(([icon, text]) => (
-                        <li key={text} className="flex items-center gap-3">
-                          <span aria-hidden="true">{icon}</span>
-                          <span className="text-sm text-gray-300">{text}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  <ul className="mb-6 text-left text-sm text-gray-400 space-y-2 border border-white/10 rounded-lg px-4 py-3 bg-white/[0.02]">
+                    <li>· Save predictions and portfolio history</li>
+                    <li>· Pre-testnet — no on-chain stakes yet</li>
+                  </ul>
 
                   <button
                     type="button"
                     onClick={handleConnect}
-                    className="font-syne mb-3 w-full rounded-xl bg-[#00FF87] py-4 text-lg font-bold text-black transition-all hover:bg-[#00FF87]/90"
+                    className="font-syne mb-3 w-full rounded-lg bg-brand-green py-3.5 text-base font-semibold text-brand-bg transition-colors hover:bg-brand-green/90"
                   >
-                    Connect Wallet
+                    Connect wallet
                   </button>
 
                   <button
@@ -106,7 +78,7 @@ export function WalletGateModal({ isOpen, onClose }: WalletGateModalProps) {
                     onClick={onClose}
                     className="w-full py-2 text-sm text-gray-500 transition-colors hover:text-gray-300"
                   >
-                    👀 Continue browsing as guest
+                    Continue as guest
                   </button>
                 </div>
               </Dialog.Panel>

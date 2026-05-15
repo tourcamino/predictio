@@ -377,12 +377,8 @@ function MarketDetailPage() {
               <TradingBox market={market} initialOutcome={selectedOutcome} />
             </div>
 
-            {/* AI Market Insight - Always visible */}
-            <div className="bg-gradient-to-br from-brand-cyan/5 to-transparent border border-brand-cyan/20 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-brand-cyan text-xl">🤖</span>
-                <h3 className="font-semibold text-brand-cyan">AI Market Insight</h3>
-              </div>
+            {/* AI Market Insight — collapsed by default */}
+            <div>
               <AIInsightBadge
                 sport={market.sport}
                 marketSnapshot={{

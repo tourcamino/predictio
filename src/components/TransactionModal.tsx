@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Link } from '@tanstack/react-router';
-import { X, Loader2, Check, AlertCircle, ExternalLink, Zap } from 'lucide-react';
+import { X, Loader2, Check, AlertCircle, ExternalLink } from 'lucide-react';
 import { ShareButton } from './ShareButton';
 import { generatePredictionShareText } from '~/utils/shareUtils';
 import { FeeBreakdownCard } from './FeeBreakdownCard';
@@ -85,7 +85,7 @@ export function TransactionModal({
       case 'mining':
         return 'Transaction Submitted';
       case 'success':
-        return type === 'bet' ? 'Prediction Placed! 🎉' : 'Transaction Complete! ✓';
+        return type === 'bet' ? 'Prediction placed' : 'Transaction complete';
       case 'error':
         return 'Transaction Failed';
       default:
@@ -122,7 +122,7 @@ export function TransactionModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="relative w-full max-w-lg sm:max-w-xl transform overflow-hidden rounded-2xl bg-brand-navy border border-brand-green/40 shadow-[0_0_0_1px_rgba(0,255,135,0.12),0_25px_60px_-15px_rgba(0,0,0,0.55)] transition-all max-h-[min(92dvh,880px)] flex flex-col">
+              <Dialog.Panel className="relative w-full max-w-lg sm:max-w-xl transform overflow-hidden rounded-xl bg-brand-bg border border-white/10 transition-all max-h-[min(92dvh,880px)] flex flex-col">
                 {showClose && (
                   <button
                     type="button"
@@ -167,31 +167,31 @@ export function TransactionModal({
                         <p className="font-syne text-lg sm:text-xl font-bold text-brand-green">{outcome}</p>
                       </div>
 
-                      <div className="p-5 sm:p-6 bg-gradient-to-br from-brand-green/25 via-brand-green/10 to-transparent border-2 border-brand-green/50 rounded-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                      <div className="p-4 sm:p-5 bg-white/[0.03] border border-white/10 rounded-lg">
                         <div className="text-center mb-4">
-                          <div className="text-xs sm:text-sm text-gray-300 mb-2">If you win, payout</div>
-                          <div className="text-3xl sm:text-4xl font-bold text-brand-green tabular-nums">
+                          <div className="text-xs text-gray-500 mb-2">If you win, payout</div>
+                          <div className="font-mono text-3xl sm:text-4xl font-bold text-brand-green tabular-nums">
                             ${potentialWin.toFixed(2)}
                           </div>
                         </div>
-                        <div className="text-center text-sm text-gray-300 mb-4">
+                        <div className="text-center text-sm text-gray-400 mb-4">
                           Stake{' '}
-                          <span className="font-semibold text-white">${amount.toFixed(2)}</span>
-                          <span className="mx-1 text-gray-500">→</span>
+                          <span className="font-mono text-gray-300">${amount.toFixed(2)}</span>
+                          <span className="mx-1 text-gray-600">→</span>
                           payout{' '}
-                          <span className="font-semibold text-brand-green">${potentialWin.toFixed(2)}</span>
+                          <span className="font-mono text-brand-green">${potentialWin.toFixed(2)}</span>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/15">
+                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
                           <div className="text-center">
-                            <div className="text-xs text-gray-400 mb-1">Net profit</div>
-                            <div className="text-lg font-bold text-brand-green tabular-nums">
+                            <div className="text-xs text-gray-500 mb-1">Net profit</div>
+                            <div className="font-mono text-lg font-semibold text-brand-green tabular-nums">
                               +${netProfit.toFixed(2)}
                             </div>
                           </div>
                           <div className="text-center">
-                            <div className="text-xs text-gray-400 mb-1">ROI</div>
-                            <div className="text-lg font-bold text-brand-green tabular-nums">
+                            <div className="text-xs text-gray-500 mb-1">ROI</div>
+                            <div className="font-mono text-lg font-semibold text-brand-green tabular-nums">
                               +
                               {amount > 0 ? ((netProfit / amount) * 100).toFixed(1) : '0.0'}%
                             </div>
@@ -224,19 +224,11 @@ export function TransactionModal({
                         </div>
                       )}
 
-                      <div className="flex items-start gap-3 text-sm text-gray-300 p-4 bg-white/5 rounded-xl border border-white/10">
-                        <Zap className="w-5 h-5 text-brand-green flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-medium text-white">
-                            {isPaperBet ? 'Pre-testnet · paper execution' : 'Azuro · paper execution'}
-                          </p>
-                          <p className="text-gray-400 mt-0.5">
-                            {isPaperBet
-                              ? 'This prediction is recorded on your Predictio paper account. On-chain settlement follows when live contracts are enabled.'
-                              : 'On-chain settlement follows Azuro / Base when live contracts are enabled.'}
-                          </p>
-                        </div>
-                      </div>
+                      <p className="text-xs text-gray-500 px-1 leading-relaxed">
+                        {isPaperBet
+                          ? 'Pre-testnet · recorded on your paper account. On-chain settlement when live contracts are enabled.'
+                          : 'On-chain settlement follows Azuro / Base when live contracts are enabled.'}
+                      </p>
 
                       <div className="flex flex-col-reverse sm:flex-row gap-3 mt-2 pt-2">
                         <button
@@ -249,7 +241,7 @@ export function TransactionModal({
                         <button
                           type="button"
                           onClick={onConfirm}
-                          className="flex-1 min-h-[48px] py-3 px-4 bg-brand-green text-brand-bg font-bold rounded-xl hover:bg-brand-green/90 transition-colors text-base shadow-lg shadow-brand-green/20"
+                          className="flex-1 min-h-[48px] py-3 px-4 bg-brand-green text-brand-bg font-semibold rounded-lg hover:bg-brand-green/90 transition-colors text-base"
                         >
                           Confirm prediction
                         </button>
@@ -299,8 +291,8 @@ export function TransactionModal({
                   {state === 'success' && (
                     <div className="text-center py-8">
                       <div className="mb-6 flex justify-center">
-                        <div className="w-20 h-20 rounded-full bg-brand-green/20 flex items-center justify-center">
-                          <Check className="w-10 h-10 text-brand-green animate-checkmark" />
+                        <div className="w-14 h-14 rounded-full border border-brand-green/30 bg-brand-green/10 flex items-center justify-center">
+                          <Check className="w-7 h-7 text-brand-green" />
                         </div>
                       </div>
                       <p className="text-gray-400 mb-6">
