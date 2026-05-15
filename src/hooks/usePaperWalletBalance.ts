@@ -1,19 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
-import { useTRPC } from "~/trpc/react";
+import { useTRPCClient } from "~/trpc/react";
 import { useWallet } from "~/store/useWalletStore";
 import { clientChainScopeForTrpc, normalizeWalletForQuery } from "~/utils/walletQuery";
+import {
+  expressGetPaperWalletBalance,
+  shouldUseExpressForWalletCritical,
+} from "~/lib/expressCriticalWalletApi";
+
+export type PaperWalletBalanceSnapshot = {
+  virtualBalance: number;
+  openPositionsCostBasis: number;
+};
 
 /**
- * Paper wallet **USDC cash** (`User.virtualBalance`) + open-order cost basis — always from **tRPC** / DB.
- * Demo guest balance stays in `useDemoAccount` / `demoStorage`, not here.
- *
- * Dev mock connect (`VITE_WALLET_MOCK_CONNECT`, `chainId === null`) uses store `balance` as a local stub only.
+ * Paper wallet **USDC cash** (`User.virtualBalance`) + open-order cost basis — DB source of truth.
+ * On production (SPA ≠ API host), reads Express `/api/v1/web/paper-wallet-balance`.
  */
 export function usePaperWalletBalance() {
-  const { isConnected, address, chainId, balance: mockStoreBalance } = useWallet();
+  const { isConnected, address, chainId, balance: mockStoreBalance, isSyncing } =
+    useWallet();
   const walletKey = normalizeWalletForQuery(address);
   const chainScope = clientChainScopeForTrpc(chainId);
-  const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
 
   const mockDevPaper =
     import.meta.env.DEV &&
@@ -22,26 +30,53 @@ export function usePaperWalletBalance() {
     isConnected &&
     chainId === null;
 
+  const useExpress = shouldUseExpressForWalletCritical();
+
   const q = useQuery({
-    ...trpc.getPaperWalletBalance.queryOptions({
-      walletAddress: walletKey ?? "",
-      clientChainId: chainScope,
-    }),
-    /** Paper ledger is chain-agnostic; do not block reads on wrong/null chainId. */
-    enabled: Boolean(isConnected && walletKey),
+    queryKey: [
+      "paperWalletBalance",
+      walletKey ?? "",
+      chainScope,
+      useExpress ? "express" : "trpc",
+    ] as const,
+    enabled: Boolean(isConnected && walletKey && !mockDevPaper),
     staleTime: 15_000,
+    placeholderData: (prev) => prev,
+    queryFn: async (): Promise<PaperWalletBalanceSnapshot> => {
+      const w = walletKey!;
+      if (useExpress) {
+        return expressGetPaperWalletBalance(w);
+      }
+      return trpcClient.getPaperWalletBalance.query({
+        walletAddress: w,
+        clientChainId: chainScope,
+      });
+    },
   });
 
-  const serverCash = q.data?.virtualBalance ?? 0;
-  const inOpenPositions = q.data?.openPositionsCostBasis ?? 0;
-  const cashUsdc = mockDevPaper ? mockStoreBalance : serverCash;
-  const totalAtCost = mockDevPaper ? mockStoreBalance : serverCash + inOpenPositions;
+  const hasSettledBalance = q.data !== undefined && !q.isPending;
+  const isBalanceLoading =
+    Boolean(isConnected && walletKey && !mockDevPaper) &&
+    (isSyncing || q.isPending || (q.isFetching && !hasSettledBalance));
+
+  const serverCash = hasSettledBalance ? q.data!.virtualBalance : null;
+  const inOpenPositions = hasSettledBalance ? q.data!.openPositionsCostBasis : 0;
+
+  const cashUsdc = mockDevPaper
+    ? mockStoreBalance
+    : serverCash ?? 0;
+  const totalAtCost = mockDevPaper
+    ? mockStoreBalance
+    : (serverCash ?? 0) + inOpenPositions;
 
   return {
     ...q,
     cashUsdc,
+    /** Null while loading/syncing — use with `formatPaperCashDisplay` to avoid flashing $0. */
+    cashUsdcSettled: mockDevPaper ? mockStoreBalance : serverCash,
     inOpenPositions,
     totalAtCost,
+    isBalanceLoading,
     mockDevPaper,
   };
 }

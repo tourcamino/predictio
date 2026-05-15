@@ -43,6 +43,10 @@ export function seedMarketToLiveMarket(m: SeedMarket): Market {
     predictions: Math.max(1, Math.floor(m.traders * 2.2)),
   };
 
+  if (typeof m.importanceScore === "number" && Number.isFinite(m.importanceScore)) {
+    market.importanceScore = m.importanceScore;
+  }
+
   if (m.liquidity > 0) {
     market.liquidity = {
       totalPool: m.liquidity,

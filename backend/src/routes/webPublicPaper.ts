@@ -7,6 +7,8 @@ import { validate } from "../middleware/validate";
 import { runGetPointsSummaryWeb } from "../web/pointsSummaryWeb";
 import { runPlacePaperPredictionWeb } from "../web/placePaperPredictionWeb";
 import { runSyncUserAccountWeb } from "../web/syncUserWeb";
+import { runGetPaperWalletBalanceWeb } from "../web/paperWalletBalanceWeb";
+import { resolveCanonicalLiquidityState } from "../services/canonicalLiquidityState";
 
 const walletParam = z
   .string()
@@ -20,6 +22,10 @@ const syncBody = z.object({
 });
 
 const pointsQuery = z.object({
+  walletAddress: walletParam,
+});
+
+const paperBalanceQuery = z.object({
   walletAddress: walletParam,
 });
 
@@ -61,6 +67,29 @@ export function createWebPublicPaperRouter(prisma: PrismaClient): Router {
       next(e);
     }
   });
+
+  r.get("/canonical-liquidity", async (_req, res, next) => {
+    try {
+      const out = await resolveCanonicalLiquidityState(prisma);
+      res.json(out);
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  r.get(
+    "/paper-wallet-balance",
+    validate({ query: paperBalanceQuery }),
+    async (req, res, next) => {
+      try {
+        const { walletAddress } = req.query as z.infer<typeof paperBalanceQuery>;
+        const out = await runGetPaperWalletBalanceWeb(prisma, walletAddress);
+        res.json(out);
+      } catch (e) {
+        next(e);
+      }
+    },
+  );
 
   r.post("/place-prediction", validate({ body: placeBody }), async (req, res, next) => {
     const headerRid = req.headers["x-purchase-request-id"];

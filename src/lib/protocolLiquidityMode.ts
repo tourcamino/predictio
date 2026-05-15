@@ -71,9 +71,9 @@ export const PRE_TESTNET_LIQUIDITY_HEADLINE =
   "Pre-testnet paper liquidity environment";
 
 export const PRE_TESTNET_LIQUIDITY_SUBLINE =
-  "Editorial paper liquidity allocation across the curated OPEN catalog — simulated routing only, not on-chain TVL or LP capital.";
+  "Paper liquidity allocation adapts dynamically to curated markets — one simulated routing budget, not on-chain TVL or LP capital.";
 
 export const PRE_TESTNET_ALLOCATION_EXPLAINER =
-  "Paper liquidity adapts dynamically to the curated market set (weighted by appeal or paper volume).";
+  "Paper liquidity allocation adapts dynamically to curated markets. A single simulated budget is split across OPEN slots by editorial appeal (or paper volume when live), with min/max caps per market.";
 
-export const CURATED_MARKET_ROUTING_LABEL = "Editorial paper liquidity routing";
+export const CURATED_MARKET_ROUTING_LABEL = "Adaptive paper liquidity routing";

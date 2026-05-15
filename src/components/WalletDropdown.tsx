@@ -6,6 +6,7 @@ import { useTRPC } from '~/trpc/react';
 import { useWallet } from '~/store/useWalletStore';
 import { clientChainScopeForTrpc, normalizeWalletForQuery } from '~/utils/walletQuery';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
+import { formatPaperCashDisplay } from '~/lib/formatPaperCash';
 import { explorerAddressUrl, walletNetworkBadgeLabelFromChainId, predictionBalanceFootnote } from '~/lib/economySurface';
 import { Link, useNavigate } from '@tanstack/react-router';
 import toast from 'react-hot-toast';
@@ -17,7 +18,8 @@ interface WalletDropdownProps {
 
 export function WalletDropdown({ onClose }: WalletDropdownProps) {
   const { address, disconnectWallet, chainId } = useWallet();
-  const { cashUsdc: paperCash } = usePaperWalletBalance();
+  const { cashUsdcSettled: paperCash, isBalanceLoading: paperCashLoading } =
+    usePaperWalletBalance();
   const navigate = useNavigate();
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [depositWithdrawModal, setDepositWithdrawModal] = useState<{ isOpen: boolean; type: 'deposit' | 'withdraw' }>({
@@ -123,7 +125,7 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
           <div className="px-3 py-2.5 border-b border-white/10">
             <div className="flex items-baseline justify-between gap-2 mb-2">
               <span className="text-xl font-bold text-brand-green tabular-nums leading-none">
-                ${paperCash.toLocaleString()}
+                ${formatPaperCashDisplay(paperCash, paperCashLoading)}
               </span>
               <span className="text-xs text-gray-500 whitespace-nowrap">Paper USDC</span>
             </div>

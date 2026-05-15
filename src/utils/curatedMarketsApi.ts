@@ -32,6 +32,8 @@ export type CuratedMarketApiRow = {
   homeOdds?: number | null;
   drawOdds?: number | null;
   awayOdds?: number | null;
+  paperLiquidityAllocation?: number | null;
+  paperLiquiditySharePct?: number | null;
 };
 
 function slugifyCompetition(name: string): string {
@@ -106,7 +108,11 @@ export function curatedApiRowToAzuroMarket(row: CuratedMarketApiRow): AzuroMarke
     },
     outcomes,
     volume24h: 0,
-    liquidity: 0,
+    liquidity:
+      typeof row.paperLiquidityAllocation === "number" &&
+      row.paperLiquidityAllocation > 0
+        ? row.paperLiquidityAllocation
+        : 0,
     traders: 0,
     status: deriveSeedStatus(row),
     createdAt: startsAt,

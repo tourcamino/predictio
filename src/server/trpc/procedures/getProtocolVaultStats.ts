@@ -1,10 +1,7 @@
 import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
-import {
-  buildVaultAllocationRows,
-  resolveVaultCanonicalExposure,
-} from "~/server/services/vaultCuratedExposureBridge";
+import { resolveCanonicalLiquidityState } from "~/server/services/canonicalLiquidityState";
 import { getProtocolLiquidityConfigFromEnv } from "~/lib/protocolLiquidityMode";
 
 function getSportEmoji(sport: string): string {
@@ -25,33 +22,27 @@ export const getProtocolVaultStats = baseProcedure
   .query(async () => {
     const liquidityConfig = getProtocolLiquidityConfigFromEnv();
     const isPreTestnet = liquidityConfig.mode === "PRE_TESTNET";
+    const canonical = await resolveCanonicalLiquidityState();
 
     const activePositions = await db.liquidityPosition.findMany({
       where: { status: "active" },
     });
-
     const externalLPs = new Set(activePositions.map((p) => p.userWallet)).size;
-    const externalLPTotal = activePositions.reduce((sum, p) => sum + p.depositedAmount, 0);
 
-    const simulatedPool = liquidityConfig.simulatedLiquidityUsdc;
-    const totalLiquidity = isPreTestnet
-      ? simulatedPool
-      : simulatedPool + externalLPTotal;
-
-    const exposure = await resolveVaultCanonicalExposure();
-    const marketAllocations = buildVaultAllocationRows(
-      exposure.slots,
-      exposure.allocationSource,
-      totalLiquidity,
-      getSportEmoji,
-    );
-
-    const allocationSum = marketAllocations.reduce((s, r) => s + r.allocation, 0);
-    const marketsActive = exposure.marketsActive;
+    const marketAllocations = canonical.liquidityPerMarket.map((r) => ({
+      marketId: r.marketId,
+      marketName: r.marketName,
+      league: r.league,
+      sport: r.sport,
+      sportEmoji: getSportEmoji(r.sport),
+      allocation: r.allocation,
+      percentage: r.percentage,
+      volume: r.volume,
+      appealScore: r.appealScore,
+    }));
 
     let vaultAPY: number | null = null;
-
-    if (liquidityConfig.showSimulatedApyProjections && totalLiquidity > 0) {
+    if (liquidityConfig.showSimulatedApyProjections && canonical.totalLiquidity > 0) {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const fees30d = await db.lPFeeEarning.aggregate({
         where: { createdAt: { gte: thirtyDaysAgo } },
@@ -59,33 +50,29 @@ export const getProtocolVaultStats = baseProcedure
       });
       const totalFees30d = fees30d._sum.amount || 0;
       if (totalFees30d > 0) {
-        const monthlyReturn = totalFees30d / totalLiquidity;
+        const monthlyReturn = totalFees30d / canonical.totalLiquidity;
         vaultAPY = parseFloat((monthlyReturn * 12 * 100).toFixed(2));
       }
     }
 
-    if (process.env.NODE_ENV === "development") {
-      console.debug(
-        `[getProtocolVaultStats] mode=${liquidityConfig.mode} allocation=${exposure.diagnostics.allocationSource} open=${marketsActive}`,
-      );
-    }
-
     return {
-      protocolMode: liquidityConfig.mode,
-      totalSimulatedLiquidity: simulatedPool,
-      totalLiquidity,
-      seedCapital: isPreTestnet ? 0 : simulatedPool,
+      protocolMode: canonical.protocolMode,
+      allocationMode: canonical.allocationMode,
+      totalSimulatedLiquidity: canonical.totalSimulatedLiquidity,
+      totalLiquidity: canonical.totalLiquidity,
+      seedCapital: isPreTestnet ? 0 : canonical.totalSimulatedLiquidity,
       externalLPs,
-      externalLPTotal,
-      marketsActive,
+      externalLPTotal: canonical.externalLpTotal,
+      marketsActive: canonical.canonicalOpenSlots,
       vaultAPY,
       marketAllocations,
-      allocationSum,
-      allocationCoherent:
-        marketsActive === 0 ||
-        Math.abs(allocationSum - totalLiquidity) < 0.02,
+      allocationSum: canonical.allocationSum,
+      allocationCoherent: canonical.allocationCoherent,
+      allocationByMarketId: canonical.allocationByMarketId,
       showDollarLiquidity: liquidityConfig.showDollarLiquidity,
       showSimulatedApyProjections: liquidityConfig.showSimulatedApyProjections,
-      vaultExposureDiagnostics: exposure.diagnostics,
+      showExternalLpAsReal: liquidityConfig.showExternalLpAsReal,
+      vaultExposureDiagnostics: canonical.diagnostics,
+      canonicalLiquidityAt: canonical.at,
     };
   });

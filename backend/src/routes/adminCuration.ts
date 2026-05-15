@@ -15,6 +15,7 @@ import {
   isAutoPublish,
 } from "../services/eventCurationPipeline";
 import { collectCatalogDepthDiagnostics } from "../services/catalogDepthDiagnostics";
+import { resolveCanonicalLiquidityState } from "../services/canonicalLiquidityState";
 
 const CACHE_KEY = "admin:azuro:football:14d:v2";
 const MAX_ACTIVE = 9;
@@ -386,14 +387,33 @@ export function registerAdminCurationRoutes(
 
       const top = sorted.slice(0, MAX_ACTIVE);
 
+      let allocationByMarketId: Record<string, { allocation: number; percentage: number }> =
+        {};
+      try {
+        const liquidity = await resolveCanonicalLiquidityState(prisma);
+        for (const row of liquidity.liquidityPerMarket) {
+          allocationByMarketId[row.marketId] = {
+            allocation: row.allocation,
+            percentage: row.percentage,
+          };
+        }
+      } catch (liqErr) {
+        console.warn(
+          "[adminCuration] canonical liquidity snapshot failed:",
+          liqErr instanceof Error ? liqErr.message : liqErr,
+        );
+      }
+
       const nowMs = Date.now();
       const nowSec = Math.floor(nowMs / 1000);
       const markets = top.map((r) => {
         const lockedAt = r.lockedAt instanceof Date ? r.lockedAt : r.startsAt;
         const timeToLock = Math.floor((lockedAt.getTime() - nowMs) / 1000);
         const kickSec = Math.floor(r.startsAt.getTime() / 1000);
+        const marketId = `azuro-${r.gameId}`;
+        const paperLiq = allocationByMarketId[marketId];
         return {
-          id: `azuro-${r.gameId}`,
+          id: marketId,
           gameId: r.gameId,
           title: r.title,
           homeTeam: r.homeTeam,
@@ -413,10 +433,16 @@ export function registerAdminCurationRoutes(
           homeOdds: r.homeOdds ?? null,
           drawOdds: r.drawOdds ?? null,
           awayOdds: r.awayOdds ?? null,
+          paperLiquidityAllocation: paperLiq?.allocation ?? null,
+          paperLiquiditySharePct: paperLiq?.percentage ?? null,
         };
       });
 
-      res.json({ markets, total: markets.length });
+      res.json({
+        markets,
+        total: markets.length,
+        liquidityMode: "canonical-catalog-routing",
+      });
     } catch (e) {
       // Never 500 for public catalog — mapping/sort edge cases or unexpected errors → empty list.
       console.warn(

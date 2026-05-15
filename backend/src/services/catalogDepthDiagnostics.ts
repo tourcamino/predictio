@@ -16,11 +16,11 @@ import {
   getAppealThresholdsByTier,
   type LeagueTier,
 } from "./editorialLeagueTiers";
-import { getProtocolLiquidityConfigFromEnv } from "./protocolLiquidityMode";
+import { collectPaperWalletDiagnostics } from "./paperBalanceBootstrap";
 import {
-  buildVaultAllocationRows,
-  resolveVaultCanonicalExposure,
-} from "./vaultCuratedExposureBridge";
+  canonicalLiquidityDebugPayload,
+  resolveCanonicalLiquidityState,
+} from "./canonicalLiquidityState";
 
 function leagueHistogram(games: RawAzuroGame[], limit = 12): Record<string, number> {
   const map: Record<string, number> = {};
@@ -321,34 +321,13 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
   const paginationProbe = await probeAzuroPagination(nowSec);
 
   const appealSum = openActive.reduce((s, r) => s + r.importanceScore, 0);
-  const liquidityConfig = getProtocolLiquidityConfigFromEnv();
-  const vaultCanonical = await resolveVaultCanonicalExposure(prisma);
-  const totalSimulatedLiquidity = liquidityConfig.simulatedLiquidityUsdc;
-  const perMarketAllocation = buildVaultAllocationRows(
-    vaultCanonical.slots,
-    vaultCanonical.allocationSource,
-    totalSimulatedLiquidity,
-  );
-  const allocationSum = perMarketAllocation.reduce((s, r) => s + r.allocation, 0);
-  const openGameIds = new Set(openActive.map((r) => r.gameId));
-  const orphanAllocations = perMarketAllocation.filter(
-    (r) => !openGameIds.has(r.marketId.replace(/^azuro-/, "")),
-  );
+  const canonicalLiquidity = await resolveCanonicalLiquidityState(prisma);
   const vaultExposure = {
-    protocolMode: liquidityConfig.mode,
-    allocationMode: vaultCanonical.allocationSource,
-    canonicalOpenSlots: vaultCanonical.curatedOpenCount,
+    ...canonicalLiquidityDebugPayload(canonicalLiquidity),
     dbOpenActiveCount: openActive.length,
     appealScoreSum: appealSum,
-    totalSimulatedLiquidity,
-    allocationSum,
-    allocationCoherent:
-      vaultCanonical.curatedOpenCount === 0 ||
-      Math.abs(allocationSum - totalSimulatedLiquidity) < 0.02,
-    perMarketAllocation,
-    orphanAllocationCount: orphanAllocations.length,
-    note: "Single source: CuratedEvent OPEN+active only; no CLOSED/LOCKED/inactive",
   };
+  const paperWalletStats = await collectPaperWalletDiagnostics(prisma);
 
   return {
     tag: "catalog_debug",
@@ -395,5 +374,6 @@ export async function collectCatalogDepthDiagnostics(prisma: PrismaClient) {
       score: g.importanceScore,
     })),
     vaultExposure,
+    paperWalletStats,
   };
 }

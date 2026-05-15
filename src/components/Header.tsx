@@ -9,6 +9,7 @@ import { useWalletRuntimeState } from '~/hooks/useWalletRuntimeState';
 import { WalletDropdown } from './WalletDropdown';
 import { Menu as HeadlessMenu } from '@headlessui/react';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
+import { formatPaperCashDisplay } from '~/lib/formatPaperCash';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { ModeToggle } from './ModeToggle';
 import { NotificationBell } from './notifications/NotificationBell';
@@ -35,7 +36,10 @@ export function HeaderInner() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showMobileDisconnectConfirm, setShowMobileDisconnectConfirm] = useState(false);
   const { isConnected, address, openWalletModal, disconnectWallet, isSyncing, switchNetwork, switchNetworkPending, chainId } = useWallet();
-  const { cashUsdc: headerPaperCash } = usePaperWalletBalance();
+  const {
+    cashUsdcSettled: headerPaperCash,
+    isBalanceLoading: headerPaperLoading,
+  } = usePaperWalletBalance();
   const walletRt = useWalletRuntimeState();
   const showWrongNetwork = walletRt.runtime === 'connected-wrong-chain';
   const { isActive: isDemoActive, balance: demoBalance } = useDemoAccount();
@@ -244,7 +248,7 @@ export function HeaderInner() {
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-brand-green rounded-full animate-pulse"></div>
                     <span className="font-bold text-brand-green">
-                      ${headerPaperCash.toLocaleString()}
+                      ${formatPaperCashDisplay(headerPaperCash, headerPaperLoading)}
                     </span>
                     {CHAIN_CONFIG.isTestnet && (
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/40">
@@ -406,7 +410,9 @@ export function HeaderInner() {
                 <div className="mt-2 p-3 sm:p-4 bg-white/5 border border-brand-green/30 rounded-lg">
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <div className="w-2 h-2 bg-brand-green rounded-full animate-pulse flex-shrink-0"></div>
-                    <span className="font-bold text-brand-green text-sm sm:text-base">${headerPaperCash.toLocaleString()} USDC</span>
+                    <span className="font-bold text-brand-green text-sm sm:text-base">
+                      ${formatPaperCashDisplay(headerPaperCash, headerPaperLoading)} USDC
+                    </span>
                     {isSyncing && (
                       <Loader2 className="w-3 h-3 text-brand-green animate-spin flex-shrink-0" />
                     )}

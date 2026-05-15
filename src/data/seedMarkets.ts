@@ -30,6 +30,8 @@ export interface SeedMarket {
   endsAt: string;
   description?: string;
   isFeatured?: boolean;
+  /** Curated catalog appeal score from GET /api/markets. */
+  importanceScore?: number;
 }
 
 /** Intenzionalmente vuoto: niente mock come dati primari (solo API curata / Azuro). */

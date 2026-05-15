@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
-import { ensurePaperBalanceForWallet } from "~/server/utils/paperBalanceBootstrap";
+import { readPaperWalletBalance } from "~/server/utils/paperBalanceBootstrap";
 
 /**
  * Canonical **paper** USDC snapshot: `User.virtualBalance` (tradable cash) + cost basis in open orders.
@@ -23,28 +23,16 @@ export const getPaperWalletBalance = baseProcedure
       };
     }
 
-    const [userRow, openAgg] = await Promise.all([
-      db.user.findUnique({
-        where: { wallet },
-        select: { virtualBalance: true },
-      }),
+    const [{ virtualBalance }, openAgg] = await Promise.all([
+      readPaperWalletBalance(wallet, "balance_read"),
       db.order.aggregate({
         where: { wallet, status: "open" },
         _sum: { amount: true },
       }),
     ]);
 
-    let virtualBalance = userRow?.virtualBalance ?? 0;
-    if (userRow && virtualBalance <= 0) {
-      const repaired = await ensurePaperBalanceForWallet(wallet, "balance_read");
-      if (repaired.existingUser) {
-        virtualBalance = repaired.virtualBalance;
-      }
-    }
-    const openPositionsCostBasis = openAgg._sum.amount ?? 0;
-
     return {
       virtualBalance,
-      openPositionsCostBasis,
+      openPositionsCostBasis: openAgg._sum.amount ?? 0,
     };
   });

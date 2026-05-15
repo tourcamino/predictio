@@ -172,6 +172,43 @@ export async function expressGetPointsSummary(
   ]);
 }
 
+export type ExpressPaperWalletBalance = {
+  virtualBalance: number;
+  openPositionsCostBasis: number;
+};
+
+export type ExpressCanonicalLiquidityState = {
+  at: string;
+  protocolMode: string;
+  allocationMode: string;
+  totalSimulatedLiquidity: number;
+  totalLiquidity: number;
+  canonicalOpenSlots: number;
+  liquidityPerMarket: Array<{
+    marketId: string;
+    appealScore: number;
+    allocation: number;
+    percentage: number;
+  }>;
+};
+
+export async function expressGetCanonicalLiquidityState(): Promise<ExpressCanonicalLiquidityState> {
+  return paperGetJson<ExpressCanonicalLiquidityState>([
+    "/api/v1/web/canonical-liquidity",
+    "/api/web/canonical-liquidity",
+  ]);
+}
+
+export async function expressGetPaperWalletBalance(
+  walletAddress: string,
+): Promise<ExpressPaperWalletBalance> {
+  const q = new URLSearchParams({ walletAddress }).toString();
+  return paperGetJson<ExpressPaperWalletBalance>([
+    `/api/v1/web/paper-wallet-balance?${q}`,
+    `/api/web/paper-wallet-balance?${q}`,
+  ]);
+}
+
 const PLACE_PATHS = ["/api/v1/web/place-prediction", "/api/web/place-prediction"] as const;
 
 export type ExpressPlacePredictionResult = {

@@ -25,6 +25,7 @@ import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/wallet
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 import { executePlacePredictionWithDiagnostics } from '~/lib/executePlacePredictionWithDiagnostics';
 import { predictionBalanceFootnote } from '~/lib/economySurface';
+import { PAPER_ROUTING_IMPACT_POOL_USDC } from '~/lib/curatedMarketPresentation';
 import {
   logPurchaseFlowClient,
   logPurchaseFlowClientError,
@@ -249,10 +250,12 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
   
   // Price impact calculation
   const poolSize =
-    liquidity?.totalPool ??
+    (liquidity?.totalPool && liquidity.totalPool > 0
+      ? liquidity.totalPool
+      : null) ??
     (typeof market.importanceScore === "number" && Number.isFinite(market.importanceScore)
-      ? 12_000
-      : 50_000);
+      ? PAPER_ROUTING_IMPACT_POOL_USDC
+      : PAPER_ROUTING_IMPACT_POOL_USDC);
   const priceImpact = calcPriceImpact(buyAmount, poolSize);
   const priceImpactPct = priceImpact * 100;
   

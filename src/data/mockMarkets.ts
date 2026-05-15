@@ -36,6 +36,8 @@ export interface Market {
   resolved_at?: Date; // Only set when market is resolved
   /** Canonical lifecycle when set by loaders (`deriveMarketLifecycleFrom*` / Prisma→UI). */
   lifecycleState?: import("~/lib/market/marketLifecycleStateMachine").MarketLifecycleState;
+  /** Curated catalog appeal score (GET /api/markets). */
+  importanceScore?: number;
   // Liquidity & Market Making fields
   liquidity?: {
     totalPool: number;

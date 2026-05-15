@@ -40,6 +40,10 @@ export function invalidateWalletPortfolioLpQueries(
     predicate: (q) => queryKeyJsonLikelyMatchesWallet(q.queryKey, w),
   });
 
+  queryClient.invalidateQueries({
+    queryKey: ['paperWalletBalance', w],
+  });
+
   invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, w);
 
   queryClient.invalidateQueries({

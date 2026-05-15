@@ -454,8 +454,13 @@ function LiquidityPage() {
           <div className="mb-12">
             <h2 className="font-syne font-bold text-3xl mb-6">Curated market allocation</h2>
             <p className="text-sm text-gray-500 mb-4 max-w-3xl">
-              {PRE_TESTNET_ALLOCATION_EXPLAINER} Weighting uses editorial appeal or paper volume when live.
+              {PRE_TESTNET_ALLOCATION_EXPLAINER}
             </p>
+            {isPreTestnet && vaultStats?.allocationCoherent === false && (
+              <p className="text-xs text-amber-400/90 mb-4">
+                Allocation reconcile pending — refresh after catalog sync.
+              </p>
+            )}
             <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
               {vaultStats?.marketAllocations && vaultStats.marketAllocations.length > 0 ? (
                 vaultStats.marketAllocations.map((allocation) => (
