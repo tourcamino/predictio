@@ -188,7 +188,7 @@ export async function notifyCatalogLiquidityChanged(
     where: { isActive: true, status: "OPEN" },
     select: { gameId: true, importanceScore: true },
     orderBy: [{ importanceScore: "desc" }, { startsAt: "asc" }],
-    take: 9,
+    take: 2500,
   });
   const fingerprint = computeCatalogFingerprint(
     open.map((r) => ({

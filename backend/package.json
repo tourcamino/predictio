@@ -24,7 +24,8 @@
     "debug:sport-density": "node --env-file=.env --import tsx src/scripts/debug/sportDensityMap.ts",
     "debug:temporal-windows": "node --env-file=.env --import tsx src/scripts/debug/temporalWindowDensity.ts",
     "debug:validate-registry": "node --env-file=.env --import tsx src/scripts/debug/validateRegistryIntegrity.ts",
-    "test:football-first-guards": "node --import tsx src/scripts/test/footballFirstGuards.test.ts"
+    "test:football-first-guards": "node --import tsx src/scripts/test/footballFirstGuards.test.ts",
+    "test:lp-graph-guards": "node --import tsx src/scripts/test/lpGraphGuards.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.8.2",

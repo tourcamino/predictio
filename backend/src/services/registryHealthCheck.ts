@@ -7,18 +7,21 @@ import {
   homepageMinMarkets,
   isProtocolRegistryMode,
 } from "./emergencyRelaxMode";
-import { isFootballSportSlug } from "./canonicalSportTaxonomy";
 import {
   assertFootballFirstGuards,
   checkPrePersistenceSportFilter,
   scanFootballFirstGuardViolations,
 } from "./footballFirstGuards";
-import { CANONICAL_OPEN_MARKET_CAP } from "./canonicalLiquidityState";
 import {
   getLastRegistryHealthSnapshot,
   getPreviousOpenRegistryCount,
   recordRegistryHealthMetrics,
 } from "./registryHealthSnapshot";
+import {
+  getCachedLpGraphTelemetry,
+  type LpGraphTelemetry,
+} from "./lpGraphTelemetry";
+import { resolveCanonicalLiquidityState } from "./canonicalLiquidityState";
 
 export type RegistryHealthAlert = {
   code: string;
@@ -47,6 +50,7 @@ export type RegistryHealthCheckResult = {
   alerts: RegistryHealthAlert[];
   snapshotAgeSec: number | null;
   footballFirst: FootballFirstMetrics;
+  lpGraph: LpGraphTelemetry | null;
 };
 
 const RAW_OPEN_GAP_RATIO = 0.5;
@@ -210,24 +214,71 @@ export async function runRegistryHealthCheck(
     }
   }
 
-  const lpFootballRows = await prisma.curatedEvent.findMany({
-    where: { isActive: true, status: "OPEN" },
-    select: { sportSlug: true, sport: true },
-    take: CANONICAL_OPEN_MARKET_CAP * 4,
-  });
-  const footballFirstSlots = [...lpFootballRows]
-    .filter((r) => isFootballSportSlug(r.sportSlug ?? r.sport))
-    .slice(0, CANONICAL_OPEN_MARKET_CAP);
+  let lpGraph: LpGraphTelemetry | null = getCachedLpGraphTelemetry();
+  if (
+    protocolRegistryMode &&
+    openRegistryCount > 0 &&
+    (source.includes("health") || source.includes("registry") || source === "scheduled")
+  ) {
+    try {
+      const liq = await resolveCanonicalLiquidityState(prisma);
+      lpGraph = liq.diagnostics.lpGraph;
+    } catch (e) {
+      alerts.push({
+        code: "LP_GRAPH_RESOLVE_FAILED",
+        severity: "warn",
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  if (lpGraph) {
+    if (lpGraph.LP_ZERO_ALLOCATION_MARKETS > 0) {
+      alerts.push({
+        code: "LP_ZERO_ALLOCATION_MARKETS",
+        severity: "critical",
+        message: `${lpGraph.LP_ZERO_ALLOCATION_MARKETS} OPEN markets have zero LP allocation`,
+        details: lpGraph,
+      });
+    }
+    if (
+      openRegistryCount >= minRequired + 5 &&
+      lpGraph.LP_CONNECTED_MARKETS < openRegistryCount * 0.95
+    ) {
+      alerts.push({
+        code: "LP_GRAPH_INCOMPLETE",
+        severity: "critical",
+        message: `LP graph ${lpGraph.LP_CONNECTED_MARKETS} < registry OPEN ${openRegistryCount}`,
+        details: lpGraph,
+      });
+    }
+    if (openRegistryCount > 20 && lpGraph.LP_CONNECTED_MARKETS <= 9) {
+      alerts.push({
+        code: "LP_COLLAPSED_TO_SLOT_MODEL",
+        severity: "critical",
+        message: "LP graph still capped at ~9 markets — slot model regression",
+        details: lpGraph,
+      });
+    }
+  }
+
+  const footballLpAllocated =
+    lpGraph && lpGraph.LP_CONNECTED_MARKETS > 0
+      ? await prisma.curatedEvent.count({
+          where: {
+            isActive: true,
+            status: "OPEN",
+            OR: [{ sportSlug: "football" }, { sportSlug: "soccer" }, { sport: "football" }],
+          },
+        })
+      : 0;
 
   const footballFirst: FootballFirstMetrics = {
     FOOTBALL_OPEN_COUNT: footballOpenCount,
     NON_FOOTBALL_REGISTRY_COUNT: Math.max(0, openRegistryCount - footballOpenCount),
     FOOTBALL_API_COUNT: apiResponseCount,
     FOOTBALL_HOMEPAGE_COUNT: Math.min(minRequired, footballOpenCount),
-    FOOTBALL_LP_ALLOCATED_COUNT: Math.min(
-      CANONICAL_OPEN_MARKET_CAP,
-      footballFirstSlots.length,
-    ),
+    FOOTBALL_LP_ALLOCATED_COUNT: footballLpAllocated,
   };
 
   const snapshotAgeSec = snap?.updatedAt
@@ -246,11 +297,15 @@ export async function runRegistryHealthCheck(
     alerts,
     snapshotAgeSec,
     footballFirst,
+    lpGraph,
   };
 
   if (alerts.length > 0 || source === "scheduled" || source.includes("health")) {
     console.log(JSON.stringify({ ...result, tag: "REGISTRY_HEALTH_CHECK" }));
     console.log(JSON.stringify({ tag: "FOOTBALL_FIRST_METRICS", ...footballFirst }));
+    if (lpGraph) {
+      console.log(JSON.stringify({ tag: "LP_GRAPH_METRICS", ...lpGraph }));
+    }
   }
 
   return result;

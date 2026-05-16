@@ -83,11 +83,11 @@ Default mode: `isProtocolRegistryMode()` = `!PREDICTIO_EDITORIAL_CATALOG_ONLY`.
 
 - Every **OPEN** registry row is a **vault candidate** (lifecycle + exposure bridge).
 - **Registry** = universal set of tradable Azuro-linked events in Postgres.
-- **LP allocation** = dynamic split of simulated (pre-testnet) or hybrid budget across a **canonical open slot cap** (`CANONICAL_OPEN_MARKET_CAP = 9` today) — intentional product constraint, not catalog size.
+- **LP allocation** = weighted split across **all OPEN** registry markets (full graph); football-first weighting, per-market floor — not a fixed 9-slot cap.
 - **Rebalance** — `notifyCatalogLiquidityChanged` on registry sync, lock, refill, resolve (`vault_catalog_rebalance` logs).
 - **No liquidity fragmentation** — single `allocationVersion` / canonical state; orphans flagged in diagnostics.
 
-After cutover: **113 registry OPEN**, **9 LP-weighted** markets in canonical snapshot — by design until allocation cap is raised.
+After cutover: **113 registry OPEN**, **113 LP-connected** in full graph snapshot (football receives larger weighted share).
 
 ---
 
@@ -149,6 +149,39 @@ Sample markets on production API:
 **Residual issue:** IIHF hockey fixtures may appear with `sportSlug: football` in API — Azuro/taxonomy mapping; does not invalidate fixture times. Track via `canonicalSportTaxonomy` / indexer sport slug, not by shrinking registry.
 
 **LP/view:** API returns 113 markets; paper liquidity fields populated for top canonical slots only; homepage shows ≥9 cards from full pool.
+
+---
+
+## Full LP graph participation (2026-05-16)
+
+### Problem (slot model)
+
+Previously `CANONICAL_OPEN_MARKET_CAP = 9` meant ~113 OPEN registry rows but only **9** received vault/LP allocation — incomplete liquidity graph and logical orphaning.
+
+### Correct model
+
+| Layer | Rule |
+|--------|------|
+| **Market existence** | All minimally valid Azuro events → `curated_events` (persist-all) |
+| **LP participation** | **Every** OPEN registry row → liquidity graph + vault snapshot |
+| **Capital weighting** | Dynamic weights (football-first, league, kickoff, appeal/volume) |
+| **Homepage** | View-only cap (~9 visible cards); unrelated to LP graph size |
+
+**Existence ≠ equal allocation**, but **all OPEN markets must participate** with `MIN_LIQUIDITY_ALLOCATION > 0`.
+
+### Implementation
+
+- `canonicalLiquidityState.ts` — loads all OPEN rows (up to `PREDICTIO_LP_GRAPH_MAX_MARKETS`).
+- `canonicalLiquidityAllocation.ts` — per-market floor + weighted remainder + football boost.
+- `lpGraphTelemetry.ts` — `LP_CONNECTED_MARKETS`, `LP_ZERO_ALLOCATION_MARKETS`, `LP_TOP10_WEIGHT_SHARE`, etc.
+- `catalogLiquidityRebalance.ts` — fingerprint uses full OPEN set (not `take: 9`).
+- Tests: `npm run test:lp-graph-guards`.
+
+### Env
+
+- `PREDICTIO_LP_MIN_ALLOCATION_USD` (default `8`)
+- `PREDICTIO_LP_MAX_SHARE` (default `0.18` top single market)
+- `PREDICTIO_LP_GRAPH_MAX_MARKETS` (default `2500`)
 
 ---
 

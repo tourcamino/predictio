@@ -37,6 +37,24 @@ const FORBIDDEN_PATTERNS: Array<{
     pattern: /canonicalSportFromRaw\([^)]+\)\s*\?\?\s*["']football["']/,
     hint: "Never default unknown Azuro rows to football",
   },
+  {
+    code: "LP_SLOT_CAP_SLICE",
+    file: "backend/src/services/canonicalLiquidityState.ts",
+    pattern: /slice\s*\(\s*0\s*,\s*CANONICAL_OPEN_MARKET_CAP\s*\)/,
+    hint: "Do not cap LP graph to fixed slot count",
+  },
+  {
+    code: "LP_SLOT_CAP_CONSTANT",
+    file: "backend/src/services/canonicalLiquidityState.ts",
+    pattern: /CANONICAL_OPEN_MARKET_CAP\s*=\s*9/,
+    hint: "Remove fixed 9-market LP cap — use full graph",
+  },
+  {
+    code: "REBALANCE_FINGERPRINT_TAKE_9",
+    file: "backend/src/services/catalogLiquidityRebalance.ts",
+    pattern: /take:\s*9\b/,
+    hint: "Rebalance fingerprint must include full OPEN set",
+  },
 ];
 
 export function scanFootballFirstGuardViolations(): FootballFirstGuardViolation[] {
