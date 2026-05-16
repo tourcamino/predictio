@@ -21,6 +21,9 @@ import {
   runStartCopyTradingWeb,
   runStopCopyTradingWeb,
 } from "../web/copyTradingWeb";
+import { runGetAnalystLeaderboardWeb } from "../web/getAnalystLeaderboardWeb";
+import { runGetFollowedAnalystsWeb } from "../web/getFollowedAnalystsWeb";
+import { runGetUserLPPositionsWeb } from "../web/getUserLPPositionsWeb";
 import { resolveCanonicalLiquidityState } from "../services/canonicalLiquidityState";
 import { getCatalogLiquidityVersionMeta } from "../services/catalogLiquidityRebalance";
 
@@ -90,6 +93,21 @@ const startCopyBody = z.object({
 const stopCopyBody = z.object({
   copierWallet: walletParam,
   analystWallet: walletParam,
+});
+
+const analystLeaderboardQuery = z.object({
+  limit: z.coerce.number().min(1).max(100).default(50),
+  sortBy: z.enum(["roi", "winRate", "followers", "earned"]).default("earned"),
+  currentUserWallet: walletParam.optional(),
+});
+
+const followedAnalystsQuery = z.object({
+  userWallet: walletParam,
+});
+
+const lpPositionsQuery = z.object({
+  walletAddress: walletParam,
+  status: z.enum(["all", "active", "withdrawn"]).default("active"),
 });
 
 const placeBody = z.object({
@@ -331,6 +349,50 @@ export function createWebPublicPaperRouter(prisma: PrismaClient): Router {
       next(e);
     }
   });
+
+  r.get(
+    "/analyst-leaderboard",
+    validate({ query: analystLeaderboardQuery }),
+    async (req, res, next) => {
+      try {
+        const q = req.query as unknown as z.infer<typeof analystLeaderboardQuery>;
+        res.json(await runGetAnalystLeaderboardWeb(prisma, q));
+      } catch (e) {
+        next(e);
+      }
+    },
+  );
+
+  r.get(
+    "/followed-analysts",
+    validate({ query: followedAnalystsQuery }),
+    async (req, res, next) => {
+      try {
+        const { userWallet } = req.query as z.infer<typeof followedAnalystsQuery>;
+        res.json(await runGetFollowedAnalystsWeb(prisma, userWallet));
+      } catch (e) {
+        next(e);
+      }
+    },
+  );
+
+  r.get(
+    "/user-lp-positions",
+    validate({ query: lpPositionsQuery }),
+    async (req, res, next) => {
+      try {
+        const q = req.query as unknown as z.infer<typeof lpPositionsQuery>;
+        res.json(
+          await runGetUserLPPositionsWeb(prisma, {
+            walletAddress: q.walletAddress,
+            status: q.status,
+          }),
+        );
+      } catch (e) {
+        next(e);
+      }
+    },
+  );
 
   r.post("/place-prediction", validate({ body: placeBody }), async (req, res, next) => {
     const headerRid = req.headers["x-purchase-request-id"];

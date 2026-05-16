@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useTRPC } from '~/trpc/react';
+import { useAnalystLeaderboard } from '~/hooks/useAnalystLeaderboard';
+import { useFollowedAnalysts } from '~/hooks/useFollowedAnalysts';
+import { isFootballFocusEnabled } from '~/config/footballFocus';
 import {
   Search,
   Filter,
@@ -23,8 +24,16 @@ interface SocialTradingDashboardProps {
 
 type SortOption = 'roi' | 'winRate' | 'followers' | 'earned';
 
+function sportMatchesFilter(sport: string, filter: string): boolean {
+  const f = filter.toLowerCase();
+ 	const s = sport.toLowerCase();
+ 	if (f === 'football' || f === 'soccer') {
+    return s === 'football' || s === 'soccer';
+  }
+  return s === f;
+}
+
 export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardProps) {
-  const trpc = useTRPC();
   const [activeView, setActiveView] = useState<'discover' | 'following'>('discover');
   const [searchQuery, setSearchQuery] = useState('');
   const [sportFilter, setSportFilter] = useState('all');
@@ -32,19 +41,15 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
   const [minWinRate, setMinWinRate] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Fetch analyst leaderboard
-  const leaderboardQuery = useQuery({
-    ...trpc.getAnalystLeaderboard.queryOptions({
-      limit: 50,
-      sortBy,
-      currentUserWallet: userWallet,
-    }),
+  const leaderboardQuery = useAnalystLeaderboard({
+    limit: 50,
+    sortBy,
+    currentUserWallet: userWallet,
     enabled: activeView === 'discover',
   });
 
-  // Fetch followed analysts
-  const followedQuery = useQuery({
-    ...trpc.getFollowedAnalysts.queryOptions({ userWallet }),
+  const followedQuery = useFollowedAnalysts({
+    userWallet,
     enabled: !!userWallet,
   });
 
@@ -59,11 +64,7 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
       analyst.displayName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSport =
       sportFilter === 'all' ||
-      sports.some(
-        (s) =>
-          s === sportFilter ||
-          s.toLowerCase() === sportFilter.toLowerCase(),
-      );
+      sports.some((s) => sportMatchesFilter(s, sportFilter));
     const matchesWinRate = analyst.winRate >= minWinRate;
     return matchesSearch && matchesSport && matchesWinRate;
   });
@@ -164,11 +165,15 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
                       className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-brand-green focus:outline-none"
                     >
                       <option value="all">All Sports</option>
-                      <option value="Football">⚽ Soccer</option>
-                      <option value="MMA">🥊 MMA</option>
-                      <option value="Cricket">🏏 Cricket</option>
-                      <option value="Basketball">🏀 Basketball</option>
-                      <option value="Tennis">🎾 Tennis</option>
+                      <option value="Soccer">⚽ Football</option>
+                      {!isFootballFocusEnabled() && (
+                        <>
+                          <option value="MMA">🥊 MMA</option>
+                          <option value="Cricket">🏏 Cricket</option>
+                          <option value="Basketball">🏀 Basketball</option>
+                          <option value="Tennis">🎾 Tennis</option>
+                        </>
+                      )}
                     </select>
                   </div>
 

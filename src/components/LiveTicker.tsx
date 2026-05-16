@@ -1,9 +1,15 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useScrollDirection } from '~/hooks/useScrollDirection';
 import { isFootballFocusEnabled } from '~/config/footballFocus';
 import { useTopChromeManaged } from '~/components/TopChromeContext';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '~/trpc/react';
 import type { LiveFeedItemDto } from '~/server/trpc/procedures/getLiveActivityFeed';
+
+/** ~28px/s — readable on desktop; duration scales with content width. */
+const TICKER_PX_PER_SECOND = 28;
+const TICKER_MIN_DURATION_S = 120;
+const TICKER_MAX_DURATION_S = 420;
 
 export function LiveTicker() {
   const isManaged = useTopChromeManaged();
@@ -14,6 +20,8 @@ export function LiveTicker() {
 export function LiveTickerInner() {
   const trpc = useTRPC();
   const { scrollDirection, isAtTop } = useScrollDirection();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [scrollDurationSec, setScrollDurationSec] = useState(TICKER_MIN_DURATION_S);
 
   const feedQuery = useQuery({
     ...trpc.getLiveActivityFeed.queryOptions({}, {
@@ -36,6 +44,26 @@ export function LiveTickerInner() {
 
   const tickerItems: LiveFeedItemDto[] = displayItems;
 
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (!el || tickerItems.length === 0) return;
+
+    const measure = () => {
+      const loopWidth = el.scrollWidth / 2;
+      if (loopWidth <= 0) return;
+      const sec = Math.min(
+        TICKER_MAX_DURATION_S,
+        Math.max(TICKER_MIN_DURATION_S, loopWidth / TICKER_PX_PER_SECOND),
+      );
+      setScrollDurationSec(sec);
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [tickerItems]);
+
   if (tickerItems.length === 0) {
     return null;
   }
@@ -47,7 +75,11 @@ export function LiveTickerInner() {
       }`}
     >
       <div className="ticker-wrapper">
-        <div className="ticker-content">
+        <div
+          ref={contentRef}
+          className="ticker-content"
+          style={{ animationDuration: `${scrollDurationSec}s` }}
+        >
           {[...tickerItems, ...tickerItems].map((item, index) => (
             <div
               key={`${item.id}-${index}`}

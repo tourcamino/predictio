@@ -5,9 +5,8 @@ import { Trophy, Clock, CheckCircle, RefreshCw } from 'lucide-react';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { GuestPageState } from '~/components/GuestPageState';
-import { useTRPC } from '~/trpc/react';
-import { useQuery } from '@tanstack/react-query';
 import { useUserPositions } from '~/hooks/useUserPositions';
+import { useMarketSummaries } from '~/hooks/useMarketSummaries';
 import { useMemo, useEffect } from 'react';
 import {
   mapDbOrderToTradingPosition,
@@ -29,8 +28,6 @@ function sortResolvedOrders(orders: UserOrderRow[]): UserOrderRow[] {
 function ResolvedMarketsPage() {
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const { isConnected } = useWallet();
-  const trpc = useTRPC();
-
   const positionsQuery = useUserPositions({
     status: 'resolved',
     enabled: isConnected,
@@ -39,8 +36,8 @@ function ResolvedMarketsPage() {
   const rows = positionsQuery.data?.positions ?? [];
   const marketIds = useMemo(() => [...new Set(rows.map((r) => r.marketId))], [rows]);
 
-  const marketSummariesQuery = useQuery({
-    ...trpc.getMarketSummaries.queryOptions({ marketIds }),
+  const marketSummariesQuery = useMarketSummaries({
+    marketIds,
     enabled: isConnected && marketIds.length > 0,
     staleTime: 30_000,
   });

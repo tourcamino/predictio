@@ -37,6 +37,11 @@ function migrateLegacyPredictioWalletKey(): void {
 }
 
 function applyIdentitySnapshot(snap: Awaited<ReturnType<typeof readInjectedIdentity>>) {
+  const live = useWalletStore.getState();
+  if (!snap.address && live.isConnecting) {
+    return;
+  }
+
   if (snap.address) {
     useWalletStore.setState({
       isConnected: true,

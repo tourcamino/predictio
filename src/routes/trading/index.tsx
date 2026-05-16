@@ -9,8 +9,7 @@ import { useTradingStore } from '~/store/tradingStore';
 import { deriveLivePositionFromQuote } from '~/lib/trading/deriveLivePositionFromQuote';
 import { Users, Copy } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
-import { useTRPC } from '~/trpc/react';
-import { useQuery } from '@tanstack/react-query';
+import { useMarketSummaries } from '~/hooks/useMarketSummaries';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { useUserPositions } from '~/hooks/useUserPositions';
 import {
@@ -27,7 +26,6 @@ function TradingPage() {
   const { isConnected, address } = useWallet();
   const { cashUsdc: paperCash } = usePaperWalletBalance();
   const { positions: demoPositions, balance: demoBalance } = useDemoAccount();
-  const trpc = useTRPC();
   const walletKey = normalizeWalletForQuery(address);
 
   const selectedPositionId = useTradingStore((state) => state.selectedPositionId);
@@ -46,10 +44,8 @@ function TradingPage() {
     [orders],
   );
 
-  const marketSummariesQuery = useQuery({
-    ...trpc.getMarketSummaries.queryOptions({
-      marketIds: positionMarketIds,
-    }),
+  const marketSummariesQuery = useMarketSummaries({
+    marketIds: positionMarketIds,
     enabled: !!walletKey && isConnected && positionMarketIds.length > 0,
     staleTime: 30_000,
   });

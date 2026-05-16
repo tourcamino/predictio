@@ -12,9 +12,9 @@ import { DepositWithdrawModal } from '~/components/DepositWithdrawModal';
 import { FollowedAnalystsTab } from '~/components/account/FollowedAnalystsTab';
 import { ReferralDashboardTab } from '~/components/account/ReferralDashboardTab';
 import { useTRPC } from '~/trpc/react';
-import { useQuery } from '@tanstack/react-query';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { useUserPositions } from '~/hooks/useUserPositions';
+import { useMarketSummaries } from '~/hooks/useMarketSummaries';
 import { usePortfolioSummary } from '~/hooks/usePortfolioSummary';
 import { useTransactionHistory } from '~/hooks/useTransactionHistory';
 import type { LedgerHistoryFilter } from '~/lib/ledger/ledgerTransactionTypes';
@@ -78,12 +78,11 @@ function AccountPage() {
     return [...ids];
   }, [positionsEarly]);
 
-  const marketSummariesQuery = useQuery({
-    ...trpc.getMarketSummaries.queryOptions({
-      marketIds: positionMarketIds,
-    }),
+  const marketSummariesQuery = useMarketSummaries({
+    marketIds: positionMarketIds,
     enabled:
       !!walletKey &&
+      isConnected &&
       (activeTab === 'overview' || activeTab === 'predictions') &&
       positionMarketIds.length > 0,
     staleTime: 30_000,

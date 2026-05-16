@@ -1,9 +1,10 @@
 import { Fragment, useMemo, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X, TrendingUp, Target, Award, AlertTriangle, Copy, Check } from 'lucide-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useTRPC, useTRPCClient } from '~/trpc/react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTRPCClient } from '~/trpc/react';
 import { useUserPositions } from '~/hooks/useUserPositions';
+import { useMarketSummaries } from '~/hooks/useMarketSummaries';
 import {
   executeStartCopyTradingWithExpress,
   executeStopCopyTradingWithExpress,
@@ -50,7 +51,6 @@ export function CopyPortfolioModal({
   analyst,
   existingCopy 
 }: CopyPortfolioModalProps) {
-  const trpc = useTRPC();
   const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
   const { address } = useWallet();
@@ -76,12 +76,9 @@ export function CopyPortfolioModal({
     return [...new Set(rows.map((p) => p.marketId))];
   }, [analystPositionsQuery.data?.positions]);
 
-  const analystSummariesQuery = useQuery({
-    ...trpc.getMarketSummaries.queryOptions({
-      marketIds: analystMarketIds,
-    }),
-    enabled:
-      isOpen && copyMode === 'selective' && analystMarketIds.length > 0,
+  const analystSummariesQuery = useMarketSummaries({
+    marketIds: analystMarketIds,
+    enabled: isOpen && copyMode === 'selective' && analystMarketIds.length > 0,
     staleTime: 30_000,
   });
 

@@ -6,6 +6,7 @@ import {
   expressGetPaperWalletBalance,
   shouldUseExpressForWalletCritical,
 } from "~/lib/expressCriticalWalletApi";
+import { walletConnectTrace } from "~/lib/walletConnectTrace";
 
 export type PaperWalletBalanceSnapshot = {
   virtualBalance: number;
@@ -17,8 +18,7 @@ export type PaperWalletBalanceSnapshot = {
  * On production (SPA ≠ API host), reads Express `/api/v1/web/paper-wallet-balance`.
  */
 export function usePaperWalletBalance() {
-  const { isConnected, address, chainId, balance: mockStoreBalance, isSyncing } =
-    useWallet();
+  const { isConnected, address, chainId, balance: mockStoreBalance, isSyncing } = useWallet();
   const walletKey = normalizeWalletForQuery(address);
   const chainScope = clientChainScopeForTrpc(chainId);
   const trpcClient = useTRPCClient();
@@ -44,20 +44,33 @@ export function usePaperWalletBalance() {
     placeholderData: (prev) => prev,
     queryFn: async (): Promise<PaperWalletBalanceSnapshot> => {
       const w = walletKey!;
-      if (useExpress) {
-        return expressGetPaperWalletBalance(w);
+      walletConnectTrace("balance_fetch_start", { walletKey: w, useExpress });
+      try {
+        const out = useExpress
+          ? await expressGetPaperWalletBalance(w, { onboarding: isSyncing })
+          : await trpcClient.getPaperWalletBalance.query({
+              walletAddress: w,
+              clientChainId: chainScope,
+            });
+        walletConnectTrace("balance_fetch_response", {
+          walletKey: w,
+          virtualBalance: out.virtualBalance,
+        });
+        return out;
+      } catch (e) {
+        walletConnectTrace("balance_fetch_error", {
+          walletKey: w,
+          message: e instanceof Error ? e.message : String(e),
+        });
+        throw e;
       }
-      return trpcClient.getPaperWalletBalance.query({
-        walletAddress: w,
-        clientChainId: chainScope,
-      });
     },
   });
 
   const hasSettledBalance = q.data !== undefined && !q.isPending;
   const isBalanceLoading =
     Boolean(isConnected && walletKey && !mockDevPaper) &&
-    (isSyncing || q.isPending || (q.isFetching && !hasSettledBalance));
+    (q.isPending || (q.isFetching && !hasSettledBalance));
 
   const serverCash = hasSettledBalance ? q.data!.virtualBalance : null;
   const inOpenPositions = hasSettledBalance ? q.data!.openPositionsCostBasis : 0;

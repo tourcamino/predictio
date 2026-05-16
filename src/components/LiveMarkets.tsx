@@ -134,13 +134,15 @@ export function LiveMarkets() {
     return `$${(volume / 1000).toFixed(0)}K`;
   };
 
-  const categories = [
-    { id: 'all', label: 'All Sports', emoji: '🎯' },
-    { id: 'football', label: 'Football', emoji: '⚽' },
-    { id: 'basketball', label: 'Basketball', emoji: '🏀' },
-    { id: 'mma', label: 'MMA', emoji: '🥊' },
-    { id: 'cricket', label: 'Cricket', emoji: '🏏' },
-  ];
+  const categories = isFootballFocusEnabled()
+    ? [{ id: 'all', label: 'Football', emoji: '⚽' }]
+    : [
+        { id: 'all', label: 'All Sports', emoji: '🎯' },
+        { id: 'football', label: 'Football', emoji: '⚽' },
+        { id: 'basketball', label: 'Basketball', emoji: '🏀' },
+        { id: 'mma', label: 'MMA', emoji: '🥊' },
+        { id: 'cricket', label: 'Cricket', emoji: '🏏' },
+      ];
 
   const handleViewAllMarkets = () => {
     navigate({ to: '/markets' });

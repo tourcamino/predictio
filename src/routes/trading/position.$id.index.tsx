@@ -5,10 +5,9 @@ import { useWallet } from '~/store/useWalletStore';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { ArrowLeft } from 'lucide-react';
 import { useMemo } from 'react';
-import { useTRPC } from '~/trpc/react';
-import { useQuery } from '@tanstack/react-query';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { useUserPositions } from '~/hooks/useUserPositions';
+import { useMarketSummaries } from '~/hooks/useMarketSummaries';
 import {
   mapDbOrderToTradingPosition,
   mapDemoPositionToTradingPosition,
@@ -23,7 +22,6 @@ function PositionDetailPage() {
   const navigate = useNavigate();
   const { isConnected, address } = useWallet();
   const { positions: demoPositions } = useDemoAccount();
-  const trpc = useTRPC();
   const walletKey = normalizeWalletForQuery(address);
 
   const isDemoId = id.startsWith('demo-');
@@ -46,10 +44,8 @@ function PositionDetailPage() {
     [positionsQuery.data?.positions, id],
   );
 
-  const marketSummariesQuery = useQuery({
-    ...trpc.getMarketSummaries.queryOptions({
-      marketIds: orderRow ? [orderRow.marketId] : [],
-    }),
+  const marketSummariesQuery = useMarketSummaries({
+    marketIds: orderRow ? [orderRow.marketId] : [],
     enabled: !!walletKey && isConnected && !isDemoId && !!orderRow,
     staleTime: 30_000,
   });

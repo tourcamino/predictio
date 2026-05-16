@@ -23,9 +23,11 @@ import {
   expressSyncUserAccount,
   shouldUseExpressForWalletCritical,
 } from '~/lib/expressCriticalWalletApi';
+import { walletConnectTrace } from '~/lib/walletConnectTrace';
+import { WALLET_SYNC_WALL_CLOCK_MS } from '~/lib/walletModalUxTiming';
 
 const SYNC_DEBOUNCE_MS = 280;
-const MAX_SILENT_RETRIES = 6;
+const MAX_SILENT_RETRIES = 3;
 
 // Helper to read cookie
 function getCookie(name: string): string | null {
@@ -53,6 +55,7 @@ export function WalletSync() {
   const silentRetryCountRef = useRef(0);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncWallClockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const syncMutation = useMutation(trpc.syncUserAccount.mutationOptions());
 
@@ -70,9 +73,17 @@ export function WalletSync() {
     }
   };
 
+  const clearSyncWallClock = () => {
+    if (syncWallClockTimerRef.current) {
+      clearTimeout(syncWallClockTimerRef.current);
+      syncWallClockTimerRef.current = null;
+    }
+  };
+
   useEffect(() => {
     clearDebounce();
     clearRetry();
+    clearSyncWallClock();
 
     if (!isConnected || !address) {
       lastSyncedAddressRef.current = null;
@@ -106,8 +117,26 @@ export function WalletSync() {
         if (lastSyncedAddressRef.current === walletKey) return;
         if (syncInFlightRef.current) return;
 
+        const isStillTargetWallet = () => {
+          const live = useWalletStore.getState();
+          return (
+            live.isConnected &&
+            normalizeWalletForQuery(live.address) === walletKey
+          );
+        };
+
         syncInFlightRef.current = true;
         setSyncing(true);
+        walletConnectTrace("sync_user_start", { walletKey });
+        clearSyncWallClock();
+        syncWallClockTimerRef.current = setTimeout(() => {
+          syncWallClockTimerRef.current = null;
+          if (!isStillTargetWallet()) return;
+          walletConnectTrace("sync_user_wall_clock_abort", { walletKey });
+          syncInFlightRef.current = false;
+          setSyncing(false);
+          walletToastDismiss(WALLET_TOAST_IDS.syncLoading);
+        }, WALLET_SYNC_WALL_CLOCK_MS);
 
         const refCodeFromCookie = getCookie('predictio_ref');
         console.log(
@@ -119,12 +148,20 @@ export function WalletSync() {
           virtualBalance: number;
           onboardingCompleted: boolean;
         }) => {
+          if (!isStillTargetWallet()) return;
+
           lastSyncedAddressRef.current = walletKey;
           silentRetryCountRef.current = 0;
           clearRetry();
 
+          clearSyncWallClock();
           setSyncing(false);
           walletToastDismiss(WALLET_TOAST_IDS.syncLoading);
+          walletConnectTrace("sync_user_response", {
+            walletKey,
+            isNewUser: data.isNewUser,
+            virtualBalance: data.virtualBalance,
+          });
 
           invalidateAllWalletScopedQueries(queryClient, trpc, walletKey);
 
@@ -162,6 +199,16 @@ export function WalletSync() {
 
         const handleSyncError = (error: unknown) => {
           console.error('[Paper Trading] Failed to sync account:', error);
+          walletConnectTrace("sync_user_error", {
+            walletKey,
+            message: error instanceof Error ? error.message : String(error),
+          });
+          if (!isStillTargetWallet()) {
+            clearSyncWallClock();
+            setSyncing(false);
+            return;
+          }
+          clearSyncWallClock();
           setSyncing(false);
 
           const transient = isTransientSyncError(error);
@@ -211,7 +258,9 @@ export function WalletSync() {
           } catch (error: unknown) {
             handleSyncError(error);
           } finally {
+            clearSyncWallClock();
             settle();
+            walletConnectTrace("sync_user_settled", { walletKey });
           }
         })();
       };
@@ -222,6 +271,9 @@ export function WalletSync() {
     return () => {
       clearDebounce();
       clearRetry();
+      clearSyncWallClock();
+      syncInFlightRef.current = false;
+      setSyncing(false);
     };
     // Intentionally omit syncMutation / queryClient / trpc — stable or would retrigger sync loops.
   }, [isConnected, address]);

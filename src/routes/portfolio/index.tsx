@@ -28,6 +28,8 @@ import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { useUserPositions } from '~/hooks/useUserPositions';
 import { usePortfolioSummary } from '~/hooks/usePortfolioSummary';
 import { usePortfolioPerformanceHistory } from '~/hooks/usePortfolioPerformanceHistory';
+import { useUserLPPositions } from '~/hooks/useUserLPPositions';
+import { useMarketSummaries } from '~/hooks/useMarketSummaries';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 
 export const Route = createFileRoute('/portfolio/')({
@@ -77,13 +79,10 @@ function Portfolio() {
     enabled: isConnected,
   });
 
-  // Fetch user's LP positions
-  const lpPositionsQuery = useQuery({
-    ...trpc.getUserLPPositions.queryOptions({
-      walletAddress: walletKey,
-      status: 'active',
-      clientChainId: chainScope,
-    }),
+  const lpPositionsQuery = useUserLPPositions({
+    walletAddress: walletKey ?? '',
+    status: 'active',
+    clientChainId: chainScope,
     enabled: !!walletKey && isConnected,
   });
 
@@ -99,10 +98,8 @@ function Portfolio() {
     return [...ids];
   }, [positionsEarly, isDemoActive, isConnected, demoPositions]);
 
-  const marketSummariesQuery = useQuery({
-    ...trpc.getMarketSummaries.queryOptions({
-      marketIds: positionMarketIds,
-    }),
+  const marketSummariesQuery = useMarketSummaries({
+    marketIds: positionMarketIds,
     enabled: isConnected && positionMarketIds.length > 0,
     staleTime: 30_000,
   });

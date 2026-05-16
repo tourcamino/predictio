@@ -12,6 +12,8 @@ import {
   readChainIdDecimal,
   switchToPredictioChain,
 } from '~/lib/wallet/switchToPredictioChain';
+import { eip1193RequestWithTimeout } from '~/lib/wallet/eip1193WithTimeout';
+import { walletConnectTrace } from '~/lib/walletConnectTrace';
 
 export interface Deposit {
   id: string;
@@ -69,6 +71,8 @@ export interface WalletState {
 
 interface WalletStore extends WalletState {
   connectWallet: (walletType: string) => Promise<void>;
+  /** Re-prompt the injected wallet for account selection (MetaMask / Coinbase). */
+  requestAccountSwitch: () => Promise<void>;
   disconnectWallet: () => void;
   openWalletModal: () => void;
   closeWalletModal: () => void;
@@ -111,6 +115,7 @@ export const useWalletStore = create<WalletStore>()(
 
       // Connect: EIP-1193 only. Mock ONLY when VITE_WALLET_MOCK_CONNECT=1 on a non-production Vite build (never PROD).
       connectWallet: async (walletType: string) => {
+        walletConnectTrace("connect_start", { walletType });
         set({ isConnecting: true, walletProviderSyncComplete: false });
         await new Promise((resolve) => setTimeout(resolve, 220));
 
@@ -177,9 +182,13 @@ export const useWalletStore = create<WalletStore>()(
         }
 
         try {
-          const accounts = (await provider.request({
-            method: "eth_requestAccounts",
-          })) as string[];
+          walletConnectTrace("metamask_request_accounts");
+          const accounts = (await eip1193RequestWithTimeout<string[]>(
+            provider,
+            "eth_requestAccounts",
+            undefined,
+          )) as string[];
+          walletConnectTrace("metamask_connected", { accountCount: accounts?.length ?? 0 });
           if (import.meta.env.DEV && import.meta.env.VITE_WALLET_IDENTITY_DEBUG === "1") {
             // eslint-disable-next-line no-console
             console.info("[wallet-identity] eth_requestAccounts", { accounts });
@@ -188,7 +197,23 @@ export const useWalletStore = create<WalletStore>()(
             throw new Error("No accounts returned from your wallet.");
           }
           const address = accounts[0]!.toLowerCase();
-          const cid = await readChainIdDecimal(provider);
+          let cid: number | null = null;
+          try {
+            const hex = await eip1193RequestWithTimeout<string>(
+              provider,
+              "eth_chainId",
+              undefined,
+              8_000,
+            );
+            if (typeof hex === "string" && hex.startsWith("0x")) {
+              cid = parseInt(hex, 16);
+            }
+          } catch (chainErr) {
+            walletConnectTrace("chain_id_timeout_or_error", {
+              message: chainErr instanceof Error ? chainErr.message : String(chainErr),
+            });
+            cid = await readChainIdDecimal(provider);
+          }
           const expected = getExpectedChainId();
           const wrong = cid != null && cid !== expected;
 
@@ -207,8 +232,10 @@ export const useWalletStore = create<WalletStore>()(
             wrongNetwork: wrong,
             chainId: cid,
             switchNetworkPending: false,
+            walletProviderSyncComplete: true,
             referralCode: isReferralValid ? referralCode : null,
           });
+          walletConnectTrace("store_connected", { address, chainId: cid, wrongNetwork: wrong });
 
           if (isReferralValid && referralCode) {
             console.log(
@@ -219,8 +246,72 @@ export const useWalletStore = create<WalletStore>()(
             `[Wallet] Connected ${address} chainId=${cid ?? "?"} expected=${expected} wrongNetwork=${wrong}`,
           );
         } catch (e) {
-          set({ isConnecting: false, walletProviderSyncComplete: true });
+          walletConnectTrace("connect_error", {
+            message: e instanceof Error ? e.message : String(e),
+          });
           throw e instanceof Error ? e : new Error("Could not connect wallet");
+        } finally {
+          set({ isConnecting: false, walletProviderSyncComplete: true });
+          walletConnectTrace("connect_loading_off", {
+            isConnected: get().isConnected,
+            address: get().address,
+          });
+        }
+      },
+
+      requestAccountSwitch: async () => {
+        const { walletType, isConnected } = get();
+        walletConnectTrace("switch_wallet_start", { walletType, isConnected });
+        if (!walletType) {
+          set({ isModalOpen: true });
+          return;
+        }
+        const provider = getInjectedEip1193Provider(walletType);
+        if (!provider) {
+          throw new Error(
+            "Wallet extension not found. Reconnect from the wallet menu.",
+          );
+        }
+        set({ isConnecting: true, walletProviderSyncComplete: false, isSyncing: false });
+        try {
+          try {
+            await eip1193RequestWithTimeout(
+              provider,
+              "wallet_requestPermissions",
+              [{ eth_accounts: {} }],
+              8_000,
+            );
+          } catch {
+            /* Not all wallets implement this — eth_requestAccounts may still open the picker */
+          }
+          const accounts = (await eip1193RequestWithTimeout<string[]>(
+            provider,
+            "eth_requestAccounts",
+            undefined,
+          )) as string[];
+          if (!accounts?.length) {
+            throw new Error("No accounts returned from your wallet.");
+          }
+          const address = accounts[0]!.toLowerCase();
+          const cid = await readChainIdDecimal(provider);
+          const expected = getExpectedChainId();
+          const wrong = cid != null && cid !== expected;
+          set({
+            isConnected: true,
+            address,
+            isConnecting: false,
+            wrongNetwork: wrong,
+            chainId: cid,
+            walletProviderSyncComplete: true,
+          });
+          walletConnectTrace("switch_wallet_done", { address, chainId: cid });
+          if (!isConnected) {
+            set({ isModalOpen: true });
+          }
+        } catch (e) {
+          throw e instanceof Error ? e : new Error("Could not switch account");
+        } finally {
+          set({ isConnecting: false, walletProviderSyncComplete: true });
         }
       },
 

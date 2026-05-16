@@ -141,12 +141,20 @@ body {
 
 .ticker-content {
   display: inline-block;
-  animation: ticker-scroll 100s linear infinite;
+  /* duration set inline from LiveTicker (width-based); fallback if JS has not measured yet */
+  animation: ticker-scroll 180s linear infinite;
   will-change: transform;
 }
 
 .ticker-content:hover {
   animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-content {
+    animation: none;
+    transform: none;
+  }
 }
 
 @keyframes ticker-scroll {

@@ -34,10 +34,10 @@ export const mockAnalysts: Analyst[] = [
     wallet: "0x9b3c8e1f7a2d465089c4e2b7f1a5069384758291c",
     displayName: "EdgeRunner_Neo",
     avatar: "⚡",
-    bio: "Higher churn on match cards with occasional UFC spots. Wins and bruises both show up — size varies with conviction.",
+    bio: "Higher churn on football match cards. Wins and bruises both show up — size varies with conviction.",
     featuredQuote:
       "Paper trading first; sizing down after rough weeks. Nothing here is financial advice.",
-    sport: ["Soccer", "MMA"],
+    sport: ["Soccer"],
     verificationTier: null,
     roi: 14.8,
     winRate: 56,
@@ -174,13 +174,12 @@ export const copySeedRecentTradesByWallet: Record<string, CopySeedRecentTrade[]>
       daysAgo: 4,
     },
     {
-      event: COPY_SEED_PLATFORM_EVENTS.UFC_PEREIRA_ANKALAEV,
+      event: COPY_SEED_PLATFORM_EVENTS.INTER_VS_FC_BARCELONA,
       side: "NO",
       stakeUsd: 220,
       result: "Won",
       profitUsd: 118,
       daysAgo: 7,
-      sport: "MMA",
     },
     {
       event: COPY_SEED_PLATFORM_EVENTS.BAYERN_VS_DORTMUND,

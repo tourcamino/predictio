@@ -6,6 +6,7 @@ import { useTRPC } from '~/trpc/react';
 import { useWallet } from '~/store/useWalletStore';
 import { useLeaderboard } from '~/hooks/useLeaderboard';
 import { usePointsLeaderboard } from '~/hooks/usePointsLeaderboard';
+import { useAnalystLeaderboard } from '~/hooks/useAnalystLeaderboard';
 import { mockAnalysts } from "~/data/mockAffiliates";
 import {
   TierBadge,
@@ -78,16 +79,11 @@ function LeaderboardPage() {
     staleTime: 55000,
   });
 
-  // Fetch analyst leaderboard
-  const analystLeaderboardQuery = useQuery({
-    ...trpc.getAnalystLeaderboard.queryOptions({
-      limit: 50,
-      sortBy: 'earned',
-      currentUserWallet: address || undefined,
-    }),
+  const analystLeaderboardQuery = useAnalystLeaderboard({
+    limit: 50,
+    sortBy: 'earned',
+    currentUserWallet: address || undefined,
     enabled: activeTab === 'analysts',
-    refetchInterval: 60000,
-    staleTime: 55000,
   });
 
   // Fetch LP leaderboard

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X, Check, Loader2, Copy, ExternalLink, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { useWallet } from '~/store/useWalletStore';
@@ -19,7 +19,9 @@ import {
   WALLET_STAGE_INTERVAL_MS,
   WALLET_SUCCESS_AUTO_CLOSE_MS,
   WALLET_SUCCESS_MIN_MS,
+  WALLET_CONNECTING_MAX_MS,
 } from '~/lib/walletModalUxTiming';
+import { walletConnectTrace } from '~/lib/walletConnectTrace';
 
 type ModalStep = 'choose' | 'connecting' | 'success' | 'deposit' | 'error';
 type DepositTab = 'bridge' | 'buy' | 'transfer';
@@ -27,7 +29,18 @@ type ConnectionStatus = 'requesting' | 'signing' | 'verifying' | 'syncing';
 
 export function WalletModal() {
   const navigate = useNavigate();
-  const { isModalOpen, closeWalletModal, connectWallet, isConnecting, isConnected, address, walletType } = useWallet();
+  const {
+    isModalOpen,
+    closeWalletModal,
+    connectWallet,
+    isConnecting,
+    isConnected,
+    isSyncing,
+    address,
+    walletType,
+    disconnectWallet,
+    requestAccountSwitch,
+  } = useWallet();
   const {
     cashUsdcSettled: modalPaperCash,
     isBalanceLoading: modalPaperLoading,
@@ -41,6 +54,7 @@ export function WalletModal() {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const connectingSinceRef = useRef<number | null>(null);
   const successSinceRef = useRef<number | null>(null);
+  const connectingDeadlineRef = useRef<number | null>(null);
 
   // Reset state when modal closes
   useEffect(() => {
@@ -53,11 +67,22 @@ export function WalletModal() {
         setErrorMessage('');
         connectingSinceRef.current = null;
         successSinceRef.current = null;
+        connectingDeadlineRef.current = null;
       }, 300);
     }
   }, [isModalOpen]);
 
-  // Visual stage progression while connecting (does not block real wallet I/O)
+  useEffect(() => {
+    if (step === 'connecting' && connectingDeadlineRef.current == null) {
+      connectingDeadlineRef.current = Date.now() + WALLET_CONNECTING_MAX_MS;
+      walletConnectTrace('modal_connecting_open', { walletType: selectedWallet });
+    }
+    if (step !== 'connecting') {
+      connectingDeadlineRef.current = null;
+    }
+  }, [step, selectedWallet, walletType]);
+
+  // Visual stage progression (readable dwell; server sync can force final stage)
   useEffect(() => {
     if (!isModalOpen || step !== 'connecting') return;
 
@@ -66,6 +91,11 @@ export function WalletModal() {
     setConnectionStatus(stages[0]!);
 
     const interval = setInterval(() => {
+      if (isSyncing && currentStage < stages.length - 1) {
+        currentStage = stages.length - 1;
+        setConnectionStatus('syncing');
+        return;
+      }
       currentStage += 1;
       if (currentStage < stages.length) {
         setConnectionStatus(stages[currentStage]!);
@@ -75,7 +105,12 @@ export function WalletModal() {
     }, WALLET_STAGE_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [isModalOpen, step, selectedWallet]);
+  }, [isModalOpen, step, selectedWallet, isSyncing]);
+
+  useEffect(() => {
+    if (!isModalOpen || step !== 'connecting') return;
+    if (isSyncing) setConnectionStatus('syncing');
+  }, [isModalOpen, step, isSyncing]);
 
   useEffect(() => {
     if (!isModalOpen) return;
@@ -86,7 +121,18 @@ export function WalletModal() {
     }
   }, [isModalOpen, isConnecting, step]);
 
-  // Minimum visible duration for connecting step before success
+  const goToSuccess = useCallback(() => {
+    walletConnectTrace('modal_step_success', {
+      address,
+      isSyncing,
+      modalPaperLoading,
+    });
+    setStep('success');
+    successSinceRef.current = Date.now();
+    setAutoCloseProgress(100);
+  }, [address, isSyncing, modalPaperLoading]);
+
+  // Minimum visible duration for connecting step before success (wallet I/O only — not server sync)
   useEffect(() => {
     if (!isModalOpen || step !== 'connecting') return;
     if (isConnecting || !isConnected) return;
@@ -95,19 +141,36 @@ export function WalletModal() {
       connectingSinceRef.current,
       WALLET_CONNECTING_MIN_MS,
     );
-    const timer = setTimeout(() => {
-      setStep('success');
-      successSinceRef.current = Date.now();
-      setAutoCloseProgress(100);
-    }, delay);
+    const timer = setTimeout(goToSuccess, delay);
 
     return () => clearTimeout(timer);
-  }, [isModalOpen, step, isConnecting, isConnected]);
+  }, [isModalOpen, step, isConnecting, isConnected, goToSuccess]);
 
-  // Success screen + auto-close (visual timing only)
+  // Hard cap: fixed deadline from first entering connecting (do NOT reset when isConnected flips)
+  useEffect(() => {
+    if (!isModalOpen || step !== 'connecting') return;
+    const deadline = connectingDeadlineRef.current ?? Date.now() + WALLET_CONNECTING_MAX_MS;
+    const remaining = Math.max(0, deadline - Date.now());
+
+    const timer = setTimeout(() => {
+      if (isConnected) {
+        goToSuccess();
+        return;
+      }
+      walletConnectTrace('modal_connect_timeout');
+      setStep('error');
+      setErrorMessage(
+        'Connection timed out. Unlock your wallet, approve the connection, and try again.',
+      );
+    }, remaining);
+
+    return () => clearTimeout(timer);
+  }, [isModalOpen, step, isConnected, goToSuccess]);
+
+  // Success screen + auto-close (visual timing only; balance may still be loading)
   useEffect(() => {
     if (!isModalOpen || step !== 'success') return;
-    if (modalPaperLoading || modalPaperCash == null || modalPaperCash <= 0) return;
+    if (modalPaperLoading) return;
 
     const holdDelay = remainingMinDisplayMs(successSinceRef.current, WALLET_SUCCESS_MIN_MS);
     let progress = 100;
@@ -135,14 +198,28 @@ export function WalletModal() {
     setSelectedWallet(wallet);
     setErrorMessage('');
     connectingSinceRef.current = Date.now();
+    connectingDeadlineRef.current = Date.now() + WALLET_CONNECTING_MAX_MS;
     setConnectionStatus('requesting');
     setStep('connecting');
+    walletConnectTrace('wallet_connect_start', { wallet });
 
     try {
       await connectWallet(wallet);
+      walletConnectTrace('wallet_connect_promise_resolved', { wallet });
     } catch (error) {
+      walletConnectTrace('wallet_connect_promise_rejected', {
+        message: error instanceof Error ? error.message : String(error),
+      });
       setStep('error');
       setErrorMessage(error instanceof Error ? error.message : 'Failed to connect wallet');
+    }
+  };
+
+  const handleSwitchWallet = async () => {
+    try {
+      await requestAccountSwitch();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not switch wallet');
     }
   };
 
@@ -383,15 +460,35 @@ export function WalletModal() {
                       })}
                     </div>
 
-                    <button
-                      onClick={() => {
-                        setStep('choose');
-                        closeWalletModal();
-                      }}
-                      className="px-6 py-2 border border-red-500/50 text-red-500 rounded-lg hover:bg-red-500/10 transition-colors"
-                    >
-                      Cancel
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleSwitchWallet()}
+                        className="px-6 py-2 border border-white/20 text-gray-300 rounded-lg hover:bg-white/5 transition-colors text-sm"
+                      >
+                        Switch wallet in MetaMask
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          disconnectWallet();
+                          setStep('choose');
+                          setConnectionStatus('requesting');
+                        }}
+                        className="px-6 py-2 border border-white/15 text-gray-400 rounded-lg hover:bg-white/5 transition-colors text-sm"
+                      >
+                        Disconnect & choose again
+                      </button>
+                      <button
+                        onClick={() => {
+                          setStep('choose');
+                          closeWalletModal();
+                        }}
+                        className="px-6 py-2 border border-red-500/50 text-red-500 rounded-lg hover:bg-red-500/10 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 )}
 

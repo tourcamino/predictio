@@ -36,6 +36,8 @@ export function expressPointsQueryKey(walletAddress: string) {
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 const PAPER_FETCH_TIMEOUT_MS = 30_000;
+/** Shorter timeout for connect-time sync/balance (fail fast, UI can still proceed). */
+const WALLET_ONBOARDING_FETCH_TIMEOUT_MS = 12_000;
 
 async function fetchWithTimeout(
   input: string,
@@ -78,12 +80,12 @@ function errMessage(data: unknown, fallback: string): string {
 /**
  * POST JSON: try paths in order; on 404 only, try the next path. Any other status throws immediately.
  */
-async function paperPostJson<T>(
+async function paperPostJsonWithTimeout<T>(
   paths: readonly string[],
   body: object,
+  timeoutMs: number,
   opts?: {
     headers?: Record<string, string>;
-    /** When set, logs each HTTP attempt (status, path) for diagnosis only. */
     diagnostic?: { requestId: string; userId: string | null; location: string };
   },
 ): Promise<T> {
@@ -92,12 +94,16 @@ async function paperPostJson<T>(
   let last404: ExpressPaperApiError | null = null;
 
   for (const path of paths) {
-    const res = await fetchWithTimeout(`${base}${path}`, {
-      method: "POST",
-      headers: { ...JSON_HEADERS, ...opts?.headers },
-      body: bodyStr,
-      credentials: "omit",
-    });
+    const res = await fetchWithTimeout(
+      `${base}${path}`,
+      {
+        method: "POST",
+        headers: { ...JSON_HEADERS, ...opts?.headers },
+        body: bodyStr,
+        credentials: "omit",
+      },
+      timeoutMs,
+    );
     const data = await readJson(res);
     if (opts?.diagnostic) {
       const { requestId, userId, location } = opts.diagnostic;
@@ -129,13 +135,31 @@ async function paperPostJson<T>(
   );
 }
 
+async function paperPostJson<T>(
+  paths: readonly string[],
+  body: object,
+  opts?: {
+    headers?: Record<string, string>;
+    diagnostic?: { requestId: string; userId: string | null; location: string };
+  },
+): Promise<T> {
+  return paperPostJsonWithTimeout<T>(paths, body, PAPER_FETCH_TIMEOUT_MS, opts);
+}
+
 /** GET: try paths in order; 404 tries next. */
-async function paperGetJson<T>(paths: readonly string[]): Promise<T> {
+async function paperGetJsonWithTimeout<T>(
+  paths: readonly string[],
+  timeoutMs: number,
+): Promise<T> {
   const base = getApiBaseUrl().replace(/\/$/, "");
   let last404: ExpressPaperApiError | null = null;
 
   for (const path of paths) {
-    const res = await fetchWithTimeout(`${base}${path}`, { credentials: "omit" });
+    const res = await fetchWithTimeout(
+      `${base}${path}`,
+      { credentials: "omit" },
+      timeoutMs,
+    );
     const data = await readJson(res);
     if (res.ok) return data as T;
 
@@ -156,6 +180,10 @@ async function paperGetJson<T>(paths: readonly string[]): Promise<T> {
   );
 }
 
+async function paperGetJson<T>(paths: readonly string[]): Promise<T> {
+  return paperGetJsonWithTimeout<T>(paths, PAPER_FETCH_TIMEOUT_MS);
+}
+
 const SYNC_PATHS = ["/api/v1/web/sync-user", "/api/web/sync-user"] as const;
 
 export async function expressSyncUserAccount(input: {
@@ -168,13 +196,13 @@ export async function expressSyncUserAccount(input: {
   tradesCount: number;
   onboardingCompleted: boolean;
 }> {
-  return paperPostJson<{
+  return paperPostJsonWithTimeout<{
     isNewUser: boolean;
     virtualBalance: number;
     totalPnl: number;
     tradesCount: number;
     onboardingCompleted: boolean;
-  }>(SYNC_PATHS, input);
+  }>(SYNC_PATHS, input, WALLET_ONBOARDING_FETCH_TIMEOUT_MS);
 }
 
 export type ExpressPointsSummary = {
@@ -297,12 +325,20 @@ export async function expressGetCanonicalLiquidityState(): Promise<ExpressCanoni
 
 export async function expressGetPaperWalletBalance(
   walletAddress: string,
+  opts?: { onboarding?: boolean },
 ): Promise<ExpressPaperWalletBalance> {
   const q = new URLSearchParams({ walletAddress }).toString();
-  return paperGetJson<ExpressPaperWalletBalance>([
+  const paths = [
     `/api/v1/web/paper-wallet-balance?${q}`,
     `/api/web/paper-wallet-balance?${q}`,
-  ]);
+  ] as const;
+  if (opts?.onboarding) {
+    return paperGetJsonWithTimeout<ExpressPaperWalletBalance>(
+      paths,
+      WALLET_ONBOARDING_FETCH_TIMEOUT_MS,
+    );
+  }
+  return paperGetJson<ExpressPaperWalletBalance>(paths);
 }
 
 const PLACE_PATHS = ["/api/v1/web/place-prediction", "/api/web/place-prediction"] as const;
@@ -469,6 +505,45 @@ export async function expressStopCopyTrading(body: {
   analystWallet: string;
 }): Promise<Record<string, unknown>> {
   return paperPostJson(["/api/v1/web/stop-copy-trading", "/api/web/stop-copy-trading"], body);
+}
+
+export async function expressGetAnalystLeaderboard(input: {
+  limit?: number;
+  sortBy?: "roi" | "winRate" | "followers" | "earned";
+  currentUserWallet?: string;
+}): Promise<Record<string, unknown>> {
+  const q = new URLSearchParams({ limit: String(input.limit ?? 50) });
+  if (input.sortBy) q.set("sortBy", input.sortBy);
+  if (input.currentUserWallet) q.set("currentUserWallet", input.currentUserWallet);
+  const qs = q.toString();
+  return paperGetJson([
+    `/api/v1/web/analyst-leaderboard?${qs}`,
+    `/api/web/analyst-leaderboard?${qs}`,
+  ]);
+}
+
+export async function expressGetFollowedAnalysts(
+  userWallet: string,
+): Promise<Record<string, unknown>> {
+  const q = new URLSearchParams({ userWallet }).toString();
+  return paperGetJson([
+    `/api/v1/web/followed-analysts?${q}`,
+    `/api/web/followed-analysts?${q}`,
+  ]);
+}
+
+export async function expressGetUserLPPositions(input: {
+  walletAddress: string;
+  status?: "all" | "active" | "withdrawn";
+}): Promise<Record<string, unknown>> {
+  const q = new URLSearchParams({
+    walletAddress: input.walletAddress,
+    status: input.status ?? "active",
+  }).toString();
+  return paperGetJson([
+    `/api/v1/web/user-lp-positions?${q}`,
+    `/api/web/user-lp-positions?${q}`,
+  ]);
 }
 
 export async function expressPlacePrediction(
