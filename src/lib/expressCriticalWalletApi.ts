@@ -240,10 +240,19 @@ export type ExpressCanonicalLiquidityState = {
   canonicalOpenSlots: number;
   liquidityPerMarket: Array<{
     marketId: string;
+    marketName: string;
+    league: string;
+    sport: string;
     appealScore: number;
     allocation: number;
     percentage: number;
   }>;
+  diagnostics?: {
+    lpGraph?: {
+      REGISTRY_OPEN_COUNT?: number;
+      LP_CONNECTED_MARKETS?: number;
+    };
+  };
 };
 
 export type ExpressCatalogLiquidityVersion = {

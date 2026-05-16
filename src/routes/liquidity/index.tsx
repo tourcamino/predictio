@@ -1,5 +1,5 @@
 ﻿import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Header } from '~/components/Header';
 import { Droplet, TrendingUp, Shield } from 'lucide-react';
 import { useTRPC } from '~/trpc/react';
@@ -12,6 +12,38 @@ import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { LP_SEEDED_EXPLAINER, LP_SEEDED_SHORT } from '~/lib/economySurface';
+import {
+  DEFAULT_SIMULATED_LIQUIDITY_USDC,
+  getProtocolLiquidityConfigClient,
+} from '~/lib/protocolLiquidityMode';
+import {
+  expressGetCanonicalLiquidityState,
+  shouldUseExpressForWalletCritical,
+} from '~/lib/expressCriticalWalletApi';
+import { fetchCuratedMarketsFromApi } from '~/utils/curatedMarketsApi';
+
+type LiquidityAllocationRow = {
+  marketId: string;
+  marketName: string;
+  league: string;
+  sportEmoji: string;
+  allocation: number;
+  percentage: number;
+};
+
+function sportEmojiForLiquidity(sport: string): string {
+  const emojiMap: Record<string, string> = {
+    football: '⚽',
+    soccer: '⚽',
+    basketball: '🏀',
+    baseball: '⚾',
+    tennis: '🎾',
+    mma: '🥊',
+    f1: '🏎️',
+    cricket: '🏏',
+  };
+  return emojiMap[sport.toLowerCase()] || '🏆';
+}
 
 export const Route = createFileRoute('/liquidity/')({
   component: LiquidityPage,
@@ -33,6 +65,83 @@ function LiquidityPage() {
   });
 
   const vaultStats = vaultQuery.data;
+  const liquidityConfig = getProtocolLiquidityConfigClient();
+  const useExpressApi = shouldUseExpressForWalletCritical();
+
+  const expressCanonicalQuery = useQuery({
+    queryKey: ['expressCanonicalLiquidity'],
+    queryFn: expressGetCanonicalLiquidityState,
+    enabled: useExpressApi,
+    staleTime: 0,
+    refetchInterval: 30_000,
+  });
+
+  const curatedMarketsQuery = useQuery({
+    queryKey: ['curatedMarketsLiquidityBinding'],
+    queryFn: fetchCuratedMarketsFromApi,
+    enabled: useExpressApi,
+    staleTime: 0,
+    refetchInterval: 30_000,
+  });
+
+  const expressCanonical = expressCanonicalQuery.data;
+
+  const displayTotalLiquidity =
+    (useExpressApi
+      ? expressCanonical?.totalSimulatedLiquidity ?? expressCanonical?.totalLiquidity
+      : vaultStats?.totalSimulatedLiquidity ?? vaultStats?.totalLiquidity) ??
+    liquidityConfig.simulatedLiquidityUsdc ??
+    DEFAULT_SIMULATED_LIQUIDITY_USDC;
+
+  const displayMarketsActive =
+    (useExpressApi
+      ? expressCanonical?.diagnostics?.lpGraph?.REGISTRY_OPEN_COUNT ??
+        curatedMarketsQuery.data?.total ??
+        expressCanonical?.diagnostics?.lpGraph?.LP_CONNECTED_MARKETS ??
+        expressCanonical?.canonicalOpenSlots
+      : vaultStats?.vaultExposureDiagnostics?.lpGraph?.REGISTRY_OPEN_COUNT ??
+        vaultStats?.marketsActive) ?? 0;
+
+  const displayMarketAllocations = useMemo((): LiquidityAllocationRow[] => {
+    if (!useExpressApi && vaultStats?.marketAllocations?.length) {
+      return vaultStats.marketAllocations;
+    }
+
+    const fromCanonical = expressCanonical?.liquidityPerMarket;
+    if (fromCanonical && fromCanonical.length > 0) {
+      return fromCanonical
+        .filter((row) => row.allocation > 0)
+        .map((row) => ({
+          marketId: row.marketId,
+          marketName: row.marketName,
+          league: row.league,
+          sportEmoji: sportEmojiForLiquidity(row.sport),
+          allocation: row.allocation,
+          percentage: row.percentage,
+        }));
+    }
+
+    const markets = curatedMarketsQuery.data?.markets ?? [];
+    return markets
+      .filter((m) => (m.paperLiquidityAllocation ?? 0) > 0)
+      .sort(
+        (a, b) =>
+          (b.paperLiquidityAllocation ?? 0) - (a.paperLiquidityAllocation ?? 0),
+      )
+      .map((m) => ({
+        marketId: m.id,
+        marketName: `${m.homeTeam} vs ${m.awayTeam}`,
+        league: m.competition,
+        sportEmoji: m.sportEmoji,
+        allocation: m.paperLiquidityAllocation!,
+        percentage: m.paperLiquiditySharePct ?? 0,
+      }));
+  }, [
+    useExpressApi,
+    vaultStats?.marketAllocations,
+    expressCanonical?.liquidityPerMarket,
+    curatedMarketsQuery.data?.markets,
+  ]);
 
   // Fetch user's Protocol Vault position
   const userPositionQuery = useQuery({
@@ -43,16 +152,22 @@ function LiquidityPage() {
   });
 
   const handleDepositSuccess = () => {
-    // Refetch vault stats and user position after successful deposit
     vaultQuery.refetch();
+    if (useExpressApi) {
+      expressCanonicalQuery.refetch();
+      curatedMarketsQuery.refetch();
+    }
     if (isConnected) {
       userPositionQuery.refetch();
     }
   };
 
   const handleWithdrawSuccess = () => {
-    // Refetch vault stats and user position after successful withdrawal
     vaultQuery.refetch();
+    if (useExpressApi) {
+      expressCanonicalQuery.refetch();
+      curatedMarketsQuery.refetch();
+    }
     if (isConnected) {
       userPositionQuery.refetch();
     }
@@ -86,7 +201,7 @@ function LiquidityPage() {
               <div>
                 <div className="text-sm text-gray-400 mb-2">Total Liquidity</div>
                 <div className="font-mono font-bold text-4xl text-brand-green mb-1">
-                  ${vaultStats?.totalLiquidity || 500}
+                  ${displayTotalLiquidity}
                 </div>
                 <div className="text-sm text-gray-500">Seed capital · {LP_SEEDED_SHORT}</div>
               </div>
@@ -115,7 +230,7 @@ function LiquidityPage() {
               <div>
                 <div className="text-sm text-gray-400 mb-2">Markets Active</div>
                 <div className="font-mono font-bold text-4xl">
-                  {vaultStats?.marketsActive || 0}
+                  {displayMarketsActive}
                 </div>
                 <div className="text-sm text-gray-500">Live predictions</div>
               </div>
@@ -421,8 +536,8 @@ function LiquidityPage() {
           <div className="mb-12">
             <h2 className="font-syne font-bold text-3xl mb-6">Market Allocation</h2>
             <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
-              {vaultStats?.marketAllocations && vaultStats.marketAllocations.length > 0 ? (
-                vaultStats.marketAllocations.map((allocation) => (
+              {displayMarketAllocations.length > 0 ? (
+                displayMarketAllocations.map((allocation) => (
                   <div key={allocation.marketId} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
