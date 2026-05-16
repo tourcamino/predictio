@@ -79,7 +79,7 @@ export function logHomeDbForensic(opts: {
 }
 
 export function logHomeApiForensic(opts: {
-  path: "raw-feed-live" | "curated-db";
+  path: "raw-feed-live" | "curated-db" | "protocol-registry-db" | "editorial-db";
   rawFeedCount?: number | null;
   dbOpenCount?: number | null;
   apiResponseCount: number;
@@ -114,11 +114,14 @@ export function logHomeApiForensic(opts: {
       DB_COUNT: opts.dbOpenCount ?? null,
       API_COUNT: opts.apiResponseCount,
       COLLAPSE_HINT:
-        opts.path === "curated-db" && (opts.dbOpenCount ?? 0) <= 9
+        (opts.path === "curated-db" || opts.path === "editorial-db") &&
+        (opts.dbOpenCount ?? 0) <= 9
           ? "API legge curated_events — collasso probabile in DB (righe OPEN attive)"
-          : opts.path === "raw-feed-live"
-            ? "API bypass DB list — collasso non dovrebbe essere qui se RAW_FEED_COUNT alto"
-            : "verificare layer successivi (frontend slice / intelligence)",
+          : opts.path === "protocol-registry-db" && (opts.dbOpenCount ?? 0) < 9
+            ? "registry mode ma DB OPEN < 9 — sync boot/API fallito o migration"
+            : opts.path === "raw-feed-live"
+              ? "API bypass DB list — collasso non dovrebbe essere qui se RAW_FEED_COUNT alto"
+              : "verificare layer successivi (frontend slice / intelligence)",
     }),
   );
 }
