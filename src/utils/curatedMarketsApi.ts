@@ -107,15 +107,16 @@ export function curatedApiRowToAzuroMarket(row: CuratedMarketApiRow): AzuroMarke
     ];
   }
 
-  const sportKey = row.sportSlug ?? row.sport ?? "football";
+  const sportKey = row.sportSlug ?? row.sport ?? "unknown";
   const sportMeta = getSportMetadata(sportKey);
+  const competition = String(row.leagueName ?? row.title ?? "unknown").trim() || "unknown";
 
   return {
     id: row.id,
     question: `${row.homeTeam} vs ${row.awayTeam}`,
     sport: sportKey,
     sportEmoji: sportMeta.emoji,
-    competition: row.leagueName,
+    competition,
     competitionSlug: slug,
     event: {
       name: row.title || `${row.homeTeam} vs ${row.awayTeam}`,

@@ -23,6 +23,10 @@ export function RouterPendingShell() {
 function RouterErrorShell({ error, reset }: ErrorComponentProps) {
   const msg =
     error instanceof Error ? error.message : String(error ?? "Unknown error");
+  const stack = error instanceof Error ? error.stack : undefined;
+  if (import.meta.env.DEV && error) {
+    console.error("[RouterErrorShell]", error);
+  }
   return (
     <div
       style={{
@@ -46,6 +50,21 @@ function RouterErrorShell({ error, reset }: ErrorComponentProps) {
       >
         {msg}
       </pre>
+      {import.meta.env.DEV && stack ? (
+        <pre
+          style={{
+            whiteSpace: "pre-wrap",
+            fontSize: "11px",
+            marginBottom: "1rem",
+            maxWidth: "48rem",
+            color: "#9ca3af",
+            maxHeight: "12rem",
+            overflow: "auto",
+          }}
+        >
+          {stack}
+        </pre>
+      ) : null}
       <button
         type="button"
         onClick={() => reset()}

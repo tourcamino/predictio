@@ -3,6 +3,7 @@
  * No DB schema — scores and re-orders Azuro-shaped markets (and any isomorphic row).
  */
 import type { AzuroMarket } from "~/services/azuro";
+import { safeString } from "~/lib/marketViewSafety";
 
 /** Max featured cards (homepage / discover / caps). */
 export const CURATED_FEATURED_MAX = 9;
@@ -270,7 +271,7 @@ export function azuroMarketToCandidate(m: AzuroMarket): CurationCandidate {
   return {
     id: m.id,
     sport: m.sport,
-    leagueLabel: m.competition,
+    leagueLabel: safeString(m.competition, "unknown"),
     teamNames: teams,
     startsAtMs: kickoffMs(m),
     closesAtMs: closesMs(m),

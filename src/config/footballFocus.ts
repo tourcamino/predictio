@@ -94,11 +94,13 @@ export function getDefaultSport(): string {
 /**
  * Helper function to check if a competition should be featured
  */
-export function isFeaturedCompetition(competitionName: string): boolean {
+export function isFeaturedCompetition(competitionName: string | undefined | null): boolean {
   if (!FOOTBALL_FOCUS_CONFIG.ENABLED) {
     return false;
   }
+  const name = String(competitionName ?? "").toLowerCase();
+  if (!name) return false;
   return FOOTBALL_FOCUS_CONFIG.PRIORITY_COMPETITIONS.some((comp) =>
-    competitionName.toLowerCase().includes(comp.toLowerCase()),
+    name.includes(comp.toLowerCase()),
   );
 }

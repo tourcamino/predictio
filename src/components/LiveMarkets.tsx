@@ -10,6 +10,9 @@ import { buildFootballFirstHomepageView } from '~/lib/footballFirstView';
 import type { AzuroMarket } from '~/services/azuro';
 import type { Market } from '~/data/mockMarkets';
 
+/** Homepage display cap — registry must expose at least 9 OPEN markets when available. */
+const HOME_MARKET_CARD_COUNT = 9;
+const HOME_MARKET_MIN_VISIBLE = 9;
 const displayCap = Math.max(HOME_MARKET_CARD_COUNT, HOME_MARKET_MIN_VISIBLE);
 
 function filterAzuroPool(
@@ -54,10 +57,6 @@ function sortAzuroPool(
   }
   return sorted;
 }
-
-/** Homepage display cap — registry must expose at least 9 OPEN markets when available. */
-const HOME_MARKET_CARD_COUNT = 9;
-const HOME_MARKET_MIN_VISIBLE = 9;
 
 export function LiveMarkets() {
   const navigate = useNavigate();

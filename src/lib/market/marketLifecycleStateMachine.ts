@@ -178,7 +178,9 @@ export function deriveMarketLifecycleFromUiMarket(
   m: UiMarketLifecycleInput,
   now: Date = new Date(),
 ): MarketLifecycleState {
-  const ui = m.status.trim().toLowerCase();
+  const ui = String(m.status ?? "open")
+    .trim()
+    .toLowerCase();
   const kickoffMs = Math.min(m.start_time.getTime(), m.closesAt.getTime());
   const pastKickoff = now.getTime() >= kickoffMs;
 

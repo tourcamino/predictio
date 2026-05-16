@@ -26,7 +26,7 @@ export function seedMarketToLiveMarket(m: SeedMarket): Market {
     id: m.id,
     sport: m.sport,
     sportEmoji: m.sportEmoji,
-    league: m.competition,
+    league: m.competition ?? "unknown",
     region: m.event.location ?? "",
     teamA,
     teamB,
