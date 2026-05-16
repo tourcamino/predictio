@@ -1,4 +1,9 @@
 import type { Market } from "~/data/mockMarkets";
+import {
+  SYNTHETIC_FOOTBALL_DRAW_DECIMAL,
+  impliedPricesFromThreeWayDecimals,
+  isFootballSportKey,
+} from "~/lib/syntheticFootballDraw";
 
 /** Shape of `market` from Express `GET /api/markets/:gameId` (JSON). */
 export type RestCuratedEventPayload = {
@@ -15,6 +20,8 @@ export type RestCuratedEventPayload = {
   homeOdds?: number | null;
   drawOdds?: number | null;
   awayOdds?: number | null;
+  sport?: string;
+  sportSlug?: string;
 };
 
 function curatedStatusToUi(row: RestCuratedEventPayload): Market["status"] {
@@ -93,6 +100,26 @@ export function restCuratedEventToUiMarket(
   }
 
   if (ho != null && ao != null && ho > 0 && ao > 0) {
+    if (isFootballSportKey(row.sportSlug, row.sport)) {
+      const p = impliedPricesFromThreeWayDecimals(
+        ho,
+        SYNTHETIC_FOOTBALL_DRAW_DECIMAL,
+        ao,
+      );
+      return baseMarketFields(
+        row,
+        canonicalId,
+        status,
+        p.yesPrice,
+        p.noPrice,
+        p.percentA,
+        p.percentB,
+        {
+          percentDraw: p.percentDraw,
+          drawOdds: SYNTHETIC_FOOTBALL_DRAW_DECIMAL.toFixed(2),
+        },
+      );
+    }
     const ih = 1 / ho;
     const ia = 1 / ao;
     const t = ih + ia;

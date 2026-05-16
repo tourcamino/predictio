@@ -40,9 +40,26 @@ export function invalidateWalletPortfolioLpQueries(
     predicate: (q) => queryKeyJsonLikelyMatchesWallet(q.queryKey, w),
   });
 
-  queryClient.invalidateQueries({ queryKey: ['getUserPositions', w] });
-  queryClient.invalidateQueries({ queryKey: ['getPortfolioSummary', w] });
-  queryClient.invalidateQueries({ queryKey: ['getTransactionHistory', w] });
+  const walletReadPrefixes = [
+    "getUserPositions",
+    "getPortfolioSummary",
+    "getTransactionHistory",
+    "getPortfolioPerformanceHistory",
+    "paperWalletBalance",
+  ] as const;
+
+  queryClient.invalidateQueries({
+    predicate: (q) => {
+      const key = q.queryKey;
+      if (!Array.isArray(key) || key.length < 2) return false;
+      const head = key[0];
+      if (typeof head !== "string") return false;
+      if (!walletReadPrefixes.some((p) => head === p || head.startsWith(p))) {
+        return false;
+      }
+      return String(key[1]).toLowerCase() === w;
+    },
+  });
 
   queryClient.invalidateQueries({
     queryKey: ['paperWalletBalance', w],

@@ -9,7 +9,13 @@ import { useTRPC, useTRPCClient } from '~/trpc/react';
 import { Market } from '~/data/mockMarkets';
 import { useWallet } from '~/store/useWalletStore';
 import { TransactionModal } from '../TransactionModal';
-import { calcFee, calcPriceImpact, calculateOrderFee, getOrderRole } from '~/utils/marketUtils';
+import {
+  calcFee,
+  calcPriceImpact,
+  calculateOrderFee,
+  getOrderRole,
+  maxSpendablePaperStake,
+} from '~/utils/marketUtils';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { DemoBadge } from '~/components/demo/DemoBadge';
@@ -312,6 +318,20 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
       if (walletKey) {
         invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
         invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
+        void queryClient.refetchQueries({
+          predicate: (q) => {
+            const key = q.queryKey;
+            return (
+              Array.isArray(key) &&
+              key.length >= 2 &&
+              String(key[1]).toLowerCase() === walletKey &&
+              (key[0] === 'getUserPositions' ||
+                key[0] === 'getTransactionHistory' ||
+                key[0] === 'getPortfolioSummary' ||
+                key[0] === 'paperWalletBalance')
+            );
+          },
+        });
       }
     },
     onError: (error: Error) => {
@@ -853,12 +873,19 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
                   <div className="flex flex-wrap gap-2">
                     <span className="text-xs text-gray-400 mr-1 self-center">% of balance:</span>
                     {[10, 25, 50, 100].map((percentage) => {
-                      const amount = (currentBalance * percentage) / 100;
+                      const maxStake = maxSpendablePaperStake(currentBalance, orderType);
+                      const amount =
+                        percentage === 100
+                          ? maxStake
+                          : Math.min(
+                              maxStake,
+                              Math.floor(((maxStake * percentage) / 100) * 100) / 100,
+                            );
                       return (
                         <button
                           key={`pct-${percentage}`}
                           type="button"
-                          onClick={() => buyForm.setValue('amount', Math.floor(amount * 100) / 100)}
+                          onClick={() => buyForm.setValue('amount', amount)}
                           className="px-4 py-2 sm:px-3 sm:py-1 text-sm sm:text-xs font-semibold bg-brand-green/10 border border-brand-green/30 rounded hover:border-brand-green hover:bg-brand-green/20 transition-all active:scale-95"
                         >
                           {percentage}%

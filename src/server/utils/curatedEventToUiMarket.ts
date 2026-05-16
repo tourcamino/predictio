@@ -1,6 +1,11 @@
 import type { Market } from "~/data/mockMarkets";
 import type { CuratedEvent } from "@prisma/client";
 import { deriveMarketLifecycleFromUiMarket } from "~/lib/market/marketLifecycleStateMachine";
+import {
+  SYNTHETIC_FOOTBALL_DRAW_DECIMAL,
+  impliedPricesFromThreeWayDecimals,
+  isFootballSportKey,
+} from "~/lib/syntheticFootballDraw";
 
 function curatedStatusToUi(
   row: CuratedEvent,
@@ -86,6 +91,28 @@ export function curatedEventRowToUiMarket(
   }
 
   if (ho != null && ao != null && ho > 0 && ao > 0) {
+    if (isFootballSportKey(row.sportSlug, row.sport)) {
+      const p = impliedPricesFromThreeWayDecimals(
+        ho,
+        SYNTHETIC_FOOTBALL_DRAW_DECIMAL,
+        ao,
+      );
+      return withLifecycle(
+        baseMarketFields(
+          row,
+          canonicalId,
+          status,
+          p.yesPrice,
+          p.noPrice,
+          p.percentA,
+          p.percentB,
+          {
+            percentDraw: p.percentDraw,
+            drawOdds: SYNTHETIC_FOOTBALL_DRAW_DECIMAL.toFixed(2),
+          },
+        ),
+      );
+    }
     const ih = 1 / ho;
     const ia = 1 / ao;
     const t = ih + ia;

@@ -23,7 +23,7 @@ import { DemoBadge } from '~/components/demo/DemoBadge';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { GuestPageState } from '~/components/GuestPageState';
-import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { clientChainScopeForTrpc, normalizeWalletForQuery } from '~/utils/walletQuery';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { useUserPositions } from '~/hooks/useUserPositions';
 import { usePortfolioSummary } from '~/hooks/usePortfolioSummary';
@@ -35,7 +35,8 @@ export const Route = createFileRoute('/portfolio/')({
 });
 
 function Portfolio() {
-  const { isConnected, address } = useWallet();
+  const { isConnected, address, chainId } = useWallet();
+  const chainScope = clientChainScopeForTrpc(chainId);
   const { cashUsdc: paperCash } = usePaperWalletBalance();
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const { isActive: isDemoActive, positions: demoPositions, balance: demoBalance, tradeHistory: demoTradeHistory } = useDemoAccount();

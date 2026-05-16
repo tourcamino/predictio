@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Header } from '~/components/Header';
 import { useWallet } from '~/store/useWalletStore';
+import { clientChainScopeForTrpc } from '~/utils/walletQuery';
 import { Trophy, ExternalLink, Download, RefreshCw } from 'lucide-react';
 import { CHAIN_CONFIG } from '~/config/chain';
 import { useWalletGate } from '~/hooks/useWalletGate';
@@ -19,7 +20,8 @@ export const Route = createFileRoute('/portfolio/claims/')({
 
 function ClaimHistoryPage() {
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
-  const { isConnected } = useWallet();
+  const { isConnected, chainId } = useWallet();
+  const chainScope = clientChainScopeForTrpc(chainId);
 
   const creditsQuery = useTransactionHistory({
     limit: 100,

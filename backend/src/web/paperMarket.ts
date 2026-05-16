@@ -109,13 +109,28 @@ function curatedToSnapshot(row: CuratedEvent, canonicalId: string): PaperMarketS
       percentDraw = Math.round((id / t) * 100);
     }
   } else if (ho != null && ao != null && ho > 0 && ao > 0) {
-    const ih = 1 / ho;
-    const ia = 1 / ao;
-    const t = ih + ia;
-    if (t > 0) {
-      yesPrice = Math.max(0.01, Math.min(0.98, ih / t));
-      noPrice = Math.max(0.01, Math.min(0.98, ia / t));
-      percentDraw = null;
+    const sportKey = String(row.sportSlug ?? row.sport ?? "football").toLowerCase();
+    const isFootball = sportKey === "football" || sportKey === "soccer";
+    if (isFootball) {
+      const drawDec = 3.35;
+      const ih = 1 / ho;
+      const id = 1 / drawDec;
+      const ia = 1 / ao;
+      const t = ih + id + ia;
+      if (t > 0) {
+        yesPrice = Math.max(0.01, Math.min(0.98, ih / t));
+        noPrice = Math.max(0.01, Math.min(0.98, ia / t));
+        percentDraw = Math.round((id / t) * 100);
+      }
+    } else {
+      const ih = 1 / ho;
+      const ia = 1 / ao;
+      const t = ih + ia;
+      if (t > 0) {
+        yesPrice = Math.max(0.01, Math.min(0.98, ih / t));
+        noPrice = Math.max(0.01, Math.min(0.98, ia / t));
+        percentDraw = null;
+      }
     }
   }
 

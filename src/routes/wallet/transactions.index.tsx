@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useWallet } from '~/store/useWalletStore';
+import { clientChainScopeForTrpc } from '~/utils/walletQuery';
 import { Download, Filter, Search, ChevronDown, ExternalLink, ArrowDownCircle, ArrowUpCircle, Trophy, TrendingUp, Wallet } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CHAIN_CONFIG } from '~/config/chain';
@@ -29,7 +30,8 @@ const PAGE_SIZE = 25;
 
 function WalletTransactionHistoryPage() {
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
-  const { isConnected } = useWallet();
+  const { isConnected, chainId } = useWallet();
+  const chainScope = clientChainScopeForTrpc(chainId);
 
   const [typeFilter, setTypeFilter] = useState<LedgerHistoryFilter>('all');
   const [statusFilter, setStatusFilter] = useState<TransactionStatus>('all');

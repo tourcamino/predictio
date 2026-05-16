@@ -47,6 +47,19 @@ export function calculateOrderFee(
   return amount * TAKER_FEE_RATE;
 }
 
+/** Max stake so amount + taker fee ≤ cash balance (floor cents). */
+export function maxSpendablePaperStake(
+  cashBalance: number,
+  orderType: 'MARKET' | 'LIMIT',
+): number {
+  if (!Number.isFinite(cashBalance) || cashBalance <= 0) return 0;
+  if (orderType === 'LIMIT') {
+    return Math.floor(cashBalance * 100) / 100;
+  }
+  const gross = cashBalance / (1 + calcFee());
+  return Math.floor(gross * 100) / 100;
+}
+
 /**
  * Calculate price impact for a trade
  * Uses simplified AMM formula: impact = amount / (poolSize + amount)

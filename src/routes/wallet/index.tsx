@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useWallet } from '~/store/useWalletStore';
+import { clientChainScopeForTrpc } from '~/utils/walletQuery';
 import { Wallet, ArrowDownCircle, ArrowUpCircle, Send, AlertCircle, Trophy, TrendingUp } from 'lucide-react';
 import { CHAIN_CONFIG } from '~/config/chain';
 import { useState } from 'react';
@@ -22,7 +23,8 @@ export const Route = createFileRoute('/wallet/')({
 
 function WalletDashboard() {
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
-  const { isConnected, address, balanceEth, balanceEthUsd } = useWallet();
+  const { isConnected, address, balanceEth, balanceEthUsd, chainId } = useWallet();
+  const chainScope = clientChainScopeForTrpc(chainId);
   const { cashUsdc, inOpenPositions, totalAtCost } = usePaperWalletBalance();
 
   const recentActivityQuery = useTransactionHistory({

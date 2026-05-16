@@ -68,7 +68,7 @@ function AccountPage() {
 
   const positionsQuery = useUserPositions({
     status: 'all',
-    enabled: !!walletKey && (activeTab === 'overview' || activeTab === 'predictions'),
+    enabled: !!walletKey && isConnected,
   });
 
   const positionsEarly = positionsQuery.data?.positions ?? [];
