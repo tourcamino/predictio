@@ -833,7 +833,7 @@ function AccountPage() {
                   { value: 'lp_deposit' as const, label: 'LP in' },
                   { value: 'lp_withdraw' as const, label: 'LP out' },
                   { value: 'lp_reward_claim' as const, label: 'LP fees' },
-                  { value: 'holding_reward' as const, label: 'Holding' },
+                  { value: 'holding_reward' as const, label: 'Holding rewards' },
                   { value: 'analyst_reward' as const, label: 'Analyst' },
                   { value: 'affiliate_reward' as const, label: 'Affiliate' },
                 ].map((filter) => (

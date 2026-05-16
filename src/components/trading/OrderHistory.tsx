@@ -34,10 +34,18 @@ export function OrderHistory({ walletAddress }: OrderHistoryProps) {
 
     // Type filter
     if (filter === 'all') return true;
-    if (filter === 'buy') return tx.type === 'bet_placed';
-    if (filter === 'sell') return tx.type === 'bet_won' || tx.type === 'bet_lost';
-    if (filter === 'win') return tx.type === 'bet_won';
-    if (filter === 'loss') return tx.type === 'bet_lost';
+    if (filter === 'buy')
+      return tx.type === 'position_open' || tx.type === 'bet_placed';
+    if (filter === 'sell')
+      return (
+        tx.type === 'position_sell' ||
+        tx.type === 'bet_won' ||
+        tx.type === 'bet_lost'
+      );
+    if (filter === 'win')
+      return tx.type === 'position_settlement_win' || tx.type === 'bet_won';
+    if (filter === 'loss')
+      return tx.type === 'position_settlement_loss' || tx.type === 'bet_lost';
     
     return true;
   });
@@ -143,7 +151,8 @@ export function OrderHistory({ walletAddress }: OrderHistoryProps) {
             const metadata = tx.metadata as any;
             const isProfit = tx.type === 'bet_won';
             const isLoss = tx.type === 'bet_lost';
-            const isTrade = tx.type === 'bet_placed';
+            const isTrade =
+              tx.type === 'position_open' || tx.type === 'bet_placed';
 
             return (
               <div

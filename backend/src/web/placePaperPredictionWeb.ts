@@ -209,7 +209,7 @@ export async function runPlacePaperPredictionWeb(
   await prisma.transaction.create({
     data: {
       wallet,
-      type: "bet_placed",
+      type: "position_open",
       amount: input.amount,
       balanceBefore,
       balanceAfter,

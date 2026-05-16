@@ -2,9 +2,9 @@ import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
 import {
-  LEDGER_CREDIT_TYPES,
   LEDGER_HISTORY_FILTERS,
   LEDGER_TRANSACTION_TYPE_SET,
+  ledgerHistoryTypeWhere,
   type LedgerHistoryFilter,
 } from "~/lib/ledger/ledgerTransactionTypes";
 
@@ -31,13 +31,8 @@ export const getTransactionHistory = baseProcedure
 
     const where: Record<string, unknown> = {
       wallet,
+      ...ledgerHistoryTypeWhere(type),
     };
-
-    if (type === "credits") {
-      where.type = { in: LEDGER_CREDIT_TYPES };
-    } else if (type !== "all") {
-      where.type = type;
-    }
 
     const transactions = await db.transaction.findMany({
       where,

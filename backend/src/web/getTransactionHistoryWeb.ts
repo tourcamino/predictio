@@ -1,19 +1,10 @@
 import type { PrismaClient } from "@prisma/client";
+import {
+  ledgerHistoryTypeWhere,
+  type TransactionHistoryFilter,
+} from "../lib/ledgerTransactionTypes";
 
-const LEDGER_CREDIT_TYPES = [
-  "position_settlement_win",
-  "position_refund",
-  "lp_reward_claim",
-  "holding_reward",
-  "analyst_reward",
-  "affiliate_reward",
-] as const;
-
-export type TransactionHistoryFilter =
-  | "all"
-  | "credits"
-  | (typeof LEDGER_CREDIT_TYPES)[number]
-  | string;
+export type { TransactionHistoryFilter };
 
 export async function runGetTransactionHistoryWeb(
   prisma: PrismaClient,
@@ -29,12 +20,10 @@ export async function runGetTransactionHistoryWeb(
   const offset = Math.max(0, input.offset ?? 0);
   const type = input.type ?? "all";
 
-  const where: Record<string, unknown> = { wallet };
-  if (type === "credits") {
-    where.type = { in: [...LEDGER_CREDIT_TYPES] };
-  } else if (type !== "all") {
-    where.type = type;
-  }
+  const where: Record<string, unknown> = {
+    wallet,
+    ...ledgerHistoryTypeWhere(type as Parameters<typeof ledgerHistoryTypeWhere>[0]),
+  };
 
   const [transactions, totalCount] = await Promise.all([
     prisma.transaction.findMany({
