@@ -16,7 +16,8 @@ import { NotificationBell } from './notifications/NotificationBell';
 import { NotificationCenter } from './notifications/NotificationCenter';
 import { useScrollDirection } from '~/hooks/useScrollDirection';
 import { useTopChromeManaged } from '~/components/TopChromeContext';
-import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { useUserPositions } from '~/hooks/useUserPositions';
 import { getExpectedPredictioChain, getSwitchNetworkCtaLabel } from '~/config/chains';
 import { CHAIN_CONFIG } from '~/config/chain';
 import { usePointsSummary } from '~/hooks/usePointsSummary';
@@ -46,19 +47,11 @@ export function HeaderInner() {
   const { scrollDirection, isAtTop } = useScrollDirection();
 
   const walletQueryKey = normalizeWalletForQuery(address);
-  const chainScope = clientChainScopeForTrpc(chainId);
 
-  // Fetch open positions count
-  const positionsQuery = useQuery({
-    ...trpc.getUserPositions.queryOptions({
-      walletAddress: walletQueryKey,
-      status: 'open',
-      clientChainId: chainScope,
-    }),
+  const positionsQuery = useUserPositions({
+    status: 'open',
     enabled: !!walletQueryKey && isConnected,
     refetchInterval: 90_000,
-    retry: 3,
-    retryDelay: (attempt) => Math.min(2500, 400 * 2 ** attempt),
   });
 
   const openPositionsCount = positionsQuery.data?.positions.length || 0;

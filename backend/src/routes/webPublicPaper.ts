@@ -8,6 +8,11 @@ import { runGetPointsSummaryWeb, runGetUserPointsWeb } from "../web/pointsSummar
 import { runPlacePaperPredictionWeb } from "../web/placePaperPredictionWeb";
 import { runSyncUserAccountWeb } from "../web/syncUserWeb";
 import { runGetPaperWalletBalanceWeb } from "../web/paperWalletBalanceWeb";
+import { runDbRuntimeIdentityWeb } from "../web/dbRuntimeIdentityWeb";
+import { runGetUserPositionsWeb } from "../web/getUserPositionsWeb";
+import { runGetTransactionHistoryWeb } from "../web/getTransactionHistoryWeb";
+import { runGetPortfolioSummaryWeb } from "../web/getPortfolioSummaryWeb";
+import { runClosePositionWeb } from "../web/closePositionWeb";
 import { resolveCanonicalLiquidityState } from "../services/canonicalLiquidityState";
 import { getCatalogLiquidityVersionMeta } from "../services/catalogLiquidityRebalance";
 
@@ -28,6 +33,25 @@ const pointsQuery = z.object({
 
 const paperBalanceQuery = z.object({
   walletAddress: walletParam,
+});
+
+const positionsQuery = z.object({
+  walletAddress: walletParam,
+  status: z.enum(["all", "open", "closed", "resolved"]).default("all"),
+});
+
+const transactionHistoryQuery = z.object({
+  walletAddress: walletParam,
+  limit: z.coerce.number().min(1).max(100).default(50),
+  offset: z.coerce.number().min(0).default(0),
+  type: z.string().default("all"),
+});
+
+const closeBody = z.object({
+  orderId: z.string().trim().min(1),
+  walletAddress: walletParam,
+  sharesToSell: z.number().positive(),
+  currentPrice: z.number().positive(),
 });
 
 const placeBody = z.object({
@@ -156,6 +180,61 @@ export function createWebPublicPaperRouter(prisma: PrismaClient): Router {
       }
     },
   );
+
+  r.get("/db-runtime-identity", async (_req, res, next) => {
+    try {
+      res.json(await runDbRuntimeIdentityWeb(prisma));
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  r.get("/user-positions", validate({ query: positionsQuery }), async (req, res, next) => {
+    try {
+      const { walletAddress, status } = req.query as z.infer<typeof positionsQuery>;
+      const out = await runGetUserPositionsWeb(prisma, walletAddress, status);
+      res.json(out);
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  r.get(
+    "/transaction-history",
+    validate({ query: transactionHistoryQuery }),
+    async (req, res, next) => {
+      try {
+        const q = req.query as unknown as z.infer<typeof transactionHistoryQuery>;
+        const out = await runGetTransactionHistoryWeb(prisma, q);
+        res.json(out);
+      } catch (e) {
+        next(e);
+      }
+    },
+  );
+
+  r.get(
+    "/portfolio-summary",
+    validate({ query: paperBalanceQuery }),
+    async (req, res, next) => {
+      try {
+        const { walletAddress } = req.query as z.infer<typeof paperBalanceQuery>;
+        const out = await runGetPortfolioSummaryWeb(prisma, walletAddress);
+        res.json(out);
+      } catch (e) {
+        next(e);
+      }
+    },
+  );
+
+  r.post("/close-position", validate({ body: closeBody }), async (req, res, next) => {
+    try {
+      const out = await runClosePositionWeb(prisma, req.body);
+      res.json(out);
+    } catch (e) {
+      next(e);
+    }
+  });
 
   r.post("/place-prediction", validate({ body: placeBody }), async (req, res, next) => {
     const headerRid = req.headers["x-purchase-request-id"];

@@ -11,7 +11,8 @@ import { Users, Copy } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
-import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { useUserPositions } from '~/hooks/useUserPositions';
 import {
   mapDbOrdersToTradingPositions,
   mapDemoPositionToTradingPosition,
@@ -23,24 +24,19 @@ export const Route = createFileRoute('/trading/')({
 });
 
 function TradingPage() {
-  const { isConnected, address, chainId } = useWallet();
+  const { isConnected, address } = useWallet();
   const { cashUsdc: paperCash } = usePaperWalletBalance();
   const { positions: demoPositions, balance: demoBalance } = useDemoAccount();
   const trpc = useTRPC();
   const walletKey = normalizeWalletForQuery(address);
-  const chainScope = clientChainScopeForTrpc(chainId);
 
   const selectedPositionId = useTradingStore((state) => state.selectedPositionId);
   const selectPosition = useTradingStore((state) => state.selectPosition);
   const marketPrices = useTradingStore((s) => s.marketPrices);
   const navigate = useNavigate();
 
-  const positionsQuery = useQuery({
-    ...trpc.getUserPositions.queryOptions({
-      walletAddress: walletKey ?? '',
-      status: 'open',
-      clientChainId: chainScope,
-    }),
+  const positionsQuery = useUserPositions({
+    status: 'open',
     enabled: !!walletKey && isConnected,
   });
 

@@ -35,6 +35,26 @@ export function expressPointsQueryKey(walletAddress: string) {
 }
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
+const PAPER_FETCH_TIMEOUT_MS = 30_000;
+
+async function fetchWithTimeout(
+  input: string,
+  init?: RequestInit,
+  timeoutMs = PAPER_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new ExpressPaperApiError("Request timed out — try again.", 504);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 async function readJson(res: Response) {
   const t = await res.text();
@@ -72,7 +92,7 @@ async function paperPostJson<T>(
   let last404: ExpressPaperApiError | null = null;
 
   for (const path of paths) {
-    const res = await fetch(`${base}${path}`, {
+    const res = await fetchWithTimeout(`${base}${path}`, {
       method: "POST",
       headers: { ...JSON_HEADERS, ...opts?.headers },
       body: bodyStr,
@@ -115,7 +135,7 @@ async function paperGetJson<T>(paths: readonly string[]): Promise<T> {
   let last404: ExpressPaperApiError | null = null;
 
   for (const path of paths) {
-    const res = await fetch(`${base}${path}`, { credentials: "omit" });
+    const res = await fetchWithTimeout(`${base}${path}`, { credentials: "omit" });
     const data = await readJson(res);
     if (res.ok) return data as T;
 
@@ -295,6 +315,96 @@ export type ExpressPlacePredictionResult = {
   fee?: number;
   orderRole?: string;
 };
+
+export type ExpressDbRuntimeIdentity = {
+  runtime: string;
+  databaseUrl: {
+    configured: boolean;
+    host?: string;
+    database?: string;
+  };
+  postgres: { currentDatabase: string; currentSchema: string } | null;
+  tableCounts: { order: number; user: number; transaction: number };
+};
+
+export async function expressGetDbRuntimeIdentity(): Promise<ExpressDbRuntimeIdentity> {
+  return paperGetJson<ExpressDbRuntimeIdentity>([
+    "/api/v1/web/db-runtime-identity",
+    "/api/web/db-runtime-identity",
+  ]);
+}
+
+export type ExpressUserPositionsResult = {
+  positions: Array<Record<string, unknown>>;
+  runtime?: string;
+};
+
+export async function expressGetUserPositions(
+  walletAddress: string,
+  status: "all" | "open" | "closed" | "resolved" = "all",
+): Promise<ExpressUserPositionsResult> {
+  const q = new URLSearchParams({ walletAddress, status }).toString();
+  return paperGetJson<ExpressUserPositionsResult>([
+    `/api/v1/web/user-positions?${q}`,
+    `/api/web/user-positions?${q}`,
+  ]);
+}
+
+export type ExpressTransactionHistoryResult = {
+  transactions: Array<Record<string, unknown>>;
+  totalCount: number;
+  hasMore: boolean;
+};
+
+export async function expressGetTransactionHistory(input: {
+  walletAddress: string;
+  limit?: number;
+  offset?: number;
+  type?: string;
+}): Promise<ExpressTransactionHistoryResult> {
+  const q = new URLSearchParams({
+    walletAddress: input.walletAddress,
+    limit: String(input.limit ?? 50),
+    offset: String(input.offset ?? 0),
+    type: input.type ?? "all",
+  }).toString();
+  return paperGetJson<ExpressTransactionHistoryResult>([
+    `/api/v1/web/transaction-history?${q}`,
+    `/api/web/transaction-history?${q}`,
+  ]);
+}
+
+export type ExpressPortfolioSummaryResult = Record<string, unknown>;
+
+export async function expressGetPortfolioSummary(
+  walletAddress: string,
+): Promise<ExpressPortfolioSummaryResult> {
+  const q = new URLSearchParams({ walletAddress }).toString();
+  return paperGetJson<ExpressPortfolioSummaryResult>([
+    `/api/v1/web/portfolio-summary?${q}`,
+    `/api/web/portfolio-summary?${q}`,
+  ]);
+}
+
+export type ExpressClosePositionResult = {
+  success: boolean;
+  proceeds: number;
+  realizedPnL: number;
+  newBalance: number;
+  message: string;
+};
+
+export async function expressClosePosition(input: {
+  orderId: string;
+  walletAddress: string;
+  sharesToSell: number;
+  currentPrice: number;
+}): Promise<ExpressClosePositionResult> {
+  return paperPostJson<ExpressClosePositionResult>(
+    ["/api/v1/web/close-position", "/api/web/close-position"],
+    input,
+  );
+}
 
 export async function expressPlacePrediction(
   input: {

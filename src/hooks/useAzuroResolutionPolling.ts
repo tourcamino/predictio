@@ -6,7 +6,8 @@ import { useWalletStore } from "~/store/useWalletStore";
 import { invalidateAllPointsSummaryQueries } from "~/utils/invalidateWalletNotifications";
 import { invalidateAllPredictionPortfolioCachesForAnyWallet } from "~/utils/invalidateWalletPortfolioLpQueries";
 import { invalidateProtocolLiquidityQueries } from "~/utils/invalidateProtocolLiquidityQueries";
-import { clientChainScopeForTrpc, normalizeWalletForQuery } from "~/utils/walletQuery";
+import { normalizeWalletForQuery } from "~/utils/walletQuery";
+import { useUserPositions } from "~/hooks/useUserPositions";
 
 /**
  * Polls Azuro for terminal / exceptional states affecting **paper DB orders** for the connected wallet.
@@ -17,18 +18,11 @@ export function useAzuroResolutionPolling() {
   const queryClient = useQueryClient();
   const address = useWalletStore((s) => s.address);
   const isConnected = useWalletStore((s) => s.isConnected);
-  const chainId = useWalletStore((s) => s.chainId);
   const walletKey = normalizeWalletForQuery(address);
-  const chainScope = clientChainScopeForTrpc(chainId);
 
-  const openOrdersQuery = useQuery({
-    ...trpc.getUserPositions.queryOptions({
-      walletAddress: walletKey,
-      status: "open",
-      clientChainId: chainScope,
-    }),
+  const openOrdersQuery = useUserPositions({
+    status: "open",
     enabled: Boolean(walletKey) && isConnected,
-    staleTime: 120_000,
   });
 
   const activeMarketIds = useMemo(() => {

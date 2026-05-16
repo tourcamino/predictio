@@ -36,6 +36,7 @@ import { calculateAnalystRewards } from "./procedures/calculateAnalystRewards";
 import { claimAnalystRewards } from "./procedures/claimAnalystRewards";
 import { updateAnalystMetrics } from "./procedures/updateAnalystMetrics";
 import { getUserPositions } from "./procedures/getUserPositions";
+import { getDbRuntimeIdentity } from "./procedures/getDbRuntimeIdentity";
 import { getPaperWalletBalance } from "./procedures/getPaperWalletBalance";
 import { getPortfolioSummary } from "./procedures/getPortfolioSummary";
 import { getPortfolioPerformanceHistory } from "./procedures/getPortfolioPerformanceHistory";
@@ -154,6 +155,7 @@ export const appRouter = createTRPCRouter({
   claimAnalystRewards,
   updateAnalystMetrics,
   getUserPositions,
+  getDbRuntimeIdentity,
   getPaperWalletBalance,
   getPortfolioSummary,
   getPortfolioPerformanceHistory,

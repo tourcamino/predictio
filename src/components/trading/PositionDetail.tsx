@@ -14,6 +14,7 @@ import { isLiveMode } from '~/config/chain';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { executePlacePredictionWithDiagnostics } from '~/lib/executePlacePredictionWithDiagnostics';
+import { executeClosePositionWithDiagnostics } from '~/lib/executeClosePositionWithDiagnostics';
 import toast from 'react-hot-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '~/trpc/react';
@@ -59,13 +60,21 @@ export function PositionDetail({ position }: PositionDetailProps) {
     });
   };
 
-  const closePositionMutation = useMutation(
-    trpc.closePosition.mutationOptions({
-      onSuccess: () => {
-        invalidatePaperQueries();
-      },
-    }),
-  );
+  const closePositionMutation = useMutation({
+    mutationFn: (input: {
+      orderId: string;
+      walletAddress: string;
+      sharesToSell: number;
+      currentPrice: number;
+    }) =>
+      executeClosePositionWithDiagnostics(
+        (payload) => trpcClient.closePosition.mutate(payload),
+        input,
+      ),
+    onSuccess: () => {
+      invalidatePaperQueries();
+    },
+  });
 
   const placePredictionMutation = useMutation({
     mutationFn: (input: {

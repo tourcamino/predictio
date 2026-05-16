@@ -23,8 +23,10 @@ import { DemoBadge } from '~/components/demo/DemoBadge';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { GuestPageState } from '~/components/GuestPageState';
-import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
+import { useUserPositions } from '~/hooks/useUserPositions';
+import { usePortfolioSummary } from '~/hooks/usePortfolioSummary';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 
 export const Route = createFileRoute('/portfolio/')({
@@ -32,14 +34,13 @@ export const Route = createFileRoute('/portfolio/')({
 });
 
 function Portfolio() {
-  const { isConnected, address, chainId } = useWallet();
+  const { isConnected, address } = useWallet();
   const { cashUsdc: paperCash } = usePaperWalletBalance();
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
   const { isActive: isDemoActive, positions: demoPositions, balance: demoBalance, tradeHistory: demoTradeHistory } = useDemoAccount();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const walletKey = normalizeWalletForQuery(address);
-  const chainScope = clientChainScopeForTrpc(chainId);
   const [timeRange, setTimeRange] = useState<'7D' | '30D' | '90D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM'>('1M');
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>();
   const [customEndDate, setCustomEndDate] = useState<Date | undefined>();
@@ -58,22 +59,12 @@ function Portfolio() {
     isOpen: false,
   });
 
-  // Fetch user positions
-  const positionsQuery = useQuery({
-    ...trpc.getUserPositions.queryOptions({
-      walletAddress: walletKey,
-      status: 'all',
-      clientChainId: chainScope,
-    }),
+  const positionsQuery = useUserPositions({
+    status: 'all',
     enabled: !!walletKey && isConnected,
   });
 
-  // Fetch portfolio summary
-  const summaryQuery = useQuery({
-    ...trpc.getPortfolioSummary.queryOptions({
-      walletAddress: walletKey,
-      clientChainId: chainScope,
-    }),
+  const summaryQuery = usePortfolioSummary({
     enabled: !!walletKey && isConnected,
   });
 

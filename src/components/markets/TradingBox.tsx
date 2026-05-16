@@ -21,9 +21,11 @@ import {
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { useWalletRuntimeState } from '~/hooks/useWalletRuntimeState';
 import { WalletGateModal } from '~/components/WalletGateModal';
-import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 import { executePlacePredictionWithDiagnostics } from '~/lib/executePlacePredictionWithDiagnostics';
+import { executeClosePositionWithDiagnostics } from '~/lib/executeClosePositionWithDiagnostics';
+import { useUserPositions } from '~/hooks/useUserPositions';
 import { predictionBalanceFootnote } from '~/lib/economySurface';
 import { PAPER_ROUTING_IMPACT_POOL_USDC } from '~/lib/curatedMarketPresentation';
 import {
@@ -122,7 +124,6 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
   const chainActionsBlocked =
     isWalletConnected && !isDemoActive && walletRt.runtime !== "connected-correct-chain";
   const walletKey = normalizeWalletForQuery(walletAddress);
-  const chainScope = clientChainScopeForTrpc(chainId);
   const { requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
   
   // Demo: `demoStorage`; paper: `getPaperWalletBalance` (tRPC), not the wallet Zustand slice.
@@ -147,13 +148,8 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const buyFlowCorrelationRef = useRef<string | null>(null);
 
-  // Fetch user positions for this market
-  const positionsQuery = useQuery({
-    ...trpc.getUserPositions.queryOptions({
-      walletAddress: walletKey,
-      status: 'open',
-      clientChainId: chainScope,
-    }),
+  const positionsQuery = useUserPositions({
+    status: 'open',
     enabled: !!walletKey && isWalletConnected && !isDemoActive,
   });
 
@@ -354,9 +350,18 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
     },
   });
 
-  const closePositionMutation = useMutation(
-    trpc.closePosition.mutationOptions({
-      onSuccess: (data) => {
+  const closePositionMutation = useMutation({
+    mutationFn: (input: {
+      orderId: string;
+      walletAddress: string;
+      sharesToSell: number;
+      currentPrice: number;
+    }) =>
+      executeClosePositionWithDiagnostics(
+        (payload) => trpcClient.closePosition.mutate(payload),
+        input,
+      ),
+    onSuccess: (data) => {
         setTxError(undefined);
         setTxModalState('success');
         
@@ -394,8 +399,7 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
           icon: '❌',
         });
       },
-    })
-  );
+  });
 
   const onBuySubmit = async (data: BuyFormData) => {
     const flowId = newClientPurchaseRequestId();

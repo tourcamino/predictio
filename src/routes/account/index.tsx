@@ -13,7 +13,10 @@ import { FollowedAnalystsTab } from '~/components/account/FollowedAnalystsTab';
 import { ReferralDashboardTab } from '~/components/account/ReferralDashboardTab';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
-import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
+import { useUserPositions } from '~/hooks/useUserPositions';
+import { usePortfolioSummary } from '~/hooks/usePortfolioSummary';
+import { useTransactionHistory } from '~/hooks/useTransactionHistory';
 import type { LedgerHistoryFilter } from '~/lib/ledger/ledgerTransactionTypes';
 import { dbActivityAmountPrefix, dbActivityTypeLabel } from '~/lib/wallet/dbActivityDisplay';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
@@ -58,19 +61,13 @@ function AccountPage() {
 
   const trpc = useTRPC();
   const walletKey = normalizeWalletForQuery(address);
-  const chainScope = clientChainScopeForTrpc(chainId);
   const [transactionType, setTransactionType] = useState<LedgerHistoryFilter>('all');
   const [transactionOffset, setTransactionOffset] = useState(0);
   const transactionLimit = 20;
   const [predictionStatusFilter, setPredictionStatusFilter] = useState<'all' | 'open' | 'resolved'>('all');
 
-  // Fetch user positions
-  const positionsQuery = useQuery({
-    ...trpc.getUserPositions.queryOptions({
-      walletAddress: walletKey,
-      status: 'all',
-      clientChainId: chainScope,
-    }),
+  const positionsQuery = useUserPositions({
+    status: 'all',
     enabled: !!walletKey && (activeTab === 'overview' || activeTab === 'predictions'),
   });
 
@@ -101,12 +98,7 @@ function AccountPage() {
     return list.filter((p) => p.status !== 'open');
   }, [positionsQuery.data?.positions, predictionStatusFilter]);
 
-  // Fetch portfolio summary
-  const summaryQuery = useQuery({
-    ...trpc.getPortfolioSummary.queryOptions({
-      walletAddress: walletKey,
-      clientChainId: chainScope,
-    }),
+  const summaryQuery = usePortfolioSummary({
     enabled: !!walletKey && (activeTab === 'overview' || activeTab === 'predictions' || activeTab === 'stats'),
   });
 
@@ -164,14 +156,10 @@ function AccountPage() {
     return parts.length ? parts.join(' · ') : '—';
   };
 
-  const transactionHistoryQuery = useQuery({
-    ...trpc.getTransactionHistory.queryOptions({
-      walletAddress: walletKey,
-      limit: transactionLimit,
-      offset: transactionOffset,
-      type: transactionType,
-      clientChainId: chainScope,
-    }),
+  const transactionHistoryQuery = useTransactionHistory({
+    limit: transactionLimit,
+    offset: transactionOffset,
+    type: transactionType,
     enabled: !!walletKey && activeTab === 'history',
   });
 
