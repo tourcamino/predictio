@@ -140,6 +140,9 @@ export interface AzuroMarket extends SeedMarket {
   selectionReason?: string;
   /** Azuro decimal odds for draw (1X2 middle outcome), when available */
   drawOdds?: string | null;
+  /** Canonical LP graph allocation from GET /api/markets */
+  paperLiquidityAllocation?: number | null;
+  paperLiquiditySharePct?: number | null;
 }
 
 const AZURO_PAGE_SIZE = 200;

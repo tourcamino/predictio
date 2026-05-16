@@ -1,5 +1,11 @@
 import type { AzuroMarket } from "~/services/azuro";
 import { FOOTBALL_FOCUS_CONFIG, isFootballFocusEnabled } from "~/config/footballFocus";
+import {
+  filterValidAzuroMarketsForView,
+  marketCompetitionLabel,
+  safeLower,
+  safeString,
+} from "~/lib/marketViewSafety";
 
 const DEFAULT_HOME_MIN = 9;
 
@@ -9,12 +15,12 @@ function kickoffMs(m: AzuroMarket): number {
 }
 
 export function isFootballMarket(m: Pick<AzuroMarket, "sport">): boolean {
-  const s = (m.sport ?? "").trim().toLowerCase();
+  const s = safeLower(m.sport);
   return s === "football" || s === "soccer";
 }
 
 function leagueBoost(competition: string): number {
-  const c = competition.toLowerCase();
+  const c = safeLower(competition);
   let boost = 0;
   for (const name of FOOTBALL_FOCUS_CONFIG.PRIORITY_COMPETITIONS) {
     if (c.includes(name.toLowerCase())) {
@@ -37,13 +43,13 @@ export function rankFootballFirstForView(markets: readonly AzuroMarket[]): Azuro
     if (af !== bf) return af ? -1 : 1;
 
     const qualityA =
-      leagueBoost(a.competition) +
+      leagueBoost(marketCompetitionLabel(a)) +
       (a.importanceScore ?? 0) +
-      (a.paperLiquidityAllocation ?? 0) / 500;
+      (a.paperLiquidityAllocation ?? a.liquidity ?? 0) / 500;
     const qualityB =
-      leagueBoost(b.competition) +
+      leagueBoost(marketCompetitionLabel(b)) +
       (b.importanceScore ?? 0) +
-      (b.paperLiquidityAllocation ?? 0) / 500;
+      (b.paperLiquidityAllocation ?? b.liquidity ?? 0) / 500;
     if (qualityA !== qualityB) return qualityB - qualityA;
 
     const horizonA = kickoffMs(a) - now;
@@ -63,9 +69,10 @@ export function buildFootballFirstHomepageView(
   displayCap: number = DEFAULT_HOME_MIN,
   minVisible: number = DEFAULT_HOME_MIN,
 ): AzuroMarket[] {
+  const pool = filterValidAzuroMarketsForView(registryPool, "buildFootballFirstHomepageView");
   const ranked = isFootballFocusEnabled()
-    ? rankFootballFirstForView(registryPool)
-    : [...registryPool].sort((a, b) => kickoffMs(a) - kickoffMs(b));
+    ? rankFootballFirstForView(pool)
+    : [...pool].sort((a, b) => kickoffMs(a) - kickoffMs(b));
 
   const football = ranked.filter(isFootballMarket);
   const nonFootball = ranked.filter((m) => !isFootballMarket(m));

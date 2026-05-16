@@ -6,8 +6,54 @@ import { LiveMarketCard } from './markets/LiveMarketCard';
 import { isFootballFocusEnabled } from '~/config/footballFocus';
 import { seedMarketToLiveMarket } from '~/utils/seedMarketToLiveMarket';
 import { fetchCuratedMarketsFromApi } from '~/utils/curatedMarketsApi';
-import { buildFootballFirstHomepageView, isFootballMarket } from '~/lib/footballFirstView';
+import { buildFootballFirstHomepageView } from '~/lib/footballFirstView';
+import type { AzuroMarket } from '~/services/azuro';
 import type { Market } from '~/data/mockMarkets';
+
+const displayCap = Math.max(HOME_MARKET_CARD_COUNT, HOME_MARKET_MIN_VISIBLE);
+
+function filterAzuroPool(
+  pool: readonly AzuroMarket[],
+  selectedCategory: string,
+  dateFilter: 'all' | 'today' | '24h' | 'week',
+): AzuroMarket[] {
+  let out =
+    selectedCategory === 'all'
+      ? [...pool]
+      : pool.filter((m) => m.sport === selectedCategory);
+
+  if (dateFilter !== 'all') {
+    const now = Date.now();
+    out = out.filter((m) => {
+      const closeMs = Date.parse(m.endsAt);
+      if (!Number.isFinite(closeMs)) return true;
+      const hoursUntilClose = (closeMs - now) / (1000 * 60 * 60);
+      if (dateFilter === 'today' || dateFilter === '24h') return hoursUntilClose <= 24;
+      if (dateFilter === 'week') return hoursUntilClose <= 168;
+      return true;
+    });
+  }
+  return out;
+}
+
+function sortAzuroPool(
+  pool: AzuroMarket[],
+  sortBy: 'volume' | 'trending' | 'ending-soon',
+): AzuroMarket[] {
+  const sorted = [...pool];
+  if (sortBy === 'trending') {
+    sorted.sort(
+      (a, b) => (b.liquidity ?? 0) * (b.traders ?? 0) - (a.liquidity ?? 0) * (a.traders ?? 0),
+    );
+  } else if (sortBy === 'volume') {
+    sorted.sort((a, b) => (b.liquidity ?? 0) - (a.liquidity ?? 0));
+  } else if (sortBy === 'ending-soon') {
+    sorted.sort(
+      (a, b) => new Date(a.endsAt).getTime() - new Date(b.endsAt).getTime(),
+    );
+  }
+  return sorted;
+}
 
 /** Homepage display cap — registry must expose at least 9 OPEN markets when available. */
 const HOME_MARKET_CARD_COUNT = 9;
@@ -37,62 +83,31 @@ export function LiveMarkets() {
     return [];
   }, [marketsQuery.isPending, marketsQuery.data]);
 
+  const filteredAzuroPool = useMemo(
+    () => sortAzuroPool(filterAzuroPool(baseSeeds, selectedCategory, dateFilter), sortBy),
+    [baseSeeds, selectedCategory, dateFilter, sortBy],
+  );
+
+  const displayedAzuro = useMemo(() => {
+    const pool =
+      filteredAzuroPool.length > 0 || selectedCategory !== 'all'
+        ? filteredAzuroPool
+        : baseSeeds;
+    if (isFootballFocusEnabled()) {
+      return buildFootballFirstHomepageView(pool, displayCap, HOME_MARKET_MIN_VISIBLE);
+    }
+    return pool.slice(0, displayCap);
+  }, [filteredAzuroPool, baseSeeds, selectedCategory]);
+
+  const displayedMarkets = useMemo(
+    () => displayedAzuro.map(seedMarketToLiveMarket),
+    [displayedAzuro],
+  );
+
   const allMarketsLive = useMemo(
     () => baseSeeds.map(seedMarketToLiveMarket),
     [baseSeeds],
   );
-
-  /** Show all markets from the pool ÔÇö excluding `isFeatured` hid almost every football seed (featured flag is editorial, not ÔÇ£duplicateÔÇØ). */
-  const allMarkets = allMarketsLive;
-  
-  // Filter by category (copy before sort to avoid mutating memoized arrays)
-  let filteredMarkets =
-    selectedCategory === "all"
-      ? [...allMarkets]
-      : allMarkets.filter((m) => m.sport === selectedCategory);
-  
-  // Filter by date
-  if (dateFilter !== 'all') {
-    const now = new Date();
-    filteredMarkets = filteredMarkets.filter((m) => {
-      const hoursUntilClose = (m.closesAt.getTime() - now.getTime()) / (1000 * 60 * 60);
-      
-      if (dateFilter === 'today') {
-        return hoursUntilClose <= 24;
-      } else if (dateFilter === '24h') {
-        return hoursUntilClose <= 24;
-      } else if (dateFilter === 'week') {
-        return hoursUntilClose <= 168; // 7 days
-      }
-      return true;
-    });
-  }
-  
-  // Sort by popularity/trending
-  if (sortBy === 'trending') {
-    filteredMarkets.sort((a, b) => {
-      const scoreA = a.volume * a.traders;
-      const scoreB = b.volume * b.traders;
-      return scoreB - scoreA;
-    });
-  } else if (sortBy === 'volume') {
-    filteredMarkets.sort((a, b) => b.volume - a.volume);
-  } else if (sortBy === 'ending-soon') {
-    filteredMarkets.sort((a, b) => a.closesAt.getTime() - b.closesAt.getTime());
-  }
-  
-  const displayCap = Math.max(HOME_MARKET_CARD_COUNT, HOME_MARKET_MIN_VISIBLE);
-  const displayedMarkets = isFootballFocusEnabled()
-    ? buildFootballFirstHomepageView(
-        selectedCategory === 'football' || selectedCategory === 'all'
-          ? filteredMarkets.length > 0
-            ? filteredMarkets
-            : allMarketsLive
-          : filteredMarkets,
-        displayCap,
-        HOME_MARKET_MIN_VISIBLE,
-      )
-    : filteredMarkets.slice(0, displayCap);
 
   if (import.meta.env.DEV && marketsQuery.data) {
     console.log(
@@ -100,16 +115,18 @@ export function LiveMarkets() {
         tag: 'HOME_PIPELINE_REACT_RENDER',
         FRONTEND_FETCH_COUNT: baseSeeds.length,
         RENDERED_EVENT_COUNT: displayedMarkets.length,
-        FOOTBALL_RENDERED_COUNT: displayedMarkets.filter(isFootballMarket).length,
+        FOOTBALL_RENDERED_COUNT: displayedAzuro.filter(
+          (m) => m.sport === 'football' || m.sport === 'soccer',
+        ).length,
         HOMEPAGE_MIN: HOME_MARKET_MIN_VISIBLE,
       }),
     );
   }
 
   // Calculate stats
-  const totalVolume = allMarkets.reduce((sum, m) => sum + m.volume, 0);
-  const totalPredictions = allMarkets.reduce((sum, m) => sum + (m.predictions ?? 0), 0);
-  const activeMarkets = allMarkets.length;
+  const totalVolume = allMarketsLive.reduce((sum, m) => sum + m.volume, 0);
+  const totalPredictions = allMarketsLive.reduce((sum, m) => sum + (m.predictions ?? 0), 0);
+  const activeMarkets = allMarketsLive.length;
 
   const formatVolume = (volume: number) => {
     if (volume >= 1000000) {
@@ -295,7 +312,7 @@ export function LiveMarkets() {
                     <span>{category.label}</span>
                     {selectedCategory === category.id && (
                       <span className="ml-1 px-2 py-0.5 bg-brand-bg/30 rounded-full text-xs font-bold">
-                        {filteredMarkets.length}
+                        {filteredAzuroPool.length}
                       </span>
                     )}
                   </button>

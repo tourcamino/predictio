@@ -11,6 +11,7 @@ import {
 import { compareEditorialCatalogOrder } from "~/lib/editorialCatalogOrder";
 import { logFrontendFetchForensic } from "~/lib/homePipelineForensicTrace";
 import { buildFootballFirstHomepageView } from "~/lib/footballFirstView";
+import { filterValidAzuroMarketsForView } from "~/lib/marketViewSafety";
 
 /** Quota pareggio sintetica se Azuro/API non espone draw (calcio 1X2 sempre 3 esiti in UI). */
 const SYNTHETIC_DRAW_DECIMAL = 3.35;
@@ -51,8 +52,8 @@ export type CuratedMarketApiRow = {
   sportSlug?: string;
 };
 
-function slugifyCompetition(name: string): string {
-  return name
+function slugifyCompetition(name: string | undefined | null): string {
+  return String(name ?? "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "") || "league";
@@ -145,6 +146,8 @@ export function curatedApiRowToAzuroMarket(row: CuratedMarketApiRow): AzuroMarke
     editorialSlot: row.editorialSlot,
     selectionReason: row.selectionReason,
     drawOdds: drawOddsField,
+    paperLiquidityAllocation: row.paperLiquidityAllocation ?? null,
+    paperLiquiditySharePct: row.paperLiquiditySharePct ?? null,
   };
 }
 
@@ -219,37 +222,41 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
       rawFeedMode?: boolean;
       protocolRegistryMode?: boolean;
     };
-    const mapped = (data.markets ?? []).map(curatedApiRowToAzuroMarket);
+    const mapped = filterValidAzuroMarketsForView(
+      (data.markets ?? []).map(curatedApiRowToAzuroMarket),
+      "fetchCuratedMarketsFromApi",
+    );
     const registryView = Boolean(data.protocolRegistryMode ?? data.rawFeedMode);
 
     if (registryView) {
-      const withMin = buildFootballFirstHomepageView(
+      const preview = buildFootballFirstHomepageView(
         mapped,
         HOMEPAGE_MIN_MARKETS,
         HOMEPAGE_MIN_MARKETS,
       );
-      const footballCount = withMin.filter(
+      const footballCount = preview.filter(
         (m) => m.sport === "football" || m.sport === "soccer",
       ).length;
       logFrontendFetchForensic({
-        apiTotal: data.total ?? withMin.length,
+        apiTotal: data.total ?? mapped.length,
         rawFeedMode: true,
         source: "curated-api",
-        markets: withMin,
+        markets: preview,
         rankingPath: "football-first-view-min-9",
       });
       console.log(
         JSON.stringify({
           tag: "HOME_PIPELINE_PROTOCOL_VIEW",
           API_RESPONSE_COUNT: mapped.length,
-          FRONTEND_FETCH_COUNT: withMin.length,
+          FRONTEND_FETCH_COUNT: mapped.length,
+          HOMEPAGE_PREVIEW_COUNT: preview.length,
           FOOTBALL_HOMEPAGE_COUNT: footballCount,
           HOMEPAGE_MIN: HOMEPAGE_MIN_MARKETS,
         }),
       );
       return {
-        markets: withMin,
-        total: data.total ?? withMin.length,
+        markets: mapped,
+        total: data.total ?? mapped.length,
         source: "curated-api",
         rawFeedMode: true,
         protocolRegistryMode: true,
