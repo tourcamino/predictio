@@ -1,8 +1,15 @@
-import { X } from 'lucide-react';
+﻿import { AlertCircle, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { Link } from '@tanstack/react-router';
+import { useWallet } from '~/store/useWalletStore';
+import { useDemoAccount } from '~/hooks/useDemoAccount';
+import {
+  demoBannerPrimaryLine,
+  demoBannerSecondaryHint,
+} from '~/lib/economySurface';
 
 export function DemoBanner() {
+  const { isConnected } = useWallet();
+  const { isActive: isDemoActive } = useDemoAccount();
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
@@ -18,26 +25,30 @@ export function DemoBanner() {
     window.dispatchEvent(new Event('demo-banner-dismissed'));
   };
 
+  const primary = demoBannerPrimaryLine({ isConnected, isDemoActive });
+  const secondary = demoBannerSecondaryHint();
+
   if (isDismissed) return null;
 
   return (
-    <div className="relative z-[100] border-b border-white/10 bg-brand-bg/95 backdrop-blur-sm">
-      <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-3">
-        <p className="text-sm text-gray-400 leading-snug flex-1 min-w-0">
-          Pre-testnet ·{' '}
-          <span className="text-brand-green font-medium">Paper USDC</span> trading environment
-          <span className="text-gray-500"> · </span>
-          <Link to="/risk-disclosure" className="text-gray-500 hover:text-brand-green transition-colors">
-            Learn more
-          </Link>
-        </p>
+    <div className="relative z-[100] bg-[#00FF87]/10 border-b border-[#00FF87]/30">
+      <div className="max-w-7xl mx-auto px-4 py-2 flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2 flex-1 min-w-0">
+          <AlertCircle className="w-4 h-4 text-[#00FF87] flex-shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-[#00FF87] text-sm font-semibold leading-snug">{primary}</p>
+            {secondary ? (
+              <p className="text-[#00FF87]/80 text-xs mt-1 leading-snug">{secondary}</p>
+            ) : null}
+          </div>
+        </div>
         <button
           onClick={handleDismiss}
-          className="p-1 hover:bg-white/5 rounded transition-colors shrink-0 text-gray-500 hover:text-gray-300"
+          className="p-1 hover:bg-[#00FF87]/20 rounded transition-colors shrink-0"
           aria-label="Dismiss banner"
           type="button"
         >
-          <X className="w-4 h-4" />
+          <X className="w-4 h-4 text-[#00FF87]" />
         </button>
       </div>
     </div>

@@ -404,6 +404,19 @@ export async function fetchAzuroGames(
       (game) => mapAzuroSportToSlug(game.sport.name) === "football",
     );
 
+    if (import.meta.env.DEV) {
+      console.log(
+        JSON.stringify({
+          tag: "AZURO_TS_CLIENT_FETCH_NOT_HOMEPAGE",
+          NOTE: "Homepage uses GET /api/markets via fetchCuratedMarketsFromApi — NOT this module",
+          indexerRawGames: games.length,
+          afterFootballOnlyFilter: footballGames.length,
+          footballFilter: 'mapAzuroSportToSlug(sport) === "football"',
+          nonFootballDropped: games.length - footballGames.length,
+        }),
+      );
+    }
+
     // Transform Azuro games to our market format (football only)
     const markets: AzuroMarket[] = footballGames.map((game) => {
       const sportSlug = mapAzuroSportToSlug(game.sport.name);

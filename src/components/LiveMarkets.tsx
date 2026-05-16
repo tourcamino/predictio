@@ -1,55 +1,108 @@
-import { ArrowRight, Activity } from 'lucide-react';
-import { useMemo } from 'react';
+﻿import { ArrowRight, TrendingUp, Activity, DollarSign, Users, Calendar, Zap } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { LiveMarketCard } from './markets/LiveMarketCard';
+import { isFootballFocusEnabled } from '~/config/footballFocus';
 import { seedMarketToLiveMarket } from '~/utils/seedMarketToLiveMarket';
 import { fetchCuratedMarketsFromApi } from '~/utils/curatedMarketsApi';
-import { formatKickoffPreview } from '~/lib/homepageCuratedNarrative';
-import {
-  editorialBriefingDescriptor,
-  orderForHomepageIntelligence,
-} from '~/lib/featuredIntelligenceLayer';
+import type { Market } from '~/data/mockMarkets';
 
-/** Match curated cap (9) — same pool as `/markets`. */
+/** Match curated cap (9) ÔÇö same pool as `/markets`. */
 const HOME_MARKET_CARD_COUNT = 9;
 
 export function LiveMarkets() {
   const navigate = useNavigate();
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    isFootballFocusEnabled() ? 'football' : 'all'
+  );
+  const [sortBy, setSortBy] = useState<'volume' | 'trending' | 'ending-soon'>('trending');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | '24h' | 'week'>('all');
   const marketsQuery = useQuery({
-    queryKey: ['curatedMarkets', 'home'],
+    queryKey: ["curatedMarkets", "home"],
     queryFn: fetchCuratedMarketsFromApi,
     staleTime: 50_000,
   });
 
-  const curatedSlice = useMemo(() => {
-    if (marketsQuery.isPending && !marketsQuery.data) return [];
+  const baseSeeds = useMemo(() => {
+    if (marketsQuery.isPending && !marketsQuery.data) {
+      return [];
+    }
     const rows = marketsQuery.data?.markets;
-    if (!rows?.length) return [];
-    if (marketsQuery.data?.rawFeedMode) return rows.slice(0, 36);
-    return rows.slice(0, HOME_MARKET_CARD_COUNT);
+    if (rows && rows.length > 0) {
+      return rows;
+    }
+    return [];
   }, [marketsQuery.isPending, marketsQuery.data]);
 
-  const catalogClock = marketsQuery.dataUpdatedAt ?? Date.now();
+  const allMarketsLive = useMemo(
+    () => baseSeeds.map(seedMarketToLiveMarket),
+    [baseSeeds],
+  );
 
-  /** Foreground density cap — featured + two supporting + optional compact strip. */
-  const intelligenceSlice = useMemo(() => {
-    if (curatedSlice.length === 0) return [];
-    if (marketsQuery.data?.rawFeedMode) {
-      return curatedSlice.slice(0, 12);
+  /** Show all markets from the pool ÔÇö excluding `isFeatured` hid almost every football seed (featured flag is editorial, not ÔÇ£duplicateÔÇØ). */
+  const allMarkets = allMarketsLive;
+  
+  // Filter by category (copy before sort to avoid mutating memoized arrays)
+  let filteredMarkets =
+    selectedCategory === "all"
+      ? [...allMarkets]
+      : allMarkets.filter((m) => m.sport === selectedCategory);
+  
+  // Filter by date
+  if (dateFilter !== 'all') {
+    const now = new Date();
+    filteredMarkets = filteredMarkets.filter((m) => {
+      const hoursUntilClose = (m.closesAt.getTime() - now.getTime()) / (1000 * 60 * 60);
+      
+      if (dateFilter === 'today') {
+        return hoursUntilClose <= 24;
+      } else if (dateFilter === '24h') {
+        return hoursUntilClose <= 24;
+      } else if (dateFilter === 'week') {
+        return hoursUntilClose <= 168; // 7 days
+      }
+      return true;
+    });
+  }
+  
+  // Sort by popularity/trending
+  if (sortBy === 'trending') {
+    filteredMarkets.sort((a, b) => {
+      const scoreA = a.volume * a.traders;
+      const scoreB = b.volume * b.traders;
+      return scoreB - scoreA;
+    });
+  } else if (sortBy === 'volume') {
+    filteredMarkets.sort((a, b) => b.volume - a.volume);
+  } else if (sortBy === 'ending-soon') {
+    filteredMarkets.sort((a, b) => a.closesAt.getTime() - b.closesAt.getTime());
+  }
+  
+  const displayedMarkets = filteredMarkets.slice(0, HOME_MARKET_CARD_COUNT);
+
+  // Calculate stats
+  const totalVolume = allMarkets.reduce((sum, m) => sum + m.volume, 0);
+  const totalPredictions = allMarkets.reduce((sum, m) => sum + (m.predictions ?? 0), 0);
+  const activeMarkets = allMarkets.length;
+
+  const formatVolume = (volume: number) => {
+    if (volume >= 1000000) {
+      return `$${(volume / 1000000).toFixed(1)}M`;
     }
-    return orderForHomepageIntelligence(curatedSlice, catalogClock, 5);
-  }, [curatedSlice, catalogClock, marketsQuery.data?.rawFeedMode]);
+    return `$${(volume / 1000).toFixed(0)}K`;
+  };
 
-  const featuredRow = intelligenceSlice[0];
-  const supportingRows = intelligenceSlice.slice(1, 3);
-  const compactRows = intelligenceSlice.slice(3, 5);
-
-  const poolCount = curatedSlice.length;
-  const foregroundCount = intelligenceSlice.length;
+  const categories = [
+    { id: 'all', label: 'All Sports', emoji: '🎯' },
+    { id: 'football', label: 'Football', emoji: '⚽' },
+    { id: 'basketball', label: 'Basketball', emoji: '🏀' },
+    { id: 'mma', label: 'MMA', emoji: '🥊' },
+    { id: 'cricket', label: 'Cricket', emoji: '🏏' },
+  ];
 
   const handleViewAllMarkets = () => {
-    navigate({ to: '/markets', search: { sortBy: 'featured' } });
+    navigate({ to: '/markets' });
   };
 
   const handleMarketClick = (marketId: string) => {
@@ -57,125 +110,232 @@ export function LiveMarkets() {
   };
 
   return (
-    <section id="markets" className="py-20 lg:py-32 bg-brand-bg relative overflow-hidden">
-      <div
-        className="absolute inset-0 opacity-[0.06] pointer-events-none"
-        aria-hidden
-        style={{
-          backgroundImage:
-            'linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)',
-          backgroundSize: '64px 64px',
-        }}
-      />
+    <section id="markets" className="py-20 lg:py-32 bg-gradient-to-b from-brand-navy to-brand-bg relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute inset-0 opacity-30">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-green/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-brand-cyan/10 rounded-full blur-3xl"></div>
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="max-w-3xl mb-16 lg:mb-24">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 border-b border-white/[0.08] mb-8">
-            <Activity className="w-3.5 h-3.5 text-gray-500" />
-            <span className="text-[11px] font-semibold text-gray-500 tracking-[0.22em] uppercase">
-              Editorial catalogue
-            </span>
+        {/* Header */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-green/20 to-brand-cyan/20 border border-brand-green/40 rounded-full mb-6 animate-pulse-demo shadow-lg shadow-brand-green/20">
+            <Activity className="w-4 h-4 text-brand-green" />
+            <span className="text-sm font-bold text-brand-green">LIVE MARKETS</span>
+            <span className="w-2 h-2 bg-brand-green rounded-full animate-pulse" />
           </div>
-
-          <h2 className="font-syne font-bold text-3xl sm:text-4xl lg:text-[2.75rem] text-white mb-6 leading-[1.1] tracking-tight">
-            European premium multisport outlook
+          
+          <h2 className="font-syne font-bold text-4xl sm:text-5xl lg:text-6xl mb-6 bg-gradient-to-r from-white via-gray-100 to-gray-300 bg-clip-text text-transparent">
+            {isFootballFocusEnabled() ? 'Live Matches You Can Trade Right Now' : 'Trade Live Sports Markets'}
           </h2>
-
-          <p className="text-base sm:text-lg text-gray-500 leading-[1.65] mb-8 max-w-2xl">
-            High-signal events only — a cover outlook, two supporting contexts, and a compact radar
-            strip when the book allows. Ordering favours anticipation and editorial priority over raw
-            grid sequence.
+          
+          <p className="text-lg text-gray-400 max-w-2xl mx-auto mb-8">
+            {isFootballFocusEnabled() 
+              ? 'Odds move in real time as the match unfolds. Trade on Champions League, Serie A, and top European competitions.'
+              : 'Real-time odds on every major sporting event. Trade your predictions and earn from your sports knowledge.'
+            }
           </p>
 
-          <p className="text-xs text-gray-600 font-mono tabular-nums m-0">
-            {foregroundCount} foreground outlook{foregroundCount === 1 ? '' : 's'}
-            {poolCount > 0 ? ` · drawn from ${poolCount}-row curated pool` : ''}
-          </p>
-        </div>
+          {/* Enhanced Stats Bar */}
+          <div className="flex flex-wrap items-center justify-center gap-6 lg:gap-12 mb-12">
+            <div className="group flex items-center gap-3 px-4 py-3 bg-gradient-to-br from-brand-green/10 to-brand-green/5 border border-brand-green/20 rounded-xl hover:border-brand-green/40 transition-all">
+              <div className="p-3 bg-brand-green/20 rounded-lg group-hover:scale-110 transition-transform">
+                <TrendingUp className="w-5 h-5 text-brand-green" />
+              </div>
+              <div className="text-left">
+                <div className="font-mono text-2xl font-bold text-brand-green">
+                  {formatVolume(totalVolume)}
+                </div>
+                <div className="text-xs text-gray-400 font-medium">Trading Volume</div>
+              </div>
+            </div>
 
-        {marketsQuery.isPending && !marketsQuery.data ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-            <div className="lg:col-span-7 min-h-[360px] rounded-2xl bg-white/[0.02] border border-white/[0.06] animate-pulse" />
-            <div className="lg:col-span-5 flex flex-col gap-6">
-              <div className="min-h-[200px] rounded-xl bg-white/[0.02] border border-white/[0.06] animate-pulse flex-1" />
-              <div className="min-h-[200px] rounded-xl bg-white/[0.02] border border-white/[0.06] animate-pulse flex-1" />
+            <div className="group flex items-center gap-3 px-4 py-3 bg-gradient-to-br from-brand-cyan/10 to-brand-cyan/5 border border-brand-cyan/20 rounded-xl hover:border-brand-cyan/40 transition-all">
+              <div className="p-3 bg-brand-cyan/20 rounded-lg group-hover:scale-110 transition-transform">
+                <DollarSign className="w-5 h-5 text-brand-cyan" />
+              </div>
+              <div className="text-left">
+                <div className="font-mono text-2xl font-bold text-brand-cyan">
+                  {activeMarkets}+
+                </div>
+                <div className="text-xs text-gray-400 font-medium">Active Markets</div>
+              </div>
+            </div>
+
+            <div className="group flex items-center gap-3 px-4 py-3 bg-gradient-to-br from-purple-500/10 to-purple-500/5 border border-purple-500/20 rounded-xl hover:border-purple-500/40 transition-all">
+              <div className="p-3 bg-purple-500/20 rounded-lg group-hover:scale-110 transition-transform">
+                <Users className="w-5 h-5 text-purple-400" />
+              </div>
+              <div className="text-left">
+                <div className="font-mono text-2xl font-bold text-purple-400">
+                  {(totalPredictions / 1000).toFixed(1)}K+
+                </div>
+                <div className="text-xs text-gray-400 font-medium">Predictions</div>
+              </div>
             </div>
           </div>
-        ) : featuredRow ? (
-          <>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 lg:items-start mb-16 lg:mb-20">
-              <div className="lg:col-span-7 min-w-0">
-                <LiveMarketCard
-                  variant="featured"
-                  market={seedMarketToLiveMarket(featuredRow)}
-                  narrativeLabel={
-                    [
-                      editorialBriefingDescriptor(featuredRow),
-                      formatKickoffPreview(featuredRow),
-                    ]
-                      .filter(Boolean)
-                      .join(' · ') || undefined
-                  }
-                  onClick={() => handleMarketClick(featuredRow.id)}
-                />
+
+          {/* Filter Controls */}
+          <div className="max-w-4xl mx-auto mb-8">
+            {/* Quick Filters Row */}
+            <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
+              {/* Sort/Popularity Filter */}
+              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-1">
+                <button
+                  onClick={() => setSortBy('trending')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    sortBy === 'trending'
+                      ? 'bg-brand-green text-brand-bg shadow-lg'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <Zap className="w-4 h-4" />
+                  <span>Trending</span>
+                </button>
+                <button
+                  onClick={() => setSortBy('volume')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    sortBy === 'volume'
+                      ? 'bg-brand-green text-brand-bg shadow-lg'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span>Volume</span>
+                </button>
+                <button
+                  onClick={() => setSortBy('ending-soon')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    sortBy === 'ending-soon'
+                      ? 'bg-brand-green text-brand-bg shadow-lg'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>Ending Soon</span>
+                </button>
               </div>
 
-              <div className="lg:col-span-5 flex flex-col gap-6">
-                {supportingRows.map((row) => {
-                  const kick = formatKickoffPreview(row);
-                  const kicker = [editorialBriefingDescriptor(row), kick].filter(Boolean).join(' · ');
-                  return (
-                    <div key={row.id} className="min-h-[200px] min-w-0">
-                      <LiveMarketCard
-                        variant="standard"
-                        market={seedMarketToLiveMarket(row)}
-                        narrativeLabel={kicker || undefined}
-                        onClick={() => handleMarketClick(row.id)}
-                      />
-                    </div>
-                  );
-                })}
+              {/* Date Filter */}
+              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-1">
+                <button
+                  onClick={() => setDateFilter('all')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    dateFilter === 'all'
+                      ? 'bg-brand-cyan text-brand-bg shadow-lg'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>All Time</span>
+                </button>
+                <button
+                  onClick={() => setDateFilter('24h')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    dateFilter === '24h'
+                      ? 'bg-brand-cyan text-brand-bg shadow-lg'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  24 Hours
+                </button>
+                <button
+                  onClick={() => setDateFilter('week')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    dateFilter === 'week'
+                      ? 'bg-brand-cyan text-brand-bg shadow-lg'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  This Week
+                </button>
               </div>
             </div>
 
-            {compactRows.length > 0 && (
-              <div className="border-t border-white/[0.05] pt-12 lg:pt-16 mb-16">
-                <div className="mb-8 max-w-2xl">
-                  <h3 className="font-syne text-lg sm:text-xl font-bold text-white m-0 tracking-tight">
-                    Compact radar
-                  </h3>
-                  <p className="text-sm text-gray-500 mt-2 m-0 leading-relaxed">
-                    Additional curated gates — same protocol, lower visual weight.
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6">
-                  {compactRows.map((row) => (
-                    <div key={row.id}>
-                      <LiveMarketCard
-                        variant="compact"
-                        market={seedMarketToLiveMarket(row)}
-                        onClick={() => handleMarketClick(row.id)}
-                      />
-                    </div>
-                  ))}
-                </div>
+            {/* Category Filter - Hidden in Football Focus mode */}
+            {!isFootballFocusEnabled() && (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {categories.map((category) => (
+                  <button
+                    key={category.id}
+                    onClick={() => setSelectedCategory(category.id)}
+                    className={`group flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all ${
+                      selectedCategory === category.id
+                        ? 'bg-gradient-to-r from-brand-green to-brand-cyan text-brand-bg shadow-xl shadow-brand-green/30 scale-105'
+                        : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-brand-green/30 hover:text-white hover:scale-105'
+                    }`}
+                  >
+                    <span className="text-lg">{category.emoji}</span>
+                    <span>{category.label}</span>
+                    {selectedCategory === category.id && (
+                      <span className="ml-1 px-2 py-0.5 bg-brand-bg/30 rounded-full text-xs font-bold">
+                        {filteredMarkets.length}
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
             )}
-          </>
-        ) : null}
+          </div>
 
-        <div className="text-center pt-6 border-t border-white/[0.04]">
+          {/* Active Filters Indicator */}
+          {(sortBy !== 'trending' || dateFilter !== 'all' || selectedCategory !== (isFootballFocusEnabled() ? 'football' : 'all')) && (
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <span className="text-sm text-gray-400">Showing {displayedMarkets.length} filtered markets</span>
+              <button
+                onClick={() => {
+                  setSortBy('trending');
+                  setDateFilter('all');
+                  setSelectedCategory(isFootballFocusEnabled() ? 'football' : 'all');
+                }}
+                className="text-sm text-brand-green hover:text-brand-cyan transition-colors font-semibold"
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Markets Grid ÔÇö Azuro-backed (aligned with /markets); skeleton on first load */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+          {marketsQuery.isPending && !marketsQuery.data
+            ? Array.from({ length: HOME_MARKET_CARD_COUNT }).map((_, index) => (
+                <div
+                  key={`sk-${index}`}
+                  className="h-[280px] rounded-xl bg-white/5 border border-white/10 animate-pulse"
+                />
+              ))
+            : displayedMarkets.map((market: Market, index: number) => (
+                <div
+                  key={market.id}
+                  className="animate-fade-in"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <LiveMarketCard market={market} onClick={() => handleMarketClick(market.id)} />
+                </div>
+              ))}
+        </div>
+
+        {/* CTA */}
+        <div className="text-center">
           <button
-            type="button"
             onClick={handleViewAllMarkets}
-            className="inline-flex items-center gap-2 px-7 py-3 border border-white/15 text-sm font-semibold text-gray-300 rounded-lg hover:border-white/25 hover:text-white transition-colors"
+            className="group inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-brand-green to-brand-cyan text-brand-bg font-bold text-lg rounded-xl hover:shadow-2xl hover:shadow-brand-green/40 hover:scale-105 transition-all relative overflow-hidden"
           >
-            <span>Full research terminal</span>
-            <ArrowRight className="w-4 h-4 opacity-70" />
+            <div className="absolute inset-0 bg-gradient-to-r from-brand-cyan to-brand-green opacity-0 group-hover:opacity-100 transition-opacity" />
+            <span className="relative z-10">Explore All {activeMarkets} Markets</span>
+            <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
           </button>
-          <p className="text-[11px] text-gray-600 mt-4 m-0">
-            Full terminal lists the complete curated book; homepage sequence is intelligence-ranked
-            for this surface.
+          <p className="text-sm text-gray-400 mt-4 flex items-center justify-center gap-2 flex-wrap">
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-brand-green rounded-full animate-pulse" />
+              New markets added daily
+            </span>
+            <span>•</span>
+            <span>Trade 24/7</span>
+            <span>•</span>
+            <span>Instant settlements</span>
           </p>
         </div>
       </div>

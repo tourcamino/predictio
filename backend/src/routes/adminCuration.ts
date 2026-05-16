@@ -23,6 +23,11 @@ import {
 } from "../services/editorialCatalogOrchestrator";
 import { isRawFeedMode, rawFeedApiResponseCap } from "../services/emergencyRelaxMode";
 import { syncRawFeedGamesToPrisma } from "../services/rawFeedDbSync";
+import {
+  isHomePipelineForensicEnabled,
+  logHomeApiForensic,
+  logHomeDbForensic,
+} from "../services/homePipelineForensicTrace";
 
 const CACHE_KEY = "admin:azuro:football:14d:v2";
 const MAX_ACTIVE = 9;
@@ -477,6 +482,30 @@ export function registerAdminCurationRoutes(
           }),
         );
 
+        let dbOpenAfterSync = 0;
+        if (isHomePipelineForensicEnabled()) {
+          try {
+            dbOpenAfterSync = await prisma.curatedEvent.count({
+              where: { isActive: true, status: "OPEN" },
+            });
+          } catch {
+            dbOpenAfterSync = -1;
+          }
+        }
+
+        logHomeApiForensic({
+          path: "raw-feed-live",
+          rawFeedCount: diagnostics.totalFromAzuro,
+          dbOpenCount: dbOpenAfterSync >= 0 ? dbOpenAfterSync : null,
+          apiResponseCount: markets.length,
+          markets,
+          extra: {
+            rawFeedMode: true,
+            pipelineValidCount: inv?.VALID_COUNT ?? null,
+            dbWrittenThisRequest: dbWritten,
+          },
+        });
+
         return res.json({
           markets,
           total: markets.length,
@@ -500,6 +529,14 @@ export function registerAdminCurationRoutes(
         );
         return res.json({ markets: [], total: 0 });
       }
+
+      const dbWhere = { isActive: true, status: "OPEN" as const };
+      logHomeDbForensic({
+        queryLabel: "prisma.curatedEvent.findMany",
+        whereClause: dbWhere,
+        rows,
+        maxActiveCap: MAX_ACTIVE,
+      });
 
       const sorted = [...rows].sort((a, b) => {
         const slotA = inferEditorialSlotForFixture({
@@ -598,6 +635,20 @@ export function registerAdminCurationRoutes(
           paperLiquidityAllocation: paperLiq?.allocation ?? null,
           paperLiquiditySharePct: paperLiq?.percentage ?? null,
         };
+      });
+
+      logHomeApiForensic({
+        path: "curated-db",
+        rawFeedCount: null,
+        dbOpenCount: rows.length,
+        apiResponseCount: markets.length,
+        markets,
+        extra: {
+          rawFeedMode: false,
+          dbRowsBeforeCap: rows.length,
+          maxActiveCap: MAX_ACTIVE,
+          getAzuroMarketsUsedByHomepage: false,
+        },
       });
 
       res.json({

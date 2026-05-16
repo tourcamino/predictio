@@ -9,6 +9,7 @@ import {
   rankAzuroMarketsByCurationScore,
 } from "~/lib/markets/curateFeaturedEvents";
 import { compareEditorialCatalogOrder } from "~/lib/editorialCatalogOrder";
+import { logFrontendFetchForensic } from "~/lib/homePipelineForensicTrace";
 
 /** Quota pareggio sintetica se Azuro/API non espone draw (calcio 1X2 sempre 3 esiti in UI). */
 const SYNTHETIC_DRAW_DECIMAL = 3.35;
@@ -217,6 +218,13 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
 
     if (data.rawFeedMode) {
       const sorted = [...mapped].sort((a, b) => kickoffMsForSort(a) - kickoffMsForSort(b));
+      logFrontendFetchForensic({
+        apiTotal: data.total ?? sorted.length,
+        rawFeedMode: true,
+        source: "curated-api",
+        markets: sorted,
+        rankingPath: "raw-feed-kickoff-sort-only",
+      });
       return {
         markets: sorted,
         total: data.total ?? sorted.length,
@@ -226,11 +234,14 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
     }
 
     let markets: AzuroMarket[];
+    let rankingPath: string;
     if (shouldUseBackendCuratedPassThrough(mapped)) {
       logCuratedRankingPath("backend-pass-through");
+      rankingPath = "backend-pass-through";
       markets = sortByBackendCuratedRanking(mapped);
     } else {
       logCuratedRankingPath("featured-recuration");
+      rankingPath = "featured-recuration";
       const featured = curateFeaturedAzuroMarkets(mapped, { limit: CURATED_FEATURED_MAX });
       markets =
         featured.length > 0
@@ -238,12 +249,26 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
           : rankAzuroMarketsByCurationScore(mapped).slice(0, CURATED_FEATURED_MAX);
     }
     if (markets.length === 0) {
+      logFrontendFetchForensic({
+        apiTotal: 0,
+        rawFeedMode: false,
+        source: "empty",
+        markets: [],
+        rankingPath,
+      });
       return {
         markets: [],
         total: 0,
         source: "empty",
       };
     }
+    logFrontendFetchForensic({
+      apiTotal: data.total ?? markets.length,
+      rawFeedMode: false,
+      source: "curated-api",
+      markets,
+      rankingPath,
+    });
     return {
       markets,
       total: data.total ?? markets.length,

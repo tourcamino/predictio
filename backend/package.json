@@ -14,6 +14,8 @@
     "prisma:migrate": "prisma migrate deploy",
     "publish-events": "node --env-file=.env --import tsx src/scripts/publishEvents.ts",
     "debug:dump-azuro": "node --env-file=.env --import tsx src/scripts/debug/dumpRawAzuroFeed.ts",
+    "debug:trace-raw-feed": "node --env-file=.env --import tsx src/scripts/debug/traceRawAzuroFeed.ts",
+    "debug:trace-home-pipeline": "node --env-file=.env --import tsx src/scripts/debug/traceHomePipeline.ts",
     "debug:filter-waterfall": "node --env-file=.env --import tsx src/scripts/debug/filterWaterfallDiagnostics.ts",
     "debug:frontend-backend-diff": "node --env-file=.env --import tsx src/scripts/debug/frontendBackendDiff.ts",
     "debug:env-audit": "node --env-file=.env --import tsx src/scripts/debug/productionEnvAudit.ts",

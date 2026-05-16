@@ -39,8 +39,8 @@ function Home() {
   return (
     <div className="min-h-screen">
       <MetaTags
-        title="Predictio.live — European premium prediction markets"
-        description="Curated multisport prediction intelligence on Base — European premium lanes, editorial catalogue, and calm conviction tooling."
+        title="Predictio.live — DeFi Sports Prediction Markets on Base"
+        description="Trade YES/NO tokens on Champions League, Serie A, NBA and more. Powered by Base blockchain."
         url={typeof window !== 'undefined' ? window.location.href : undefined}
       />
       <OGImagePreloader />

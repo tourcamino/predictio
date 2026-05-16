@@ -1,3 +1,6 @@
+import { isRawFeedMode } from "./emergencyRelaxMode";
+import { logRawIndexerForensic } from "./rawFeedForensicTrace";
+
 const AZURO_FEED_URL = process.env.AZURO_DATA_FEED_URL;
 
 /**
@@ -208,6 +211,17 @@ ${GAMES_PAGE_FIELDS}
   return { batch: json.data?.games ?? [], graphqlStartsAtGte: false, aborted: false };
 }
 
+function finishAzuroGamesFetch(
+  merged: RawAzuroGame[],
+  logMeta: Record<string, unknown>,
+): RawAzuroGame[] {
+  console.log(JSON.stringify({ tag: "azuro_indexer_fetch", msg: "games_merged", ...logMeta }));
+  if (isRawFeedMode()) {
+    logRawIndexerForensic(merged);
+  }
+  return merged;
+}
+
 export async function fetchAzuroGames(opts?: FetchAzuroGamesOptions): Promise<RawAzuroGame[]> {
   if (!AZURO_FEED_URL) {
     throw new Error("AZURO_DATA_FEED_URL is not set");
@@ -238,17 +252,12 @@ export async function fetchAzuroGames(opts?: FetchAzuroGamesOptions): Promise<Ra
         merged.push(g);
       }
       if (probe.batch.length < PAGE) {
-        console.log(
-          JSON.stringify({
-            tag: "azuro_indexer_fetch",
-            msg: "games_merged",
-            pages: 1,
-            count: merged.length,
-            graphqlStartsAtGte,
-            minStartsAtSec: opts.minStartsAtSec,
-          }),
-        );
-        return merged;
+        return finishAzuroGamesFetch(merged, {
+          pages: 1,
+          count: merged.length,
+          graphqlStartsAtGte,
+          minStartsAtSec: opts.minStartsAtSec,
+        });
       }
     }
   }
@@ -275,18 +284,12 @@ export async function fetchAzuroGames(opts?: FetchAzuroGamesOptions): Promise<Ra
     if (batch.length < PAGE) break;
   }
 
-  console.log(
-    JSON.stringify({
-      tag: "azuro_indexer_fetch",
-      msg: "games_merged",
-      pages: Math.ceil(merged.length / PAGE) || 0,
-      count: merged.length,
-      graphqlStartsAtGte,
-      minStartsAtSec: opts?.minStartsAtSec ?? null,
-    }),
-  );
-
-  return merged;
+  return finishAzuroGamesFetch(merged, {
+    pages: Math.ceil(merged.length / PAGE) || 0,
+    count: merged.length,
+    graphqlStartsAtGte,
+    minStartsAtSec: opts?.minStartsAtSec ?? null,
+  });
 }
 
 function normalizeGame(raw: RawAzuroGame): NormalizedCuratorGame | null {

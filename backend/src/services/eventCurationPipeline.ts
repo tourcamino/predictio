@@ -37,6 +37,11 @@ import {
   rawFeedWindowEndSec,
 } from "./emergencyRelaxMode";
 import {
+  logRawPipelineForensic,
+  rawGameDisplayTitle,
+  type RawFeedRejectedEvent,
+} from "./rawFeedForensicTrace";
+import {
   computeGlobalInterestScore,
   isInterestFirstCatalogMode,
   isLegacyEuropeanTierHardGate,
@@ -1421,6 +1426,7 @@ async function buildRawFeedCatalogPayload(
 
   let normalizedCount = 0;
   const rejection: Record<string, number> = {};
+  const rejectedEvents: RawFeedRejectedEvent[] = [];
   const bump = (r: string) => {
     rejection[r] = (rejection[r] ?? 0) + 1;
   };
@@ -1433,7 +1439,13 @@ async function buildRawFeedCatalogPayload(
 
     const v = emergencyMinimalTradable(g, nowSec, windowEndSec, false);
     if (!v.ok) {
-      bump(v.reason || "rejected");
+      const reason = v.reason || "rejected";
+      bump(reason);
+      rejectedEvents.push({
+        id: gid || String(g.id || "").trim() || "unknown",
+        title: rawGameDisplayTitle(g),
+        rejectionReason: reason,
+      });
       continue;
     }
     merged.push({ raw: g, importanceScore: 0 });
@@ -1538,12 +1550,21 @@ async function buildRawFeedCatalogPayload(
   console.log(
     JSON.stringify({
       tag: "raw_feed_mode_counts_compact",
+      RAW_FEED_MODE: true,
       RAW_FEED_COUNT: brutal.RAW_FEED_COUNT,
       NORMALIZED_COUNT: brutal.NORMALIZED_COUNT,
       VALID_COUNT: brutal.VALID_COUNT,
       RENDERED_COUNT: brutal.RENDERED_COUNT,
     }),
   );
+
+  logRawPipelineForensic({
+    allGames,
+    normalizedCount,
+    validCount: merged.length,
+    rejected: rejectedEvents,
+    rejectionAgg: rejection,
+  });
 
   return {
     games,
