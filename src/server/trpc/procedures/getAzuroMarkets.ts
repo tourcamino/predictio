@@ -5,9 +5,11 @@ import { prismaMarketRowToAzuroMarket } from "~/server/utils/dbMarketToAzuroMark
 import { AZURO_FEED_LIST_CAP } from "~/constants/azuro";
 import { type AzuroMarket, fetchAzuroGames } from "~/services/azuro";
 import { prioritizeFeaturedAzuroMarkets } from "~/lib/markets/curateFeaturedEvents";
-
-// Match `src/config/footballFocus.ts` — premium multisport feed by default.
-const FOOTBALL_FOCUS_ENABLED = false;
+import {
+  filterCuratedRowsForProductPhase,
+  isFootballFocusProductPhase,
+  isFootballSportSlug,
+} from "~/lib/catalog/productCatalogFilter";
 const PRIORITY_COMPETITIONS = ["UEFA Champions League", "Serie A"];
 /** When founder curation is active, match Express `GET /api/markets` (max 12, importance ↓ then kickoff ↑). */
 const CURATED_MARKETS_CAP = 12;
@@ -56,9 +58,11 @@ export const getAzuroMarkets = baseProcedure
       null;
 
     try {
-      const activeCurated = await db.curatedEvent.findMany({
-        where: { isActive: true },
-      });
+      const activeCurated = filterCuratedRowsForProductPhase(
+        await db.curatedEvent.findMany({
+          where: { isActive: true },
+        }),
+      );
       if (activeCurated.length > 0) {
         curatedByGameId = new Map(
           activeCurated.map((c) => {
@@ -114,14 +118,12 @@ export const getAzuroMarkets = baseProcedure
     }
     const countAfterCuratedIntersect = markets.length;
 
-    // Enforce football-only filtering when football focus is enabled
-    if (FOOTBALL_FOCUS_ENABLED) {
-      markets = markets.filter((m) => m.sport === "football");
+    markets = markets.filter((m) => isFootballSportSlug(m.sport));
 
+    if (markets.length > 0) {
       if (curatedByGameId && curatedByGameId.size > 0) {
         markets = sortByCuratedMeta(markets, curatedByGameId);
       } else {
-        // Sort to prioritize Serie A and Champions League
         markets.sort((a, b) => {
           const aIsPriority = PRIORITY_COMPETITIONS.some((comp) =>
             a.competition.toLowerCase().includes(comp.toLowerCase()),
@@ -158,7 +160,7 @@ export const getAzuroMarkets = baseProcedure
 
     /** Runtime featured tier (max 9): premium leagues + odds balance — off when founder CuratedEvent list is active. */
     if (
-      FOOTBALL_FOCUS_ENABLED &&
+      isFootballFocusProductPhase() &&
       (!curatedByGameId || curatedByGameId.size === 0)
     ) {
       filteredMarkets = prioritizeFeaturedAzuroMarkets(filteredMarkets, {
@@ -212,6 +214,6 @@ export const getAzuroMarkets = baseProcedure
       markets: cappedMarkets,
       total: cappedMarkets.length,
       source,
-      footballFocusEnabled: FOOTBALL_FOCUS_ENABLED,
+      footballFocusEnabled: isFootballFocusProductPhase(),
     };
   });

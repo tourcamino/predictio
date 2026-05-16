@@ -7,6 +7,7 @@ import type {
   CanonicalAllocationMode,
   CanonicalLiquidityState,
 } from "./canonicalLiquidityState";
+import { filterCuratedRowsForProductPhase } from "./productCatalogFilter";
 
 export type CanonicalVaultAllocationSnapshot = {
   marketId: string;
@@ -184,12 +185,13 @@ export async function notifyCatalogLiquidityChanged(
   prisma: PrismaClient,
   reason: string,
 ): Promise<CatalogLiquidityChangeEvent> {
-  const open = await prisma.curatedEvent.findMany({
+  const openRaw = await prisma.curatedEvent.findMany({
     where: { isActive: true, status: "OPEN" },
-    select: { gameId: true, importanceScore: true },
+    select: { gameId: true, importanceScore: true, sport: true, sportSlug: true },
     orderBy: [{ importanceScore: "desc" }, { startsAt: "asc" }],
     take: 2500,
   });
+  const open = filterCuratedRowsForProductPhase(openRaw);
   const fingerprint = computeCatalogFingerprint(
     open.map((r) => ({
       gameId: r.gameId,

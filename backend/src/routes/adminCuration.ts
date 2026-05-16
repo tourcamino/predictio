@@ -21,6 +21,7 @@ import {
   compareEditorialCatalogOrder,
   inferEditorialSlotForFixture,
 } from "../services/editorialCatalogOrchestrator";
+import { filterCuratedRowsForProductPhase } from "../services/productCatalogFilter";
 import {
   homepageMinMarkets,
   isEditorialCatalogOnly,
@@ -481,7 +482,9 @@ export function registerAdminCurationRoutes(
         maxActiveCap: apiCap,
       });
 
-      const sorted = [...rows].sort((a, b) => {
+      const productRows = filterCuratedRowsForProductPhase(rows);
+
+      const sorted = [...productRows].sort((a, b) => {
         const slotA = inferEditorialSlotForFixture({
           leagueName: a.leagueName,
           country: a.country,
@@ -579,6 +582,12 @@ export function registerAdminCurationRoutes(
         };
       });
 
+      const sportBreakdown = productRows.reduce<Record<string, number>>((acc, r) => {
+        const key = (r.sportSlug ?? r.sport ?? "unknown").toLowerCase();
+        acc[key] = (acc[key] ?? 0) + 1;
+        return acc;
+      }, {});
+
       console.log(
         JSON.stringify({
           tag: "protocol_registry_api_markets",
@@ -587,7 +596,9 @@ export function registerAdminCurationRoutes(
           VALID_COUNT: inv?.VALID_COUNT ?? null,
           PERSISTED_COUNT: dbWritten,
           OPEN_REGISTRY_COUNT: rows.length,
+          PRODUCT_CATALOG_OPEN_COUNT: productRows.length,
           API_RESPONSE_COUNT: markets.length,
+          PRODUCT_SPORT_BREAKDOWN: sportBreakdown,
           DEACTIVATED_PRIOR_OPEN: deactivated,
           HOMEPAGE_MIN_MARKETS: homepageMinMarkets(),
         }),
@@ -623,6 +634,8 @@ export function registerAdminCurationRoutes(
         protocolRegistryMode: registryMode,
         rawFeedMode: registryMode,
         homepageMinMarkets: homepageMinMarkets(),
+        productCatalogOpenCount: productRows.length,
+        registryOpenCount: rows.length,
       });
     } catch (e) {
       // Never 500 for public catalog — mapping/sort edge cases or unexpected errors → empty list.

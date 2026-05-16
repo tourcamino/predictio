@@ -113,23 +113,30 @@ export async function getCuratedCatalogForAi(): Promise<CuratedCatalogForAi> {
   }>;
 
   try {
-    rows = await db.curatedEvent.findMany({
-      where: { isActive: true, status: "OPEN" },
-      orderBy: [{ importanceScore: "desc" }, { startsAt: "asc" }],
-      take: VAULT_CANONICAL_MARKET_CAP,
-      select: {
-        gameId: true,
-        homeTeam: true,
-        awayTeam: true,
-        leagueName: true,
-        startsAt: true,
-        lockedAt: true,
-        importanceScore: true,
-        homeOdds: true,
-        drawOdds: true,
-        awayOdds: true,
-      },
-    });
+    const { filterCuratedRowsForProductPhase } = await import(
+      "~/lib/catalog/productCatalogFilter"
+    );
+    rows = filterCuratedRowsForProductPhase(
+      await db.curatedEvent.findMany({
+        where: { isActive: true, status: "OPEN" },
+        orderBy: [{ importanceScore: "desc" }, { startsAt: "asc" }],
+        take: VAULT_CANONICAL_MARKET_CAP,
+        select: {
+          gameId: true,
+          homeTeam: true,
+          awayTeam: true,
+          leagueName: true,
+          startsAt: true,
+          lockedAt: true,
+          importanceScore: true,
+          homeOdds: true,
+          drawOdds: true,
+          awayOdds: true,
+          sport: true,
+          sportSlug: true,
+        },
+      }),
+    );
   } catch (err) {
     console.warn(
       JSON.stringify({

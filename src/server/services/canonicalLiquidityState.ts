@@ -16,6 +16,7 @@ import {
   type CanonicalVaultAllocationSnapshot,
   type VaultAlignmentReport,
 } from "~/server/services/catalogLiquidityRebalance";
+import { filterCuratedRowsForProductPhase } from "~/lib/catalog/productCatalogFilter";
 
 export const CANONICAL_OPEN_MARKET_CAP = 9;
 
@@ -63,7 +64,7 @@ function allocationModeFor(
 }
 
 async function loadOpenCuratedSlots(): Promise<LiquidityAllocationSlot[]> {
-  const curated = await db.curatedEvent.findMany({
+  const curatedRaw = await db.curatedEvent.findMany({
     where: { isActive: true, status: "OPEN" },
     orderBy: [{ importanceScore: "desc" }, { startsAt: "asc" }],
     take: CANONICAL_OPEN_MARKET_CAP,
@@ -73,8 +74,12 @@ async function loadOpenCuratedSlots(): Promise<LiquidityAllocationSlot[]> {
       awayTeam: true,
       leagueName: true,
       importanceScore: true,
+      sport: true,
+      sportSlug: true,
     },
   });
+
+  const curated = filterCuratedRowsForProductPhase(curatedRaw);
 
   if (curated.length === 0) return [];
 
@@ -93,7 +98,7 @@ async function loadOpenCuratedSlots(): Promise<LiquidityAllocationSlot[]> {
       gameId: c.gameId,
       marketName: m?.event ?? `${c.homeTeam} vs ${c.awayTeam}`,
       league: m?.league ?? c.leagueName,
-      sport: m?.sport ?? "football",
+      sport: m?.sport ?? c.sportSlug ?? c.sport ?? "unknown",
       appealScore: c.importanceScore ?? 0,
       volume: m?.volume ?? 0,
     };
@@ -101,11 +106,12 @@ async function loadOpenCuratedSlots(): Promise<LiquidityAllocationSlot[]> {
 }
 
 async function loadOpenCuratedGameIds(): Promise<Set<string>> {
-  const rows = await db.curatedEvent.findMany({
+  const rowsRaw = await db.curatedEvent.findMany({
     where: { isActive: true, status: "OPEN" },
-    select: { gameId: true },
+    select: { gameId: true, sport: true, sportSlug: true },
     take: CANONICAL_OPEN_MARKET_CAP,
   });
+  const rows = filterCuratedRowsForProductPhase(rowsRaw);
   return new Set(rows.map((r) => r.gameId));
 }
 

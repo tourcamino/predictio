@@ -26,6 +26,7 @@ import {
   computeLpGraphTelemetry,
   type LpGraphTelemetry,
 } from "./lpGraphTelemetry";
+import { filterCuratedRowsForProductPhase } from "./productCatalogFilter";
 
 export type { LpGraphTelemetry };
 
@@ -83,7 +84,7 @@ function lpGraphMaxMarkets(): number {
 async function loadOpenCuratedSlots(
   prisma: PrismaClient,
 ): Promise<LiquidityAllocationSlot[]> {
-  const curatedOpen = await prisma.curatedEvent.findMany({
+  const curatedOpenRaw = await prisma.curatedEvent.findMany({
     where: { isActive: true, status: "OPEN" },
     select: {
       gameId: true,
@@ -98,6 +99,8 @@ async function loadOpenCuratedSlots(
     take: lpGraphMaxMarkets(),
     orderBy: [{ importanceScore: "desc" }, { startsAt: "asc" }],
   });
+
+  const curatedOpen = filterCuratedRowsForProductPhase(curatedOpenRaw);
 
   if (curatedOpen.length === 0) return [];
 
@@ -127,11 +130,12 @@ async function loadOpenCuratedSlots(
 }
 
 async function loadOpenCuratedGameIds(prisma: PrismaClient): Promise<Set<string>> {
-  const rows = await prisma.curatedEvent.findMany({
+  const rowsRaw = await prisma.curatedEvent.findMany({
     where: { isActive: true, status: "OPEN" },
-    select: { gameId: true },
+    select: { gameId: true, sport: true, sportSlug: true },
     take: lpGraphMaxMarkets(),
   });
+  const rows = filterCuratedRowsForProductPhase(rowsRaw);
   return new Set(rows.map((r) => r.gameId));
 }
 
