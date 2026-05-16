@@ -7,6 +7,14 @@ interface WalletGateModalProps {
   onClose: () => void;
 }
 
+const BENEFITS: ReadonlyArray<readonly [string, string]> = [
+  ["💰", "1,000 USDC demo balance — free"],
+  ["📊", "Save your predictions & history"],
+  ["🔁", "Copy top traders automatically"],
+  ["💎", "Earn analyst rewards lifetime"],
+  ["🔗", "Your personal referral link"],
+] as const;
+
 /**
  * Guest-mode gate modal: prompts the user to connect a wallet to unlock saving
  * & trading actions, while letting them keep browsing if they decline.
@@ -24,53 +32,66 @@ export function WalletGateModal({ isOpen, onClose }: WalletGateModalProps) {
       <Dialog as="div" className="relative z-[200]" onClose={onClose}>
         <Transition.Child
           as={Fragment}
-          enter="ease-out duration-200"
+          enter="ease-out duration-300"
           enterFrom="opacity-0"
           enterTo="opacity-100"
-          leave="ease-in duration-150"
+          leave="ease-in duration-200"
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/70" />
+          <div
+            className="fixed inset-0 bg-black/85 backdrop-blur-sm"
+            aria-hidden
+          />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
           <div className="flex min-h-full items-center justify-center p-4">
             <Transition.Child
               as={Fragment}
-              enter="ease-out duration-200"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-150"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95 translate-y-2"
+              enterTo="opacity-100 scale-100 translate-y-0"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100 translate-y-0"
+              leaveTo="opacity-0 scale-95 translate-y-2"
             >
-              <Dialog.Panel className="w-full max-w-md rounded-xl border border-white/10 bg-brand-bg p-6 sm:p-8">
+              <Dialog.Panel className="w-full max-w-md rounded-2xl border border-[#1a2332] bg-[#0D1117] p-8 shadow-2xl shadow-brand-green/10">
                 <div className="text-center">
+                  <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#00FF87]/10 ring-1 ring-[#00FF87]/25">
+                    <span className="text-3xl" aria-hidden="true">
+                      🔐
+                    </span>
+                  </div>
+
                   <Dialog.Title
                     as="h2"
-                    className="font-syne mb-2 text-xl font-bold text-white"
+                    className="font-syne mb-2 text-2xl font-bold text-white"
                   >
-                    Connect wallet
+                    Connect Wallet to Continue
                   </Dialog.Title>
 
-                  <p className="mb-6 text-sm text-gray-400 leading-relaxed">
-                    Receive{' '}
-                    <span className="font-mono text-white">1,000</span> paper USDC and trade
-                    founder-curated sports markets. Your balance syncs to this address.
+                  <p className="mb-6 text-gray-400">
+                    Save your progress and unlock all features
                   </p>
 
-                  <ul className="mb-6 text-left text-sm text-gray-400 space-y-2 border border-white/10 rounded-lg px-4 py-3 bg-white/[0.02]">
-                    <li>· Save predictions and portfolio history</li>
-                    <li>· Pre-testnet — no on-chain stakes yet</li>
-                  </ul>
+                  <div className="mb-8 rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-4 text-left">
+                    <ul className="space-y-3">
+                      {BENEFITS.map(([icon, text]) => (
+                        <li key={text} className="flex items-center gap-3">
+                          <span aria-hidden="true">{icon}</span>
+                          <span className="text-sm text-gray-300">{text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
                   <button
                     type="button"
                     onClick={handleConnect}
-                    className="font-syne mb-3 w-full rounded-lg bg-brand-green py-3.5 text-base font-semibold text-brand-bg transition-colors hover:bg-brand-green/90"
+                    className="font-syne mb-3 w-full rounded-xl bg-[#00FF87] py-4 text-lg font-bold text-black transition-all hover:bg-[#00FF87]/90 hover:shadow-lg hover:shadow-[#00FF87]/25"
                   >
-                    Connect wallet
+                    Connect Wallet
                   </button>
 
                   <button
@@ -78,7 +99,7 @@ export function WalletGateModal({ isOpen, onClose }: WalletGateModalProps) {
                     onClick={onClose}
                     className="w-full py-2 text-sm text-gray-500 transition-colors hover:text-gray-300"
                   >
-                    Continue as guest
+                    👀 Continue browsing as guest
                   </button>
                 </div>
               </Dialog.Panel>

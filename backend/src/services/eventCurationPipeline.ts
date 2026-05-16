@@ -15,6 +15,8 @@ import {
 } from "./editorialCatalogOrchestrator";
 import {
   canonicalSportFromRaw,
+  resolveRegistrySportFields,
+  resolveCanonicalSportFromRaw,
   canonicalSportToUiSlug,
 } from "./canonicalSportTaxonomy";
 import { buildMultisportPremiumPool } from "./multisportIngestion";
@@ -1294,7 +1296,7 @@ async function buildEmergencyInventoryCatalogPayload(
 
   const multisportBySport: Record<string, number> = {};
   for (const it of merged) {
-    const sp = canonicalSportFromRaw(it.raw) ?? "unknown";
+    const sp = resolveCanonicalSportFromRaw(it.raw);
     multisportBySport[sp] = (multisportBySport[sp] ?? 0) + 1;
   }
 
@@ -1342,15 +1344,14 @@ async function buildEmergencyInventoryCatalogPayload(
         : `${homeTeam} vs ${awayTeam}`;
     const odds = extract1x2DecimalOddsFromRawGame(g);
     const temporalBand = getTemporalBandForUnix(wallSec, kickoff);
-    const canonicalSport = canonicalSportFromRaw(g) ?? "football";
-    const sportSlug = canonicalSportToUiSlug(canonicalSport);
+    const sportFields = resolveRegistrySportFields(g);
 
     return {
       id: gid,
       gameId: gid,
       title,
-      sport: sportSlug,
-      sportSlug,
+      sport: sportFields.sport,
+      sportSlug: sportFields.sportSlug,
       competition: g.league?.name || "",
       leagueName: g.league?.name || "",
       country: g.league?.country?.name || "",
@@ -1475,7 +1476,7 @@ async function buildRawFeedCatalogPayload(
 
   const multisportBySport: Record<string, number> = {};
   for (const it of merged) {
-    const sp = canonicalSportFromRaw(it.raw) ?? "unknown";
+    const sp = resolveCanonicalSportFromRaw(it.raw);
     multisportBySport[sp] = (multisportBySport[sp] ?? 0) + 1;
   }
 
@@ -1514,15 +1515,14 @@ async function buildRawFeedCatalogPayload(
         : `${homeTeam} vs ${awayTeam}`;
     const odds = extract1x2DecimalOddsFromRawGame(g);
     const temporalBand = getTemporalBandForUnix(wallSec, kickoff);
-    const canonicalSport = canonicalSportFromRaw(g) ?? "football";
-    const sportSlug = canonicalSportToUiSlug(canonicalSport);
+    const sportFields = resolveRegistrySportFields(g);
 
     return {
       id: gid,
       gameId: gid,
       title,
-      sport: sportSlug,
-      sportSlug,
+      sport: sportFields.sport,
+      sportSlug: sportFields.sportSlug,
       competition: g.league?.name || "",
       leagueName: g.league?.name || "",
       country: g.league?.country?.name || "",
@@ -1888,15 +1888,14 @@ export async function buildEuropeanCurationGamesPayload(
     const autoP = isAutoPublish(g, importanceScore);
     const odds = extract1x2DecimalOddsFromRawGame(g);
     const temporalBand = getTemporalBandForUnix(wallSec, kickoff);
-    const canonicalSport = canonicalSportFromRaw(g) ?? "football";
-    const sportSlug = canonicalSportToUiSlug(canonicalSport);
+    const sportFields = resolveRegistrySportFields(g);
 
     return {
       id: gid,
       gameId: gid,
       title,
-      sport: sportSlug,
-      sportSlug,
+      sport: sportFields.sport,
+      sportSlug: sportFields.sportSlug,
       competition: g.league?.name || "",
       leagueName: g.league?.name || "",
       country: g.league?.country?.name || "",

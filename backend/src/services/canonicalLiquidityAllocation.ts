@@ -1,6 +1,7 @@
 /**
  * Pure allocation math — deterministic, no I/O. Shared contract for bots / AMM / UI.
  */
+import { applyFootballLiquidityWeightBoost } from "./footballFirstLiquidity";
 
 export type LiquidityWeightSource = "curated-appeal" | "real-market-volume";
 
@@ -45,8 +46,11 @@ export function pickWeightSource(
 }
 
 function rawWeight(slot: LiquidityAllocationSlot, source: LiquidityWeightSource): number {
-  if (source === "real-market-volume") return Math.max(0, slot.volume);
-  return Math.max(0, slot.appealScore);
+  const base =
+    source === "real-market-volume"
+      ? Math.max(0, slot.volume)
+      : Math.max(0, slot.appealScore);
+  return applyFootballLiquidityWeightBoost(base, slot.sport);
 }
 
 /**

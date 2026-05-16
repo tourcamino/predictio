@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X, Check, Loader2, Copy, ExternalLink, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { useWallet } from '~/store/useWalletStore';
@@ -13,6 +13,13 @@ import {
 } from '~/lib/economySurface';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { formatPaperCashDisplay } from '~/lib/formatPaperCash';
+import {
+  remainingMinDisplayMs,
+  WALLET_CONNECTING_MIN_MS,
+  WALLET_STAGE_INTERVAL_MS,
+  WALLET_SUCCESS_AUTO_CLOSE_MS,
+  WALLET_SUCCESS_MIN_MS,
+} from '~/lib/walletModalUxTiming';
 
 type ModalStep = 'choose' | 'connecting' | 'success' | 'deposit' | 'error';
 type DepositTab = 'bridge' | 'buy' | 'transfer';
@@ -32,6 +39,8 @@ export function WalletModal() {
   const [autoCloseProgress, setAutoCloseProgress] = useState(100);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('requesting');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const connectingSinceRef = useRef<number | null>(null);
+  const successSinceRef = useRef<number | null>(null);
 
   // Reset state when modal closes
   useEffect(() => {
@@ -42,59 +51,93 @@ export function WalletModal() {
         setAutoCloseProgress(100);
         setConnectionStatus('requesting');
         setErrorMessage('');
+        connectingSinceRef.current = null;
+        successSinceRef.current = null;
       }, 300);
     }
   }, [isModalOpen]);
 
-  // Handle connection flow with status updates
+  // Visual stage progression while connecting (does not block real wallet I/O)
+  useEffect(() => {
+    if (!isModalOpen || step !== 'connecting') return;
+
+    const stages: ConnectionStatus[] = ['requesting', 'signing', 'verifying', 'syncing'];
+    let currentStage = 0;
+    setConnectionStatus(stages[0]!);
+
+    const interval = setInterval(() => {
+      currentStage += 1;
+      if (currentStage < stages.length) {
+        setConnectionStatus(stages[currentStage]!);
+      } else {
+        clearInterval(interval);
+      }
+    }, WALLET_STAGE_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [isModalOpen, step, selectedWallet]);
+
   useEffect(() => {
     if (!isModalOpen) return;
-
-    if (isConnecting) {
+    if (isConnecting && step === 'choose') {
+      connectingSinceRef.current = Date.now();
+      setConnectionStatus('requesting');
       setStep('connecting');
-      
-      // Simulate connection stages
-      const stages: ConnectionStatus[] = ['requesting', 'signing', 'verifying', 'syncing'];
-      let currentStage = 0;
-      
-      const interval = setInterval(() => {
-        if (currentStage < stages.length) {
-          const stage = stages[currentStage];
-          if (stage !== undefined) {
-            setConnectionStatus(stage);
-          }
-          currentStage++;
-        } else {
-          clearInterval(interval);
-        }
-      }, 120);
-      
-      return () => clearInterval(interval);
-    } else if (isConnected && step === 'connecting') {
-      setStep('success');
-      
-      // Auto-close if paper balance synced
-      if (!modalPaperLoading && modalPaperCash != null && modalPaperCash > 0) {
-        let progress = 100;
-        const ticks = 15; // 1.5s at 100ms
-        const interval = setInterval(() => {
-          progress -= 100 / ticks;
-          setAutoCloseProgress(progress);
-          if (progress <= 0) {
-            clearInterval(interval);
-            closeWalletModal();
-          }
-        }, 100);
-        
-        return () => clearInterval(interval);
-      }
     }
-  }, [isModalOpen, isConnecting, isConnected, step, modalPaperCash, modalPaperLoading, closeWalletModal]);
+  }, [isModalOpen, isConnecting, step]);
+
+  // Minimum visible duration for connecting step before success
+  useEffect(() => {
+    if (!isModalOpen || step !== 'connecting') return;
+    if (isConnecting || !isConnected) return;
+
+    const delay = remainingMinDisplayMs(
+      connectingSinceRef.current,
+      WALLET_CONNECTING_MIN_MS,
+    );
+    const timer = setTimeout(() => {
+      setStep('success');
+      successSinceRef.current = Date.now();
+      setAutoCloseProgress(100);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [isModalOpen, step, isConnecting, isConnected]);
+
+  // Success screen + auto-close (visual timing only)
+  useEffect(() => {
+    if (!isModalOpen || step !== 'success') return;
+    if (modalPaperLoading || modalPaperCash == null || modalPaperCash <= 0) return;
+
+    const holdDelay = remainingMinDisplayMs(successSinceRef.current, WALLET_SUCCESS_MIN_MS);
+    let progress = 100;
+    let tickInterval: ReturnType<typeof setInterval> | undefined;
+
+    const holdTimer = setTimeout(() => {
+      const ticks = Math.max(12, Math.round(WALLET_SUCCESS_AUTO_CLOSE_MS / 100));
+      tickInterval = setInterval(() => {
+        progress -= 100 / ticks;
+        setAutoCloseProgress(progress);
+        if (progress <= 0) {
+          clearInterval(tickInterval);
+          closeWalletModal();
+        }
+      }, 100);
+    }, holdDelay);
+
+    return () => {
+      clearTimeout(holdTimer);
+      if (tickInterval) clearInterval(tickInterval);
+    };
+  }, [isModalOpen, step, modalPaperCash, modalPaperLoading, closeWalletModal]);
 
   const handleWalletSelect = async (wallet: string) => {
     setSelectedWallet(wallet);
     setErrorMessage('');
-    
+    connectingSinceRef.current = Date.now();
+    setConnectionStatus('requesting');
+    setStep('connecting');
+
     try {
       await connectWallet(wallet);
     } catch (error) {

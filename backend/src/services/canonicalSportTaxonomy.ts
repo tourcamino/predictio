@@ -6,7 +6,10 @@ export type CanonicalSport =
   | "tennis"
   | "basketball"
   | "motorsport"
-  | "mma";
+  | "mma"
+  | "hockey";
+
+export type RegistrySportSlug = CanonicalSport | "unknown";
 
 export type CompetitionTier = "S" | "A" | "B" | "C" | "unknown";
 
@@ -23,9 +26,20 @@ const AZURO_SPORT_ALIASES: Readonly<Record<string, CanonicalSport>> = {
   mma: "mma",
   "mixed martial arts": "mma",
   ufc: "mma",
+  hockey: "hockey",
+  "ice-hockey": "hockey",
+  "ice hockey": "hockey",
 };
 
-/** Map Azuro sport slug/name → canonical sport. Unknown → null (excluded from multisport path). */
+const HOCKEY_LEAGUE_RE =
+  /\b(iihf|nhl|khl|ahl|shl|liiga|del\b|hockey|ice hockey|world championship)\b/i;
+
+const MMA_LEAGUE_RE = /\b(ufc|bellator|pfl|mma|mixed martial)\b/i;
+
+const FOOTBALL_LEAGUE_RE =
+  /\b(serie a|premier league|la liga|laliga|bundesliga|ligue 1|eredivisie|primeira liga|veikkausliiga|champions league|europa league|conference league|mls|brasileir|copa libertadores|world cup|euro 20|nations league|segunda|liga mx|super lig|jupiler|scottish premiership)\b/i;
+
+/** Map Azuro sport slug/name → canonical sport. Unknown → null. */
 export function normalizeSport(
   sportName?: string | null,
   sportSlug?: string | null,
@@ -36,6 +50,9 @@ export function normalizeSport(
   if (name && AZURO_SPORT_ALIASES[name]) return AZURO_SPORT_ALIASES[name];
   if (slug.includes("football") || slug === "soccer" || name.includes("football") || name === "soccer") {
     return "football";
+  }
+  if (slug.includes("hockey") || name.includes("hockey") || name.includes("ice hockey")) {
+    return "hockey";
   }
   if (slug.includes("tennis") || name.includes("tennis")) return "tennis";
   if (slug.includes("basketball") || name.includes("basketball")) return "basketball";
@@ -54,8 +71,54 @@ export function normalizeSport(
   return null;
 }
 
+/** League/title inference overrides wrong Azuro sport tags (e.g. IIHF → football). */
+export function inferSportFromLeagueAndTitle(
+  leagueName?: string | null,
+  title?: string | null,
+): CanonicalSport | null {
+  const blob = `${leagueName ?? ""} ${title ?? ""}`.trim();
+  if (!blob) return null;
+  if (HOCKEY_LEAGUE_RE.test(blob)) return "hockey";
+  if (MMA_LEAGUE_RE.test(blob)) return "mma";
+  if (FOOTBALL_LEAGUE_RE.test(blob)) return "football";
+  return null;
+}
+
+/**
+ * Authoritative sport for registry persistence.
+ * League inference wins over Azuro slug (fixes hockey/MMA mis-tagged as football).
+ * Never defaults unknown sports to football.
+ */
+export function resolveCanonicalSportFromRaw(g: RawAzuroGame): RegistrySportSlug {
+  const fromLeague = inferSportFromLeagueAndTitle(g.league?.name, g.title);
+  if (fromLeague) return fromLeague;
+
+  const fromAzuro = normalizeSport(g.sport?.name, g.sport?.slug);
+  if (fromAzuro) return fromAzuro;
+
+  return "unknown";
+}
+
 export function canonicalSportFromRaw(g: RawAzuroGame): CanonicalSport | null {
-  return normalizeSport(g.sport?.name, g.sport?.slug);
+  const resolved = resolveCanonicalSportFromRaw(g);
+  return resolved === "unknown" ? null : resolved;
+}
+
+export function resolveRegistrySportFields(g: RawAzuroGame): {
+  sport: string;
+  sportSlug: string;
+} {
+  const canonical = resolveCanonicalSportFromRaw(g);
+  if (canonical === "unknown") {
+    return { sport: "unknown", sportSlug: "unknown" };
+  }
+  const slug = canonicalSportToUiSlug(canonical);
+  return { sport: slug, sportSlug: slug };
+}
+
+export function isFootballSportSlug(sportSlug?: string | null): boolean {
+  const s = (sportSlug ?? "").trim().toLowerCase();
+  return s === "football" || s === "soccer";
 }
 
 /** UI slug (frontend `SPORT_METADATA` keys — motorsport maps to `f1`). */
@@ -130,6 +193,7 @@ export function isSupportedCanonicalSport(sport: CanonicalSport | null): sport i
     sport === "tennis" ||
     sport === "basketball" ||
     sport === "motorsport" ||
-    sport === "mma"
+    sport === "mma" ||
+    sport === "hockey"
   );
 }

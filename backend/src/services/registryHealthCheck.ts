@@ -7,6 +7,13 @@ import {
   homepageMinMarkets,
   isProtocolRegistryMode,
 } from "./emergencyRelaxMode";
+import { isFootballSportSlug } from "./canonicalSportTaxonomy";
+import {
+  assertFootballFirstGuards,
+  checkPrePersistenceSportFilter,
+  scanFootballFirstGuardViolations,
+} from "./footballFirstGuards";
+import { CANONICAL_OPEN_MARKET_CAP } from "./canonicalLiquidityState";
 import {
   getLastRegistryHealthSnapshot,
   getPreviousOpenRegistryCount,
@@ -20,6 +27,14 @@ export type RegistryHealthAlert = {
   details?: Record<string, unknown>;
 };
 
+export type FootballFirstMetrics = {
+  FOOTBALL_OPEN_COUNT: number;
+  NON_FOOTBALL_REGISTRY_COUNT: number;
+  FOOTBALL_API_COUNT: number | null;
+  FOOTBALL_HOMEPAGE_COUNT: number | null;
+  FOOTBALL_LP_ALLOCATED_COUNT: number | null;
+};
+
 export type RegistryHealthCheckResult = {
   tag: "REGISTRY_HEALTH_CHECK";
   at: string;
@@ -31,6 +46,7 @@ export type RegistryHealthCheckResult = {
   minRequired: number;
   alerts: RegistryHealthAlert[];
   snapshotAgeSec: number | null;
+  footballFirst: FootballFirstMetrics;
 };
 
 const RAW_OPEN_GAP_RATIO = 0.5;
@@ -96,6 +112,16 @@ function buildAlerts(opts: {
   return alerts;
 }
 
+async function countFootballOpen(prisma: PrismaClient): Promise<number> {
+  return prisma.curatedEvent.count({
+    where: {
+      isActive: true,
+      status: "OPEN",
+      OR: [{ sportSlug: "football" }, { sportSlug: "soccer" }, { sport: "football" }],
+    },
+  });
+}
+
 export async function runRegistryHealthCheck(
   prisma: PrismaClient,
   source = "scheduled",
@@ -105,6 +131,7 @@ export async function runRegistryHealthCheck(
   const openRegistryCount = await prisma.curatedEvent.count({
     where: { isActive: true, status: "OPEN" },
   });
+  const footballOpenCount = await countFootballOpen(prisma);
 
   const snap = getLastRegistryHealthSnapshot();
   const rawFeedCount = snap?.rawFeedCount ?? null;
@@ -137,6 +164,70 @@ export async function runRegistryHealthCheck(
         },
       ];
 
+  if (protocolRegistryMode && footballOpenCount < minRequired && openRegistryCount >= minRequired) {
+    alerts.push({
+      code: "FOOTBALL_OPEN_BELOW_HOMEPAGE_MIN",
+      severity: "warn",
+      message: `Football OPEN (${footballOpenCount}) < homepage min (${minRequired}) — multisport fallback will surface`,
+      details: { footballOpenCount, openRegistryCount, minRequired },
+    });
+  }
+
+  const staticGuardViolations = scanFootballFirstGuardViolations();
+  for (const v of staticGuardViolations) {
+    alerts.push({
+      code: v.code,
+      severity: "critical",
+      message: v.detail,
+      details: { file: v.file },
+    });
+  }
+
+  const prePersistViolation = checkPrePersistenceSportFilter({
+    payloadGames: snap?.normalizedCount ?? rawFeedCount ?? 0,
+    persistedCount: snap?.persistedCount ?? 0,
+    sportFilterApplied: false,
+  });
+  if (prePersistViolation) {
+    alerts.push({
+      code: prePersistViolation.code,
+      severity: "critical",
+      message: prePersistViolation.detail,
+    });
+  }
+
+  if (source === "scheduled" || source.includes("health")) {
+    try {
+      assertFootballFirstGuards();
+    } catch (e) {
+      alerts.push({
+        code: "FOOTBALL_FIRST_GUARD_ASSERT",
+        severity: "critical",
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  const lpFootballRows = await prisma.curatedEvent.findMany({
+    where: { isActive: true, status: "OPEN" },
+    select: { sportSlug: true, sport: true },
+    take: CANONICAL_OPEN_MARKET_CAP * 4,
+  });
+  const footballFirstSlots = [...lpFootballRows]
+    .filter((r) => isFootballSportSlug(r.sportSlug ?? r.sport))
+    .slice(0, CANONICAL_OPEN_MARKET_CAP);
+
+  const footballFirst: FootballFirstMetrics = {
+    FOOTBALL_OPEN_COUNT: footballOpenCount,
+    NON_FOOTBALL_REGISTRY_COUNT: Math.max(0, openRegistryCount - footballOpenCount),
+    FOOTBALL_API_COUNT: apiResponseCount,
+    FOOTBALL_HOMEPAGE_COUNT: Math.min(minRequired, footballOpenCount),
+    FOOTBALL_LP_ALLOCATED_COUNT: Math.min(
+      CANONICAL_OPEN_MARKET_CAP,
+      footballFirstSlots.length,
+    ),
+  };
+
   const snapshotAgeSec = snap?.updatedAt
     ? Math.max(0, Math.floor((Date.now() - Date.parse(snap.updatedAt)) / 1000))
     : null;
@@ -152,10 +243,12 @@ export async function runRegistryHealthCheck(
     minRequired,
     alerts,
     snapshotAgeSec,
+    footballFirst,
   };
 
-  if (alerts.length > 0 || source === "scheduled") {
-    console.log(JSON.stringify(result));
+  if (alerts.length > 0 || source === "scheduled" || source.includes("health")) {
+    console.log(JSON.stringify({ ...result, tag: "REGISTRY_HEALTH_CHECK" }));
+    console.log(JSON.stringify({ tag: "FOOTBALL_FIRST_METRICS", ...footballFirst }));
   }
 
   return result;

@@ -13,6 +13,10 @@ import {
   type LiquidityWeightSource,
 } from "./canonicalLiquidityAllocation";
 import {
+  applyFootballLiquidityWeightBoost,
+  compareFootballFirstLiquidity,
+} from "./footballFirstLiquidity";
+import {
   getProtocolLiquidityConfigFromEnv,
   type ProtocolLiquidityMode,
 } from "./protocolLiquidityMode";
@@ -71,10 +75,8 @@ function allocationModeFor(
 async function loadOpenCuratedSlots(
   prisma: PrismaClient,
 ): Promise<LiquidityAllocationSlot[]> {
-  const curated = await prisma.curatedEvent.findMany({
+  const curatedOpen = await prisma.curatedEvent.findMany({
     where: { isActive: true, status: "OPEN" },
-    orderBy: [{ importanceScore: "desc" }, { startsAt: "asc" }],
-    take: CANONICAL_OPEN_MARKET_CAP,
     select: {
       gameId: true,
       homeTeam: true,
@@ -83,8 +85,13 @@ async function loadOpenCuratedSlots(
       importanceScore: true,
       sport: true,
       sportSlug: true,
+      startsAt: true,
     },
   });
+
+  const curated = [...curatedOpen]
+    .sort(compareFootballFirstLiquidity)
+    .slice(0, CANONICAL_OPEN_MARKET_CAP);
 
   if (curated.length === 0) return [];
 
