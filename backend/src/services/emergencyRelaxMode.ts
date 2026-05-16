@@ -1,11 +1,26 @@
 /**
- * Widening switches for catalog starvation — see `eventCurationPipeline` + `editorialPremiumFirewall`.
+ * Catalog / registry mode switches.
+ *
+ * **Default (protocol AMM):** `curated_events` = full minimally-valid registry; ranking is view-only.
+ * Set `PREDICTIO_EDITORIAL_CATALOG_ONLY=true` to restore legacy 9-slot editorial persistence.
  *
  * - `PREDICTIO_EMERGENCY_RELAX` — disables strict premium whitelist + expands gates (legacy name).
- * - `PREDICTIO_EMERGENCY_INVENTORY_MODE` — **full funnel bypass**: minimal tradable checks only + forced min book.
- * - `PREDICTIO_RAW_FEED_MODE` — **debug / survival**: Azuro → minimal validation only → full list (no editorial,
- *   interest, Europe tier, premium, orchestrator). Intended to verify indexer depth; not final product behavior.
+ * - `PREDICTIO_EMERGENCY_INVENTORY_MODE` — minimal tradable + forced min book (legacy).
+ * - `PREDICTIO_RAW_FEED_MODE` — alias for protocol registry path + live API payload (compat).
  */
+
+/** Legacy Netflix-style catalog: pick ≤9 before DB. Off by default. */
+export function isEditorialCatalogOnly(): boolean {
+  const v = String(process.env.PREDICTIO_EDITORIAL_CATALOG_ONLY ?? "")
+    .trim()
+    .toLowerCase();
+  return v === "true" || v === "1" || v === "yes";
+}
+
+/** Protocol registry: persist all valid events; homepage/API rank afterward. */
+export function isProtocolRegistryMode(): boolean {
+  return !isEditorialCatalogOnly();
+}
 
 export function isEmergencyRelaxMode(): boolean {
   const v = String(process.env.PREDICTIO_EMERGENCY_RELAX ?? "")
@@ -55,12 +70,42 @@ export function rawFeedApiResponseCap(): number {
 
 /** Max rows written to `curated_events` on raw DB sync (boot / throttled GET). */
 export function rawFeedDbSyncCap(): number {
-  const n = Number(process.env.PREDICTIO_RAW_FEED_DB_CAP ?? "800");
-  return Number.isFinite(n) && n >= 10 ? Math.min(5000, Math.floor(n)) : 800;
+  return protocolRegistryDbSyncCap();
+}
+
+/** Max rows persisted per registry sync (boot / GET throttle / job). */
+export function protocolRegistryDbSyncCap(): number {
+  const n = Number(
+    process.env.PREDICTIO_PROTOCOL_REGISTRY_DB_CAP ??
+      process.env.PREDICTIO_RAW_FEED_DB_CAP ??
+      "2000",
+  );
+  return Number.isFinite(n) && n >= 50 ? Math.min(10000, Math.floor(n)) : 2000;
+}
+
+/** Max rows returned by public GET /api/markets from registry. */
+export function protocolRegistryApiCap(): number {
+  const n = Number(
+    process.env.PREDICTIO_PROTOCOL_REGISTRY_API_CAP ??
+      process.env.PREDICTIO_RAW_FEED_API_CAP ??
+      "2500",
+  );
+  return Number.isFinite(n) && n >= 50 ? Math.min(10000, Math.floor(n)) : 2500;
+}
+
+/** Homepage must render at least this many OPEN markets when available. */
+export function homepageMinMarkets(): number {
+  const n = Number(process.env.PREDICTIO_HOMEPAGE_MIN_MARKETS ?? "9");
+  return Number.isFinite(n) && n >= 1 ? Math.min(50, Math.floor(n)) : 9;
 }
 
 export function isEmergencyCatalogBypass(): boolean {
-  return isRawFeedMode() || isEmergencyInventoryMode() || isEmergencyRelaxMode();
+  return (
+    isProtocolRegistryMode() ||
+    isRawFeedMode() ||
+    isEmergencyInventoryMode() ||
+    isEmergencyRelaxMode()
+  );
 }
 
 /** Default 168h — combined with `curationLookaheadDays()` via `Math.max` in pipeline (never narrows below index horizon). */

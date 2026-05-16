@@ -10,6 +10,10 @@ import {
 } from "~/lib/markets/curateFeaturedEvents";
 import { compareEditorialCatalogOrder } from "~/lib/editorialCatalogOrder";
 import { logFrontendFetchForensic } from "~/lib/homePipelineForensicTrace";
+import {
+  ensureHomepageMinimumMarkets,
+  sortRegistryForHomepage,
+} from "~/lib/homepageRegistryView";
 
 /** Quota pareggio sintetica se Azuro/API non espone draw (calcio 1X2 sempre 3 esiti in UI). */
 const SYNTHETIC_DRAW_DECIMAL = 3.35;
@@ -194,11 +198,14 @@ function logCuratedRankingPath(path: "backend-pass-through" | "featured-recurati
 
 export { isCanonicalCuratedCatalog } from "~/lib/curatedMarketPresentation";
 
+const HOMEPAGE_MIN_MARKETS = 9;
+
 export async function fetchCuratedMarketsFromApi(): Promise<{
   markets: AzuroMarket[];
   total: number;
   source: "curated-api" | "empty";
   rawFeedMode?: boolean;
+  protocolRegistryMode?: boolean;
 }> {
   try {
     const base = getApiBaseUrl().replace(/\/$/, "");
@@ -213,23 +220,39 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
       markets: CuratedMarketApiRow[];
       total: number;
       rawFeedMode?: boolean;
+      protocolRegistryMode?: boolean;
     };
     const mapped = (data.markets ?? []).map(curatedApiRowToAzuroMarket);
+    const registryView = Boolean(data.protocolRegistryMode ?? data.rawFeedMode);
 
-    if (data.rawFeedMode) {
-      const sorted = [...mapped].sort((a, b) => kickoffMsForSort(a) - kickoffMsForSort(b));
+    if (registryView) {
+      const sorted = sortRegistryForHomepage(mapped);
+      const withMin = ensureHomepageMinimumMarkets(
+        sorted,
+        sorted,
+        HOMEPAGE_MIN_MARKETS,
+      );
       logFrontendFetchForensic({
-        apiTotal: data.total ?? sorted.length,
+        apiTotal: data.total ?? withMin.length,
         rawFeedMode: true,
         source: "curated-api",
-        markets: sorted,
-        rankingPath: "raw-feed-kickoff-sort-only",
+        markets: withMin,
+        rankingPath: "protocol-registry-view-min-9",
       });
+      console.log(
+        JSON.stringify({
+          tag: "HOME_PIPELINE_PROTOCOL_VIEW",
+          API_RESPONSE_COUNT: mapped.length,
+          FRONTEND_FETCH_COUNT: withMin.length,
+          HOMEPAGE_MIN: HOMEPAGE_MIN_MARKETS,
+        }),
+      );
       return {
-        markets: sorted,
-        total: data.total ?? sorted.length,
+        markets: withMin,
+        total: data.total ?? withMin.length,
         source: "curated-api",
         rawFeedMode: true,
+        protocolRegistryMode: true,
       };
     }
 

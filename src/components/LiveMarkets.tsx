@@ -6,10 +6,12 @@ import { LiveMarketCard } from './markets/LiveMarketCard';
 import { isFootballFocusEnabled } from '~/config/footballFocus';
 import { seedMarketToLiveMarket } from '~/utils/seedMarketToLiveMarket';
 import { fetchCuratedMarketsFromApi } from '~/utils/curatedMarketsApi';
+import { ensureHomepageMinimumMarkets } from '~/lib/homepageRegistryView';
 import type { Market } from '~/data/mockMarkets';
 
-/** Match curated cap (9) ÔÇö same pool as `/markets`. */
+/** Homepage display cap — registry must expose at least 9 OPEN markets when available. */
 const HOME_MARKET_CARD_COUNT = 9;
+const HOME_MARKET_MIN_VISIBLE = 9;
 
 export function LiveMarkets() {
   const navigate = useNavigate();
@@ -79,7 +81,25 @@ export function LiveMarkets() {
     filteredMarkets.sort((a, b) => a.closesAt.getTime() - b.closesAt.getTime());
   }
   
-  const displayedMarkets = filteredMarkets.slice(0, HOME_MARKET_CARD_COUNT);
+  const displayCap = Math.max(HOME_MARKET_CARD_COUNT, HOME_MARKET_MIN_VISIBLE);
+  const sliced = filteredMarkets.slice(0, displayCap);
+  const displayedMarkets = ensureHomepageMinimumMarkets(
+    sliced,
+    allMarketsLive,
+    HOME_MARKET_MIN_VISIBLE,
+  ).slice(0, displayCap);
+
+  if (import.meta.env.DEV && marketsQuery.data) {
+    console.log(
+      JSON.stringify({
+        tag: 'HOME_PIPELINE_REACT_RENDER',
+        FRONTEND_FETCH_COUNT: baseSeeds.length,
+        RENDERED_EVENT_COUNT: displayedMarkets.length,
+        FILTERED_BEFORE_MIN: sliced.length,
+        HOMEPAGE_MIN: HOME_MARKET_MIN_VISIBLE,
+      }),
+    );
+  }
 
   // Calculate stats
   const totalVolume = allMarkets.reduce((sum, m) => sum + m.volume, 0);

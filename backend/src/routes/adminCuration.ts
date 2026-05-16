@@ -21,21 +21,37 @@ import {
   compareEditorialCatalogOrder,
   inferEditorialSlotForFixture,
 } from "../services/editorialCatalogOrchestrator";
-import { isRawFeedMode, rawFeedApiResponseCap } from "../services/emergencyRelaxMode";
-import { syncRawFeedGamesToPrisma } from "../services/rawFeedDbSync";
+import {
+  homepageMinMarkets,
+  isEditorialCatalogOnly,
+  isProtocolRegistryMode,
+  protocolRegistryApiCap,
+} from "../services/emergencyRelaxMode";
+import { syncProtocolRegistryToPrisma } from "../services/protocolRegistrySync";
 import {
   isHomePipelineForensicEnabled,
   logHomeApiForensic,
   logHomeDbForensic,
 } from "../services/homePipelineForensicTrace";
+import {
+  inferUpsertAction,
+  logDisabledEvent,
+  logUpsertEvent,
+  readCuratedSnapshot,
+} from "../services/curatedEventLifecycleForensic";
 
 const CACHE_KEY = "admin:azuro:football:14d:v2";
+/** Legacy editorial manual-select cap (admin UI only — not registry persistence). */
 const MAX_ACTIVE = 9;
 
-/** Throttle heavy DB upserts on each GET in raw mode. */
-let rawFeedLastDbSyncMs = 0;
-function rawFeedSyncMinIntervalMs(): number {
-  const n = Number(process.env.PREDICTIO_RAW_FEED_SYNC_MIN_INTERVAL_MS ?? "90000");
+/** Throttle registry sync on GET /api/markets. */
+let registryLastDbSyncMs = 0;
+function registrySyncMinIntervalMs(): number {
+  const n = Number(
+    process.env.PREDICTIO_REGISTRY_SYNC_MIN_INTERVAL_MS ??
+      process.env.PREDICTIO_RAW_FEED_SYNC_MIN_INTERVAL_MS ??
+      "90000",
+  );
   return Number.isFinite(n) && n >= 5000 ? Math.floor(n) : 90000;
 }
 
@@ -319,6 +335,8 @@ export function registerAdminCurationRoutes(
         };
         const autoPublishVal = isAutoPublish(rawForAuto, importanceScore, oddsAz);
 
+        const beforeAdmin = await readCuratedSnapshot(prisma, gameId);
+
         await prisma.curatedEvent.upsert({
           where: { gameId },
           create: {
@@ -364,7 +382,33 @@ export function registerAdminCurationRoutes(
             awayOdds: oddsAz.awayOdds ?? undefined,
           },
         });
+
+        logUpsertEvent({
+          externalId: gameId,
+          title: meta.title,
+          beforeStatus: beforeAdmin?.status ?? null,
+          afterStatus: "OPEN",
+          beforeIsActive: beforeAdmin?.isActive ?? null,
+          afterIsActive: true,
+          action: inferUpsertAction(beforeAdmin, "OPEN", true),
+          source: "admin_events_select",
+          extra: { selectedBy },
+        });
       } else {
+        const row = await prisma.curatedEvent.findUnique({
+          where: { gameId },
+          select: { title: true, status: true, isActive: true },
+        });
+        if (row) {
+          logDisabledEvent({
+            externalId: gameId,
+            title: row.title,
+            reason: "admin_deselect",
+            beforeStatus: row.status,
+            beforeIsActive: row.isActive,
+            source: "admin_events_select",
+          });
+        }
         await prisma.curatedEvent.updateMany({
           where: { gameId },
           data: { isActive: false },
@@ -380,138 +424,35 @@ export function registerAdminCurationRoutes(
     }
   });
 
-  /** Public list of founder-curated Azuro games (same chain as indexer). */
+  /** Public catalog: protocol registry (DB) + optional editorial view cap. */
   app.get("/api/markets", publicLimiter, async (_req, res) => {
     try {
-      if (isRawFeedMode()) {
-        const { games, diagnostics } = await buildEuropeanCurationGamesPayload(new Set());
-        const apiCap = rawFeedApiResponseCap();
-        const out = games.slice(0, apiCap);
+      const nowMs = Date.now();
+      const editorialOnly = isEditorialCatalogOnly();
+      const registryMode = isProtocolRegistryMode();
 
-        const nowMs = Date.now();
-        let dbWritten = 0;
-        let deactivated = 0;
-        if (nowMs - rawFeedLastDbSyncMs >= rawFeedSyncMinIntervalMs()) {
-          try {
-            const r = await syncRawFeedGamesToPrisma(prisma, games);
-            dbWritten = r.written;
-            deactivated = r.deactivated;
-            rawFeedLastDbSyncMs = nowMs;
-          } catch (syncErr) {
-            console.warn(
-              "[adminCuration] raw feed DB sync failed (still returning live payload):",
-              syncErr instanceof Error ? syncErr.message : syncErr,
-            );
-          }
-        }
+      const { games, diagnostics } = await buildEuropeanCurationGamesPayload(new Set());
+      const inv = diagnostics.emergencyInventory as Record<string, unknown> | undefined;
 
-        let allocationByMarketId: Record<string, { allocation: number; percentage: number }> = {};
+      let dbWritten = 0;
+      let deactivated = 0;
+      if (registryMode && nowMs - registryLastDbSyncMs >= registrySyncMinIntervalMs()) {
         try {
-          const liquidity = await resolveCanonicalLiquidityState(prisma);
-          for (const row of liquidity.liquidityPerMarket) {
-            allocationByMarketId[row.marketId] = {
-              allocation: row.allocation,
-              percentage: row.percentage,
-            };
-          }
-        } catch (liqErr) {
+          const r = await syncProtocolRegistryToPrisma(prisma, games, {
+            rawFeedCount: diagnostics.totalFromAzuro,
+            normalizedCount: Number(inv?.NORMALIZED_COUNT ?? games.length),
+            validCount: Number(inv?.VALID_COUNT ?? games.length),
+            topRejectionReasons: (inv?.TOP_REJECTION_REASONS as Array<[string, number]>) ?? [],
+          });
+          dbWritten = r.written;
+          deactivated = r.deactivated;
+          registryLastDbSyncMs = nowMs;
+        } catch (syncErr) {
           console.warn(
-            "[adminCuration] raw feed — canonical liquidity snapshot failed:",
-            liqErr instanceof Error ? liqErr.message : liqErr,
+            "[adminCuration] protocol registry sync failed:",
+            syncErr instanceof Error ? syncErr.message : syncErr,
           );
         }
-
-        const nowSec = Math.floor(nowMs / 1000);
-        const markets = out.map((r) => {
-          const startsAtDate = new Date(r.startsAt);
-          const lockedAt = new Date(startsAtDate.getTime() - 5 * 60 * 1000);
-          const timeToLock = Math.floor((lockedAt.getTime() - nowMs) / 1000);
-          const kickSec = Math.floor(startsAtDate.getTime() / 1000);
-          const marketId = `azuro-${r.gameId}`;
-          const paperLiq = allocationByMarketId[marketId];
-          const editorial = inferEditorialSlotForFixture({
-            leagueName: r.leagueName,
-            country: r.country,
-            homeTeam: r.homeTeam,
-            awayTeam: r.awayTeam,
-            importanceScore: r.importanceScore ?? 0,
-            sport: r.sport,
-            sportSlug: r.sportSlug,
-          });
-          return {
-            id: marketId,
-            gameId: r.gameId,
-            title: r.title,
-            homeTeam: r.homeTeam,
-            awayTeam: r.awayTeam,
-            homeImage: r.homeImage ?? null,
-            awayImage: r.awayImage ?? null,
-            leagueName: r.leagueName,
-            country: r.country,
-            startsAt: startsAtDate.toISOString(),
-            lockedAt: lockedAt.toISOString(),
-            status: String(r.status || "OPEN"),
-            result: null,
-            timeToLock,
-            importanceScore: r.importanceScore ?? 0,
-            autoPublish: r.autoPublish ?? true,
-            sport: r.sportSlug ?? r.sport ?? "football",
-            sportSlug: r.sportSlug ?? r.sport ?? "football",
-            temporalBand: getTemporalBandForUnix(nowSec, kickSec),
-            editorialSlot: editorial.slot,
-            selectionReason: editorial.selectionReason,
-            homeOdds: r.homeOdds ?? null,
-            drawOdds: r.drawOdds ?? null,
-            awayOdds: r.awayOdds ?? null,
-            paperLiquidityAllocation: paperLiq?.allocation ?? null,
-            paperLiquiditySharePct: paperLiq?.percentage ?? null,
-          };
-        });
-
-        const inv = diagnostics.emergencyInventory as Record<string, unknown> | undefined;
-        console.log(
-          JSON.stringify({
-            tag: "raw_feed_api_markets",
-            RAW_FEED_COUNT: diagnostics.totalFromAzuro,
-            NORMALIZED_COUNT: inv?.NORMALIZED_COUNT ?? null,
-            VALID_COUNT: inv?.VALID_COUNT ?? null,
-            PIPELINE_OUT: games.length,
-            API_COUNT: markets.length,
-            DB_WRITTEN_COUNT: dbWritten,
-            DEACTIVATED_PRIOR_OPEN: deactivated,
-          }),
-        );
-
-        let dbOpenAfterSync = 0;
-        if (isHomePipelineForensicEnabled()) {
-          try {
-            dbOpenAfterSync = await prisma.curatedEvent.count({
-              where: { isActive: true, status: "OPEN" },
-            });
-          } catch {
-            dbOpenAfterSync = -1;
-          }
-        }
-
-        logHomeApiForensic({
-          path: "raw-feed-live",
-          rawFeedCount: diagnostics.totalFromAzuro,
-          dbOpenCount: dbOpenAfterSync >= 0 ? dbOpenAfterSync : null,
-          apiResponseCount: markets.length,
-          markets,
-          extra: {
-            rawFeedMode: true,
-            pipelineValidCount: inv?.VALID_COUNT ?? null,
-            dbWrittenThisRequest: dbWritten,
-          },
-        });
-
-        return res.json({
-          markets,
-          total: markets.length,
-          liquidityMode: "raw-feed-mode",
-          rawFeedMode: true,
-        });
       }
 
       let rows: Awaited<ReturnType<typeof prisma.curatedEvent.findMany>>;
@@ -531,11 +472,12 @@ export function registerAdminCurationRoutes(
       }
 
       const dbWhere = { isActive: true, status: "OPEN" as const };
+      const apiCap = editorialOnly ? MAX_ACTIVE : protocolRegistryApiCap();
       logHomeDbForensic({
         queryLabel: "prisma.curatedEvent.findMany",
         whereClause: dbWhere,
         rows,
-        maxActiveCap: MAX_ACTIVE,
+        maxActiveCap: apiCap,
       });
 
       const sorted = [...rows].sort((a, b) => {
@@ -571,7 +513,7 @@ export function registerAdminCurationRoutes(
         );
       });
 
-      const top = sorted.slice(0, MAX_ACTIVE);
+      const top = sorted.slice(0, apiCap);
 
       let allocationByMarketId: Record<string, { allocation: number; percentage: number }> =
         {};
@@ -590,7 +532,6 @@ export function registerAdminCurationRoutes(
         );
       }
 
-      const nowMs = Date.now();
       const nowSec = Math.floor(nowMs / 1000);
       const markets = top.map((r) => {
         const lockedAt = r.lockedAt instanceof Date ? r.lockedAt : r.startsAt;
@@ -637,24 +578,41 @@ export function registerAdminCurationRoutes(
         };
       });
 
+      console.log(
+        JSON.stringify({
+          tag: "protocol_registry_api_markets",
+          RAW_FEED_COUNT: diagnostics.totalFromAzuro,
+          NORMALIZED_COUNT: inv?.NORMALIZED_COUNT ?? null,
+          VALID_COUNT: inv?.VALID_COUNT ?? null,
+          PERSISTED_COUNT: dbWritten,
+          OPEN_REGISTRY_COUNT: rows.length,
+          API_RESPONSE_COUNT: markets.length,
+          DEACTIVATED_PRIOR_OPEN: deactivated,
+          HOMEPAGE_MIN_MARKETS: homepageMinMarkets(),
+        }),
+      );
+
       logHomeApiForensic({
-        path: "curated-db",
-        rawFeedCount: null,
+        path: registryMode ? "protocol-registry-db" : "editorial-db",
+        rawFeedCount: diagnostics.totalFromAzuro,
         dbOpenCount: rows.length,
         apiResponseCount: markets.length,
         markets,
         extra: {
-          rawFeedMode: false,
+          protocolRegistryMode: registryMode,
+          editorialCatalogOnly: editorialOnly,
           dbRowsBeforeCap: rows.length,
-          maxActiveCap: MAX_ACTIVE,
-          getAzuroMarketsUsedByHomepage: false,
+          apiCap,
         },
       });
 
       res.json({
         markets,
         total: markets.length,
-        liquidityMode: "canonical-catalog-routing",
+        liquidityMode: registryMode ? "protocol-registry" : "editorial-catalog",
+        protocolRegistryMode: registryMode,
+        rawFeedMode: registryMode,
+        homepageMinMarkets: homepageMinMarkets(),
       });
     } catch (e) {
       // Never 500 for public catalog — mapping/sort edge cases or unexpected errors → empty list.

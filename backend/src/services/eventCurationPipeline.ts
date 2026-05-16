@@ -31,6 +31,7 @@ import {
   guaranteedMinimumInventory,
   isEmergencyInventoryMode,
   isEmergencyRelaxMode,
+  isEditorialCatalogOnly,
   isRawFeedMode,
   rawFeedMaxPages,
   rawFeedPipelineMaxGames,
@@ -1612,6 +1613,10 @@ export async function buildEuropeanCurationGamesPayload(
 }> {
   const wallSec = Math.floor(Date.now() / 1000);
   const nowSec = wallSec - emergencyFetchNowSkewSec();
+  /** Protocol AMM registry (default): minimal validate → persist ALL → rank later. */
+  if (!isEditorialCatalogOnly()) {
+    return buildRawFeedCatalogPayload(selectedGameIds, wallSec, nowSec, options);
+  }
   if (isRawFeedMode()) {
     return buildRawFeedCatalogPayload(selectedGameIds, wallSec, nowSec, options);
   }

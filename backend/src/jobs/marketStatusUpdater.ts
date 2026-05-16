@@ -4,7 +4,20 @@ import {
   type CurationGamePayload,
 } from "../services/eventCurationPipeline";
 import { notifyCatalogLiquidityChanged } from "../services/catalogLiquidityRebalance";
-import { isRawFeedMode } from "../services/emergencyRelaxMode";
+import {
+  homepageMinMarkets,
+  isEditorialCatalogOnly,
+  isProtocolRegistryMode,
+} from "../services/emergencyRelaxMode";
+import { syncProtocolRegistryToPrisma } from "../services/protocolRegistrySync";
+import {
+  inferUpsertAction,
+  logBulkDisableForensic,
+  logDisabledEvent,
+  logUpsertEvent,
+  readCuratedSnapshot,
+  runCuratedLifecycleJob,
+} from "../services/curatedEventLifecycleForensic";
 
 const prisma = new PrismaClient();
 
@@ -78,7 +91,33 @@ function isUpcomingTradeable(startsAt: Date, lockedAt: Date, now: Date): boolean
  * Uses pipeline payload + upsert (same strategy as boot seed), never skips existing gameId.
  */
 async function runCuratedCatalogRefill(now: Date): Promise<number> {
-  if (isRawFeedMode()) {
+  if (isProtocolRegistryMode()) {
+    try {
+      const openCount = await prisma.curatedEvent.count({
+        where: { isActive: true, status: "OPEN" },
+      });
+      const min = homepageMinMarkets();
+      if (openCount >= min) {
+        return 0;
+      }
+      const { games, diagnostics } = await buildEuropeanCurationGamesPayload(new Set());
+      const inv = diagnostics.emergencyInventory as Record<string, unknown> | undefined;
+      const sync = await syncProtocolRegistryToPrisma(prisma, games, {
+        rawFeedCount: diagnostics.totalFromAzuro,
+        normalizedCount: Number(inv?.NORMALIZED_COUNT ?? games.length),
+        validCount: Number(inv?.VALID_COUNT ?? games.length),
+      });
+      return sync.written;
+    } catch (e) {
+      console.error(
+        "[MarketUpdater] Protocol registry refill failed:",
+        e instanceof Error ? e.message : e,
+      );
+      return 0;
+    }
+  }
+
+  if (!isEditorialCatalogOnly()) {
     return 0;
   }
 
@@ -120,12 +159,24 @@ async function runCuratedCatalogRefill(now: Date): Promise<number> {
       if (existing?.status === "RESOLVED") continue;
 
       const rowData = buildRowDataFromPipeline(event, startsAt, lockedAt);
-      const action = existing ? "reactivated" : "created";
+      const before = await readCuratedSnapshot(prisma, gameId);
 
       await prisma.curatedEvent.upsert({
         where: { gameId },
         create: { gameId, ...rowData },
         update: rowData,
+      });
+
+      const upsertAction = inferUpsertAction(before, "OPEN", true);
+      logUpsertEvent({
+        externalId: gameId,
+        title: event.title,
+        beforeStatus: before?.status ?? null,
+        afterStatus: "OPEN",
+        beforeIsActive: before?.isActive ?? null,
+        afterIsActive: true,
+        action: upsertAction,
+        source: "market_status_updater_refill",
       });
 
       openCount += 1;
@@ -136,7 +187,7 @@ async function runCuratedCatalogRefill(now: Date): Promise<number> {
         JSON.stringify({
           tag: "curated_catalog_refill",
           gameId,
-          action,
+          action: upsertAction,
           title: event.title,
           startsAt: startsAt.toISOString(),
           openActiveAfter: openCount,
@@ -154,15 +205,25 @@ async function runCuratedCatalogRefill(now: Date): Promise<number> {
 }
 
 export async function updateMarketStatuses() {
+  return runCuratedLifecycleJob("market_status_updater", async () => {
   try {
     const now = new Date();
 
+    const lockWhere = {
+      status: "OPEN" as const,
+      lockedAt: { lte: now },
+    };
+
+    await logBulkDisableForensic(
+      prisma,
+      lockWhere,
+      "kickoff_lock_window_lockedAt_lte_now",
+      "market_status_updater_lock",
+    );
+
     // OPEN → LOCKED: lockedAt passed (5 min before kickoff)
     const toLock = await prisma.curatedEvent.updateMany({
-      where: {
-        status: "OPEN",
-        lockedAt: { lte: now },
-      },
+      where: lockWhere,
       data: { status: "LOCKED", isActive: false },
     });
 
@@ -191,6 +252,15 @@ export async function updateMarketStatuses() {
           result: resolved.result,
           isActive: false,
         },
+      });
+
+      logDisabledEvent({
+        externalId: market.gameId,
+        title: market.title,
+        reason: `azuro_resolved:${resolved.result}`,
+        beforeStatus: "LOCKED",
+        beforeIsActive: market.isActive,
+        source: "market_status_updater_resolve",
       });
 
       console.log(`[MarketUpdater] Resolved market: ${market.title} → ${resolved.result}`);
@@ -225,12 +295,29 @@ export async function updateMarketStatuses() {
             : "lifecycle_resolve",
       );
     }
+
+    return {
+      eventsRead: lockedMarkets.length,
+      eventsWritten: refilled,
+      eventsDisabled: toLock.count + resolvedCount,
+      eventsLocked: toLock.count,
+      eventsResolved: resolvedCount,
+      openActiveAfter: openActive,
+      extra: { locked, inactive, refilled },
+    };
   } catch (e) {
     console.warn(
       "[MarketUpdater] cycle skipped (DB offline or transient Prisma error):",
       e instanceof Error ? e.message : e,
     );
+    return {
+      eventsRead: 0,
+      eventsWritten: 0,
+      eventsDisabled: 0,
+      extra: { skipped: true, error: e instanceof Error ? e.message : String(e) },
+    };
   }
+  });
 }
 
 const g = globalThis as typeof globalThis & { __predictioMarketStatusScheduler?: boolean };

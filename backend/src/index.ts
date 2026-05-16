@@ -21,8 +21,9 @@ import { registerAdminCurationRoutes } from "./routes/adminCuration";
 import { buildEuropeanCurationGamesPayload } from "./services/eventCurationPipeline";
 import { fetchAzuro1x2DecimalOddsByGameId } from "./services/azuroCuratorGraphql";
 import { cacheDel } from "./services/redisCache";
-import { isRawFeedMode } from "./services/emergencyRelaxMode";
-import { syncRawFeedGamesToPrisma } from "./services/rawFeedDbSync";
+import { isEditorialCatalogOnly } from "./services/emergencyRelaxMode";
+import { syncProtocolRegistryToPrisma } from "./services/protocolRegistrySync";
+import { logCuratedLifecycleInventory } from "./services/curatedEventLifecycleForensic";
 import { referralCookieMiddleware } from "./middleware/referral";
 import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
@@ -44,8 +45,6 @@ import { requireAdminKey } from "./middleware/auth";
 import "./jobs/marketStatusUpdater";
 
 const BOOT_CURATION_CACHE_KEY = "admin:azuro:football:14d:v2";
-const BOOT_SEED_MAX = 9;
-
 function requireEnv(name: string): string | undefined {
   const v = process.env[name];
   return v && v.trim().length > 0 ? v : undefined;
@@ -149,95 +148,81 @@ function isAllowedCorsOrigin(origin: string | undefined): boolean {
   return false;
 }
 
-/**
- * Se ci sono meno di 9 eventi curated attivi, upsert fino a 9 partite Serie A da Azuro.
- * Esce solo quando il catalogo attivo è già pieno (BOOT_SEED_MAX).
- */
+const BOOT_EDITORIAL_MAX = 9;
+
+/** Boot: protocol registry (default) or legacy editorial seed. */
 async function autoSeedEventsOnBoot() {
   try {
-    if (isRawFeedMode()) {
-      const { games } = await buildEuropeanCurationGamesPayload(new Set());
-      const sync = await syncRawFeedGamesToPrisma(prisma, games);
-      console.log(
-        JSON.stringify({
-          tag: "boot_raw_feed_mode",
-          payloadGames: games.length,
-          DB_WRITTEN_COUNT: sync.written,
-          deactivatedOpenRows: sync.deactivated,
-        }),
-      );
-      return;
-    }
+    const { games, diagnostics } = await buildEuropeanCurationGamesPayload(new Set());
 
-    const activeCount = await prisma.curatedEvent.count({
-      where: { isActive: true, status: "OPEN" },
-    });
-    if (activeCount >= BOOT_SEED_MAX) return;
-
-    const { games } = await buildEuropeanCurationGamesPayload(new Set());
-    const toSeed = games.slice(0, BOOT_SEED_MAX);
-
-    if (toSeed.length === 0) {
-      console.warn("[boot] autoSeedEventsOnBoot: no Italian-league games in payload");
-      return;
-    }
-
-    for (const event of toSeed) {
-      const startsAt = new Date(event.startsAt);
-      const lockedAt = new Date(startsAt.getTime() - 5 * 60 * 1000);
-
-      await prisma.curatedEvent.upsert({
-        where: { gameId: event.gameId },
-        create: {
-          gameId: event.gameId,
-          title: event.title,
-          leagueName: event.leagueName,
-          country: event.country,
-          startsAt,
-          lockedAt,
-          homeTeam: event.homeTeam,
-          awayTeam: event.awayTeam,
-          homeImage: event.homeImage ?? undefined,
-          awayImage: event.awayImage ?? undefined,
-          status: "OPEN",
-          isActive: true,
-          selectedBy: "BOOT",
-          importanceScore: event.importanceScore,
-          autoPublish: event.autoPublish,
-          homeOdds: event.homeOdds ?? null,
-          drawOdds: event.drawOdds ?? null,
-          awayOdds: event.awayOdds ?? null,
-          sport: event.sportSlug ?? "football",
-          sportSlug: event.sportSlug ?? "football",
-        },
-        update: {
-          title: event.title,
-          leagueName: event.leagueName,
-          country: event.country,
-          startsAt,
-          lockedAt,
-          homeTeam: event.homeTeam,
-          awayTeam: event.awayTeam,
-          homeImage: event.homeImage ?? undefined,
-          awayImage: event.awayImage ?? undefined,
-          status: "OPEN",
-          resolvedAt: null,
-          result: null,
-          isActive: true,
-          selectedBy: "BOOT",
-          importanceScore: event.importanceScore,
-          autoPublish: event.autoPublish,
-          homeOdds: event.homeOdds ?? null,
-          drawOdds: event.drawOdds ?? null,
-          awayOdds: event.awayOdds ?? null,
-          sport: event.sportSlug ?? "football",
-          sportSlug: event.sportSlug ?? "football",
-        },
+    if (isEditorialCatalogOnly()) {
+      const activeCount = await prisma.curatedEvent.count({
+        where: { isActive: true, status: "OPEN" },
       });
+      if (activeCount >= BOOT_EDITORIAL_MAX) return;
+
+      const toSeed = games.slice(0, BOOT_EDITORIAL_MAX);
+      for (const event of toSeed) {
+        const startsAt = new Date(event.startsAt);
+        const lockedAt = new Date(startsAt.getTime() - 5 * 60 * 1000);
+        await prisma.curatedEvent.upsert({
+          where: { gameId: event.gameId },
+          create: {
+            gameId: event.gameId,
+            title: event.title,
+            leagueName: event.leagueName,
+            country: event.country,
+            startsAt,
+            lockedAt,
+            homeTeam: event.homeTeam,
+            awayTeam: event.awayTeam,
+            status: "OPEN",
+            isActive: true,
+            selectedBy: "BOOT_EDITORIAL",
+            importanceScore: event.importanceScore,
+            autoPublish: event.autoPublish,
+            sport: event.sportSlug ?? "football",
+            sportSlug: event.sportSlug ?? "football",
+          },
+          update: {
+            title: event.title,
+            leagueName: event.leagueName,
+            country: event.country,
+            startsAt,
+            lockedAt,
+            homeTeam: event.homeTeam,
+            awayTeam: event.awayTeam,
+            status: "OPEN",
+            isActive: true,
+            selectedBy: "BOOT_EDITORIAL",
+            importanceScore: event.importanceScore,
+            autoPublish: event.autoPublish,
+            sport: event.sportSlug ?? "football",
+            sportSlug: event.sportSlug ?? "football",
+          },
+        });
+      }
+      await cacheDel(BOOT_CURATION_CACHE_KEY);
+      console.log(`[boot] Editorial-only seed: ${toSeed.length} events`);
+      return;
     }
 
-    await cacheDel(BOOT_CURATION_CACHE_KEY);
-    console.log(`✅ Auto-seeded ${toSeed.length} eventi italiani al boot`);
+    const inv = diagnostics.emergencyInventory as Record<string, unknown> | undefined;
+    const sync = await syncProtocolRegistryToPrisma(prisma, games, {
+      rawFeedCount: diagnostics.totalFromAzuro,
+      normalizedCount: Number(inv?.NORMALIZED_COUNT ?? games.length),
+      validCount: Number(inv?.VALID_COUNT ?? games.length),
+      topRejectionReasons: (inv?.TOP_REJECTION_REASONS as Array<[string, number]>) ?? [],
+    });
+    console.log(
+      JSON.stringify({
+        tag: "boot_protocol_registry_sync",
+        payloadGames: games.length,
+        PERSISTED_COUNT: sync.written,
+        deactivatedOpenRows: sync.deactivated,
+        CANONICAL_OPEN_COUNT: sync.openActiveAfter,
+      }),
+    );
   } catch (e) {
     console.warn("[boot] autoSeedEventsOnBoot failed:", e instanceof Error ? e.message : e);
   }
@@ -1094,6 +1079,7 @@ app.listen(PORT, () => {
     }),
   );
   void (async () => {
+    logCuratedLifecycleInventory();
     await autoSeedEventsOnBoot();
     await backfillCuratedOddsOnBoot();
   })();
