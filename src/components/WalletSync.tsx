@@ -103,6 +103,17 @@ export function WalletSync() {
       return;
     }
 
+    if (
+      lastSyncedAddressRef.current &&
+      lastSyncedAddressRef.current !== addressKey
+    ) {
+      walletConnectTrace("sync_wallet_changed", {
+        from: lastSyncedAddressRef.current,
+        to: addressKey,
+      });
+      syncInFlightRef.current = false;
+    }
+
     silentRetryCountRef.current = 0;
 
     debounceTimerRef.current = setTimeout(() => {

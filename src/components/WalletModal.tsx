@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X, Check, Loader2, Copy, ExternalLink, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
-import { useWallet } from '~/store/useWalletStore';
+import { useWallet, useWalletStore } from '~/store/useWalletStore';
 import { useNavigate } from '@tanstack/react-router';
 import { WALLET_TOAST_IDS, walletToastSuccess } from '~/lib/walletToast';
 import {
@@ -153,7 +153,8 @@ export function WalletModal() {
     const remaining = Math.max(0, deadline - Date.now());
 
     const timer = setTimeout(() => {
-      if (isConnected) {
+      const liveConnected = useWalletStore.getState().isConnected;
+      if (liveConnected) {
         goToSuccess();
         return;
       }
@@ -165,7 +166,7 @@ export function WalletModal() {
     }, remaining);
 
     return () => clearTimeout(timer);
-  }, [isModalOpen, step, isConnected, goToSuccess]);
+  }, [isModalOpen, step, goToSuccess]);
 
   // Success screen + auto-close (visual timing only; balance may still be loading)
   useEffect(() => {
