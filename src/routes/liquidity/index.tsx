@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+﻿import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Header } from '~/components/Header';
 import { Droplet, TrendingUp, Shield } from 'lucide-react';
@@ -11,14 +11,7 @@ import { useWallet } from '~/store/useWalletStore';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
-import {
-  LP_SEEDED_EXPLAINER,
-  LP_SEEDED_SHORT,
-  PRE_TESTNET_ALLOCATION_EXPLAINER,
-  PRE_TESTNET_LIQUIDITY_HEADLINE,
-  PRE_TESTNET_LIQUIDITY_SUBLINE,
-  getProtocolLiquidityConfigClient,
-} from '~/lib/economySurface';
+import { LP_SEEDED_EXPLAINER, LP_SEEDED_SHORT } from '~/lib/economySurface';
 
 export const Route = createFileRoute('/liquidity/')({
   component: LiquidityPage,
@@ -32,7 +25,7 @@ function LiquidityPage() {
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
 
-  // Fetch Protocol Vault stats
+  // Fetch Protocol Vault stats (refetch interval preserved from current runtime)
   const vaultQuery = useQuery({
     ...trpc.getProtocolVaultStats.queryOptions({}),
     staleTime: 0,
@@ -40,10 +33,6 @@ function LiquidityPage() {
   });
 
   const vaultStats = vaultQuery.data;
-  const liquidityMode = getProtocolLiquidityConfigClient();
-  const isPreTestnet = liquidityMode.mode === 'PRE_TESTNET';
-  const simulatedPool =
-    vaultStats?.totalSimulatedLiquidity ?? liquidityMode.simulatedLiquidityUsdc;
 
   // Fetch user's Protocol Vault position
   const userPositionQuery = useQuery({
@@ -70,58 +59,34 @@ function LiquidityPage() {
   };
 
   return (
-    <div className="min-h-screen bg-brand-bg relative overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-        <div className="absolute top-28 left-[12%] h-80 w-80 rounded-full bg-brand-green/12 blur-[100px]" />
-        <div className="absolute top-48 right-[10%] h-96 w-96 rounded-full bg-brand-cyan/10 blur-[120px]" />
-        <div className="absolute bottom-0 left-1/2 h-64 w-[560px] -translate-x-1/2 rounded-full bg-brand-green/8 blur-[100px]" />
-      </div>
-
+    <div className="min-h-screen bg-brand-bg">
       <Header />
-
-      <div className="relative z-10 pt-32 pb-20 px-4">
+      
+      <div className="pt-32 pb-20 px-4">
         <div className="max-w-7xl mx-auto">
           {/* Hero Section */}
-          <div className="relative text-center mb-14">
-            {isPreTestnet && (
-              <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-brand-green/30 bg-brand-green/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-brand-green">
-                <span className="h-1.5 w-1.5 rounded-full bg-brand-green animate-pulse" />
-                Dynamic paper routing
-              </p>
-            )}
-            <h1 className="font-syne font-bold text-5xl sm:text-6xl mb-5 bg-gradient-to-r from-white via-gray-100 to-gray-300 bg-clip-text text-transparent">
+          <div className="text-center mb-12">
+            <h1 className="font-syne font-bold text-5xl mb-4">
               Protocol Vault
             </h1>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed">
-              Single vault pools USDC across all active prediction markets.
-              <br className="hidden sm:block" />
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              Single vault pools USDC across all active prediction markets. 
               Earn 50% of all trading fees.
             </p>
-            <div className="mt-8 max-w-3xl mx-auto rounded-2xl border border-white/15 bg-white/[0.04] px-6 py-5 text-left shadow-xl shadow-brand-green/5 backdrop-blur-sm">
-              <p className="font-semibold text-white/90 mb-2 text-base">
-                {isPreTestnet ? PRE_TESTNET_LIQUIDITY_HEADLINE : LP_SEEDED_SHORT}
-              </p>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                {isPreTestnet ? PRE_TESTNET_LIQUIDITY_SUBLINE : LP_SEEDED_EXPLAINER}
-              </p>
+            <div className="mt-6 max-w-3xl mx-auto rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-left text-sm text-gray-300">
+              <p className="font-semibold text-white/90 mb-1">{LP_SEEDED_SHORT}</p>
+              <p className="text-gray-400 leading-relaxed">{LP_SEEDED_EXPLAINER}</p>
             </div>
           </div>
 
           {/* Vault Stats Card */}
-          <div className="relative mb-8">
-            <div
-              className="pointer-events-none absolute -inset-px rounded-2xl bg-gradient-to-r from-brand-green/25 via-brand-cyan/15 to-brand-green/25 opacity-60 blur-sm"
-              aria-hidden
-            />
-            <div className="relative rounded-2xl border border-brand-green/20 bg-gradient-to-b from-white/[0.07] to-white/[0.03] p-8 shadow-2xl shadow-brand-green/10 backdrop-blur-sm">
+          <div className="mb-8 p-8 bg-white/5 border border-white/10 rounded-xl">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-6">
               {/* Total Liquidity */}
               <div>
                 <div className="text-sm text-gray-400 mb-2">Total Liquidity</div>
                 <div className="font-mono font-bold text-4xl text-brand-green mb-1">
-                  {isPreTestnet
-                    ? `${simulatedPool.toLocaleString()} USDC (simulated)`
-                    : `$${(vaultStats?.totalLiquidity ?? simulatedPool).toLocaleString()}`}
+                  ${vaultStats?.totalLiquidity || 500}
                 </div>
                 <div className="text-sm text-gray-500">Seed capital · {LP_SEEDED_SHORT}</div>
               </div>
@@ -129,12 +94,7 @@ function LiquidityPage() {
               {/* Vault APY */}
               <div>
                 <div className="text-sm text-gray-400 mb-2">Vault APY</div>
-                {isPreTestnet ? (
-                  <>
-                    <div className="font-mono font-bold text-4xl text-gray-500">—</div>
-                    <div className="text-sm text-gray-500">No APY until testnet volume</div>
-                  </>
-                ) : vaultStats && vaultStats.vaultAPY !== null ? (
+                {vaultStats && vaultStats.vaultAPY !== null ? (
                   <>
                     <div className="font-mono font-bold text-4xl text-brand-green">
                       {vaultStats.vaultAPY.toFixed(1)}%
@@ -192,7 +152,7 @@ function LiquidityPage() {
             )}
 
             {/* Info Banner for New LPs */}
-            <div className="p-6 bg-gradient-to-br from-white/[0.06] to-white/[0.02] border border-brand-cyan/20 rounded-xl">
+            <div className="p-6 bg-white/5 border border-white/10 rounded-xl">
               <div className="flex items-start gap-3 mb-4">
                 <Droplet className="w-6 h-6 text-brand-cyan flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
@@ -216,7 +176,6 @@ function LiquidityPage() {
                   <span className="text-gray-300">Non-custodial smart contract</span>
                 </div>
               </div>
-            </div>
             </div>
           </div>
 
@@ -393,8 +352,7 @@ function LiquidityPage() {
             </div>
           )}
 
-          {/* Estimated Returns Table — testnet only (no fake APY in pre-testnet) */}
-          {!isPreTestnet && (
+          {/* Estimated Returns Table */}
           <div className="mb-12">
             <h2 className="font-syne font-bold text-3xl mb-6 text-center">Estimated Returns</h2>
             <p className="text-center text-gray-400 mb-8">
@@ -458,38 +416,13 @@ function LiquidityPage() {
               </p>
             </div>
           </div>
-          )}
 
           {/* Market Allocation Section */}
           <div className="mb-12">
-            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-brand-green">
-                  Live routing
-                </p>
-                <h2 className="font-syne font-bold text-3xl">Market Allocation</h2>
-              </div>
-              {vaultStats?.marketsActive != null && (
-                <p className="text-sm text-gray-500">
-                  {vaultStats.marketsActive} active market{vaultStats.marketsActive === 1 ? '' : 's'} in vault
-                </p>
-              )}
-            </div>
-            {isPreTestnet && (
-              <p className="text-sm text-gray-500 mb-4 max-w-3xl rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                {PRE_TESTNET_ALLOCATION_EXPLAINER}
-              </p>
-            )}
-            {isPreTestnet && vaultStats?.allocationCoherent === false && (
-              <p className="text-xs text-amber-400/90 mb-4">
-                Allocation reconcile pending — refresh after catalog sync.
-              </p>
-            )}
-            <div className="rounded-2xl border border-brand-green/20 bg-gradient-to-b from-white/[0.06] to-brand-bg/80 p-6 shadow-lg shadow-brand-green/5 space-y-4">
+            <h2 className="font-syne font-bold text-3xl mb-6">Market Allocation</h2>
+            <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
               {vaultStats?.marketAllocations && vaultStats.marketAllocations.length > 0 ? (
-                vaultStats.marketAllocations
-                  .filter((a) => a.allocation > 0)
-                  .map((allocation) => (
+                vaultStats.marketAllocations.map((allocation) => (
                   <div key={allocation.marketId} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -501,14 +434,10 @@ function LiquidityPage() {
                       </div>
                       <div className="text-right">
                         <div className="font-mono font-bold text-brand-green">
-                          {isPreTestnet
-                            ? `${allocation.percentage.toFixed(1)}%`
-                            : `$${allocation.allocation.toFixed(0)}`}
+                          ${allocation.allocation.toFixed(0)}
                         </div>
                         <div className="text-xs text-gray-400">
-                          {isPreTestnet
-                            ? `~${allocation.allocation.toFixed(0)} USDC simulated`
-                            : `${allocation.percentage.toFixed(0)}%`}
+                          {allocation.percentage.toFixed(0)}%
                         </div>
                       </div>
                     </div>
@@ -552,7 +481,7 @@ function LiquidityPage() {
                 <div>
                   <h3 className="font-semibold text-lg mb-2">Algorithm Allocates by Volume</h3>
                   <p className="text-gray-400">
-                    Smart allocation algorithm distributes liquidity based on trading volume per market, ensuring optimal coverage where it&apos;s needed most.
+                    Smart allocation algorithm distributes liquidity based on trading volume per market, ensuring optimal coverage where it's needed most.
                   </p>
                 </div>
               </div>
