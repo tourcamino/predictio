@@ -28,6 +28,7 @@ import {
   protocolRegistryApiCap,
 } from "../services/emergencyRelaxMode";
 import { syncProtocolRegistryToPrisma } from "../services/protocolRegistrySync";
+import { recordRegistryHealthMetrics } from "../services/registryHealthSnapshot";
 import {
   isHomePipelineForensicEnabled,
   logHomeApiForensic,
@@ -604,6 +605,15 @@ export function registerAdminCurationRoutes(
           dbRowsBeforeCap: rows.length,
           apiCap,
         },
+      });
+
+      recordRegistryHealthMetrics({
+        source: "GET /api/markets",
+        rawFeedCount: diagnostics.totalFromAzuro,
+        normalizedCount: Number(inv?.NORMALIZED_COUNT ?? games.length),
+        persistedCount: dbWritten,
+        openRegistryCount: rows.length,
+        apiResponseCount: markets.length,
       });
 
       res.json({

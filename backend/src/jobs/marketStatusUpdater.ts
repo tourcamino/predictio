@@ -10,6 +10,7 @@ import {
   isProtocolRegistryMode,
 } from "../services/emergencyRelaxMode";
 import { syncProtocolRegistryToPrisma } from "../services/protocolRegistrySync";
+import { runRegistryHealthCheck } from "../services/registryHealthCheck";
 import {
   inferUpsertAction,
   logBulkDisableForensic,
@@ -284,6 +285,8 @@ export async function updateMarketStatuses() {
         cap: MAX_ACTIVE_CURATED,
       }),
     );
+
+    await runRegistryHealthCheck(prisma, "market_status_updater");
 
     if (toLock.count > 0 || refilled > 0 || resolvedCount > 0) {
       await notifyCatalogLiquidityChanged(

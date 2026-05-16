@@ -24,6 +24,7 @@ import { cacheDel } from "./services/redisCache";
 import { isEditorialCatalogOnly } from "./services/emergencyRelaxMode";
 import { syncProtocolRegistryToPrisma } from "./services/protocolRegistrySync";
 import { logCuratedLifecycleInventory } from "./services/curatedEventLifecycleForensic";
+import { runRegistryHealthCheck } from "./services/registryHealthCheck";
 import { referralCookieMiddleware } from "./middleware/referral";
 import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
@@ -618,11 +619,14 @@ app.get("/api/version", sendVersion);
 app.get("/api/v1/health", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({
-      status: "ok",
+    const registry = await runRegistryHealthCheck(prisma, "api_v1_health");
+    const httpStatus = registry.ok ? 200 : 503;
+    res.status(httpStatus).json({
+      status: registry.ok ? "ok" : "degraded",
       uptime: process.uptime(),
       version: "1.0.0",
       db: "connected",
+      registry,
       flags: {
         WRITE_AUTH_REQUIRED: process.env.WRITE_AUTH_REQUIRED === "1",
         WS_AUTH_REQUIRED: process.env.WS_AUTH_REQUIRED === "1",
@@ -705,6 +709,15 @@ app.get("/api/admin/health/full", requireAdminKey, async (_req, res) => {
     out.counts.apiUsage = usageTotal;
   } catch (e) {
     out.countsError = e instanceof Error ? e.message : String(e);
+  }
+
+  try {
+    out.registry = await runRegistryHealthCheck(prisma, "admin_health_full");
+  } catch (e) {
+    out.registry = {
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+    };
   }
 
   out.ms = Date.now() - startedAt;

@@ -22,7 +22,8 @@
     "debug:env-audit": "node --env-file=.env --import tsx src/scripts/debug/productionEnvAudit.ts",
     "debug:normalization": "node --env-file=.env --import tsx src/scripts/debug/normalizationFailures.ts",
     "debug:sport-density": "node --env-file=.env --import tsx src/scripts/debug/sportDensityMap.ts",
-    "debug:temporal-windows": "node --env-file=.env --import tsx src/scripts/debug/temporalWindowDensity.ts"
+    "debug:temporal-windows": "node --env-file=.env --import tsx src/scripts/debug/temporalWindowDensity.ts",
+    "debug:validate-registry": "node --env-file=.env --import tsx src/scripts/debug/validateRegistryIntegrity.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.8.2",

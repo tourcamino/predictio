@@ -17,6 +17,8 @@ import {
   readCuratedSnapshot,
   runCuratedLifecycleJob,
 } from "./curatedEventLifecycleForensic";
+import { recordRegistryHealthMetrics } from "./registryHealthSnapshot";
+import { runRegistryHealthCheck } from "./registryHealthCheck";
 
 const BOOT_CURATION_CACHE_KEY = "admin:azuro:football:14d:v2";
 const REGISTRY_SELECTED_BY = "PROTOCOL_REGISTRY";
@@ -246,6 +248,16 @@ export async function syncProtocolRegistryToPrisma(
         CANONICAL_SPORT_DISTRIBUTION_PAYLOAD: sportDistribution(slice),
       }),
     );
+
+    recordRegistryHealthMetrics({
+      source: "protocol_registry_sync",
+      rawFeedCount: diagnostics?.rawFeedCount ?? games.length,
+      normalizedCount: diagnostics?.normalizedCount ?? games.length,
+      persistedCount: written,
+      openRegistryCount: openActiveAfter,
+      apiResponseCount: null,
+    });
+    await runRegistryHealthCheck(prisma, "protocol_registry_sync");
 
     return {
       written,
