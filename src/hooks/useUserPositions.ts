@@ -16,17 +16,22 @@ export type UserPositionsData = inferRouterOutputs<AppRouter>["getUserPositions"
  * Canonical prediction rows for a wallet — same DB as Express paper writes on production.
  */
 export function useUserPositions(options: {
+  /** Defaults to connected wallet; pass another address for analyst/copy views. */
+  walletAddress?: string;
   status?: UserPositionsStatus;
   enabled?: boolean;
   refetchInterval?: number | false;
 }) {
   const { address, chainId, isConnected } = useWallet();
-  const walletKey = normalizeWalletForQuery(address);
+  const walletKey = normalizeWalletForQuery(options.walletAddress ?? address);
   const chainScope = clientChainScopeForTrpc(chainId);
   const status = options.status ?? "all";
   const useExpress = shouldUseExpressForWalletCritical();
   const trpcClient = useTRPCClient();
-  const enabled = (options.enabled ?? true) && Boolean(isConnected && walletKey);
+  const enabled =
+    (options.enabled ?? true) &&
+    Boolean(walletKey) &&
+    (options.walletAddress ? true : isConnected);
 
   return useQuery({
     queryKey: [

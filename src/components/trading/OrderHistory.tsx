@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useTRPC } from '~/trpc/react';
-import { useWallet } from '~/store/useWalletStore';
-import { clientChainScopeForTrpc } from '~/utils/walletQuery';
+import { useTransactionHistory } from '~/hooks/useTransactionHistory';
 import { Clock, TrendingUp, TrendingDown, Filter, Download } from 'lucide-react';
 interface OrderHistoryProps {
   walletAddress: string;
@@ -11,20 +8,14 @@ interface OrderHistoryProps {
 type FilterType = 'all' | 'buy' | 'sell' | 'win' | 'loss';
 
 export function OrderHistory({ walletAddress }: OrderHistoryProps) {
-  const trpc = useTRPC();
-  const { chainId } = useWallet();
-  const chainScope = clientChainScopeForTrpc(chainId);
   const [filter, setFilter] = useState<FilterType>('all');
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
 
-  const transactionsQuery = useQuery({
-    ...trpc.getTransactionHistory.queryOptions({
-      walletAddress,
-      limit: 100,
-      offset: 0,
-      type: 'all',
-      clientChainId: chainScope,
-    }),
+  const transactionsQuery = useTransactionHistory({
+    walletAddress,
+    limit: 100,
+    offset: 0,
+    type: 'all',
     enabled: !!walletAddress,
   });
 

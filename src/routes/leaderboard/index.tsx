@@ -4,6 +4,8 @@ import { Trophy, Medal, TrendingUp, RefreshCw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '~/trpc/react';
 import { useWallet } from '~/store/useWalletStore';
+import { useLeaderboard } from '~/hooks/useLeaderboard';
+import { usePointsLeaderboard } from '~/hooks/usePointsLeaderboard';
 import { mockAnalysts } from "~/data/mockAffiliates";
 import {
   TierBadge,
@@ -61,22 +63,16 @@ function LeaderboardPage() {
   const [selectedSport, setSelectedSport] = useState<string>('all');
   const [lpSortBy, setLPSortBy] = useState<'deposits' | 'fees'>('fees');
 
-  // Fetch real leaderboard data with 60-second polling
-  const leaderboardQuery = useQuery({
-    ...trpc.getLeaderboard.queryOptions({
-      limit: 50,
-      currentUserWallet: address || undefined,
-    }),
-    refetchInterval: 60000, // 60 seconds
-    staleTime: 55000, // 55 seconds
+  const leaderboardQuery = useLeaderboard({
+    limit: 50,
+    currentUserWallet: address || undefined,
+    refetchInterval: 60_000,
+    staleTime: 55_000,
   });
 
-  // Fetch points leaderboard
-  const pointsLeaderboardQuery = useQuery({
-    ...trpc.getPointsLeaderboard.queryOptions({
-      limit: 50,
-      currentUserWallet: address || undefined,
-    }),
+  const pointsLeaderboardQuery = usePointsLeaderboard({
+    limit: 50,
+    currentUserWallet: address || undefined,
     enabled: rankingType === 'points' && activeTab !== 'analysts',
     refetchInterval: 60000,
     staleTime: 55000,

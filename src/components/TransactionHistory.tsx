@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useTRPC } from '~/trpc/react';
-import { useWallet } from '~/store/useWalletStore';
-import { clientChainScopeForTrpc } from '~/utils/walletQuery';
+import { useTransactionHistory } from '~/hooks/useTransactionHistory';
 import {
   ArrowDownCircle,
   ArrowUpCircle,
@@ -28,20 +25,14 @@ export function TransactionHistory({
   compact = false, 
   limit = 20 
 }: TransactionHistoryProps) {
-  const trpc = useTRPC();
-  const { chainId } = useWallet();
-  const chainScope = clientChainScopeForTrpc(chainId);
   const [transactionType, setTransactionType] = useState<LedgerHistoryFilter>('all');
   const [transactionOffset, setTransactionOffset] = useState(0);
 
-  const transactionHistoryQuery = useQuery({
-    ...trpc.getTransactionHistory.queryOptions({
-      walletAddress,
-      limit,
-      offset: transactionOffset,
-      type: transactionType,
-      clientChainId: chainScope,
-    }),
+  const transactionHistoryQuery = useTransactionHistory({
+    walletAddress,
+    limit,
+    offset: transactionOffset,
+    type: transactionType,
     enabled: !!walletAddress,
   });
 

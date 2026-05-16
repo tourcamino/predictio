@@ -1,15 +1,13 @@
 import { Fragment, useState, type MouseEvent } from 'react';
 import { Menu, Transition } from '@headlessui/react';
-import { useQuery } from '@tanstack/react-query';
-import { Copy, ExternalLink, User, BarChart3, Trophy, Settings, LogOut, TrendingUp, KeyRound } from 'lucide-react';
-import { useTRPC } from '~/trpc/react';
+import { Copy, ExternalLink, User, BarChart3, Trophy, Settings, LogOut, TrendingUp, KeyRound, RefreshCw } from 'lucide-react';
 import { useWallet } from '~/store/useWalletStore';
-import { clientChainScopeForTrpc, normalizeWalletForQuery } from '~/utils/walletQuery';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
+import { useUserPositions } from '~/hooks/useUserPositions';
 import { formatPaperCashDisplay } from '~/lib/formatPaperCash';
 import { explorerAddressUrl, walletNetworkBadgeLabelFromChainId, predictionBalanceFootnote } from '~/lib/economySurface';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { WALLET_TOAST_IDS, walletToastSuccess } from '~/lib/walletToast';
+import { WALLET_TOAST_IDS, walletToastError, walletToastSuccess } from '~/lib/walletToast';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
 
 interface WalletDropdownProps {
@@ -17,7 +15,7 @@ interface WalletDropdownProps {
 }
 
 export function WalletDropdown({ onClose }: WalletDropdownProps) {
-  const { address, disconnectWallet, chainId } = useWallet();
+  const { address, disconnectWallet, requestAccountSwitch, chainId } = useWallet();
   const { cashUsdcSettled: paperCash, isBalanceLoading: paperCashLoading } =
     usePaperWalletBalance();
   const navigate = useNavigate();
@@ -27,19 +25,25 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
     type: 'deposit',
   });
 
-  const trpc = useTRPC();
-  const walletKey = normalizeWalletForQuery(address);
-  const chainScope = clientChainScopeForTrpc(chainId);
-  const openPositionsQuery = useQuery({
-    ...trpc.getUserPositions.queryOptions({
-      walletAddress: walletKey,
-      status: 'open',
-      clientChainId: chainScope,
-    }),
-    enabled: !!walletKey,
-    staleTime: 30_000,
+  const openPositionsQuery = useUserPositions({
+    status: 'open',
+    enabled: !!address,
   });
   const activePredictions = openPositionsQuery.data?.positions.length ?? 0;
+
+  const handleSwitchAccount = async (close: () => void) => {
+    try {
+      await requestAccountSwitch();
+      onClose?.();
+      close();
+    } catch (error) {
+      console.error('[Wallet] Account switch failed:', error);
+      walletToastError(
+        error instanceof Error ? error.message : 'Could not switch account in your wallet.',
+        { id: WALLET_TOAST_IDS.networkErr, duration: 5200 },
+      );
+    }
+  };
 
   const copyAddress = () => {
     if (address) {
@@ -258,8 +262,22 @@ export function WalletDropdown({ onClose }: WalletDropdownProps) {
             </Menu.Item>
           </div>
 
-          {/* Disconnect */}
+          {/* Switch / disconnect */}
           <div className="p-1.5 border-t border-white/10">
+            <Menu.Item>
+              {({ active, close }) => (
+                <button
+                  type="button"
+                  onClick={() => void handleSwitchAccount(close)}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded transition-colors ${
+                    active ? 'bg-white/10' : ''
+                  } text-gray-300`}
+                >
+                  <RefreshCw className="w-4 h-4 shrink-0" />
+                  <span className="flex-1 text-left text-sm font-medium">Switch account</span>
+                </button>
+              )}
+            </Menu.Item>
             <Menu.Item>
               {({ active, close }) => (
                 <button

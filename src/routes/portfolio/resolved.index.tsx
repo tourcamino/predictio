@@ -7,7 +7,7 @@ import { WalletGateModal } from '~/components/WalletGateModal';
 import { GuestPageState } from '~/components/GuestPageState';
 import { useTRPC } from '~/trpc/react';
 import { useQuery } from '@tanstack/react-query';
-import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
+import { useUserPositions } from '~/hooks/useUserPositions';
 import { useMemo, useEffect } from 'react';
 import {
   mapDbOrderToTradingPosition,
@@ -28,18 +28,12 @@ function sortResolvedOrders(orders: UserOrderRow[]): UserOrderRow[] {
 
 function ResolvedMarketsPage() {
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
-  const { isConnected, address, chainId } = useWallet();
+  const { isConnected } = useWallet();
   const trpc = useTRPC();
-  const walletKey = normalizeWalletForQuery(address);
-  const chainScope = clientChainScopeForTrpc(chainId);
 
-  const positionsQuery = useQuery({
-    ...trpc.getUserPositions.queryOptions({
-      walletAddress: walletKey,
-      status: 'resolved',
-      clientChainId: chainScope,
-    }),
-    enabled: !!walletKey && isConnected,
+  const positionsQuery = useUserPositions({
+    status: 'resolved',
+    enabled: isConnected,
   });
 
   const rows = positionsQuery.data?.positions ?? [];
@@ -63,7 +57,7 @@ function ResolvedMarketsPage() {
   useEffect(() => {
     if (!import.meta.env.DEV || import.meta.env.VITE_SETTLEMENT_DEBUG !== '1') return;
     console.info('[settlement-debug]', {
-      settlementSource: 'trpc.getUserPositions',
+      settlementSource: 'getUserPositions',
       statusFilter: 'resolved',
       rowCount: rows.length,
       queryStatus: positionsQuery.status,

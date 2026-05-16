@@ -6,9 +6,7 @@ import { CHAIN_CONFIG } from '~/config/chain';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { GuestPageState } from '~/components/GuestPageState';
-import { useTRPC } from '~/trpc/react';
-import { useQuery } from '@tanstack/react-query';
-import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
+import { useTransactionHistory } from '~/hooks/useTransactionHistory';
 import { useMemo, useEffect } from 'react';
 import {
   dbActivityPrimaryLine,
@@ -21,20 +19,13 @@ export const Route = createFileRoute('/portfolio/claims/')({
 
 function ClaimHistoryPage() {
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
-  const { isConnected, address, chainId } = useWallet();
-  const trpc = useTRPC();
-  const walletKey = normalizeWalletForQuery(address);
-  const chainScope = clientChainScopeForTrpc(chainId);
+  const { isConnected } = useWallet();
 
-  const creditsQuery = useQuery({
-    ...trpc.getTransactionHistory.queryOptions({
-      walletAddress: walletKey,
-      limit: 100,
-      offset: 0,
-      type: 'credits',
-      clientChainId: chainScope,
-    }),
-    enabled: !!walletKey && isConnected,
+  const creditsQuery = useTransactionHistory({
+    limit: 100,
+    offset: 0,
+    type: 'credits',
+    enabled: isConnected,
   });
 
   const rows = creditsQuery.data?.transactions ?? [];
@@ -49,7 +40,7 @@ function ClaimHistoryPage() {
   useEffect(() => {
     if (!import.meta.env.DEV || import.meta.env.VITE_ACTIVITY_DEBUG !== '1') return;
     console.info('[activity-debug:claims]', {
-      source: 'trpc.getTransactionHistory',
+      source: 'getTransactionHistory',
       typeFilter: 'credits',
       rowCount: sorted.length,
       dataUpdatedAt: creditsQuery.dataUpdatedAt,

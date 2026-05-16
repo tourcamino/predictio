@@ -2,7 +2,12 @@ import { Fragment, useMemo, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X, TrendingUp, Target, Award, AlertTriangle, Copy, Check } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useTRPC } from '~/trpc/react';
+import { useTRPC, useTRPCClient } from '~/trpc/react';
+import { useUserPositions } from '~/hooks/useUserPositions';
+import {
+  executeStartCopyTradingWithExpress,
+  executeStopCopyTradingWithExpress,
+} from '~/lib/executeCopyTradingWithExpress';
 import { useWallet } from '~/store/useWalletStore';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { useWalletGate } from '~/hooks/useWalletGate';
@@ -15,7 +20,7 @@ import {
   roiTextClass,
   shortenWallet,
 } from "~/utils/formatCopyTrading";
-import { clientChainScopeForTrpc } from "~/utils/walletQuery";
+import { normalizeWalletForQuery } from "~/utils/walletQuery";
 
 interface CopyPortfolioModalProps {
   isOpen: boolean;
@@ -46,8 +51,9 @@ export function CopyPortfolioModal({
   existingCopy 
 }: CopyPortfolioModalProps) {
   const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
-  const { address, chainId } = useWallet();
+  const { address } = useWallet();
   const { cashUsdc: paperCash } = usePaperWalletBalance();
   const { requireWalletAndChain, showGateModal, closeGateModal } = useWalletGate();
   
@@ -59,13 +65,9 @@ export function CopyPortfolioModal({
     existingCopy?.selectedMarkets || []
   );
 
-  // Fetch analyst's open positions to show available markets
-  const analystPositionsQuery = useQuery({
-    ...trpc.getUserPositions.queryOptions({
-      walletAddress: analyst.wallet,
-      status: 'open',
-      clientChainId: clientChainScopeForTrpc(chainId),
-    }),
+  const analystPositionsQuery = useUserPositions({
+    walletAddress: normalizeWalletForQuery(analyst.wallet),
+    status: 'open',
     enabled: isOpen && copyMode === 'selective',
   });
 
@@ -117,31 +119,43 @@ export function CopyPortfolioModal({
     );
   }, [availableMarkets, analystSportAllowlist]);
 
-  const startCopyMutation = useMutation(
-    trpc.startCopyTrading.mutationOptions({
-      onSuccess: () => {
-        toast.success(`Now copying ${analyst.displayName}'s trades!`);
-        queryClient.invalidateQueries();
-        onClose();
-      },
-      onError: (error: any) => {
-        toast.error(error.message || 'Failed to start copy trading');
-      },
-    })
-  );
+  const startCopyMutation = useMutation({
+    mutationFn: (payload: {
+      copierWallet: string;
+      analystWallet: string;
+      maxPerTradeUsd: number;
+      copyMode: 'all' | 'selective';
+      selectedMarkets: string[];
+    }) =>
+      executeStartCopyTradingWithExpress(
+        (input) => trpcClient.startCopyTrading.mutate(input),
+        payload,
+      ),
+    onSuccess: () => {
+      toast.success(`Now copying ${analyst.displayName}'s trades!`);
+      queryClient.invalidateQueries();
+      onClose();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to start copy trading');
+    },
+  });
 
-  const stopCopyMutation = useMutation(
-    trpc.stopCopyTrading.mutationOptions({
-      onSuccess: () => {
-        toast.success(`Stopped copying ${analyst.displayName}`);
-        queryClient.invalidateQueries();
-        onClose();
-      },
-      onError: (error: any) => {
-        toast.error(error.message || 'Failed to stop copy trading');
-      },
-    })
-  );
+  const stopCopyMutation = useMutation({
+    mutationFn: (payload: { copierWallet: string; analystWallet: string }) =>
+      executeStopCopyTradingWithExpress(
+        (input) => trpcClient.stopCopyTrading.mutate(input),
+        payload,
+      ),
+    onSuccess: () => {
+      toast.success(`Stopped copying ${analyst.displayName}`);
+      queryClient.invalidateQueries();
+      onClose();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to stop copy trading');
+    },
+  });
 
   const handleStartCopy = () => {
     if (!requireWalletAndChain()) return;

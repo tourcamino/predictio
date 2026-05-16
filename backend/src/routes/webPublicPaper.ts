@@ -13,6 +13,14 @@ import { runGetUserPositionsWeb } from "../web/getUserPositionsWeb";
 import { runGetTransactionHistoryWeb } from "../web/getTransactionHistoryWeb";
 import { runGetPortfolioSummaryWeb } from "../web/getPortfolioSummaryWeb";
 import { runClosePositionWeb } from "../web/closePositionWeb";
+import { runGetPortfolioPerformanceHistoryWeb } from "../web/getPortfolioPerformanceHistoryWeb";
+import { runGetLeaderboardWeb } from "../web/getLeaderboardWeb";
+import { runGetPointsLeaderboardWeb } from "../web/getPointsLeaderboardWeb";
+import {
+  runGetCopyRelationshipWeb,
+  runStartCopyTradingWeb,
+  runStopCopyTradingWeb,
+} from "../web/copyTradingWeb";
 import { resolveCanonicalLiquidityState } from "../services/canonicalLiquidityState";
 import { getCatalogLiquidityVersionMeta } from "../services/catalogLiquidityRebalance";
 
@@ -52,6 +60,36 @@ const closeBody = z.object({
   walletAddress: walletParam,
   sharesToSell: z.number().positive(),
   currentPrice: z.number().positive(),
+});
+
+const performanceQuery = z.object({
+  walletAddress: walletParam,
+  timeRange: z
+    .enum(["7D", "30D", "90D", "1W", "1M", "3M", "6M", "1Y", "ALL", "CUSTOM"])
+    .default("1M"),
+});
+
+const leaderboardQuery = z.object({
+  limit: z.coerce.number().min(1).max(100).default(50),
+  currentUserWallet: walletParam.optional(),
+});
+
+const copyRelationshipQuery = z.object({
+  copierWallet: walletParam,
+  analystWallet: walletParam,
+});
+
+const startCopyBody = z.object({
+  copierWallet: walletParam,
+  analystWallet: walletParam,
+  maxPerTradeUsd: z.number().min(10).max(10000),
+  copyMode: z.enum(["all", "selective"]).default("all"),
+  selectedMarkets: z.array(z.string()).default([]),
+});
+
+const stopCopyBody = z.object({
+  copierWallet: walletParam,
+  analystWallet: walletParam,
 });
 
 const placeBody = z.object({
@@ -231,6 +269,64 @@ export function createWebPublicPaperRouter(prisma: PrismaClient): Router {
     try {
       const out = await runClosePositionWeb(prisma, req.body);
       res.json(out);
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  r.get(
+    "/portfolio-performance-history",
+    validate({ query: performanceQuery }),
+    async (req, res, next) => {
+      try {
+        const q = req.query as unknown as z.infer<typeof performanceQuery>;
+        const out = await runGetPortfolioPerformanceHistoryWeb(prisma, q);
+        res.json(out);
+      } catch (e) {
+        next(e);
+      }
+    },
+  );
+
+  r.get("/leaderboard", validate({ query: leaderboardQuery }), async (req, res, next) => {
+    try {
+      const q = req.query as unknown as z.infer<typeof leaderboardQuery>;
+      res.json(await runGetLeaderboardWeb(prisma, q));
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  r.get("/points-leaderboard", validate({ query: leaderboardQuery }), async (req, res, next) => {
+    try {
+      const q = req.query as unknown as z.infer<typeof leaderboardQuery>;
+      res.json(await runGetPointsLeaderboardWeb(prisma, q));
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  r.get("/copy-relationship", validate({ query: copyRelationshipQuery }), async (req, res, next) => {
+    try {
+      const q = req.query as unknown as z.infer<typeof copyRelationshipQuery>;
+      res.json(await runGetCopyRelationshipWeb(prisma, q.copierWallet, q.analystWallet));
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  r.post("/start-copy-trading", validate({ body: startCopyBody }), async (req, res, next) => {
+    try {
+      res.json(await runStartCopyTradingWeb(prisma, req.body));
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  r.post("/stop-copy-trading", validate({ body: stopCopyBody }), async (req, res, next) => {
+    try {
+      const b = req.body as z.infer<typeof stopCopyBody>;
+      res.json(await runStopCopyTradingWeb(prisma, b.copierWallet, b.analystWallet));
     } catch (e) {
       next(e);
     }

@@ -27,6 +27,7 @@ import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { useUserPositions } from '~/hooks/useUserPositions';
 import { usePortfolioSummary } from '~/hooks/usePortfolioSummary';
+import { usePortfolioPerformanceHistory } from '~/hooks/usePortfolioPerformanceHistory';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 
 export const Route = createFileRoute('/portfolio/')({
@@ -68,15 +69,11 @@ function Portfolio() {
     enabled: !!walletKey && isConnected,
   });
 
-  // Fetch portfolio performance history
-  const performanceQuery = useQuery({
-    ...trpc.getPortfolioPerformanceHistory.queryOptions({
-      walletAddress: walletKey,
-      timeRange,
-      startDate: customStartDate,
-      endDate: customEndDate,
-    }),
-    enabled: !!walletKey && isConnected,
+  const performanceQuery = usePortfolioPerformanceHistory({
+    timeRange,
+    startDate: customStartDate,
+    endDate: customEndDate,
+    enabled: isConnected,
   });
 
   // Fetch user's LP positions

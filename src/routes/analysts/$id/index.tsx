@@ -6,6 +6,7 @@ import { TraderPerformanceCharts } from "~/components/analyst/TraderPerformanceC
 import { CopyPortfolioModal } from "~/components/trading/CopyPortfolioModal";
 import { VerificationBadge } from "~/components/analyst/VerificationBadge";
 import { useTRPC } from "~/trpc/react";
+import { useCopyRelationship } from "~/hooks/useCopyRelationship";
 import { useWalletStore } from "~/store/useWalletStore";
 import {
   TrendingUp,
@@ -73,11 +74,9 @@ function AnalystProfilePage() {
   const isFollowing = followStatusQuery.data?.isFollowing ?? false;
 
   // Check if user is copying this analyst
-  const copyRelationshipQuery = useQuery({
-    ...trpc.getCopyRelationship.queryOptions({
-      copierWallet: wallet || '',
-      analystWallet: data?.analyst?.wallet || '',
-    }),
+  const copyRelationshipQuery = useCopyRelationship({
+    copierWallet: wallet || '',
+    analystWallet: data?.analyst?.wallet || '',
     enabled: !!wallet && !!data?.analyst,
   });
 

@@ -406,6 +406,71 @@ export async function expressClosePosition(input: {
   );
 }
 
+export async function expressGetPortfolioPerformanceHistory(input: {
+  walletAddress: string;
+  timeRange: string;
+}): Promise<Record<string, unknown>> {
+  const q = new URLSearchParams({
+    walletAddress: input.walletAddress,
+    timeRange: input.timeRange,
+  }).toString();
+  return paperGetJson([
+    `/api/v1/web/portfolio-performance-history?${q}`,
+    `/api/web/portfolio-performance-history?${q}`,
+  ]);
+}
+
+export async function expressGetLeaderboard(input: {
+  limit?: number;
+  currentUserWallet?: string;
+}): Promise<Record<string, unknown>> {
+  const q = new URLSearchParams({ limit: String(input.limit ?? 50) });
+  if (input.currentUserWallet) q.set("currentUserWallet", input.currentUserWallet);
+  const qs = q.toString();
+  return paperGetJson([`/api/v1/web/leaderboard?${qs}`, `/api/web/leaderboard?${qs}`]);
+}
+
+export async function expressGetPointsLeaderboard(input: {
+  limit?: number;
+  currentUserWallet?: string;
+}): Promise<Record<string, unknown>> {
+  const q = new URLSearchParams({ limit: String(input.limit ?? 50) });
+  if (input.currentUserWallet) q.set("currentUserWallet", input.currentUserWallet);
+  const qs = q.toString();
+  return paperGetJson([
+    `/api/v1/web/points-leaderboard?${qs}`,
+    `/api/web/points-leaderboard?${qs}`,
+  ]);
+}
+
+export async function expressGetCopyRelationship(
+  copierWallet: string,
+  analystWallet: string,
+): Promise<{ relationship: Record<string, unknown> | null }> {
+  const q = new URLSearchParams({ copierWallet, analystWallet }).toString();
+  return paperGetJson([
+    `/api/v1/web/copy-relationship?${q}`,
+    `/api/web/copy-relationship?${q}`,
+  ]);
+}
+
+export async function expressStartCopyTrading(body: {
+  copierWallet: string;
+  analystWallet: string;
+  maxPerTradeUsd: number;
+  copyMode: "all" | "selective";
+  selectedMarkets: string[];
+}): Promise<Record<string, unknown>> {
+  return paperPostJson(["/api/v1/web/start-copy-trading", "/api/web/start-copy-trading"], body);
+}
+
+export async function expressStopCopyTrading(body: {
+  copierWallet: string;
+  analystWallet: string;
+}): Promise<Record<string, unknown>> {
+  return paperPostJson(["/api/v1/web/stop-copy-trading", "/api/web/stop-copy-trading"], body);
+}
+
 export async function expressPlacePrediction(
   input: {
     marketId: string;

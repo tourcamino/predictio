@@ -8,9 +8,7 @@ import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { GuestPageState } from '~/components/GuestPageState';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
-import { useTRPC } from '~/trpc/react';
-import { useQuery } from '@tanstack/react-query';
-import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
+import { useTransactionHistory } from '~/hooks/useTransactionHistory';
 import {
   dbActivityAmountPrefix,
   dbActivityPrimaryLine,
@@ -24,21 +22,14 @@ export const Route = createFileRoute('/wallet/')({
 
 function WalletDashboard() {
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
-  const { isConnected, address, balanceEth, balanceEthUsd, chainId } = useWallet();
+  const { isConnected, address, balanceEth, balanceEthUsd } = useWallet();
   const { cashUsdc, inOpenPositions, totalAtCost } = usePaperWalletBalance();
-  const trpc = useTRPC();
-  const walletKey = normalizeWalletForQuery(address);
-  const chainScope = clientChainScopeForTrpc(chainId);
 
-  const recentActivityQuery = useQuery({
-    ...trpc.getTransactionHistory.queryOptions({
-      walletAddress: walletKey,
-      limit: 10,
-      offset: 0,
-      type: 'all',
-      clientChainId: chainScope,
-    }),
-    enabled: !!walletKey && isConnected,
+  const recentActivityQuery = useTransactionHistory({
+    limit: 10,
+    offset: 0,
+    type: 'all',
+    enabled: isConnected,
   });
 
   const [depositModalOpen, setDepositModalOpen] = useState(false);

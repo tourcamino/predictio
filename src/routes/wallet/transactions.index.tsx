@@ -6,9 +6,7 @@ import { CHAIN_CONFIG } from '~/config/chain';
 import { useWalletGate } from '~/hooks/useWalletGate';
 import { WalletGateModal } from '~/components/WalletGateModal';
 import { GuestPageState } from '~/components/GuestPageState';
-import { useTRPC } from '~/trpc/react';
-import { useQuery } from '@tanstack/react-query';
-import { normalizeWalletForQuery, clientChainScopeForTrpc } from '~/utils/walletQuery';
+import { useTransactionHistory } from '~/hooks/useTransactionHistory';
 import {
   LEDGER_HISTORY_FILTERS,
   type LedgerHistoryFilter,
@@ -31,10 +29,7 @@ const PAGE_SIZE = 25;
 
 function WalletTransactionHistoryPage() {
   const { requireWallet, showGateModal, closeGateModal } = useWalletGate();
-  const { isConnected, address, chainId } = useWallet();
-  const trpc = useTRPC();
-  const walletKey = normalizeWalletForQuery(address);
-  const chainScope = clientChainScopeForTrpc(chainId);
+  const { isConnected } = useWallet();
 
   const [typeFilter, setTypeFilter] = useState<LedgerHistoryFilter>('all');
   const [statusFilter, setStatusFilter] = useState<TransactionStatus>('all');
@@ -42,16 +37,11 @@ function WalletTransactionHistoryPage() {
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
 
-  const historyQuery = useQuery({
-    ...trpc.getTransactionHistory.queryOptions({
-      walletAddress: walletKey,
-      limit: PAGE_SIZE,
-      offset,
-      type: typeFilter,
-      clientChainId: chainScope,
-      debugLedger: import.meta.env.DEV && import.meta.env.VITE_LEDGER_DEBUG === '1',
-    }),
-    enabled: !!walletKey && isConnected,
+  const historyQuery = useTransactionHistory({
+    limit: PAGE_SIZE,
+    offset,
+    type: typeFilter,
+    enabled: isConnected,
   });
 
   const rows = historyQuery.data?.transactions ?? [];

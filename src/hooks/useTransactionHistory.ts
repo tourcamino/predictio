@@ -14,17 +14,21 @@ export type TransactionHistoryData =
   inferRouterOutputs<AppRouter>["getTransactionHistory"];
 
 export function useTransactionHistory(input: {
+  walletAddress?: string;
   limit?: number;
   offset?: number;
   type?: LedgerHistoryFilter;
   enabled?: boolean;
 }) {
   const { address, chainId, isConnected } = useWallet();
-  const walletKey = normalizeWalletForQuery(address);
+  const walletKey = normalizeWalletForQuery(input.walletAddress ?? address);
   const chainScope = clientChainScopeForTrpc(chainId);
   const useExpress = shouldUseExpressForWalletCritical();
   const trpcClient = useTRPCClient();
-  const enabled = (input.enabled ?? true) && Boolean(isConnected && walletKey);
+  const enabled =
+    (input.enabled ?? true) &&
+    Boolean(walletKey) &&
+    (input.walletAddress ? true : isConnected);
   const limit = input.limit ?? 50;
   const offset = input.offset ?? 0;
   const type = input.type ?? "all";
