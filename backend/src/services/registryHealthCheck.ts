@@ -183,17 +183,19 @@ export async function runRegistryHealthCheck(
     });
   }
 
-  const prePersistViolation = checkPrePersistenceSportFilter({
-    payloadGames: snap?.normalizedCount ?? rawFeedCount ?? 0,
-    persistedCount: snap?.persistedCount ?? 0,
-    sportFilterApplied: false,
-  });
-  if (prePersistViolation) {
-    alerts.push({
-      code: prePersistViolation.code,
-      severity: "critical",
-      message: prePersistViolation.detail,
+  if (source.includes("registry") || source.includes("boot")) {
+    const prePersistViolation = checkPrePersistenceSportFilter({
+      payloadGames: snap?.normalizedCount ?? rawFeedCount ?? 0,
+      persistedCount: snap?.persistedCount ?? 0,
+      sportFilterApplied: false,
     });
+    if (prePersistViolation) {
+      alerts.push({
+        code: prePersistViolation.code,
+        severity: "critical",
+        message: prePersistViolation.detail,
+      });
+    }
   }
 
   if (source === "scheduled" || source.includes("health")) {

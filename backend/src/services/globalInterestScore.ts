@@ -53,6 +53,7 @@ const SPORT_BASE: Record<CanonicalSport, number> = {
   basketball: 12,
   motorsport: 12,
   mma: 12,
+  hockey: 10,
 };
 
 /**

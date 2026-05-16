@@ -10,10 +10,7 @@ import {
 } from "~/lib/markets/curateFeaturedEvents";
 import { compareEditorialCatalogOrder } from "~/lib/editorialCatalogOrder";
 import { logFrontendFetchForensic } from "~/lib/homePipelineForensicTrace";
-import {
-  ensureHomepageMinimumMarkets,
-  sortRegistryForHomepage,
-} from "~/lib/homepageRegistryView";
+import { buildFootballFirstHomepageView } from "~/lib/footballFirstView";
 
 /** Quota pareggio sintetica se Azuro/API non espone draw (calcio 1X2 sempre 3 esiti in UI). */
 const SYNTHETIC_DRAW_DECIMAL = 3.35;
@@ -226,24 +223,27 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
     const registryView = Boolean(data.protocolRegistryMode ?? data.rawFeedMode);
 
     if (registryView) {
-      const sorted = sortRegistryForHomepage(mapped);
-      const withMin = ensureHomepageMinimumMarkets(
-        sorted,
-        sorted,
+      const withMin = buildFootballFirstHomepageView(
+        mapped,
+        HOMEPAGE_MIN_MARKETS,
         HOMEPAGE_MIN_MARKETS,
       );
+      const footballCount = withMin.filter(
+        (m) => m.sport === "football" || m.sport === "soccer",
+      ).length;
       logFrontendFetchForensic({
         apiTotal: data.total ?? withMin.length,
         rawFeedMode: true,
         source: "curated-api",
         markets: withMin,
-        rankingPath: "protocol-registry-view-min-9",
+        rankingPath: "football-first-view-min-9",
       });
       console.log(
         JSON.stringify({
           tag: "HOME_PIPELINE_PROTOCOL_VIEW",
           API_RESPONSE_COUNT: mapped.length,
           FRONTEND_FETCH_COUNT: withMin.length,
+          FOOTBALL_HOMEPAGE_COUNT: footballCount,
           HOMEPAGE_MIN: HOMEPAGE_MIN_MARKETS,
         }),
       );

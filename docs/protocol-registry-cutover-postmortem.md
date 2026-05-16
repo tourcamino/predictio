@@ -152,6 +152,18 @@ Sample markets on production API:
 
 ---
 
+## Football-first stabilization (2026-05-16)
+
+Protocol registry remains **persist-all**. Football-first applies only to:
+
+- **Taxonomy** — `resolveCanonicalSportFromRaw()` (league inference overrides wrong Azuro tags; no `?? "football"` default).
+- **Homepage/view** — `buildFootballFirstHomepageView()` / `rankFootballFirstForView()`.
+- **LP** — football-weighted slot pick + `FOOTBALL_LP_WEIGHT_MULTIPLIER` in canonical allocation.
+
+Metrics: `FOOTBALL_FIRST_METRICS` on `REGISTRY_HEALTH_CHECK`. Tests: `npm run test:football-first-guards`.
+
+---
+
 ## References
 
 - Deploy: `scripts/vps-deploy-backend.sh`, `docs/deployment.md`

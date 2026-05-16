@@ -178,8 +178,8 @@ export async function syncProtocolRegistryToPrisma(
           homeOdds: event.homeOdds ?? null,
           drawOdds: event.drawOdds ?? null,
           awayOdds: event.awayOdds ?? null,
-          sport: event.sportSlug ?? event.sport ?? "football",
-          sportSlug: event.sportSlug ?? event.sport ?? "football",
+          sport: event.sportSlug ?? event.sport ?? "unknown",
+          sportSlug: event.sportSlug ?? event.sport ?? "unknown",
         },
         update: {
           title: event.title,
@@ -201,8 +201,8 @@ export async function syncProtocolRegistryToPrisma(
           homeOdds: event.homeOdds ?? null,
           drawOdds: event.drawOdds ?? null,
           awayOdds: event.awayOdds ?? null,
-          sport: event.sportSlug ?? event.sport ?? "football",
-          sportSlug: event.sportSlug ?? event.sport ?? "football",
+          sport: event.sportSlug ?? event.sport ?? "unknown",
+          sportSlug: event.sportSlug ?? event.sport ?? "unknown",
         },
       });
 

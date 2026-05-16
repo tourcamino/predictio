@@ -121,10 +121,18 @@ async function loadOpenCuratedSlots(
 async function loadOpenCuratedGameIds(prisma: PrismaClient): Promise<Set<string>> {
   const rows = await prisma.curatedEvent.findMany({
     where: { isActive: true, status: "OPEN" },
-    select: { gameId: true },
-    take: CANONICAL_OPEN_MARKET_CAP,
+    select: {
+      gameId: true,
+      importanceScore: true,
+      startsAt: true,
+      sportSlug: true,
+      sport: true,
+    },
   });
-  return new Set(rows.map((r) => r.gameId));
+  const top = [...rows]
+    .sort(compareFootballFirstLiquidity)
+    .slice(0, CANONICAL_OPEN_MARKET_CAP);
+  return new Set(top.map((r) => r.gameId));
 }
 
 export async function resolveCanonicalLiquidityState(

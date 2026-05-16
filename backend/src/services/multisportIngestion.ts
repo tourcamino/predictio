@@ -45,6 +45,7 @@ export function buildMultisportPremiumPool(
     basketball: 0,
     motorsport: 0,
     mma: 0,
+    hockey: 0,
   };
 
   const multisportUpcoming: RawAzuroGame[] = [];
