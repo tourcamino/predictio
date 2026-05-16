@@ -21,7 +21,10 @@ import {
   compareEditorialCatalogOrder,
   inferEditorialSlotForFixture,
 } from "../services/editorialCatalogOrchestrator";
-import { filterCuratedRowsForProductPhase } from "../services/productCatalogFilter";
+import {
+  filterCuratedRowsForProductPhase,
+  isProductCatalogSportAllowed,
+} from "../services/productCatalogFilter";
 import {
   homepageMinMarkets,
   isEditorialCatalogOnly,
@@ -675,7 +678,7 @@ export function registerAdminCurationRoutes(
         return res.status(503).json({ error: "Database unavailable" });
       }
 
-      if (!market) {
+      if (!market || !isProductCatalogSportAllowed(market.sportSlug, market.sport)) {
         return res.status(404).json({ error: "Market not found" });
       }
 
