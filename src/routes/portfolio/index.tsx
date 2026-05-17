@@ -142,7 +142,7 @@ function Portfolio() {
           <div className="max-w-7xl mx-auto">
             <div className="mb-8">
               <h1 className="font-syne font-bold text-4xl mb-2">Portfolio</h1>
-              <p className="text-gray-400">Track your positions and performance</p>
+              <p className="text-gray-400">Net worth, PnL, and exposure — positions live on Trading</p>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-lg p-12 text-center">
               <RefreshCw className="w-12 h-12 text-brand-green mx-auto mb-4 animate-spin" />
@@ -167,7 +167,7 @@ function Portfolio() {
           <div className="max-w-7xl mx-auto">
             <div className="mb-8">
               <h1 className="font-syne font-bold text-4xl mb-2">Portfolio</h1>
-              <p className="text-gray-400">Track your positions and performance</p>
+              <p className="text-gray-400">Net worth, PnL, and exposure — positions live on Trading</p>
             </div>
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-12 text-center">
               <p className="text-red-500 mb-4">Failed to load portfolio data</p>
@@ -497,351 +497,32 @@ function Portfolio() {
             </div>
           )}
 
-          {/* Open Positions */}
-          {isDemoActive && !isConnected && demoPositions.length > 0 && (
-            <div className="mb-8">
-              <h2 className="font-syne font-bold text-2xl mb-4 flex items-center gap-3">
-                Open Positions (Demo)
-                <DemoBadge />
-              </h2>
-              <div className="space-y-4">
-                {demoPositions.map((position) => {
-                  const market = marketById[position.marketId];
-                  if (!market) return null;
-
-                  const value = position.shares * position.currentPrice;
-                  const cost = position.shares * position.avgPrice;
-                  const pnl = value - cost;
-                  const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0;
-
-                  return (
-                    <Link
-                      key={`${position.marketId}-${position.outcome}`}
-                      to="/markets/$marketId"
-                      params={{ marketId: position.marketId }}
-                      className="block bg-purple-500/10 border border-purple-500/30 rounded-lg p-6 hover:border-purple-500 transition-all"
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-2xl">{market.sportEmoji}</span>
-                            <div>
-                              <h3 className="font-syne font-semibold text-lg">
-                                {position.marketTitle}
-                              </h3>
-                              <p className="text-sm text-gray-400">{market.league}</p>
-                            </div>
-                            <DemoBadge size="sm" />
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setShareModalState({
-                                isOpen: true,
-                                marketId: position.marketId,
-                                position: {
-                                  outcome: position.outcome,
-                                  entryPrice: position.avgPrice,
-                                  currentPrice: position.currentPrice,
-                                  pnl: pnl,
-                                  shares: position.shares,
-                                },
-                              });
-                            }}
-                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                            title="Share position"
-                          >
-                            <Share2 className="w-4 h-4 text-gray-400 hover:text-brand-green" />
-                          </button>
-                          <div
-                            className={`flex items-center gap-1 px-3 py-1 rounded ${
-                              position.outcome === 'YES'
-                                ? 'bg-brand-green/20 text-brand-green'
-                                : position.outcome === 'DRAW'
-                                  ? 'bg-gray-500/20 text-gray-300'
-                                  : 'bg-red-500/20 text-red-500'
-                            }`}
-                          >
-                            <span className="font-bold">{position.outcome}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div>
-                          <div className="text-xs text-gray-400 mb-1">Shares</div>
-                          <div className="font-mono font-semibold">{position.shares.toFixed(1)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-400 mb-1">Avg Price</div>
-                          <div className="font-mono font-semibold">${position.avgPrice.toFixed(2)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-400 mb-1">Current Price</div>
-                          <div className="font-mono font-semibold">${position.currentPrice.toFixed(2)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-400 mb-1">Value</div>
-                          <div className="font-mono font-semibold">${value.toFixed(2)}</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-400">P&L:</span>
-                          <span className={`font-mono font-bold text-lg ${pnl >= 0 ? 'text-brand-green' : 'text-red-500'}`}>
-                            {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-                          </span>
-                          <span className={`text-sm ${pnl >= 0 ? 'text-brand-green' : 'text-red-500'}`}>
-                            ({pnl >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)
-                          </span>
-                          {pnl >= 0 ? (
-                            <TrendingUp className="w-4 h-4 text-brand-green" />
-                          ) : (
-                            <TrendingDown className="w-4 h-4 text-red-500" />
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-400">
-                          <span>View Market</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
+          {/* Recent positions (canonical list on /trading) */}
+          {(openPositions.length > 0 || resolvedPositions.length > 0) && (
+            <div className="mb-8 p-4 bg-white/5 border border-white/10 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-syne font-bold text-lg">Recent positions</h2>
+                <Link to="/trading" className="text-sm text-brand-green font-semibold hover:text-brand-green/80">
+                  View all on Trading →
+                </Link>
               </div>
-            </div>
-          )}
-          
-          {openPositions.length > 0 && (
-            <div className="mb-8">
-              <h2 className="font-syne font-bold text-2xl mb-4">Open Positions</h2>
-              <div className="space-y-4">
-                {openPositions.map((position) => {
-                  const market = marketById[position.marketId];
-                  if (!market) return null;
-
-                  const currentPrice = position.outcome.toUpperCase() === 'YES' ? market.yesPrice : market.noPrice;
-                  const shares = position.shares || 0;
-                  const avgPrice = position.avgPrice || 0;
-                  const value = shares * currentPrice;
-                  const cost = shares * avgPrice;
-                  const pnl = value - cost;
-                  const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0;
-
-                  // Get holding rewards data
-                  const holdingRewards = (position as any).holdingRewards;
-
-                  return (
-                    <Link
-                      key={position.id}
-                      to="/markets/$marketId"
-                      params={{ marketId: position.marketId }}
-                      className="block bg-white/5 border border-white/10 rounded-lg p-6 hover:border-brand-green/30 transition-all"
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-2xl">{market.sportEmoji}</span>
-                            <div>
-                              <h3 className="font-syne font-semibold text-lg">
-                                {position.market.event || `${market.teamA} vs ${market.teamB}`}
-                              </h3>
-                              <p className="text-sm text-gray-400">{market.league}</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setShareModalState({
-                                isOpen: true,
-                                marketId: position.marketId,
-                                position: {
-                                  outcome: position.outcome.toUpperCase() as 'YES' | 'NO' | 'DRAW',
-                                  entryPrice: avgPrice,
-                                  currentPrice: currentPrice,
-                                  pnl: pnl,
-                                  shares: shares,
-                                },
-                              });
-                            }}
-                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                            title="Share position"
-                          >
-                            <Share2 className="w-4 h-4 text-gray-400 hover:text-brand-green" />
-                          </button>
-                          <div
-                            className={`flex items-center gap-1 px-3 py-1 rounded ${
-                              position.outcome.toUpperCase() === 'YES'
-                                ? 'bg-brand-green/20 text-brand-green'
-                                : position.outcome.toUpperCase() === 'DRAW'
-                                  ? 'bg-gray-500/20 text-gray-300'
-                                  : 'bg-red-500/20 text-red-500'
-                            }`}
-                          >
-                            <span className="font-bold">{position.outcome.toUpperCase()}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div>
-                          <div className="text-xs text-gray-400 mb-1">Shares</div>
-                          <div className="font-mono font-semibold">{shares.toFixed(1)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-400 mb-1">Avg Price</div>
-                          <div className="font-mono font-semibold">${avgPrice.toFixed(2)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-400 mb-1">Current Price</div>
-                          <div className="font-mono font-semibold">${currentPrice.toFixed(2)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-400 mb-1">Value</div>
-                          <div className="font-mono font-semibold">${value.toFixed(2)}</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-400">P&L:</span>
-                          <span className={`font-mono font-bold text-lg ${pnl >= 0 ? 'text-brand-green' : 'text-red-500'}`}>
-                            {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-                          </span>
-                          <span className={`text-sm ${pnl >= 0 ? 'text-brand-green' : 'text-red-500'}`}>
-                            ({pnl >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)
-                          </span>
-                          {pnl >= 0 ? (
-                            <TrendingUp className="w-4 h-4 text-brand-green" />
-                          ) : (
-                            <TrendingDown className="w-4 h-4 text-red-500" />
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-400">
-                          <span>View Market</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </div>
-                      </div>
-
-                      {/* Holding Rewards Badge */}
-                      {holdingRewards && (
-                        <div className="mt-3 pt-3 border-t border-white/10">
-                          {holdingRewards.timeUntilRewardsStart ? (
-                            <div className="flex items-center gap-2 text-sm text-gray-400">
-                              <Clock className="w-4 h-4" />
-                              <span>Rewards start in {holdingRewards.timeUntilRewardsStart} ⏳</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-400">Rewards:</span>
-                                <span className="font-mono font-semibold text-brand-green">
-                                  +${holdingRewards.rewardAccrued.toFixed(2)} USDC
-                                </span>
-                                <span className="px-2 py-0.5 bg-green-500/20 text-green-500 rounded text-xs font-semibold">
-                                  {holdingRewards.rewardRateEmoji} {holdingRewards.rewardRateLabel}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
+              <ul className="space-y-2 text-sm">
+                {[...openPositions, ...resolvedPositions]
+                  .slice(0, 3)
+                  .map((p) => {
+                    const m = marketById[p.marketId];
+                    const title = p.market?.event ?? (m ? `${m.teamA} vs ${m.teamB}` : p.marketId);
+                    return (
+                      <li key={p.id} className="flex justify-between gap-2 text-gray-300">
+                        <span className="truncate">{title}</span>
+                        <span className="font-mono text-xs shrink-0">{p.outcome.toUpperCase()} · {p.status}</span>
+                      </li>
+                    );
+                  })}
+              </ul>
             </div>
           )}
 
-          {/* Resolved Positions */}
-          {resolvedPositions.length > 0 && (
-            <div>
-              <h2 className="font-syne font-bold text-2xl mb-4">Resolved Positions</h2>
-              <div className="space-y-4">
-                {resolvedPositions.map((position) => {
-                  const market = marketById[position.marketId];
-                  if (!market) return null;
-
-                  const shares = position.shares || 0;
-                  const avgPrice = position.avgPrice || 0;
-                  const pnl = position.pnl || 0;
-                  const isWin = pnl > 0;
-
-                  return (
-                    <div
-                      key={position.id}
-                      className={`bg-white/5 border rounded-lg p-6 ${
-                        isWin ? 'border-brand-green/30' : 'border-red-500/30'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-2xl">{market.sportEmoji}</span>
-                            <div>
-                              <h3 className="font-syne font-semibold text-lg">
-                                {position.market.event || `${market.teamA} vs ${market.teamB}`}
-                              </h3>
-                              <p className="text-sm text-gray-400">{market.league}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-4 mt-3">
-                            <span className="text-sm text-gray-400">
-                              {shares.toFixed(1)} {position.outcome.toUpperCase()} shares @ ${avgPrice.toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={`flex items-center gap-2 mb-2 ${
-                            isWin ? 'text-brand-green' : 'text-red-500'
-                          }`}>
-                            {isWin ? (
-                              <CheckCircle className="w-5 h-5" />
-                            ) : (
-                              <XCircle className="w-5 h-5" />
-                            )}
-                            <span className="font-bold">
-                              {isWin ? 'Won' : 'Lost'}
-                            </span>
-                          </div>
-                          <div className={`font-mono font-bold text-xl ${
-                            isWin ? 'text-brand-green' : 'text-red-500'
-                          }`}>
-                            {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Empty State */}
-          {openPositions.length === 0 && resolvedPositions.length === 0 && (
-            <div className="bg-white/5 border border-white/10 rounded-lg p-12 text-center">
-              <Wallet className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-              <h3 className="font-syne font-bold text-xl mb-2">No Positions Yet</h3>
-              <p className="text-gray-400 mb-6">
-                Start trading on prediction markets to see your positions here.
-              </p>
-              <Link
-                to="/markets"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-brand-green text-brand-bg font-semibold rounded-lg hover:bg-brand-green/90 transition-all"
-              >
-                Browse Markets
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          )}
           
           </>
           )}

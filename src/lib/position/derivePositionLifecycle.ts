@@ -15,6 +15,47 @@ export type PositionLifecycleBucket =
   | "CLAIMABLE"
   | "CLOSED";
 
+/** Canonical trading UI buckets (PR1 consolidation). */
+export type CanonicalTradingBucket = "OPEN" | "SETTLING" | "RESOLVED";
+
+export function toCanonicalTradingBucket(
+  bucket: PositionLifecycleBucket,
+  orderStatus: string,
+): CanonicalTradingBucket {
+  if (bucket === "SETTLING") return "SETTLING";
+  if (
+    orderStatus === "resolved" ||
+    orderStatus === "closed" ||
+    bucket === "SETTLED" ||
+    bucket === "CLAIMABLE" ||
+    bucket === "CLOSED"
+  ) {
+    return "RESOLVED";
+  }
+  return "OPEN";
+}
+
+export function isAwaitingOracleSettlement(
+  order: UserOrderRow,
+  market: Market | null | undefined,
+): boolean {
+  if (order.status !== "open") return false;
+  const lifecycle = derivePositionLifecycle(order, market);
+  const closesAt = lifecycle.closesAt;
+  if (!closesAt || closesAt.getTime() > Date.now()) return false;
+  const marketStatus = (order.market?.status ?? market?.status ?? "open").toLowerCase();
+  return marketStatus === "open" || !order.market?.resolvedAt;
+}
+
+export function countAwaitingOracleSettlement(
+  positions: UserOrderRow[],
+  marketById: Record<string, Market | null | undefined>,
+): number {
+  return positions.filter((o) =>
+    isAwaitingOracleSettlement(o, marketById[o.marketId] ?? null),
+  ).length;
+}
+
 export type PositionLifecycleView = {
   bucket: PositionLifecycleBucket;
   bucketLabel: string;

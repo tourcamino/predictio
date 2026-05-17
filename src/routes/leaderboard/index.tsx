@@ -20,42 +20,6 @@ export const Route = createFileRoute('/leaderboard/')({
   component: LeaderboardPage,
 });
 
-interface LeaderboardEntry {
-  rank: number;
-  address: string;
-  displayName?: string;
-  wins: number;
-  losses: number;
-  winRate: number;
-  volume: number;
-  pnl: number;
-  favoriteSport: string;
-  avatar: string;
-}
-
-const mockLeaderboard: LeaderboardEntry[] = [
-  { rank: 1, address: '0x7f3a8b2c4e2b9f1a', displayName: 'CryptoSharpe', wins: 234, losses: 87, winRate: 72.9, volume: 456000, pnl: 89400, favoriteSport: '⚽', avatar: '🦁' },
-  { rank: 2, address: '0x2c1d5e8f9a3b7c4d', displayName: 'BetAlpha', wins: 198, losses: 76, winRate: 72.3, volume: 389000, pnl: 76200, favoriteSport: '🏀', avatar: '🐺' },
-  { rank: 3, address: '0x9b1c3d5e7f2a4b6c', displayName: 'QuanTrader', wins: 187, losses: 89, winRate: 67.8, volume: 412000, pnl: 68900, favoriteSport: '🎾', avatar: '🦅' },
-  { rank: 4, address: '0x4e8f1a2b5c9d3e7f', wins: 156, losses: 67, winRate: 69.9, volume: 298000, pnl: 54300, favoriteSport: '🥊', avatar: '🐯' },
-  { rank: 5, address: '0x5c9d2e7f3a1b4e8f', wins: 143, losses: 71, winRate: 66.8, volume: 267000, pnl: 48700, favoriteSport: '🏏', avatar: '🐻' },
-];
-
-// Generate more entries
-for (let i = 6; i <= 50; i++) {
-  mockLeaderboard.push({
-    rank: i,
-    address: `0x${Math.random().toString(16).slice(2, 18)}`,
-    wins: Math.floor(Math.random() * 150) + 50,
-    losses: Math.floor(Math.random() * 100) + 30,
-    winRate: Math.random() * 30 + 50,
-    volume: Math.floor(Math.random() * 200000) + 50000,
-    pnl: Math.floor(Math.random() * 40000) + 10000,
-    favoriteSport: ['⚽', '🏀', '🎾', '🥊', '🏏'][Math.floor(Math.random() * 5)] ?? '⚽',
-    avatar: ['🦁', '🐺', '🦅', '🐯', '🐻', '🦊', '🐉', '🦈'][Math.floor(Math.random() * 8)] ?? '🦁',
-  });
-}
-
 function LeaderboardPage() {
   const trpc = useTRPC();
   const { address } = useWallet();

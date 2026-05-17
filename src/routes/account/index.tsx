@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
 import { fallback, zodValidator } from '@tanstack/zod-adapter';
 import { useWallet } from '~/store/useWalletStore';
@@ -21,7 +21,7 @@ import type { LedgerHistoryFilter } from '~/lib/ledger/ledgerTransactionTypes';
 import { dbActivityAmountPrefix, dbActivityTypeLabel } from '~/lib/wallet/dbActivityDisplay';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { usePointsSummary } from '~/hooks/usePointsSummary';
-import { PositionLifecycleBoard } from '~/components/positions/PositionLifecycleBoard';
+import { CanonicalSurfaceCTA } from '~/components/protocol/CanonicalSurfaceCTA';
 
 const ACCOUNT_TAB_KEYS = [
   'overview',
@@ -67,10 +67,22 @@ function AccountPage() {
   const transactionLimit = 20;
   const [predictionStatusFilter, setPredictionStatusFilter] = useState<'all' | 'open' | 'resolved'>('all');
 
+  useEffect(() => {
+    if (activeTab === 'predictions') {
+      navigate({ to: '/trading', replace: true });
+    } else if (activeTab === 'history') {
+      navigate({ to: '/wallet/transactions', replace: true });
+    } else if (activeTab === 'stats') {
+      navigate({ to: '/portfolio', replace: true });
+    } else if (activeTab === 'wallet') {
+      navigate({ to: '/wallet', replace: true });
+    }
+  }, [activeTab, navigate]);
+
   const positionsQuery = useUserPositions({
     status: 'all',
     enabled: !!walletKey && isConnected,
-    refetchInterval: activeTab === 'predictions' ? 20_000 : false,
+    refetchInterval: false,
   });
 
   const positionsEarly = positionsQuery.data?.positions ?? [];
@@ -85,10 +97,10 @@ function AccountPage() {
     enabled:
       !!walletKey &&
       isConnected &&
-      (activeTab === 'overview' || activeTab === 'predictions') &&
+      activeTab === 'overview' &&
       positionMarketIds.length > 0,
     staleTime: 15_000,
-    refetchInterval: activeTab === 'predictions' ? 20_000 : false,
+    refetchInterval: false,
   });
 
   const marketById = marketSummariesQuery.data ?? {};
@@ -101,7 +113,7 @@ function AccountPage() {
   }, [positionsQuery.data?.positions, predictionStatusFilter]);
 
   const summaryQuery = usePortfolioSummary({
-    enabled: !!walletKey && (activeTab === 'overview' || activeTab === 'predictions' || activeTab === 'stats'),
+    enabled: !!walletKey && activeTab === 'overview',
   });
 
   const pointsQuery = usePointsSummary({
@@ -240,7 +252,7 @@ function AccountPage() {
           <div className="mb-8">
             <h1 className="font-syne font-bold text-4xl mb-2">My Account</h1>
             <p className="text-gray-400">
-              Manage your predictions, wallet, and settings
+              Referrals, rewards, and settings — trading lives on dedicated pages
             </p>
           </div>
 
@@ -307,51 +319,36 @@ function AccountPage() {
 
               {/* Quick Actions */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <button
-                  onClick={() =>
-                    navigate({
-                      search: { tab: 'predictions' },
-                      replace: true,
-                    })
-                  }
-                  className="p-6 bg-white/5 border border-white/10 rounded-lg hover:border-brand-green transition-all text-left"
+                <Link
+                  to="/trading"
+                  className="p-6 bg-white/5 border border-white/10 rounded-lg hover:border-brand-green transition-all text-left block"
                 >
                   <FileText className="w-8 h-8 text-brand-green mb-3" />
-                  <h3 className="font-semibold mb-1">View My Predictions</h3>
+                  <h3 className="font-semibold mb-1">Trading & positions</h3>
                   <p className="text-sm text-gray-400">
-                    See all your active and past predictions
+                    Open, settling, and resolved positions
                   </p>
-                </button>
-                <button
-                  onClick={() =>
-                    navigate({
-                      search: { tab: 'wallet' },
-                      replace: true,
-                    })
-                  }
-                  className="p-6 bg-white/5 border border-white/10 rounded-lg hover:border-brand-green transition-all text-left"
+                </Link>
+                <Link
+                  to="/wallet"
+                  className="p-6 bg-white/5 border border-white/10 rounded-lg hover:border-brand-green transition-all text-left block"
                 >
                   <Wallet className="w-8 h-8 text-brand-cyan mb-3" />
-                  <h3 className="font-semibold mb-1">Manage Wallet</h3>
+                  <h3 className="font-semibold mb-1">Wallet</h3>
                   <p className="text-sm text-gray-400">
-                    Deposit, withdraw, and view transactions
+                    Cash balance and deposits
                   </p>
-                </button>
-                <button
-                  onClick={() =>
-                    navigate({
-                      search: { tab: 'stats' },
-                      replace: true,
-                    })
-                  }
-                  className="p-6 bg-white/5 border border-white/10 rounded-lg hover:border-brand-green transition-all text-left"
+                </Link>
+                <Link
+                  to="/portfolio"
+                  className="p-6 bg-white/5 border border-white/10 rounded-lg hover:border-brand-green transition-all text-left block"
                 >
                   <BarChart3 className="w-8 h-8 text-purple-400 mb-3" />
-                  <h3 className="font-semibold mb-1">View Stats</h3>
+                  <h3 className="font-semibold mb-1">Portfolio</h3>
                   <p className="text-sm text-gray-400">
-                    Track your performance and achievements
+                    PnL, exposure, and performance charts
                   </p>
-                </button>
+                </Link>
               </div>
             </div>
           )}
@@ -397,13 +394,10 @@ function AccountPage() {
                 </div>
               )}
 
-              {positionsQuery.data && filteredAccountPredictions.length > 0 ? (
-                <PositionLifecycleBoard
-                  positions={filteredAccountPredictions}
-                  marketById={marketById}
-                />
+              {false && positionsQuery.data && filteredAccountPredictions.length > 0 ? (
+                null
               ) : positionsQuery.data && positionsQuery.data.positions.length === 0 ? (
-                <PositionLifecycleBoard positions={[]} marketById={{}} />
+                null
               ) : filteredAccountPredictions.length === 0 ? (
                 <div className="bg-white/5 border border-white/10 rounded-lg p-12 text-center">
                   <p className="text-gray-400 mb-2">No predictions match this filter</p>

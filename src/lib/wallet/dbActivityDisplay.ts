@@ -33,6 +33,21 @@ export function dbActivityTypeLabel(type: string): string {
   return TYPE_LABEL[type] ?? type.replace(/_/g, ' ');
 }
 
+/** UI lifecycle bucket for ledger rows (PR1). */
+export function dbActivityLifecycleSemantic(type: string): string {
+  if (type === 'position_open' || type === 'bet_placed') return 'OPEN_POSITION';
+  if (type === 'position_sell') return 'SELL_POSITION';
+  if (type === 'position_settlement_win' || type === 'bet_won') return 'SETTLEMENT_WIN';
+  if (type === 'position_settlement_loss' || type === 'bet_lost') return 'SETTLEMENT_LOSS';
+  if (type === 'position_refund' || type === 'bet_refund') return 'SETTLEMENT_REFUND';
+  if (type === 'lp_deposit') return 'LP_ADD';
+  if (type === 'lp_withdraw') return 'LP_REMOVE';
+  if (type === 'wallet_deposit' || type === 'deposit') return 'WALLET_IN';
+  if (type === 'wallet_withdrawal' || type === 'withdrawal') return 'WALLET_OUT';
+  if (type.startsWith('lp_') || type.includes('reward')) return 'REWARDS';
+  return 'OTHER';
+}
+
 export function dbActivityPrimaryLine(row: DbActivityRow): string {
   const m = row.metadata as Record<string, unknown> | undefined;
   const ev = row.market?.event?.trim();

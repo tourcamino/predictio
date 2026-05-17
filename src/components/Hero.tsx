@@ -1,8 +1,9 @@
 ﻿import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useWallet } from '~/store/useWalletStore';
 import { useNavigate } from '@tanstack/react-router';
 import { FOOTBALL_FOCUS_CONFIG, isFootballFocusEnabled } from '~/config/footballFocus';
-import { mockPlatformStats } from '~/data/mockData';
+import { fetchCuratedMarketsFromApi } from '~/utils/curatedMarketsApi';
 
 export function Hero() {
   const [isVisible, setIsVisible] = useState(false);
@@ -12,6 +13,13 @@ export function Hero() {
   useEffect(() => {
     setIsVisible(true);
   }, []);
+
+  const curatedQuery = useQuery({
+    queryKey: ['hero-curated-markets'],
+    queryFn: fetchCuratedMarketsFromApi,
+    staleTime: 60_000,
+  });
+  const liveMarketCount = curatedQuery.data?.total ?? curatedQuery.data?.markets?.length ?? 0;
 
   const handleStartPredicting = () => {
     if (isConnected) {
@@ -121,37 +129,19 @@ export function Hero() {
         >
           {isFootballFocusEnabled() ? (
             <>
-              <span className="text-brand-cyan font-medium">Live Football Markets</span>
-              <span className="hidden sm:block w-1 h-1 bg-gray-600 rounded-full"></span>
               <span className="text-brand-cyan font-medium">
-                ${(mockPlatformStats.totalVolume / 1000).toFixed(0)}K+ Volume
+                {liveMarketCount > 0 ? `${liveMarketCount} live markets` : 'Live football markets'}
               </span>
-              <span className="hidden sm:block w-1 h-1 bg-gray-600 rounded-full"></span>
-              <span className="text-brand-cyan font-medium">
-                {mockPlatformStats.activeTraders}+ Traders
-              </span>
-              <span className="hidden sm:block w-1 h-1 bg-gray-600 rounded-full"></span>
-              <span className="text-brand-cyan font-medium">
-                {mockPlatformStats.totalCopiers} Copiers
-              </span>
+              <span className="hidden sm:block w-1 h-1 bg-gray-600 rounded-full" />
+              <span className="text-gray-500">Paper trading · USDC</span>
             </>
           ) : (
             <>
               <span className="text-brand-cyan font-medium">
-                ${(mockPlatformStats.totalVolume / 1000).toFixed(0)}K+ Volume
+                {liveMarketCount > 0 ? `${liveMarketCount} curated markets` : 'Curated markets loading…'}
               </span>
-              <span className="hidden sm:block w-1 h-1 bg-gray-600 rounded-full"></span>
-              <span className="text-brand-cyan font-medium">
-                {mockPlatformStats.activeTraders} Traders
-              </span>
-              <span className="hidden sm:block w-1 h-1 bg-gray-600 rounded-full"></span>
-              <span className="text-brand-cyan font-medium">
-                {mockPlatformStats.totalCopiers} Copiers
-              </span>
-              <span className="hidden sm:block w-1 h-1 bg-gray-600 rounded-full"></span>
-              <span className="text-brand-cyan font-medium">
-                {mockPlatformStats.marketsResolved} Markets Resolved
-              </span>
+              <span className="hidden sm:block w-1 h-1 bg-gray-600 rounded-full" />
+              <span className="text-gray-500">Paper trading environment</span>
             </>
           )}
         </div>

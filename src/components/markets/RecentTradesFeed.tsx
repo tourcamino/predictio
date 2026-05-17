@@ -77,10 +77,9 @@ export function RecentTradesFeed({ market }: RecentTradesFeedProps) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const { messages, connected } = useWebSocket('markets');
 
-  // Generate initial trades
+  // Real trade stream only — no seeded mock trades (PR1 mock purge)
   useEffect(() => {
-    const initialTrades = generateMockTrades(market, 6);
-    setTrades(initialTrades);
+    setTrades([]);
   }, [market]);
 
   // Track last processed message timestamp to avoid reprocessing
@@ -150,6 +149,11 @@ export function RecentTradesFeed({ market }: RecentTradesFeedProps) {
       </div>
       
       <div className="space-y-3 max-h-96 overflow-y-auto">
+        {trades.length === 0 ? (
+          <p className="text-sm text-gray-500 text-center py-6">
+            No recent trades yet. Activity will appear here when the live feed is connected.
+          </p>
+        ) : null}
         {trades.map((trade, index) => (
           <div
             key={trade.id}

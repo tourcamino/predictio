@@ -18,7 +18,9 @@ import {
   dbActivityPrimaryLine,
   dbActivitySecondaryLine,
   dbActivityTypeLabel,
+  dbActivityLifecycleSemantic,
 } from '~/lib/wallet/dbActivityDisplay';
+import { shouldUseExpressForWalletCritical } from '~/lib/expressCriticalWalletApi';
 
 export const Route = createFileRoute('/wallet/transactions/')({
   component: WalletTransactionHistoryPage,
@@ -101,7 +103,10 @@ function WalletTransactionHistoryPage() {
                 ← Back to Wallet
               </Link>
             </div>
-            <p className="text-gray-400">Server-backed history for this wallet (tRPC · Prisma `Transaction`).</p>
+            <p className="text-gray-400">
+              Canonical immutable ledger for this wallet
+              {shouldUseExpressForWalletCritical() ? ' (Express · VPS Postgres)' : ' (same-origin API)'}.
+            </p>
             {import.meta.env.DEV && import.meta.env.VITE_ACTIVITY_DEBUG === '1' ? (
               <p className="text-xs text-amber-200/90 mt-2 font-mono">
                 activity source=db chainScope={chainScope} updatedAt={historyQuery.dataUpdatedAt || '—'} fetch=
@@ -242,6 +247,9 @@ function WalletTransactionHistoryPage() {
                               </div>
                               <div className="text-left min-w-0">
                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-gray-400">
+                                    {dbActivityLifecycleSemantic(tx.type)}
+                                  </span>
                                   <span className="font-semibold">{dbActivityTypeLabel(tx.type)}</span>
                                   <span
                                     className={`text-xs px-2 py-0.5 rounded ${
@@ -287,7 +295,9 @@ function WalletTransactionHistoryPage() {
                           <div className="px-4 pb-4 border-t border-white/10">
                             <div className="grid grid-cols-2 gap-4 pt-4 text-sm">
                               <div>
-                                <div className="text-xs text-gray-400 mb-1">Semantic type</div>
+                                <div className="text-xs text-gray-400 mb-1">Lifecycle</div>
+                                <div className="font-mono text-xs text-brand-cyan">{dbActivityLifecycleSemantic(tx.type)}</div>
+                                <div className="text-xs text-gray-500 mt-2 mb-1">Semantic type</div>
                                 <div className="font-mono text-xs">{tx.type}</div>
                                 {dbActivityLedgerLegacyWarning(tx.type) ? (
                                   <div className="text-[10px] text-amber-200 mt-1">

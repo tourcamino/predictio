@@ -40,9 +40,20 @@ function generateMockOrderBook(market: Market): {
   return { bids, asks };
 }
 
+const PLACEHOLDER = true;
+
 export function OrderBook({ market }: OrderBookProps) {
   const [isOpen, setIsOpen] = useState(false);
-  
+
+  if (PLACEHOLDER) {
+    return (
+      <div className="bg-brand-bg border border-white/10 rounded-lg p-6 text-center text-sm text-gray-400">
+        <p className="font-semibold text-gray-300 mb-1">Live market depth coming soon</p>
+        <p className="text-xs">Current YES price: {(market.yesPrice * 100).toFixed(0)}¢ · indicative only</p>
+      </div>
+    );
+  }
+
   const { bids, asks } = generateMockOrderBook(market);
   
   const bestBid = bids[0]?.price || 0;

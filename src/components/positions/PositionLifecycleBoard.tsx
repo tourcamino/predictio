@@ -12,7 +12,9 @@ import {
 import type { UserOrderRow } from "~/lib/position/derivePositionLifecycle";
 import {
   derivePositionLifecycle,
-  groupPositionsByLifecycleBucket,
+  toCanonicalTradingBucket,
+  isAwaitingOracleSettlement,
+  type CanonicalTradingBucket,
   type PositionLifecycleBucket,
 } from "~/lib/position/derivePositionLifecycle";
 import { MarketLifecycleState } from "~/lib/market/marketLifecycleStateMachine";
@@ -21,22 +23,12 @@ import { formatApiDateTime } from "~/utils/parseApiDate";
 import { ShareButton } from "~/components/ShareButton";
 import { generatePredictionShareText } from "~/utils/shareUtils";
 
-const BUCKET_ORDER: PositionLifecycleBucket[] = [
-  "LIVE",
-  "OPEN",
-  "SETTLING",
-  "CLAIMABLE",
-  "SETTLED",
-  "CLOSED",
-];
+const CANONICAL_BUCKET_ORDER: CanonicalTradingBucket[] = ["OPEN", "SETTLING", "RESOLVED"];
 
-const BUCKET_HEADINGS: Record<PositionLifecycleBucket, string> = {
-  LIVE: "Live positions",
-  OPEN: "Open positions",
-  SETTLING: "Awaiting settlement",
-  CLAIMABLE: "Won — credited",
-  SETTLED: "Settled",
-  CLOSED: "Closed",
+const CANONICAL_HEADINGS: Record<CanonicalTradingBucket, string> = {
+  OPEN: "Open & live",
+  SETTLING: "Awaiting oracle settlement",
+  RESOLVED: "Resolved",
 };
 
 type Row = {
@@ -107,7 +99,16 @@ function PositionCard({ row }: { row: Row }) {
               >
                 {order.outcome.toUpperCase()}
               </span>
-              {lifecycle.settlementPending && (
+              {isAwaitingOracleSettlement(order, market) && (
+                <span
+                  className="px-2 py-0.5 rounded text-xs bg-amber-500/15 text-amber-300 flex items-center gap-1"
+                  title="Match ended on schedule; payout waits for Azuro oracle resolution."
+                >
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Awaiting oracle settlement
+                </span>
+              )}
+              {lifecycle.settlementPending && !isAwaitingOracleSettlement(order, market) && (
                 <span className="px-2 py-0.5 rounded text-xs bg-amber-500/15 text-amber-300 flex items-center gap-1">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Settlement pending
@@ -180,10 +181,11 @@ function PositionCard({ row }: { row: Row }) {
             View market
           </Link>
           <Link
-            to="/trading"
+            to="/trading/position/$id"
+            params={{ id: order.id }}
             className="text-xs px-3 py-1.5 border border-brand-green/30 text-brand-green rounded-lg hover:bg-brand-green/10"
           >
-            Trading desk
+            Position detail
           </Link>
           <ShareButton
             text={generatePredictionShareText({
@@ -219,10 +221,16 @@ export function PositionLifecycleBoard({
     return { order, market, lifecycle: derivePositionLifecycle(order, market) };
   });
 
-  const grouped = groupPositionsByLifecycleBucket(
-    rows.map((r) => ({ ...r, bucket: r.lifecycle.bucket })),
-  );
-  const nonEmptyBuckets = BUCKET_ORDER.filter((b) => grouped[b].length > 0);
+  const grouped: Record<CanonicalTradingBucket, Row[]> = {
+    OPEN: [],
+    SETTLING: [],
+    RESOLVED: [],
+  };
+  for (const row of rows) {
+    const key = toCanonicalTradingBucket(row.lifecycle.bucket, row.order.status);
+    grouped[key].push(row);
+  }
+  const nonEmptyBuckets = CANONICAL_BUCKET_ORDER.filter((b) => grouped[b].length > 0);
 
   if (rows.length === 0) {
     return (
@@ -243,23 +251,23 @@ export function PositionLifecycleBoard({
   return (
     <div className="space-y-8">
       <div className="p-4 rounded-lg border border-brand-green/20 bg-brand-green/5 text-sm text-gray-300">
-        <p className="font-semibold text-brand-green mb-1">How to read your positions</p>
+        <p className="font-semibold text-brand-green mb-1">Canonical surfaces</p>
         <p>
-          <strong className="text-white/90">Predictions</strong> = your trades by lifecycle.
-          <strong className="text-white/90"> Trading</strong> = live mark-to-market.
-          <strong className="text-white/90"> Portfolio</strong> = net worth & performance.
-          <strong className="text-white/90"> History</strong> = ledger events.
+          <strong className="text-white/90">Trading</strong> = all positions & settlement state.
+          <strong className="text-white/90"> Portfolio</strong> = PnL & net worth.
+          <strong className="text-white/90"> Wallet → Activity</strong> = immutable ledger.
         </p>
+        <p className="text-xs text-gray-500 mt-2">Paper trading environment · football markets</p>
       </div>
 
       {nonEmptyBuckets.map((bucket) => (
         <section key={bucket}>
           <h3 className="font-syne font-bold text-lg mb-3 flex items-center gap-2">
-            {bucket === "LIVE" && <TrendingUp className="w-5 h-5 text-red-400" />}
+            {bucket === "OPEN" && <TrendingUp className="w-5 h-5 text-brand-green" />}
             {bucket === "SETTLING" && (
               <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
             )}
-            {BUCKET_HEADINGS[bucket]}
+            {CANONICAL_HEADINGS[bucket]}
             <span className="text-sm font-normal text-gray-500">
               ({grouped[bucket].length})
             </span>

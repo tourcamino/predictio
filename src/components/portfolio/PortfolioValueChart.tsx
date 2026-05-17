@@ -1,5 +1,6 @@
 import { TrendingUp, TrendingDown, Download, Image, FileText } from 'lucide-react';
 import { formatCurrency } from '~/utils/marketUtils';
+import { formatApiDate } from '~/utils/parseApiDate';
 import { parseApiDate } from '~/utils/parseApiDate';
 import { useState, useRef, useCallback } from 'react';
 import { Menu } from '@headlessui/react';
@@ -368,7 +369,7 @@ export function PortfolioValueChart({
 
       {/* Time labels */}
       <div className="flex justify-between mt-2 text-xs text-gray-500 font-mono">
-        <span>{chartData[0]?.timestamp.toLocaleDateString()}</span>
+        <span>{formatApiDate(chartData[0]?.timestamp)}</span>
         <span>Now</span>
       </div>
     </div>

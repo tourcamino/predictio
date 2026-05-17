@@ -96,6 +96,17 @@ export function PriceChart({ market }: PriceChartProps) {
 
   const baseHistory = useMemo(() => normalizeHistoryRaw(market), [market]);
 
+  if (baseHistory.length === 0) {
+    return (
+      <div className="bg-white/5 border border-white/10 rounded-lg p-8 text-center text-sm text-gray-400">
+        <p className="font-semibold text-gray-300 mb-1">Price history unavailable</p>
+        <p className="text-xs">
+          Awaiting sufficient protocol activity. Current YES: {(market.yesPrice * 100).toFixed(0)}¢
+        </p>
+      </div>
+    );
+  }
+
   const msForRange: Record<TimeRange, number> = useMemo(
     () => ({
       '1H': 60 * 60 * 1000,
