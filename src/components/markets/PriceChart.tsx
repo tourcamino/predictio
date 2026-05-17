@@ -49,48 +49,6 @@ function normalizeHistoryRaw(market: Market): PricePoint[] {
   return out;
 }
 
-/** Stable pseudo-random in [0, 1) from string + index */
-function seeded01(seed: string, i: number): number {
-  let h = 0;
-  for (let k = 0; k < seed.length; k++) h = Math.imul(31, h) + seed.charCodeAt(k);
-  const x = Math.sin((h >>> 0) + i * 127.1) * 43758.5453123;
-  return x - Math.floor(x);
-}
-
-/** Synthetic curve when API omits `priceHistory` (seed / DB / curated markets). */
-function buildSyntheticHistory(market: Market, msSpan: number, pointCount: number): PricePoint[] {
-  const id = market.id ?? 'market';
-  let yesEnd = unitProbability(market.yesPrice, 0.5);
-  let noEnd = unitProbability(market.noPrice, 0.5);
-  const s = yesEnd + noEnd;
-  if (s > 0 && Math.abs(s - 1) > 0.02) {
-    yesEnd /= s;
-    noEnd /= s;
-  }
-
-  const now = Date.now();
-  const start = now - msSpan;
-  const drift = (seeded01(id, 0) - 0.5) * 0.12;
-  let yesStart = Math.max(0.06, Math.min(0.94, yesEnd + drift));
-  yesStart = Math.max(0.06, Math.min(0.94, yesStart));
-
-  const pts: PricePoint[] = [];
-  const n = Math.max(2, pointCount);
-  for (let i = 0; i < n; i++) {
-    const t = start + (i / (n - 1)) * msSpan;
-    const u = i / (n - 1);
-    let yes = yesStart + (yesEnd - yesStart) * u;
-    yes += (seeded01(id, i + 1) - 0.5) * 0.04 * Math.sin(u * Math.PI);
-    yes = Math.max(0.03, Math.min(0.97, yes));
-    pts.push({
-      timestamp: new Date(t),
-      yesPrice: yes,
-      noPrice: Math.max(0.03, Math.min(0.97, 1 - yes)),
-    });
-  }
-  return pts;
-}
-
 export function PriceChart({ market }: PriceChartProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('24H');
 
@@ -120,26 +78,27 @@ export function PriceChart({ market }: PriceChartProps) {
   const { filteredHistory, chartHistory } = useMemo(() => {
     const now = Date.now();
     const cutoff = now - msForRange[timeRange];
-
-    const normalized = baseHistory.length > 0 ? baseHistory : buildSyntheticHistory(market, msForRange['7D'], 7 * 24 + 1);
-
-    const filtered = normalized.filter((h) => h.timestamp.getTime() >= cutoff);
-
-    let chart: PricePoint[];
-    if (filtered.length >= 2) {
-      chart = filtered;
-    } else if (normalized.length >= 2) {
-      chart = normalized.slice(-Math.min(normalized.length, 48));
-    } else {
-      chart = buildSyntheticHistory(market, msForRange[timeRange], Math.min(48, Math.max(24, Math.ceil(msForRange[timeRange] / (60 * 60 * 1000)))));
-    }
-
-    if (chart.length < 2) {
-      chart = buildSyntheticHistory(market, msForRange[timeRange], 32);
-    }
-
+    const filtered = baseHistory.filter((h) => h.timestamp.getTime() >= cutoff);
+    const chart =
+      filtered.length >= 2
+        ? filtered
+        : baseHistory.length >= 2
+          ? baseHistory.slice(-Math.min(baseHistory.length, 48))
+          : baseHistory;
     return { filteredHistory: filtered, chartHistory: chart };
-  }, [baseHistory, market, msForRange, timeRange]);
+  }, [baseHistory, msForRange, timeRange]);
+
+  if (chartHistory.length < 2) {
+    return (
+      <div className="bg-white/5 border border-white/10 rounded-lg p-8 text-center text-sm text-gray-400">
+        <p className="font-semibold text-gray-300 mb-1">Insufficient price history</p>
+        <p className="text-xs">
+          No synthetic chart — current YES {(market.yesPrice * 100).toFixed(0)}¢ · NO{" "}
+          {(market.noPrice * 100).toFixed(0)}¢
+        </p>
+      </div>
+    );
+  }
 
   const yesPct = chartHistory.map((h) => h.yesPrice * 100);
   const noPct = chartHistory.map((h) => h.noPrice * 100);

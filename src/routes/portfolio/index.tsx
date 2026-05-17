@@ -31,6 +31,7 @@ import { usePortfolioPerformanceHistory } from '~/hooks/usePortfolioPerformanceH
 import { useUserLPPositions } from '~/hooks/useUserLPPositions';
 import { useMarketSummaries } from '~/hooks/useMarketSummaries';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
+import { PortfolioExposureSummary } from '~/components/portfolio/PortfolioExposureSummary';
 
 export const Route = createFileRoute('/portfolio/')({
   component: Portfolio,
@@ -101,7 +102,8 @@ function Portfolio() {
   const marketSummariesQuery = useMarketSummaries({
     marketIds: positionMarketIds,
     enabled: isConnected && positionMarketIds.length > 0,
-    staleTime: 30_000,
+    staleTime: 20_000,
+    refetchInterval: 25_000,
   });
 
   const marketById = marketSummariesQuery.data ?? {};
@@ -313,6 +315,15 @@ function Portfolio() {
               </div>
             </div>
           </div>
+
+          <PortfolioExposureSummary
+            openPositions={openPositions}
+            resolvedPositions={resolvedPositions}
+            marketById={marketById}
+            realizedPnL={resolvedPnL}
+            unrealizedPnL={unrealizedPnL}
+            unrealizedPnLPct={unrealizedPnLPct}
+          />
 
           {/* Holding Rewards Section */}
           {summaryQuery.data?.holdingRewards && summaryQuery.data.holdingRewards.pending > 0 && (

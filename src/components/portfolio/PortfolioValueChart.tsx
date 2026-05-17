@@ -1,7 +1,6 @@
 import { TrendingUp, TrendingDown, Download, Image, FileText } from 'lucide-react';
 import { formatCurrency } from '~/utils/marketUtils';
-import { formatApiDate } from '~/utils/parseApiDate';
-import { parseApiDate } from '~/utils/parseApiDate';
+import { formatApiDate, formatApiDateTime, parseApiDate } from '~/utils/parseApiDate';
 import { useState, useRef, useCallback } from 'react';
 import { Menu } from '@headlessui/react';
 import { DateRangePicker } from './DateRangePicker';
@@ -331,7 +330,7 @@ export function PortfolioValueChart({
               }}
             >
               <div className="text-xs text-gray-400 mb-2">
-                {hoverPoint.timestamp.toLocaleDateString('en-US', {
+                {formatApiDateTime(hoverPoint.timestamp, 'en-US', {
                   month: 'short',
                   day: 'numeric',
                   year: 'numeric',

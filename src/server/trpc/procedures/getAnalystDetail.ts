@@ -92,10 +92,12 @@ export const getAnalystDetail = baseProcedure
           })
         : seedHistory.length > 0
           ? seedHistory
-          : generateMockPredictionHistory(analyst);
+          : [];
 
-    const followerGrowth = generateMockFollowerGrowth(analyst);
-    const performanceData = generateCoherentPerformanceWeeks(analyst);
+    const followerGrowth =
+      predictionHistory.length > 0 ? generateMockFollowerGrowth(analyst) : [];
+    const performanceData =
+      predictionHistory.length > 0 ? generateCoherentPerformanceWeeks(analyst) : [];
 
     return {
       analyst: {

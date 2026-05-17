@@ -69,6 +69,16 @@ export function invalidateWalletPortfolioLpQueries(
   queryClient.invalidateQueries({ queryKey: ['catalogLiquidityVersion'] });
   queryClient.invalidateQueries({ queryKey: ['curatedMarketsLiquidityBinding'] });
 
+  queryClient.invalidateQueries({
+    predicate: (q) => {
+      try {
+        return JSON.stringify(q.queryKey).includes("getMarketSummaries");
+      } catch {
+        return false;
+      }
+    },
+  });
+
   invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, w);
 
   queryClient.invalidateQueries({

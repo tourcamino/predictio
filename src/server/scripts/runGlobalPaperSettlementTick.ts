@@ -26,6 +26,16 @@ async function main() {
   console.log(`[settlement-tick] polling ${marketIds.length} markets (${openOrders.length} open orders)`);
   const resolved = await checkResolvedMarkets(marketIds);
   console.log(`[settlement-tick] oracle returned ${resolved.length} terminal items`);
+  if (resolved.length === 0 && marketIds.length > 0) {
+    console.log(
+      JSON.stringify({
+        type: "settlement_tick_summary",
+        polledMarkets: marketIds.length,
+        openOrders: openOrders.length,
+        hint: "See settlement_diagnostic lines above for per-market blockers (e.g. ORACLE_PREMATCH)",
+      }),
+    );
+  }
 
   for (const item of resolved) {
     try {

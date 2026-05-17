@@ -136,6 +136,16 @@ export const RUNTIME_ORCHESTRATION_AUDIT_ROWS: readonly RuntimeOrchestrationAudi
     staleRisk: "Must never be source of settlement truth",
   },
   {
+    file: "src/server/scripts/runGlobalPaperSettlementTick.ts",
+    role: "VPS cron paper settlement — polls Azuro + applies engines",
+    dbWriter: true,
+    retrySafe: true,
+    idempotent: "Settlement engines dedupe; diagnostics logged per skip",
+    sideEffects: "Order resolve/refund, structured settlement_diagnostic logs",
+    polling: false,
+    staleRisk: "ORACLE_PREMATCH leaves orders open until Azuro resolves",
+  },
+  {
     file: "src/server/scripts/checkVaultAlertsScheduled.ts",
     role: "Doc-only cron hook for vault alerts",
     dbWriter: false,

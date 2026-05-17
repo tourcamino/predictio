@@ -19,6 +19,7 @@ import { SocialProof } from '~/components/markets/SocialProof';
 import { MicroHook } from '~/components/markets/MicroHook';
 import { CollapsibleSection } from '~/components/markets/CollapsibleSection';
 import { MarketCountdown } from '~/components/MarketCountdown';
+import { MarketOracleStatusPanel } from '~/components/markets/MarketOracleStatusPanel';
 import { getMarketStatus } from '~/utils/marketLifecycle';
 import { getMarketDetailLoadIssue } from '~/utils/marketDetailErrors';
 import { fetchMarketDetailWithRestFallback } from '~/utils/fetchMarketDetailWithRestFallback';
@@ -215,6 +216,11 @@ function MarketDetailPage() {
                 size="md"
               />
             </div>
+
+            <MarketOracleStatusPanel
+              market={market}
+              lastUpdatedAt={marketQuery.dataUpdatedAt ? new Date(marketQuery.dataUpdatedAt) : undefined}
+            />
 
             {/* Dispute/Void Banner */}
             {(market.status === 'under_review' || market.status === 'voided') && (

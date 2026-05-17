@@ -65,8 +65,11 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
     const matchesSport =
       sportFilter === 'all' ||
       sports.some((s) => sportMatchesFilter(s, sportFilter));
+    const matchesFootballFocus =
+      !isFootballFocusEnabled() ||
+      sports.some((s) => sportMatchesFilter(s, 'football'));
     const matchesWinRate = analyst.winRate >= minWinRate;
-    return matchesSearch && matchesSport && matchesWinRate;
+    return matchesSearch && matchesSport && matchesWinRate && matchesFootballFocus;
   });
 
   return (

@@ -24,7 +24,7 @@ function TradingPage() {
   const positionsQuery = useUserPositions({
     status: 'all',
     enabled: !!walletKey && isConnected,
-    refetchInterval: 20_000,
+    refetchInterval: 12_000,
   });
 
   const orders = positionsQuery.data?.positions ?? [];
@@ -42,7 +42,7 @@ function TradingPage() {
     marketIds: positionMarketIds,
     enabled: !!walletKey && isConnected && positionMarketIds.length > 0,
     staleTime: 10_000,
-    refetchInterval: 15_000,
+    refetchInterval: 12_000,
   });
 
   const marketById = marketSummariesQuery.data ?? {};

@@ -20,6 +20,11 @@ import {
 import { MarketLifecycleState } from "~/lib/market/marketLifecycleStateMachine";
 import type { Market } from "~/data/mockMarkets";
 import { formatApiDateTime } from "~/utils/parseApiDate";
+import {
+  formatClosesIn,
+  getMarketProtocolLabel,
+  priceMovementLabel,
+} from "~/lib/market/marketProtocolStatus";
 import { ShareButton } from "~/components/ShareButton";
 import { generatePredictionShareText } from "~/utils/shareUtils";
 
@@ -82,6 +87,14 @@ function PositionCard({ row }: { row: Row }) {
   const shares = order.shares ?? 0;
   const avgPrice = order.avgPrice ?? 0;
   const odds = avgPrice > 0 ? 1 / avgPrice : 0;
+  const protocolLabel = getMarketProtocolLabel(market, order);
+  const movement = priceMovementLabel(
+    lifecycle.entryProbability,
+    lifecycle.currentProbability,
+  );
+  const cost = shares * avgPrice;
+  const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0;
+  const closesIn = formatClosesIn(lifecycle.closesAt);
 
   return (
     <div className="p-4 bg-white/5 border border-white/10 rounded-xl hover:border-brand-green/25 transition-colors">
@@ -89,6 +102,19 @@ function PositionCard({ row }: { row: Row }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${
+                  protocolLabel === "LIVE MARKET"
+                    ? "bg-red-500/20 text-red-300"
+                    : protocolLabel === "ORACLE PENDING"
+                      ? "bg-amber-500/20 text-amber-200"
+                      : protocolLabel === "RESOLVED"
+                        ? "bg-brand-green/20 text-brand-green"
+                        : "bg-white/10 text-gray-400"
+                }`}
+              >
+                {protocolLabel}
+              </span>
               <PhaseBadge phase={lifecycle.eventPhase} />
               <span
                 className={`px-2 py-0.5 rounded text-xs font-bold ${
@@ -142,12 +168,23 @@ function PositionCard({ row }: { row: Row }) {
             value={`${(lifecycle.entryProbability * 100).toFixed(0)}¢ → ${(lifecycle.currentProbability * 100).toFixed(0)}¢`}
           />
           <Stat
-            label={lifecycle.realizedPnl != null ? "Realized P&L" : "Mark P&L"}
-            value={`${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)}`}
+            label={lifecycle.realizedPnl != null ? "Realized P&L" : "Unrealized P&L"}
+            value={`${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)} (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}%)`}
             valueClass={pnlPositive ? "text-brand-green" : "text-red-400"}
           />
           <Stat label="Max payout" value={`$${lifecycle.maxPayout.toFixed(2)}`} />
         </div>
+
+        <p className="mt-2 text-xs text-gray-500">
+          {movement.unchanged ? (
+            <span className="text-gray-500">Market unchanged</span>
+          ) : (
+            <span className={movement.pct >= 0 ? "text-brand-green" : "text-red-400"}>
+              {movement.label}
+            </span>
+          )}
+          {closesIn ? <span className="text-gray-600"> · {closesIn}</span> : null}
+        </p>
 
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
           {lifecycle.kickoffAt && (

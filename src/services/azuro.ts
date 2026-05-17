@@ -1,6 +1,10 @@
 import { SeedMarket } from "~/data/seedMarkets";
 import { MAX_FOOTBALL_MARKETS } from "~/constants/azuro";
 import { env } from "~/server/env";
+import {
+  classifyAzuroGameForSettlement,
+  logSettlementDiagnostic,
+} from "~/lib/settlement/settlementDiagnostics";
 
 export {
   hoursUntilStartMarket,
@@ -725,6 +729,14 @@ export async function checkResolvedMarkets(
       .filter((id) => id.startsWith("azuro-"))
       .map((id) => id.replace("azuro-", ""));
 
+    for (const id of activeMarketIds) {
+      if (!id.startsWith("azuro-")) {
+        logSettlementDiagnostic(
+          classifyAzuroGameForSettlement(id, null),
+        );
+      }
+    }
+
     if (azuroGameIds.length === 0) {
       return [];
     }
@@ -755,15 +767,28 @@ export async function checkResolvedMarkets(
     const raw = await readAzuroGraphqlJson(response);
     const data = raw as { data?: { games?: AzuroGame[] } };
     const games: AzuroGame[] = data.data?.games || [];
+    const gamesById = new Map(games.map((g) => [String(g.gameId), g]));
+
+    for (const gid of azuroGameIds) {
+      const marketId = `azuro-${gid}`;
+      if (!gamesById.has(gid)) {
+        logSettlementDiagnostic(classifyAzuroGameForSettlement(marketId, null));
+      }
+    }
 
     const out: AzuroPaperResolutionPollItem[] = [];
 
     for (const game of games) {
       const marketId = `azuro-${game.gameId}`;
       const main = game.conditions?.[0];
-      if (!main?.conditionId) continue;
-
       const rawState = (game.state ?? game.status ?? "").trim();
+
+      const diagnostic = classifyAzuroGameForSettlement(marketId, game);
+      if (diagnostic.skipped && diagnostic.reasonCode !== "MARKET_ALREADY_SETTLED") {
+        logSettlementDiagnostic(diagnostic);
+      }
+
+      if (!main?.conditionId) continue;
 
       if (/^(Canceled|Cancelled|Voided|Void)$/i.test(rawState)) {
         out.push({
@@ -812,7 +837,9 @@ export async function checkResolvedMarkets(
       }
 
       const wonId = main.wonOutcomeIds?.[0];
-      if (!wonId) continue;
+      if (!wonId) {
+        continue;
+      }
 
       const outs = main.outcomes ?? [];
       if (outs.length >= 3 && outs[1]?.outcomeId && wonId === outs[1].outcomeId) {
@@ -828,6 +855,12 @@ export async function checkResolvedMarkets(
 
       if (outs.length >= 1 && outs[0]?.outcomeId) {
         const result: "home" | "away" = wonId === outs[0].outcomeId ? "home" : "away";
+        logSettlementDiagnostic({
+          ...classifyAzuroGameForSettlement(marketId, game),
+          reasonCode: "SETTLEMENT_ELIGIBLE",
+          reasonDetail: `Binary settle → ${result}`,
+          skipped: false,
+        });
         out.push({
           marketId,
           conditionId: main.conditionId,
