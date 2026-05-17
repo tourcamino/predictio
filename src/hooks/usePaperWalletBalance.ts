@@ -18,7 +18,7 @@ export type PaperWalletBalanceSnapshot = {
  * On production (SPA ≠ API host), reads Express `/api/v1/web/paper-wallet-balance`.
  */
 export function usePaperWalletBalance() {
-  const { isConnected, address, chainId, balance: mockStoreBalance, isSyncing } = useWallet();
+  const { isConnected, address, chainId, balance: mockStoreBalance } = useWallet();
   const walletKey = normalizeWalletForQuery(address);
   const chainScope = clientChainScopeForTrpc(chainId);
   const trpcClient = useTRPCClient();
@@ -41,13 +41,15 @@ export function usePaperWalletBalance() {
     ] as const,
     enabled: Boolean(isConnected && walletKey && !mockDevPaper),
     staleTime: 15_000,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1500 * 2 ** attempt, 5000),
     placeholderData: (prev) => prev,
     queryFn: async (): Promise<PaperWalletBalanceSnapshot> => {
       const w = walletKey!;
       walletConnectTrace("balance_fetch_start", { walletKey: w, useExpress });
       try {
         const out = useExpress
-          ? await expressGetPaperWalletBalance(w, { onboarding: isSyncing })
+          ? await expressGetPaperWalletBalance(w)
           : await trpcClient.getPaperWalletBalance.query({
               walletAddress: w,
               clientChainId: chainScope,

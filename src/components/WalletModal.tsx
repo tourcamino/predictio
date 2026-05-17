@@ -21,11 +21,11 @@ import {
   WALLET_SUCCESS_MIN_MS,
   WALLET_CONNECTING_MAX_MS,
 } from '~/lib/walletModalUxTiming';
-import { walletConnectTrace } from '~/lib/walletConnectTrace';
+import { walletConnectTrace, walletConnectTraceResetEpoch } from '~/lib/walletConnectTrace';
 
 type ModalStep = 'choose' | 'connecting' | 'success' | 'deposit' | 'error';
 type DepositTab = 'bridge' | 'buy' | 'transfer';
-type ConnectionStatus = 'requesting' | 'signing' | 'verifying' | 'syncing';
+type ConnectionStatus = 'requesting' | 'signing' | 'verifying' | 'ready';
 
 export function WalletModal() {
   const navigate = useNavigate();
@@ -35,11 +35,13 @@ export function WalletModal() {
     connectWallet,
     isConnecting,
     isConnected,
-    isSyncing,
+    syncDegraded,
     address,
     walletType,
     disconnectWallet,
     requestAccountSwitch,
+    walletProviderSyncComplete,
+    chainId,
   } = useWallet();
   const {
     cashUsdcSettled: modalPaperCash,
@@ -55,6 +57,13 @@ export function WalletModal() {
   const connectingSinceRef = useRef<number | null>(null);
   const successSinceRef = useRef<number | null>(null);
   const connectingDeadlineRef = useRef<number | null>(null);
+  const successTransitionedRef = useRef(false);
+
+  const walletIoReady =
+    isConnected &&
+    Boolean(address) &&
+    !isConnecting &&
+    walletProviderSyncComplete;
 
   // Reset state when modal closes
   useEffect(() => {
@@ -68,6 +77,7 @@ export function WalletModal() {
         connectingSinceRef.current = null;
         successSinceRef.current = null;
         connectingDeadlineRef.current = null;
+        successTransitionedRef.current = false;
       }, 300);
     }
   }, [isModalOpen]);
@@ -82,18 +92,18 @@ export function WalletModal() {
     }
   }, [step, selectedWallet, walletType]);
 
-  // Visual stage progression (readable dwell; server sync can force final stage)
+  // Visual stage progression — wallet I/O only (never gated on server sync/balance)
   useEffect(() => {
     if (!isModalOpen || step !== 'connecting') return;
 
-    const stages: ConnectionStatus[] = ['requesting', 'signing', 'verifying', 'syncing'];
+    const stages: ConnectionStatus[] = ['requesting', 'signing', 'verifying', 'ready'];
     let currentStage = 0;
     setConnectionStatus(stages[0]!);
 
     const interval = setInterval(() => {
-      if (isSyncing && currentStage < stages.length - 1) {
+      if (walletIoReady && currentStage < stages.length - 1) {
         currentStage = stages.length - 1;
-        setConnectionStatus('syncing');
+        setConnectionStatus('ready');
         return;
       }
       currentStage += 1;
@@ -105,12 +115,12 @@ export function WalletModal() {
     }, WALLET_STAGE_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [isModalOpen, step, selectedWallet, isSyncing]);
+  }, [isModalOpen, step, selectedWallet, walletIoReady]);
 
   useEffect(() => {
     if (!isModalOpen || step !== 'connecting') return;
-    if (isSyncing) setConnectionStatus('syncing');
-  }, [isModalOpen, step, isSyncing]);
+    if (walletIoReady) setConnectionStatus('ready');
+  }, [isModalOpen, step, walletIoReady]);
 
   useEffect(() => {
     if (!isModalOpen) return;
@@ -122,39 +132,44 @@ export function WalletModal() {
   }, [isModalOpen, isConnecting, step]);
 
   const goToSuccess = useCallback(() => {
+    if (successTransitionedRef.current) return;
+    successTransitionedRef.current = true;
+    const snap = useWalletStore.getState();
     walletConnectTrace('modal_step_success', {
-      address,
-      isSyncing,
-      modalPaperLoading,
+      address: snap.address,
+      isSyncing: snap.isSyncing,
+      syncDegraded: snap.syncDegraded,
+      chainId: snap.chainId,
     });
     setStep('success');
     successSinceRef.current = Date.now();
     setAutoCloseProgress(100);
-  }, [address, isSyncing, modalPaperLoading]);
+  }, []);
 
-  // Minimum visible duration for connecting step before success (wallet I/O only — not server sync)
+  // Success when wallet address + chain are ready — sync/balance are background-only
   useEffect(() => {
     if (!isModalOpen || step !== 'connecting') return;
-    if (isConnecting || !isConnected) return;
+    if (!walletIoReady) return;
 
     const delay = remainingMinDisplayMs(
       connectingSinceRef.current,
       WALLET_CONNECTING_MIN_MS,
     );
+    walletConnectTrace('modal_schedule_success', { delayMs: delay });
     const timer = setTimeout(goToSuccess, delay);
 
     return () => clearTimeout(timer);
-  }, [isModalOpen, step, isConnecting, isConnected, goToSuccess]);
+  }, [isModalOpen, step, walletIoReady, goToSuccess]);
 
-  // Hard cap: fixed deadline from first entering connecting (do NOT reset when isConnected flips)
+  // Hard cap: fixed deadline (deps must NOT include sync/balance or goToSuccess identity churn)
   useEffect(() => {
     if (!isModalOpen || step !== 'connecting') return;
     const deadline = connectingDeadlineRef.current ?? Date.now() + WALLET_CONNECTING_MAX_MS;
     const remaining = Math.max(0, deadline - Date.now());
 
     const timer = setTimeout(() => {
-      const liveConnected = useWalletStore.getState().isConnected;
-      if (liveConnected) {
+      const live = useWalletStore.getState();
+      if (live.isConnected && live.address) {
         goToSuccess();
         return;
       }
@@ -168,10 +183,9 @@ export function WalletModal() {
     return () => clearTimeout(timer);
   }, [isModalOpen, step, goToSuccess]);
 
-  // Success screen + auto-close (visual timing only; balance may still be loading)
+  // Success auto-close — never wait for balance fetch
   useEffect(() => {
     if (!isModalOpen || step !== 'success') return;
-    if (modalPaperLoading) return;
 
     const holdDelay = remainingMinDisplayMs(successSinceRef.current, WALLET_SUCCESS_MIN_MS);
     let progress = 100;
@@ -193,11 +207,13 @@ export function WalletModal() {
       clearTimeout(holdTimer);
       if (tickInterval) clearInterval(tickInterval);
     };
-  }, [isModalOpen, step, modalPaperCash, modalPaperLoading, closeWalletModal]);
+  }, [isModalOpen, step, closeWalletModal]);
 
   const handleWalletSelect = async (wallet: string) => {
+    walletConnectTraceResetEpoch();
     setSelectedWallet(wallet);
     setErrorMessage('');
+    successTransitionedRef.current = false;
     connectingSinceRef.current = Date.now();
     connectingDeadlineRef.current = Date.now() + WALLET_CONNECTING_MAX_MS;
     setConnectionStatus('requesting');
@@ -263,9 +279,9 @@ export function WalletModal() {
       case 'signing':
         return 'Please sign the message in your wallet';
       case 'verifying':
-        return 'Verifying signature...';
-      case 'syncing':
-        return 'Syncing balance...';
+        return 'Verifying wallet...';
+      case 'ready':
+        return walletIoReady ? 'Wallet connected' : 'Finalizing connection...';
       default:
         return 'Connecting...';
     }
@@ -279,10 +295,10 @@ export function WalletModal() {
         return <div className="w-24 h-24 rounded-full border-4 border-brand-green border-t-transparent animate-spin" />;
       case 'verifying':
         return <Loader2 className="w-24 h-24 text-brand-green animate-spin" />;
-      case 'syncing':
+      case 'ready':
         return <div className="w-24 h-24 rounded-full bg-brand-green/20 flex items-center justify-center">
           <div className="w-16 h-16 rounded-full bg-brand-green/40 flex items-center justify-center">
-            <div className="w-8 h-8 rounded-full bg-brand-green animate-pulse" />
+            <Check className="w-10 h-10 text-brand-green" />
           </div>
         </div>;
       default:
@@ -428,9 +444,9 @@ export function WalletModal() {
 
                     {/* Connection progress steps */}
                     <div className="mb-8 space-y-2">
-                      {(['requesting', 'signing', 'verifying', 'syncing'] as ConnectionStatus[]).map((status, index) => {
+                      {(['requesting', 'signing', 'verifying', 'ready'] as ConnectionStatus[]).map((status, index) => {
                         const isActive = connectionStatus === status;
-                        const isComplete = ['requesting', 'signing', 'verifying', 'syncing'].indexOf(connectionStatus) > index;
+                        const isComplete = ['requesting', 'signing', 'verifying', 'ready'].indexOf(connectionStatus) > index;
                         
                         return (
                           <div
@@ -453,8 +469,8 @@ export function WalletModal() {
                             <span className={`text-sm ${isActive ? 'text-brand-green font-semibold' : 'text-gray-400'}`}>
                               {status === 'requesting' && 'Requesting connection'}
                               {status === 'signing' && 'Waiting for signature'}
-                              {status === 'verifying' && 'Verifying identity'}
-                              {status === 'syncing' && 'Syncing balance'}
+                              {status === 'verifying' && 'Verifying wallet'}
+                              {status === 'ready' && 'Wallet ready'}
                             </span>
                           </div>
                         );
@@ -505,6 +521,14 @@ export function WalletModal() {
                     <Dialog.Title className="font-syne text-2xl md:text-3xl font-bold mb-2">
                       Wallet Connected! 🎉
                     </Dialog.Title>
+
+                    {(syncDegraded || modalPaperLoading) && (
+                      <p className="text-xs text-amber-400/90 mt-2">
+                        {syncDegraded
+                          ? 'Account sync is retrying in the background — you can continue.'
+                          : 'Loading paper balance…'}
+                      </p>
+                    )}
 
                     <div className="mt-6 space-y-4">
                       <div className="p-4 bg-white/5 rounded-lg">

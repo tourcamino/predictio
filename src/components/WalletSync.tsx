@@ -47,7 +47,7 @@ function getCookie(name: string): string | null {
 export function WalletSync() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { isConnected, address, setSyncing } = useWallet();
+  const { isConnected, address, setSyncing, setSyncDegraded } = useWallet();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   const lastSyncedAddressRef = useRef<string | null>(null);
@@ -90,6 +90,7 @@ export function WalletSync() {
       syncInFlightRef.current = false;
       silentRetryCountRef.current = 0;
       setSyncing(false);
+      setSyncDegraded(false);
       walletToastDismiss(WALLET_TOAST_IDS.syncLoading);
       return;
     }
@@ -146,6 +147,7 @@ export function WalletSync() {
           walletConnectTrace("sync_user_wall_clock_abort", { walletKey });
           syncInFlightRef.current = false;
           setSyncing(false);
+          setSyncDegraded(true);
           walletToastDismiss(WALLET_TOAST_IDS.syncLoading);
         }, WALLET_SYNC_WALL_CLOCK_MS);
 
@@ -167,6 +169,7 @@ export function WalletSync() {
 
           clearSyncWallClock();
           setSyncing(false);
+          setSyncDegraded(false);
           walletToastDismiss(WALLET_TOAST_IDS.syncLoading);
           walletConnectTrace("sync_user_response", {
             walletKey,
@@ -242,6 +245,7 @@ export function WalletSync() {
           }
 
           silentRetryCountRef.current = 0;
+          setSyncDegraded(true);
 
           const suffix = userFacingSyncFailureDetail(error);
 
@@ -271,6 +275,9 @@ export function WalletSync() {
           } finally {
             clearSyncWallClock();
             settle();
+            if (!syncInFlightRef.current) {
+              setSyncing(false);
+            }
             walletConnectTrace("sync_user_settled", { walletKey });
           }
         })();

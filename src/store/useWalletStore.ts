@@ -46,7 +46,9 @@ export interface WalletState {
   balanceEth: number; // ETH for gas
   balanceEthUsd: number; // ETH value in USD
   isConnecting: boolean;
-  isSyncing: boolean; // Track wallet sync status
+  isSyncing: boolean; // Background server sync in flight
+  /** True when last sync failed after retries — wallet session still valid. */
+  syncDegraded: boolean;
   walletType: string | null; // 'metamask' | 'coinbase' | 'walletconnect' | 'rainbow' | 'ledger'
   isModalOpen: boolean;
   isOnboarded: boolean;
@@ -78,6 +80,7 @@ interface WalletStore extends WalletState {
   closeWalletModal: () => void;
   setOnboarded: (value: boolean) => void;
   setSyncing: (value: boolean) => void;
+  setSyncDegraded: (value: boolean) => void;
   switchNetwork: () => Promise<void>;
   refreshChainFromProvider: () => Promise<void>;
   deposit: (amount: number) => Promise<{ success: boolean; txHash: string }>;
@@ -100,6 +103,7 @@ export const useWalletStore = create<WalletStore>()(
       balanceEthUsd: 0,
       isConnecting: false,
       isSyncing: false,
+      syncDegraded: false,
       walletType: null,
       isModalOpen: false,
       isOnboarded: false,
@@ -116,7 +120,7 @@ export const useWalletStore = create<WalletStore>()(
       // Connect: EIP-1193 only. Mock ONLY when VITE_WALLET_MOCK_CONNECT=1 on a non-production Vite build (never PROD).
       connectWallet: async (walletType: string) => {
         walletConnectTrace("connect_start", { walletType });
-        set({ isConnecting: true, walletProviderSyncComplete: false });
+        set({ isConnecting: true, walletProviderSyncComplete: false, syncDegraded: false });
         await new Promise((resolve) => setTimeout(resolve, 220));
 
         const referralCode = localStorage.getItem("predictio-referral-code");
@@ -392,6 +396,7 @@ export const useWalletStore = create<WalletStore>()(
           referralCode: null,
           isConnecting: false,
           isSyncing: false,
+          syncDegraded: false,
           isOnboarded: false,
           chainId: null,
           switchNetworkPending: false,
@@ -413,8 +418,9 @@ export const useWalletStore = create<WalletStore>()(
       // Onboarding
       setOnboarded: (value: boolean) => set({ isOnboarded: value }),
 
-      // Set syncing status
+      // Background sync flags (never affect isConnected / session)
       setSyncing: (value: boolean) => set({ isSyncing: value }),
+      setSyncDegraded: (value: boolean) => set({ syncDegraded: value }),
 
       // Network switch / refresh (EIP-1193)
       refreshChainFromProvider: async () => {
