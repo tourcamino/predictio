@@ -20,6 +20,10 @@ import { MicroHook } from '~/components/markets/MicroHook';
 import { CollapsibleSection } from '~/components/markets/CollapsibleSection';
 import { MarketCountdown } from '~/components/MarketCountdown';
 import { MarketOracleStatusPanel } from '~/components/markets/MarketOracleStatusPanel';
+import { MarketClockPanel } from '~/components/protocol/MarketClockPanel';
+import { MarketActivityStrip } from '~/components/protocol/MarketActivityStrip';
+import { LiquidityProtocolExplainer } from '~/components/protocol/LiquidityProtocolExplainer';
+import { ProtocolSurfaceWayfinder } from '~/components/protocol/ProtocolSurfaceWayfinder';
 import { getMarketStatus } from '~/utils/marketLifecycle';
 import { getMarketDetailLoadIssue } from '~/utils/marketDetailErrors';
 import { fetchMarketDetailWithRestFallback } from '~/utils/fetchMarketDetailWithRestFallback';
@@ -166,8 +170,7 @@ function MarketDetailPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-6 sm:py-8 pb-[500px] lg:pb-8">
         {/* Main Content Grid - Desktop: 2 columns with sticky sidebar */}
         <div className="lg:grid lg:grid-cols-12 lg:gap-8">
-          {/* Left Column - Main Content */}
-          <div className="lg:col-span-7 space-y-6">
+          <div className="lg:col-span-4 space-y-6">
             {/* Breadcrumb */}
             <div className="flex items-center gap-2 text-xs sm:text-sm font-mono text-gray-400 overflow-x-auto">
               <Link to="/" className="hover:text-brand-green transition-colors cursor-pointer flex-shrink-0">
@@ -221,6 +224,15 @@ function MarketDetailPage() {
               market={market}
               lastUpdatedAt={marketQuery.dataUpdatedAt ? new Date(marketQuery.dataUpdatedAt) : undefined}
             />
+
+            <MarketClockPanel market={market} />
+            <MarketActivityStrip
+              market={market}
+              lastUpdatedAt={
+                marketQuery.dataUpdatedAt ? new Date(marketQuery.dataUpdatedAt) : undefined
+              }
+            />
+            <LiquidityProtocolExplainer market={market} />
 
             {/* Dispute/Void Banner */}
             {(market.status === 'under_review' || market.status === 'voided') && (
@@ -345,7 +357,9 @@ function MarketDetailPage() {
                 )}
               </div>
             </div>
+          </div>
 
+          <div className="space-y-6 lg:col-span-5">
             {/* Decision Block - PRIMARY CTA - Mobile only */}
             <div className="lg:hidden">
               <DecisionBlock market={market} onSelectOutcome={handleOutcomeSelect} />
@@ -451,8 +465,12 @@ function MarketDetailPage() {
             </div>
           </div>
 
+          <div className="mt-8 lg:col-span-12">
+            <ProtocolSurfaceWayfinder />
+          </div>
+
           {/* Right Column - Sticky Trading Box (Desktop only) */}
-          <div className="hidden lg:block lg:col-span-5">
+          <div className="hidden lg:block lg:col-span-3">
             <div className="sticky top-24 space-y-6">
               {/* Decision Block */}
               <DecisionBlock market={market} onSelectOutcome={handleOutcomeSelect} />

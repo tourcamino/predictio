@@ -15,82 +15,54 @@ export function MarketStatsBar({ market }: MarketStatsBarProps) {
     return `$${volume.toLocaleString()}`;
   };
 
-  const getRelativeTime = (date: Date) => {
-    const now = Date.now();
-    const created = date.getTime();
-    const diff = now - created;
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    
-    const minutes = Math.floor(diff / (1000 * 60));
-    return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-  };
-
-  // Mock market created date (4 days ago)
-  const marketCreatedDate = new Date(market.closesAt.getTime() - 4 * 24 * 60 * 60 * 1000);
-
   const predictionCount = market.predictions ?? 0;
-  // Mock data for increases
-  const volumeIncrease = Math.floor(market.volume * 0.1);
-  const predictionsIncrease = Math.floor(predictionCount * 0.027);
-  const uniquePredictors = Math.floor(predictionCount * 0.26);
+  const pool = market.liquidity?.totalPool;
+  const trades24h = market.liquidity?.trades24h;
 
   const stats = [
     {
       icon: BarChart3,
-      label: 'Total Volume',
-      value: formatVolume(market.volume) + ' USDC',
-      change: `↑ ${formatVolume(volumeIncrease)} last hour`,
-      changeColor: 'text-brand-green',
+      label: 'Total volume',
+      value: market.volume > 0 ? formatVolume(market.volume) : '—',
     },
     {
       icon: TrendingUp,
-      label: 'Total Predictions',
-      value: predictionCount.toLocaleString(),
-      change: `↑ ${predictionsIncrease} last hour`,
-      changeColor: 'text-brand-green',
+      label: 'Predictions',
+      value: predictionCount > 0 ? predictionCount.toLocaleString() : '—',
     },
     {
       icon: Users,
-      label: 'Unique Predictors',
-      value: uniquePredictors.toLocaleString() + ' wallets',
-      change: null,
-      changeColor: '',
+      label: 'AMM pool',
+      value: pool != null && pool > 0 ? formatVolume(pool) : '—',
     },
     {
       icon: Clock,
-      label: 'Market Created',
-      value: marketCreatedDate.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      }),
-      change: getRelativeTime(marketCreatedDate),
-      changeColor: 'text-gray-500',
+      label: '24h trades',
+      value: trades24h != null ? trades24h.toLocaleString() : '—',
     },
   ];
 
   return (
-    <div className="bg-brand-bg border border-white/10 rounded-lg p-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <div key={index} className="flex items-start gap-3">
-            <div className="p-2 bg-brand-green/10 rounded-lg">
-              <stat.icon className="w-5 h-5 text-brand-green" />
+    <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent p-6">
+      <p className="mb-4 text-[10px] font-mono uppercase tracking-[0.2em] text-gray-500">
+        Market participation (real aggregates)
+      </p>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div
+              key={stat.label}
+              className="rounded-xl border border-white/10 bg-black/20 p-4 transition-colors hover:border-brand-green/20"
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <Icon className="h-4 w-4 text-brand-cyan" />
+                <span className="text-xs text-gray-500">{stat.label}</span>
+              </div>
+              <div className="font-mono text-lg font-bold text-white">{stat.value}</div>
             </div>
-            <div>
-              <div className="text-xs text-gray-400 mb-1">{stat.label}</div>
-              <div className="font-mono font-bold text-lg mb-1">{stat.value}</div>
-              {stat.change && (
-                <div className={`text-xs font-mono ${stat.changeColor}`}>{stat.change}</div>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

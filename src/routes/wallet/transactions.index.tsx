@@ -22,6 +22,7 @@ import {
 } from '~/lib/wallet/dbActivityDisplay';
 import { shouldUseExpressForWalletCritical } from '~/lib/expressCriticalWalletApi';
 import { ProtocolStatePanel } from '~/components/protocol/ProtocolStatePanel';
+import { ProtocolSurfaceWayfinder } from '~/components/protocol/ProtocolSurfaceWayfinder';
 
 export const Route = createFileRoute('/wallet/transactions/')({
   component: WalletTransactionHistoryPage,
@@ -116,8 +117,8 @@ function WalletTransactionHistoryPage() {
               </Link>
             </div>
             <p className="text-gray-400">
-              Canonical immutable ledger for this wallet
-              {shouldUseExpressForWalletCritical() ? ' (Express · VPS Postgres)' : ' (same-origin API)'}.
+              Immutable accounting — not trading execution. Positions and lifecycle live on Trading.
+              {shouldUseExpressForWalletCritical() ? ' Express · VPS Postgres.' : ''}
             </p>
             {import.meta.env.DEV && import.meta.env.VITE_ACTIVITY_DEBUG === '1' ? (
               <p className="text-xs text-amber-200/90 mt-2 font-mono">
@@ -131,6 +132,7 @@ function WalletTransactionHistoryPage() {
             <GuestPageState onConnect={() => requireWallet()} />
           ) : (
             <>
+              <ProtocolSurfaceWayfinder current="/wallet/transactions" />
               <div className="mb-6 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent p-4 shadow-[0_16px_48px_rgba(0,0,0,0.3)]">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>

@@ -169,16 +169,8 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
                       onChange={(e) => setSportFilter(e.target.value)}
                       className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-brand-green focus:outline-none"
                     >
-                      <option value="all">All Sports</option>
+                      <option value="all">All football</option>
                       <option value="Soccer">⚽ Football</option>
-                      {!isFootballFocusEnabled() && (
-                        <>
-                          <option value="MMA">🥊 MMA</option>
-                          <option value="Cricket">🏏 Cricket</option>
-                          <option value="Basketball">🏀 Basketball</option>
-                          <option value="Tennis">🎾 Tennis</option>
-                        </>
-                      )}
                     </select>
                   </div>
 

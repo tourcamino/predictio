@@ -33,6 +33,7 @@ import { useMarketSummaries } from '~/hooks/useMarketSummaries';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 import { PortfolioExposureSummary } from '~/components/portfolio/PortfolioExposureSummary';
 import { ProtocolStatePanel } from '~/components/protocol/ProtocolStatePanel';
+import { ProtocolSurfaceWayfinder } from '~/components/protocol/ProtocolSurfaceWayfinder';
 
 export const Route = createFileRoute('/portfolio/')({
   component: Portfolio,
@@ -336,6 +337,8 @@ function Portfolio() {
             unrealizedPnL={unrealizedPnL}
             unrealizedPnLPct={unrealizedPnLPct}
           />
+
+          <ProtocolSurfaceWayfinder current="/portfolio" />
 
           {/* Holding Rewards Section */}
           {summaryQuery.data?.holdingRewards && summaryQuery.data.holdingRewards.pending > 0 && (

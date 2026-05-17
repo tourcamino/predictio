@@ -27,6 +27,10 @@ import {
 } from "~/lib/market/marketProtocolStatus";
 import { ShareButton } from "~/components/ShareButton";
 import { generatePredictionShareText } from "~/utils/shareUtils";
+import {
+  deriveOracleNarrative,
+  deriveProtocolNextAction,
+} from "~/lib/protocol/positionLifecycleNarrative";
 
 const CANONICAL_BUCKET_ORDER: CanonicalTradingBucket[] = ["OPEN", "SETTLING", "RESOLVED"];
 
@@ -95,6 +99,11 @@ function PositionCard({ row, premium = false }: { row: Row; premium?: boolean })
   const cost = shares * avgPrice;
   const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0;
   const closesIn = formatClosesIn(lifecycle.closesAt);
+  const oracleNarrative =
+    protocolLabel === "ORACLE PENDING" || lifecycle.settlementPending
+      ? deriveOracleNarrative(order, market, lifecycle)
+      : null;
+  const nextAction = deriveProtocolNextAction(order, market, lifecycle);
 
   const cardClass = premium
     ? "group relative overflow-hidden rounded-2xl border border-white/[0.1] bg-gradient-to-br from-white/[0.06] to-white/[0.02] p-5 shadow-[0_16px_48px_rgba(0,0,0,0.35)] transition-all hover:border-brand-green/35 hover:shadow-[0_0_40px_rgba(0,255,135,0.06)]"
@@ -195,6 +204,10 @@ function PositionCard({ row, premium = false }: { row: Row; premium?: boolean })
           )}
           {closesIn ? <span className="text-gray-600"> · {closesIn}</span> : null}
         </p>
+        <p className="mt-2 text-xs text-gray-400">{nextAction.label}</p>
+        {oracleNarrative && (
+          <p className="mt-1 text-xs text-amber-200/85">{oracleNarrative.headline}</p>
+        )}
 
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
           {lifecycle.kickoffAt && (

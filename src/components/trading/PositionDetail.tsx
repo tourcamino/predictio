@@ -26,6 +26,9 @@ import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPort
 import {
   invalidateWalletNotifications,
 } from '~/utils/invalidateWalletNotifications';
+import { useMarketSummaries } from '~/hooks/useMarketSummaries';
+import { ProtocolLifecycleInsight } from '~/components/protocol/ProtocolLifecycleInsight';
+import { mapTradingPositionToOrderRow } from '~/lib/trading/mapTradingPositionToOrderRow';
 
 function positionDetailExecDevLog(phase: string, extra?: Record<string, unknown>) {
   if (!import.meta.env.DEV || import.meta.env.VITE_POSITION_EXEC_DEBUG !== '1') return;
@@ -97,6 +100,15 @@ export function PositionDetail({ position }: PositionDetailProps) {
     },
   });
   const { marketPrice, orderbook, recentTrades, wsStatus } = usePositionRealtime(position.marketId);
+
+  const marketSummariesQuery = useMarketSummaries({
+    marketIds: [position.marketId],
+    enabled: !!position.marketId,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+  });
+  const marketRow = marketSummariesQuery.data?.[position.marketId] ?? null;
+  const orderRow = useMemo(() => mapTradingPositionToOrderRow(position), [position]);
 
   const live = useMemo(
     () => deriveLivePositionFromQuote(position, marketPrice),
@@ -298,6 +310,8 @@ export function PositionDetail({ position }: PositionDetailProps) {
 
   return (
     <div className="space-y-6 p-6">
+      <ProtocolLifecycleInsight order={orderRow} market={marketRow} />
+
       <div className={`${panelShell} p-6`}>
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-green/35 to-transparent" aria-hidden />
         <div className="flex items-start justify-between mb-4">

@@ -37,7 +37,7 @@ export function SellControls({ position, currentPrice, onSell }: SellControlsPro
   };
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] p-6 shadow-[0_16px_48px_rgba(0,0,0,0.3)]">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
           <TrendingDown className="w-5 h-5 text-red-500" />

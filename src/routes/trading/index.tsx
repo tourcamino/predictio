@@ -25,6 +25,7 @@ import {
   derivePositionLifecycle,
 } from '~/lib/position/derivePositionLifecycle';
 import { Users } from 'lucide-react';
+import { ProtocolSurfaceWayfinder } from '~/components/protocol/ProtocolSurfaceWayfinder';
 
 export const Route = createFileRoute('/trading/')({
   component: TradingPage,
@@ -252,7 +253,9 @@ function TradingPage() {
         </div>
       )}
 
-      <div className="mt-10 flex flex-wrap gap-4 border-t border-white/10 pt-8 text-sm">
+      <ProtocolSurfaceWayfinder current="/trading" />
+
+      <div className="mt-8 flex flex-wrap gap-4 border-t border-white/10 pt-8 text-sm">
         <Link to="/wallet/transactions" className="font-semibold text-brand-green hover:text-brand-green/80">
           Activity ledger →
         </Link>

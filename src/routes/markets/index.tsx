@@ -537,7 +537,7 @@ function MarketsPage() {
       <div className="min-h-screen bg-brand-bg">
         <MetaTags
           title="Sports Markets — Predictio.live"
-          description="Browse all open prediction markets. Champions League, Serie A, NBA, MMA and more."
+          description="Browse football prediction markets. Champions League, Serie A, Premier League and more."
           url={typeof window !== 'undefined' ? window.location.href : undefined}
         />
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -574,7 +574,7 @@ function MarketsPage() {
       <div className="min-h-screen bg-brand-bg">
         <MetaTags
           title="Sports Markets — Predictio.live"
-          description="Browse all open prediction markets. Champions League, Serie A, NBA, MMA and more."
+          description="Browse football prediction markets. Champions League, Serie A, Premier League and more."
           url={typeof window !== "undefined" ? window.location.href : undefined}
         />
         <div className="px-4 max-w-lg mx-auto text-center">
@@ -596,7 +596,7 @@ function MarketsPage() {
     <div className="min-h-screen bg-brand-bg">
       <MetaTags
         title="Sports Markets — Predictio.live"
-        description="Browse all open prediction markets. Champions League, Serie A, NBA, MMA and more."
+        description="Browse football prediction markets. Champions League, Serie A, Premier League and more."
         url={typeof window !== 'undefined' ? window.location.href : undefined}
       />
       {/* Main Content Area with Sidebar */}
