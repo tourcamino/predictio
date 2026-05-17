@@ -24,3 +24,18 @@ export function warnOracleMismatch(payload: Record<string, unknown>): void {
   // eslint-disable-next-line no-console
   console.warn("[settlement] ORACLE_MISMATCH", payload);
 }
+
+/** Always-on structured settlement metrics (PR7 — no silent paths). */
+export function logSettlementMetric(
+  type: string,
+  payload: Record<string, unknown>,
+): void {
+  // eslint-disable-next-line no-console
+  console.log(
+    JSON.stringify({
+      type,
+      at: new Date().toISOString(),
+      ...payload,
+    }),
+  );
+}

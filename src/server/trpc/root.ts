@@ -121,6 +121,7 @@ import { runtimeReconciliationReport } from "./procedures/runtimeReconciliationR
 import { getMarketSettlementDiagnostic } from "./procedures/getMarketSettlementDiagnostic";
 import { getMarketProtocolTimeline } from "./procedures/getMarketProtocolTimeline";
 import { getSettlementProtocolHealth } from "./procedures/getSettlementProtocolHealth";
+import { getSettlementForensicsDashboard } from "./procedures/getSettlementForensicsDashboard";
 
 export const appRouter = createTRPCRouter({
   getMarketDetail,
@@ -131,6 +132,7 @@ export const appRouter = createTRPCRouter({
   getMarketSettlementDiagnostic,
   getMarketProtocolTimeline,
   getSettlementProtocolHealth,
+  getSettlementForensicsDashboard,
   placePrediction,
   closePosition,
   syncUserAccount,

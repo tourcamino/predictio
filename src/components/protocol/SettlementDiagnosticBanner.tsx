@@ -7,12 +7,14 @@ import { formatApiDateTime } from "~/utils/parseApiDate";
 
 const friendlyReason: Partial<Record<SettlementSkipReasonCode, string>> = {
   ORACLE_PREMATCH:
-    "Oracle still reports Prematch. The match may have ended but Azuro has not published a terminal state yet.",
+    "The match has finished, but Azuro has not finalized the oracle result yet. Your position stays open until Azuro publishes a terminal state — not a protocol error.",
+  GRAPHQL_ERROR:
+    "Azuro indexer is temporarily unreachable. Settlement resumes automatically when the feed recovers.",
   GAME_NOT_IN_SUBGRAPH:
-    "Game not found in Azuro subgraph — verify gameId mapping and indexer lag.",
+    "Game not visible on the Azuro data feed Predictio uses — ops may retire the market; funds are not silently lost.",
   ORACLE_NOT_RESOLVED: "Oracle state is not Resolved/Finished yet.",
   CONDITION_MISSING:
-    "Primary condition missing — conditions[0] may be wrong for this market type.",
+    "Moneyline condition could not be selected from Azuro conditions — payout blocked until mapping is valid.",
   WINNER_UNKNOWN: "Oracle resolved without wonOutcomeIds — payout blocked.",
   DRAW_UNSUPPORTED: "Draw outcome — refund path applies.",
   SETTLEMENT_ELIGIBLE: "Oracle ready — next settlement cron tick should process payouts.",
@@ -43,7 +45,11 @@ export function SettlementDiagnosticBanner({ marketId }: { marketId: string }) {
   const isOk =
     d.reasonCode === "SETTLEMENT_ELIGIBLE" || d.reasonCode === "MARKET_ALREADY_SETTLED";
   const isBlocked = d.skipped && !isOk;
-  const copy = friendlyReason[d.reasonCode] ?? d.reasonDetail;
+  const copy =
+    query.data?.oracleTrust?.userMessage ??
+    friendlyReason[d.reasonCode] ??
+    d.reasonDetail;
+  const confidence = query.data?.confidence?.level;
 
   return (
     <div
@@ -65,6 +71,11 @@ export function SettlementDiagnosticBanner({ marketId }: { marketId: string }) {
         <div className="min-w-0">
           <p className="text-sm font-semibold text-white">
             {d.reasonCode.replace(/_/g, " ")}
+            {confidence ? (
+              <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase text-gray-400">
+                {confidence}
+              </span>
+            ) : null}
             {d.azuroGameState ? (
               <span className="ml-2 font-mono text-xs font-normal text-gray-400">
                 · {d.azuroGameState}

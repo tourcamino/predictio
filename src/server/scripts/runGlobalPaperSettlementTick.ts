@@ -6,13 +6,15 @@
  * Polls Azuro for all markets with open orders, then applies binary settle / refund / dispute.
  */
 import { db } from "~/server/db";
-import { checkResolvedMarkets } from "~/services/azuro";
+import { checkResolvedMarkets, getAzuroGraphqlEndpoint } from "~/services/azuro";
 import { runPaperBatchSettlement } from "~/lib/settlement/paperSettlementEngine";
 import { runPaperRefundSettlement } from "~/lib/settlement/paperRefundEngine";
 import { loadMarketUiById } from "~/server/utils/loadMarketUi";
+import { logSettlementMetric } from "~/lib/settlement/settlementObservability";
 import type { PaperRefundReason } from "~/lib/settlement/disputeRefundContract";
 
 async function main() {
+  const tickStarted = Date.now();
   const openOrders = await db.order.findMany({
     where: { status: "open" },
     select: { marketId: true },
@@ -23,14 +25,11 @@ async function main() {
     return;
   }
 
-  console.log(
-    JSON.stringify({
-      type: "settlement_tick_start",
-      polledMarkets: marketIds.length,
-      openOrders: openOrders.length,
-      at: new Date().toISOString(),
-    }),
-  );
+  logSettlementMetric("settlement_tick_start", {
+    polledMarkets: marketIds.length,
+    openOrders: openOrders.length,
+    azuroEndpoint: getAzuroGraphqlEndpoint(),
+  });
   const resolved = await checkResolvedMarkets(marketIds);
   console.log(
     JSON.stringify({
@@ -56,8 +55,15 @@ async function main() {
     );
   }
 
+  let terminalSettlements = 0;
+
   for (const item of resolved) {
     try {
+      logSettlementMetric("settlement_attempt", {
+        marketId: item.marketId,
+        kind: item.kind,
+        conditionId: item.conditionId,
+      });
       if (item.kind === "REFUND") {
         const marketUi = await loadMarketUiById(item.marketId);
         const marketLabel =
@@ -71,6 +77,13 @@ async function main() {
           observedAt: new Date(),
           rawOracle: item.rawState ?? item.refundReason,
           marketLabel,
+        });
+        terminalSettlements += 1;
+        logSettlementMetric("payout_execution_time", {
+          marketId: item.marketId,
+          kind: "REFUND",
+          ms: Date.now() - tickStarted,
+          ledgerWriteSuccess: true,
         });
         console.log(`[settlement-tick] refunded ${item.marketId}`);
         continue;
@@ -105,13 +118,53 @@ async function main() {
         },
         marketLabel,
       });
+      terminalSettlements += result.settledThisRun;
+      logSettlementMetric("payout_execution_time", {
+        marketId: item.marketId,
+        kind: "BINARY",
+        ms: Date.now() - tickStarted,
+        ledgerWriteSuccess: result.settledThisRun > 0,
+        settledOrders: result.settledThisRun,
+        duplicatePrevented: result.idempotent,
+      });
       console.log(
         `[settlement-tick] settled ${item.marketId} winner=${winningOutcome} count=${result.settledThisRun}`,
       );
     } catch (e) {
+      logSettlementMetric("settlement_attempt_failed", {
+        marketId: item.marketId,
+        error: e instanceof Error ? e.message : String(e),
+      });
       console.error(`[settlement-tick] failed ${item.marketId}:`, e);
     }
   }
+
+  await db.botHeartbeat.upsert({
+    where: { id: "settlement-cron" },
+    create: {
+      id: "settlement-cron",
+      status: "ONLINE",
+      lastRun: new Date(),
+      marketsProcessed: marketIds.length,
+      ordersPlaced: openOrders.length,
+      rebalancesDone: terminalSettlements,
+    },
+    update: {
+      status: "ONLINE",
+      lastRun: new Date(),
+      marketsProcessed: marketIds.length,
+      ordersPlaced: openOrders.length,
+      rebalancesDone: terminalSettlements,
+      errorMessage: null,
+    },
+  });
+
+  logSettlementMetric("settlement_tick_complete", {
+    polledMarkets: marketIds.length,
+    openOrders: openOrders.length,
+    terminalSettlements,
+    durationMs: Date.now() - tickStarted,
+  });
 }
 
 main()

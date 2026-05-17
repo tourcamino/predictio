@@ -5,6 +5,7 @@ import type { Market } from "~/data/mockMarkets";
 import type { UserOrderRow } from "~/lib/position/derivePositionLifecycle";
 import { SettlementTimelinePanel } from "./SettlementTimelinePanel";
 import { SettlementDiagnosticBanner } from "./SettlementDiagnosticBanner";
+import { OracleTrustLayer } from "./OracleTrustLayer";
 
 /** Fetches live oracle diagnostic and renders settlement timeline + banner. */
 export function SettlementTimelineSection({
@@ -32,6 +33,7 @@ export function SettlementTimelineSection({
 
   return (
     <div className="space-y-4">
+      <OracleTrustLayer marketId={marketId} />
       <SettlementDiagnosticBanner marketId={marketId} />
       <SettlementTimelinePanel
         market={market}

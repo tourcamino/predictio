@@ -1,79 +1,92 @@
-# Predictio — Testnet Readiness Audit (PR6 update)
+# Predictio — Testnet Readiness Audit (PR7 update)
 
-**Score: 68 / 100 — NOT READY for open testnet** (up from 62 after PR5)
+## Readiness scores
 
-Closed beta with real wallets: **acceptable** if users understand oracle delay.
+| Tier | Score | Verdict |
+|------|-------|---------|
+| Internal alpha | 72 / 100 | Paper engine + UI diagnostics sufficient |
+| **Closed beta** | **74 / 100** | **Acceptable** with oracle-delay copy + ops forensics |
+| Public testnet | 58 / 100 | **NOT READY** — external oracle + E2E payout proof |
+
+**Overall protocol score: 74 / 100** (up from 68 after PR6)
+
+Closed beta with real wallets: **acceptable** when users see oracle trust layer and Prematch is explained as Azuro lag, not a bug.
+
+## PR7 deliverables
+
+| Area | Deliverable |
+|------|-------------|
+| Oracle trust | `OracleTrustLayer`, `oracleTrustLayer.ts`, enriched diagnostic copy |
+| Payout confidence | `settlementConfidenceScore.ts` (HIGH / MEDIUM / LOW, deterministic) |
+| Forensics UI | `/protocol/settlement` + `getSettlementForensicsDashboard` |
+| Observability | `logSettlementMetric`, cron heartbeat `BotHeartbeat` id `settlement-cron` |
+| VPS fix | `AZURO_DATA_FEED_URL` on host tick; deprecated `AZURO_GRAPHQL_URL` removed |
+| Football purity | Forensics `footballAudit` block on open-market sample |
 
 ## Dimension scores
 
 | Dimension | Score | Status |
 |-----------|-------|--------|
-| UI / lifecycle clarity | 85 | Ready |
+| UI / lifecycle clarity | 88 | Ready |
+| Oracle trust / transparency | 78 | PR7 |
 | Wallet / Express runtime | 80 | Ready |
-| Settlement engine (idempotent ledger) | 75 | Ready |
-| Oracle condition mapping | 70 | Improved PR6 |
-| Oracle external dependency | 35 | **Blocker** |
-| Ops (cron, VPS deploy) | 55 | VPS behind master |
+| Settlement engine (idempotent ledger) | 78 | Ready |
+| Oracle condition mapping | 72 | PR6 moneyline pick |
+| Oracle external dependency | 38 | **Blocker** |
+| Ops (cron, VPS, forensics) | 70 | PR7 improved |
 
-## Settlement reliability
+## Oracle trustworthiness
 
-- Cron runs every **~5 minutes** on VPS (`predictio-settlement.log`)
-- Engine uses `updateMany` on open orders → **idempotent** per order
-- Refund path for draw/void; binary home/away mapping
-- **PR6:** moneyline condition selection (not blind `conditions[0]`)
+- Users see: oracle state, last sync, last cron tick, estimated lag, confidence tier
+- Prematch after full-time: explicit copy — *finished match, Azuro not finalized yet*
+- **VPS finding (PR7):** stale `AZURO_GRAPHQL_URL` (dead gnosis subgraph) caused false `GAME_NOT_IN_SUBGRAPH` — fixed to Polygon data-feed
 
-## Oracle dependency risk
+## Payout observability
 
-- **Cannot settle while Azuro `state = Prematch`**
-- Real wallet forensics: **8/8 open markets → ORACLE_PREMATCH**
-- Not a Predictio DB bug; external publication lag
+- Structured logs: `settlement_tick_*`, `settlement_attempt`, `payout_execution_time`, `settlement_diagnostic`
+- Forensics route: queue, reason counts, failing markets, payouts 24h
+- Cron heartbeat persisted for UI `lastSettlementTickAt`
 
-## Subgraph dependency risk
+## Settlement transparency
 
-- Must query `games(where: { gameId_in })` without invalid fields
-- Forensic scripts fixed PR6 (removed `status` on `Game`)
-- Some archived games may never return → positions stuck unless manual catalog retire
+- Per-market: condition index/count, selection reason, skip reason code
+- Global health bar + link to forensics
+- No manual resolve / synthetic payout paths in PR7
 
-## Payout confidence
+## Operational tooling
 
-| State | Confidence |
-|-------|------------|
-| Oracle Resolved + correct condition | **High** |
-| Oracle Prematch | **None** |
-| Wrong condition index (pre-PR6) | **Low** → mitigated PR6 |
-| VPS on old SHA | **Medium** until pull |
+- `/protocol/settlement` (internal)
+- `scripts/vps-run-settlement-tick.sh` exports data-feed URL
+- `getSettlementForensicsDashboard` tRPC
 
-## Reconciliation guarantees
+## Closed beta confidence
 
-- Paper balance updates only after `settleOneOrder` claims open row
-- Ledger types: `position_settlement_win` / `position_settlement_loss`
-- Replay warned via `warnSettlementReplay`
+| Question | Answer |
+|----------|--------|
+| Is position live? | Lifecycle pipeline + order status |
+| Payout pending? | Timeline + ORACLE_PREMATCH trust copy |
+| Oracle delayed? | `estimatedOracleLagMinutes` when applicable |
+| Settlement queued? | Open orders + cron cadence |
+| Market valid? | Condition index + football audit |
+| Protocol healthy? | Health bar + forensics |
 
-## Canonical runtime
+## Unresolved blockers (next after PR7)
 
-- Positions: Express `getUserPositions` (production)
-- Settlement: VPS cron + `checkResolvedMarkets`
-- Diagnostics: tRPC `getMarketSettlementDiagnostic`, `getSettlementProtocolHealth`
-
-## Unresolved architectural risks
-
-1. Azuro Prematch after real-world full-time
-2. 50+ conditions per game — selection heuristic must stay aligned with catalog odds
-3. VPS deploy drift (SHA behind GitHub master)
-4. No on-chain settlement — paper protocol only
+1. **Azuro Prematch** after real-world full-time — primary payout blocker
+2. **E2E payout proof** — zero terminal settlements on sample wallet until oracle Resolved
+3. Archived / missing subgraph games — retire from catalog
+4. Paper-only — no on-chain settlement
 
 ## Testnet gates
 
 | Gate | Ready? |
 |------|--------|
-| Invite-only beta | **Yes** (with oracle disclaimer) |
+| Invite-only closed beta | **Yes** |
 | Public testnet | **No** |
-| Protocol grants / rewards | **No** until payout E2E proven post-Resolved |
+| Protocol grants / rewards | **No** until post-Resolved payout E2E |
 
-## PR6 deliverables
+## Canonical runtime
 
-- `src/lib/settlement/azuroConditionSelection.ts`
-- `getSettlementProtocolHealth` tRPC
-- `ProtocolSettlementHealthBar` UI
-- Scripts: `oracle-settlement-inspector.mjs`, fixed `forensic-market-settlement.mjs`
-- Structured `settlement_tick_*` logs
+- Positions: Express `getUserPositions`
+- Settlement: VPS cron + `checkResolvedMarkets` (Polygon data-feed)
+- Diagnostics: `getMarketSettlementDiagnostic`, `getSettlementProtocolHealth`, `getSettlementForensicsDashboard`

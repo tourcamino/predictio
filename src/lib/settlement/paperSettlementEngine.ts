@@ -15,6 +15,7 @@ import type { PaperSettlementOracleInput, PaperSettlementRunResult } from "~/lib
 import { SETTLEMENT_VERSION } from "~/lib/settlement/settlementContract";
 import {
   logSettlementDev,
+  logSettlementMetric,
   warnOracleMismatch,
   warnSettlementReplay,
 } from "~/lib/settlement/settlementObservability";
@@ -233,6 +234,16 @@ export async function runPaperBatchSettlement(params: {
     oracle,
   });
 
+  const batchStarted = Date.now();
+  logSettlementMetric("settlement_attempt", {
+    marketId,
+    settlementRunId,
+    openOrders: openPositions.length,
+    winningOutcome,
+    oracleSource: oracle.source,
+    selected_condition_id: oracle.conditionId ?? null,
+  });
+
   const orderResults = await db.$transaction(
     async (tx) => {
       const out: PaperSettlementRunResult["orders"] = [];
@@ -313,6 +324,16 @@ export async function runPaperBatchSettlement(params: {
     settlementRunId,
     settledThisRun,
     marketUpdated: orderResults.marketUpdated,
+  });
+
+  logSettlementMetric("payout_execution_time", {
+    marketId,
+    settlementRunId,
+    ms: Date.now() - batchStarted,
+    ledgerWriteSuccess: settledThisRun > 0,
+    settledOrders: settledThisRun,
+    duplicate_prevented: settledThisRun === 0,
+    unresolved_reason: settledThisRun === 0 ? "no_claims" : null,
   });
 
   console.log(

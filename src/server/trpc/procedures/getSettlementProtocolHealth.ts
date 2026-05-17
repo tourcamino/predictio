@@ -2,7 +2,8 @@ import { z } from "zod";
 import { baseProcedure } from "~/server/trpc/main";
 import { db } from "~/server/db";
 import { classifyAzuroGameForSettlement } from "~/lib/settlement/settlementDiagnostics";
-import { fetchAzuroGameForSettlement } from "~/services/azuro";
+import { fetchAzuroGameForSettlement, getAzuroGraphqlEndpoint } from "~/services/azuro";
+import { deriveSettlementConfidence } from "~/lib/settlement/settlementConfidenceScore";
 
 /**
  * Read-only settlement queue snapshot for UI + ops (PR6).
@@ -19,6 +20,10 @@ export const getSettlementProtocolHealth = baseProcedure
     const sampleLimit = input?.sampleLimit ?? 20;
     const checkedAt = new Date().toISOString();
 
+    const [cronHeartbeat] = await Promise.all([
+      db.botHeartbeat.findUnique({ where: { id: "settlement-cron" } }),
+    ]);
+
     const openOrders = await db.order.findMany({
       where: { status: "open" },
       select: { marketId: true },
@@ -33,6 +38,7 @@ export const getSettlementProtocolHealth = baseProcedure
       azuroGameState: string | null;
       conditionIndex: number | null;
       conditionCount: number;
+      confidence: string;
     }> = [];
 
     for (const marketId of sampleIds) {
@@ -54,6 +60,7 @@ export const getSettlementProtocolHealth = baseProcedure
         azuroGameState: d.azuroGameState,
         conditionIndex: d.conditionIndex,
         conditionCount: d.conditionCount,
+        confidence: deriveSettlementConfidence(d).level,
       });
     }
 
@@ -61,9 +68,17 @@ export const getSettlementProtocolHealth = baseProcedure
     const prematch = reasonCounts.ORACLE_PREMATCH ?? 0;
     const missing = reasonCounts.GAME_NOT_IN_SUBGRAPH ?? 0;
 
+    const unresolved =
+      marketIds.length -
+      (reasonCounts.SETTLEMENT_ELIGIBLE ?? 0) -
+      (reasonCounts.MARKET_ALREADY_SETTLED ?? 0);
+
     return {
       checkedAt,
+      lastSettlementTickAt: cronHeartbeat?.lastRun?.toISOString() ?? null,
+      azuroGraphqlEndpoint: getAzuroGraphqlEndpoint(),
       cronCadence: "Settlement cron on VPS ~every 5 minutes",
+      unresolvedMarkets: Math.max(0, unresolved),
       openOrders: openOrders.length,
       openMarkets: marketIds.length,
       sampledMarkets: sampleIds.length,

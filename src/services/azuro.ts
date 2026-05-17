@@ -53,12 +53,16 @@ const DEFAULT_AZURO_DATA_FEED =
 
 const AZURO_FETCH_TIMEOUT_MS = 15_000;
 
-function azuroGraphqlEndpoint(): string {
+export function getAzuroGraphqlEndpoint(): string {
   const dataFeed = env.AZURO_DATA_FEED_URL?.trim();
   if (dataFeed) return dataFeed;
   const legacy = env.AZURO_GRAPHQL_URL?.trim();
   if (legacy) return legacy;
   return DEFAULT_AZURO_DATA_FEED;
+}
+
+function azuroGraphqlEndpoint(): string {
+  return getAzuroGraphqlEndpoint();
 }
 
 async function azuroGraphqlFetch(body: object): Promise<Response> {
@@ -816,8 +820,28 @@ export async function checkResolvedMarkets(
           type: "settlement_azuro_graphql_error",
           errors: data.errors,
           marketCount: azuroGameIds.length,
+          endpoint: getAzuroGraphqlEndpoint(),
         }),
       );
+      for (const gid of azuroGameIds) {
+        const marketId = `azuro-${gid}`;
+        logSettlementDiagnostic({
+          marketId,
+          azuroGameId: gid,
+          conditionId: null,
+          conditionIndex: null,
+          conditionCount: 0,
+          conditionSelectionReason: null,
+          closesAt: null,
+          azuroGameState: null,
+          hasWinner: false,
+          reasonCode: "GRAPHQL_ERROR",
+          reasonDetail: `Azuro GraphQL errors: ${JSON.stringify(data.errors).slice(0, 200)}`,
+          skipped: true,
+          observedAt: new Date().toISOString(),
+        });
+      }
+      return [];
     }
     const games: AzuroGame[] = data.data?.games || [];
     const gamesById = new Map(games.map((g) => [String(g.gameId), g]));

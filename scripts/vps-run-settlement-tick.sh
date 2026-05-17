@@ -23,4 +23,11 @@ fi
 export DATABASE_URL="$SETTLE_DB_URL"
 export NODE_TLS_REJECT_UNAUTHORIZED="${NODE_TLS_REJECT_UNAUTHORIZED:-0}"
 
+# Azuro V3 data-feed (must override deprecated AZURO_GRAPHQL_URL in .env)
+FEED="$(grep -E '^AZURO_DATA_FEED_URL=' .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r' | sed 's/^"//;s/"$//')"
+if [[ -n "$FEED" ]]; then
+  export AZURO_DATA_FEED_URL="$FEED"
+  unset AZURO_GRAPHQL_URL 2>/dev/null || true
+fi
+
 exec node --import tsx src/server/scripts/runGlobalPaperSettlementTick.ts
