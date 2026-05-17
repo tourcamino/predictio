@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useWallet } from '~/store/useWalletStore';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { EmptyTradingState } from '~/components/trading/EmptyTradingState';
@@ -7,29 +7,27 @@ import { useMarketSummaries } from '~/hooks/useMarketSummaries';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { useUserPositions } from '~/hooks/useUserPositions';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
-import { PositionLifecycleBoard } from '~/components/positions/PositionLifecycleBoard';
-import { SettlementOracleBanner } from '~/components/protocol/SettlementOracleBanner';
 import { formatPaperCashDisplay } from '~/lib/formatPaperCash';
 import { TradingTerminalShell } from '~/components/trading/TradingTerminalShell';
-import { PositionsList } from '~/components/trading/PositionsList';
 import { PositionDetail } from '~/components/trading/PositionDetail';
 import { useTradingStore } from '~/store/tradingStore';
 import {
   mapDbOrdersToTradingPositions,
   mapDemoPositionToTradingPosition,
 } from '~/lib/trading/mapDbOrderToTradingPosition';
-import { deriveLivePositionFromQuote } from '~/lib/trading/deriveLivePositionFromQuote';
 import {
-  countAwaitingOracleSettlement,
   toCanonicalTradingBucket,
   derivePositionLifecycle,
 } from '~/lib/position/derivePositionLifecycle';
-import { Users } from 'lucide-react';
-import { ProtocolSurfaceWayfinder } from '~/components/protocol/ProtocolSurfaceWayfinder';
-import { SettlementTimelineSection } from '~/components/protocol/SettlementTimelineSection';
-import { ProtocolSettlementHealthBar } from '~/components/protocol/ProtocolSettlementHealthBar';
-import { ProtocolAliveStrip } from '~/components/protocol/ProtocolAliveStrip';
 import { useCanonicalProtocolRefetch } from '~/hooks/useCanonicalProtocolRefetch';
+import { TradingDeskHeader } from '~/components/trading/TradingDeskHeader';
+import {
+  TraderPositionsBoard,
+  aggregateDeskStats,
+} from '~/components/trading/TraderPositionsBoard';
+import { buildTraderDeskRow } from '~/lib/trading/traderPositionDesk';
+import { TradingOpsCollapsible } from '~/components/trading/TradingOpsCollapsible';
+import { X } from 'lucide-react';
 
 export const Route = createFileRoute('/trading/')({
   component: TradingPage,
@@ -100,10 +98,20 @@ function TradingPage() {
 
   const displayOpenPositions = isConnected ? dbTradingOpen : demoTradingPositions;
 
-  const settlingCount = useMemo(
-    () => countAwaitingOracleSettlement(openOrders, marketById),
-    [openOrders, marketById],
+  const deskRows = useMemo(
+    () =>
+      displayOpenPositions.map((p) =>
+        buildTraderDeskRow(
+          p,
+          marketById[p.marketId] ?? null,
+          openOrders.find((o) => o.id === p.id) ?? orders.find((o) => o.id === p.id) ?? null,
+          marketPrices[p.marketId],
+        ),
+      ),
+    [displayOpenPositions, marketById, openOrders, orders, marketPrices],
   );
+
+  const deskStats = useMemo(() => aggregateDeskStats(deskRows), [deskRows]);
 
   const lifecycleTailOrders = useMemo(
     () =>
@@ -138,12 +146,22 @@ function TradingPage() {
     const ids = new Set(displayOpenPositions.map((p) => p.id));
     if (selectedPositionId && !ids.has(selectedPositionId)) {
       selectPosition(displayOpenPositions[0]?.id ?? null);
-    } else if (!selectedPositionId && displayOpenPositions.length > 0) {
-      selectPosition(displayOpenPositions[0]!.id);
     }
   }, [isConnected, walletKey, displayOpenPositions, selectedPositionId, selectPosition]);
 
   const selectedPosition = displayOpenPositions.find((p) => p.id === selectedPositionId);
+
+  const openDetail = (id: string) => {
+    selectPosition(id);
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      navigate({ to: '/trading/position/$id', params: { id } });
+    }
+  };
+
+  const openSell = (id: string) => {
+    selectPosition(id);
+    navigate({ to: '/trading/position/$id', params: { id } });
+  };
 
   if (!isConnected) {
     return (
@@ -171,7 +189,7 @@ function TradingPage() {
     return (
       <TradingTerminalShell
         title="Trading"
-        subtitle="Your command center for open risk, mark-to-market, and protocol settlement state."
+        subtitle="Your open positions and mark-to-market P&L."
         balanceValue={`$${formatPaperCashDisplay(currentBalance, isBalanceLoading)}`}
       >
         {positionsQuery.isError && (
@@ -183,97 +201,50 @@ function TradingPage() {
   }
 
   return (
-    <TradingTerminalShell
-      title="Trading"
-      subtitle="Professional mark-to-market · select a position for depth, order context, and execution."
-      balanceLabel="Paper USDC"
-      balanceValue={`$${formatPaperCashDisplay(currentBalance, isBalanceLoading)}`}
-      openCount={openOrders.length}
-      settlingCount={settlingCount}
-    >
-      <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-brand-green/20 bg-gradient-to-r from-brand-green/10 to-transparent px-5 py-4">
-        <div className="flex items-center gap-3">
-          <Users className="h-5 w-5 text-brand-green" />
-          <p className="text-sm text-gray-300">
-            <span className="font-semibold text-white">Copy conviction.</span> Mirror top traders on
-            the protocol.
-          </p>
-        </div>
-        <Link to="/copy" className="shrink-0 text-sm font-semibold text-brand-green hover:text-brand-green/80">
-          Explore copy trading →
-        </Link>
-      </div>
+    <TradingTerminalShell title="" subtitle="" traderFirst>
+      <TradingDeskHeader
+        totalOpenPnl={deskStats.totalPnl}
+        totalOpenPnlPct={deskStats.totalPnlPct}
+        openCount={deskStats.openCount}
+        liveCount={deskStats.liveCount}
+        settlingCount={deskStats.settlingCount}
+        balanceLabel="Paper USDC"
+        balanceValue={`$${formatPaperCashDisplay(currentBalance, isBalanceLoading)}`}
+      />
 
-      <ProtocolAliveStrip />
+      <TraderPositionsBoard
+        positions={displayOpenPositions}
+        orders={orders}
+        marketById={marketById}
+        selectedPositionId={selectedPositionId}
+        onSelect={openDetail}
+        onSell={openSell}
+      />
 
-      <SettlementOracleBanner positions={openOrders} marketById={marketById} />
-
-      <ProtocolSettlementHealthBar />
-
-      {selectedPosition && (
-        <div className="mb-6 lg:hidden">
-          <SettlementTimelineSection
-            marketId={selectedPosition.marketId}
-            market={marketById[selectedPosition.marketId] ?? null}
-            order={openOrders.find((o) => o.id === selectedPosition.id) ?? undefined}
-            compact
-          />
-        </div>
-      )}
-
-      <div className="hidden lg:grid lg:h-[calc(100vh-340px)] lg:grid-cols-[380px_1fr] lg:gap-6">
-        <div className="overflow-hidden rounded-xl border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-          <PositionsList positions={displayOpenPositions} />
-        </div>
-        <div className="overflow-y-auto rounded-xl border border-white/10 bg-white/[0.02] shadow-[0_24px_60px_rgba(0,0,0,0.4)] scrollbar-hide">
-          {selectedPosition ? (
-            <PositionDetail position={selectedPosition} />
-          ) : (
-            <div className="flex h-full min-h-[320px] items-center justify-center p-8 text-center">
-              <p className="text-gray-500">Select an open position for the full trading panel</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-8 space-y-3 lg:hidden">
-        {displayOpenPositions.map((position) => {
-          const live = deriveLivePositionFromQuote(position, marketPrices[position.marketId]);
-          const terminal =
-            position.status === 'resolved' ||
-            position.status === 'cancelled' ||
-            position.status === 'refunded';
-          const displayPnl = terminal ? position.unrealizedPnl : live.unrealizedPnl;
-          const pnlClass = displayPnl >= 0 ? 'text-brand-green' : 'text-red-400';
-          return (
+      {selectedPosition ? (
+        <aside className="fixed inset-y-0 right-0 z-50 hidden w-full max-w-md border-l border-white/10 bg-brand-bg shadow-[-24px_0_80px_rgba(0,0,0,0.6)] lg:block">
+          <div className="flex h-14 items-center justify-between border-b border-white/10 px-4">
+            <p className="font-mono text-xs uppercase tracking-wider text-gray-500">Position desk</p>
             <button
-              key={position.id}
               type="button"
-              onClick={() => navigate({ to: '/trading/position/$id', params: { id: position.id } })}
-              className="w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left transition-all hover:border-brand-green/40 hover:shadow-[0_0_24px_rgba(0,255,135,0.08)]"
+              onClick={() => selectPosition(null)}
+              className="rounded-lg p-2 text-gray-400 hover:bg-white/10 hover:text-white"
+              aria-label="Close panel"
             >
-              <h3 className="truncate font-semibold">{position.marketName}</h3>
-              <p className="text-sm text-gray-500">{position.outcome}</p>
-              <p className={`mt-2 font-mono font-bold ${pnlClass}`}>
-                {displayPnl >= 0 ? '+' : ''}${displayPnl.toFixed(2)}
-              </p>
+              <X className="h-5 w-5" />
             </button>
-          );
-        })}
-      </div>
+          </div>
+          <div className="h-[calc(100vh-3.5rem)] overflow-y-auto scrollbar-hide">
+            <PositionDetail position={selectedPosition} />
+          </div>
+        </aside>
+      ) : null}
 
-      {lifecycleTailOrders.length > 0 && (
-        <div className="mt-10 border-t border-white/10 pt-10">
-          <PositionLifecycleBoard
-            positions={lifecycleTailOrders}
-            marketById={marketById}
-            premium
-            hideCanonicalHelp
-          />
-        </div>
-      )}
-
-      <ProtocolSurfaceWayfinder current="/trading" />
+      <TradingOpsCollapsible
+        openOrders={openOrders}
+        marketById={marketById}
+        lifecycleTailOrders={lifecycleTailOrders}
+      />
     </TradingTerminalShell>
   );
 }
