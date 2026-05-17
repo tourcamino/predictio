@@ -7,6 +7,7 @@ import {
 } from "~/data/copyAnalystAutonomous";
 import { mockAnalysts } from "~/data/mockAffiliates";
 import { sportEmojiFromLabel } from "~/server/utils/prismaMarket";
+import { isFootballFocusProductPhase } from "~/lib/catalog/productCatalogFilter";
 
 const CACHE_MS = 45_000;
 let feedCache: { at: number; payload: LiveActivityFeedOutput } | null = null;
@@ -48,6 +49,13 @@ function marketIsFootball(sport: string, league: string): boolean {
     isFootballWeightedMarket(sport, league) ||
     (!isSecondarySportOk(sport) && sport.toLowerCase().includes("football"))
   );
+}
+
+function applyFeedSportPolicy(sorted: LiveFeedItemDto[]): LiveFeedItemDto[] {
+  if (isFootballFocusProductPhase()) {
+    return sorted.filter((it) => it.isFootball).slice(0, 28);
+  }
+  return applyNonFootballCap(sorted);
 }
 
 function applyNonFootballCap(
@@ -380,6 +388,17 @@ export const getLiveActivityFeed = baseProcedure
         });
         if (m) {
           const fb = marketIsFootball(m.sport, m.league);
+          const latestCopyOrder = await db.order.findFirst({
+            where: {
+              marketId: topCopy.marketId,
+              OR: [
+                { id: { startsWith: "copy-" } },
+                { id: { startsWith: "seed-copy" } },
+              ],
+            },
+            orderBy: { createdAt: "desc" },
+            select: { createdAt: true },
+          });
           items.push({
             id: `most-copied-${topCopy.marketId}`,
             type: "most_copied",
@@ -387,7 +406,7 @@ export const getLiveActivityFeed = baseProcedure
             text: `Most copied: ${m.event} (${topCopy._count.id} mirror trades)`,
             color: "text-brand-cyan",
             isFootball: fb,
-            at: now - 120_000,
+            at: latestCopyOrder?.createdAt.getTime() ?? now - 120_000,
           });
         }
       }
@@ -399,6 +418,14 @@ export const getLiveActivityFeed = baseProcedure
         },
       });
       if (copyLinks24h >= 2) {
+        const latestCopyLink = await db.copyRelationship.findFirst({
+          where: {
+            isActive: true,
+            startedAt: { gte: msAgo(24 * 60 * 60 * 1000) },
+          },
+          orderBy: { startedAt: "desc" },
+          select: { startedAt: true },
+        });
         items.push({
           id: `copy-spike-${copyLinks24h}`,
           type: "copy_spike",
@@ -406,7 +433,7 @@ export const getLiveActivityFeed = baseProcedure
           text: `Copy trading: ${copyLinks24h} new copier links in 24h`,
           color: "text-brand-green",
           isFootball: true,
-          at: now - 60_000,
+          at: latestCopyLink?.startedAt.getTime() ?? now - 60_000,
         });
       }
 
@@ -472,7 +499,7 @@ export const getLiveActivityFeed = baseProcedure
         if (!dedup.has(it.id)) dedup.set(it.id, it);
       }
       const merged = [...dedup.values()].sort((a, b) => b.at - a.at);
-      const capped = applyNonFootballCap(merged).slice(0, limit);
+      const capped = applyFeedSportPolicy(merged).slice(0, limit);
 
       const payload: LiveActivityFeedOutput = {
         items: capped,

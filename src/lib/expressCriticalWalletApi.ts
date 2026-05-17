@@ -185,6 +185,14 @@ async function paperGetJson<T>(paths: readonly string[]): Promise<T> {
 }
 
 const SYNC_PATHS = ["/api/v1/web/sync-user", "/api/web/sync-user"] as const;
+const PROVIDE_LP_PATHS = [
+  "/api/v1/web/provide-liquidity",
+  "/api/web/provide-liquidity",
+] as const;
+const WITHDRAW_LP_PATHS = [
+  "/api/v1/web/withdraw-liquidity",
+  "/api/web/withdraw-liquidity",
+] as const;
 
 export async function expressSyncUserAccount(input: {
   walletAddress: string;
@@ -321,6 +329,50 @@ export async function expressGetCanonicalLiquidityState(): Promise<ExpressCanoni
     "/api/v1/web/canonical-liquidity",
     "/api/web/canonical-liquidity",
   ]);
+}
+
+export type ExpressProvideLiquidityResult = {
+  success: boolean;
+  txHash: string;
+  amount: number;
+  poolShare: number;
+  newBalance: number;
+  timestamp: string;
+  message: string;
+};
+
+export type ExpressWithdrawLiquidityResult = {
+  success: boolean;
+  txHash: string;
+  amount: number;
+  newBalance: number;
+  timestamp: string;
+  message: string;
+};
+
+export async function expressProvideLiquidity(input: {
+  marketId: string;
+  amount: number;
+  walletAddress: string;
+}): Promise<ExpressProvideLiquidityResult> {
+  return paperPostJsonWithTimeout<ExpressProvideLiquidityResult>(
+    PROVIDE_LP_PATHS,
+    input,
+    WALLET_ONBOARDING_FETCH_TIMEOUT_MS,
+  );
+}
+
+export async function expressWithdrawLiquidity(input: {
+  positionId: string;
+  amount: number;
+  claimFees?: boolean;
+  walletAddress: string;
+}): Promise<ExpressWithdrawLiquidityResult> {
+  return paperPostJsonWithTimeout<ExpressWithdrawLiquidityResult>(
+    WITHDRAW_LP_PATHS,
+    input,
+    WALLET_ONBOARDING_FETCH_TIMEOUT_MS,
+  );
 }
 
 export async function expressGetPaperWalletBalance(

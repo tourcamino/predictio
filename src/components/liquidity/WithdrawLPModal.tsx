@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { TransactionModal } from '../TransactionModal';
 import { useWallet } from '~/store/useWalletStore';
-import { useTRPC } from '~/trpc/react';
+import { useTRPC, useTRPCClient } from '~/trpc/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { withdrawLiquidityClient } from '~/lib/lpMutationsClient';
+import { shouldUseExpressForWalletCritical } from '~/lib/expressCriticalWalletApi';
 import toast from 'react-hot-toast';
 import { AlertCircle } from 'lucide-react';
 import type { LPPosition } from '~/data/mockLP';
@@ -30,8 +32,16 @@ export function WithdrawLPModal({ isOpen, onClose, position, onSuccess }: Withdr
   const [error, setError] = useState<string>('');
 
   const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
-  const withdrawMutation = useMutation(trpc.withdrawLiquidity.mutationOptions());
+  const withdrawMutation = useMutation({
+    mutationFn: (input: {
+      positionId: string;
+      amount: number;
+      claimFees: boolean;
+      walletAddress: string;
+    }) => withdrawLiquidityClient(trpcClient, input),
+  });
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -67,10 +77,10 @@ export function WithdrawLPModal({ isOpen, onClose, position, onSuccess }: Withdr
       });
 
       setTxHash(result.txHash);
-      setTransactionState('mining');
-
-      // Simulate mining delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (!shouldUseExpressForWalletCritical()) {
+        setTransactionState('mining');
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
 
       setTransactionState('success');
       toast.success('Withdrawal successful!');

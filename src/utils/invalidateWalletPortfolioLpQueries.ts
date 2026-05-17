@@ -65,6 +65,10 @@ export function invalidateWalletPortfolioLpQueries(
     queryKey: ['paperWalletBalance', w],
   });
 
+  queryClient.invalidateQueries({ queryKey: ['expressCanonicalLiquidity'] });
+  queryClient.invalidateQueries({ queryKey: ['catalogLiquidityVersion'] });
+  queryClient.invalidateQueries({ queryKey: ['curatedMarketsLiquidityBinding'] });
+
   invalidateWalletPointsSummary(queryClient, trpc.getPointsSummary.queryKey, w);
 
   queryClient.invalidateQueries({

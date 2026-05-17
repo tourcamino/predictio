@@ -236,8 +236,33 @@ export async function persistFeeSplit(params: {
     },
   });
 
+  /** Protocol vault LP positions — trade fees accrue to claimable `feesPending`, not user cash balance. */
+  await creditProtocolVaultLpFeeShare(prisma, split.vaultUsd);
+
   await markPayoutReadyIfThreshold(prisma, split.analystWallet);
   await markPayoutReadyIfThreshold(prisma, split.referralWallet);
+}
+
+async function creditProtocolVaultLpFeeShare(
+  prisma: FeeSplitDb,
+  vaultUsd: number,
+): Promise<void> {
+  if (vaultUsd <= 0) return;
+  const positions = await prisma.liquidityPosition.findMany({
+    where: { marketId: "protocol-vault", status: "active" },
+    select: { id: true, depositedAmount: true },
+  });
+  const totalDeposited = positions.reduce((s, p) => s + p.depositedAmount, 0);
+  if (totalDeposited <= 0) return;
+
+  for (const p of positions) {
+    const share = (p.depositedAmount / totalDeposited) * vaultUsd;
+    if (share <= 0) continue;
+    await prisma.liquidityPosition.update({
+      where: { id: p.id },
+      data: { feesPending: { increment: share } },
+    });
+  }
 }
 
 async function markPayoutReadyIfThreshold(

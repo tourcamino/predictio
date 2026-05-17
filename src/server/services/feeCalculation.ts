@@ -261,6 +261,25 @@ export async function recordFeeDistribution(
     },
   });
 
+  if (distribution.vaultAmount > 0) {
+    const positions = await db.liquidityPosition.findMany({
+      where: { marketId: "protocol-vault", status: "active" },
+      select: { id: true, depositedAmount: true },
+    });
+    const totalDeposited = positions.reduce((s, p) => s + p.depositedAmount, 0);
+    if (totalDeposited > 0) {
+      for (const p of positions) {
+        const share = (p.depositedAmount / totalDeposited) * distribution.vaultAmount;
+        if (share > 0) {
+          await db.liquidityPosition.update({
+            where: { id: p.id },
+            data: { feesPending: { increment: share } },
+          });
+        }
+      }
+    }
+  }
+
   // Check payout thresholds
   await checkPayoutThresholds(distribution);
 }

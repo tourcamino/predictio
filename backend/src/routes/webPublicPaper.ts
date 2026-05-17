@@ -24,6 +24,10 @@ import {
 import { runGetAnalystLeaderboardWeb } from "../web/getAnalystLeaderboardWeb";
 import { runGetFollowedAnalystsWeb } from "../web/getFollowedAnalystsWeb";
 import { runGetUserLPPositionsWeb } from "../web/getUserLPPositionsWeb";
+import {
+  runProvideLiquidityWeb,
+  runWithdrawLiquidityWeb,
+} from "../web/lpMutationsWeb";
 import { resolveCanonicalLiquidityState } from "../services/canonicalLiquidityState";
 import { getCatalogLiquidityVersionMeta } from "../services/catalogLiquidityRebalance";
 
@@ -117,6 +121,19 @@ const placeBody = z.object({
   walletAddress: walletParam,
   orderType: z.enum(["MARKET", "LIMIT"]).optional(),
   limitPrice: z.number().min(0.01).max(0.99).optional(),
+});
+
+const provideLiquidityBody = z.object({
+  marketId: z.string().trim().min(1),
+  amount: z.number().positive().max(1_000_000),
+  walletAddress: walletParam,
+});
+
+const withdrawLiquidityBody = z.object({
+  positionId: z.string().trim().min(1),
+  amount: z.number().positive(),
+  claimFees: z.boolean().optional(),
+  walletAddress: walletParam,
 });
 
 export function createWebPublicPaperRouter(prisma: PrismaClient): Router {
@@ -393,6 +410,22 @@ export function createWebPublicPaperRouter(prisma: PrismaClient): Router {
       }
     },
   );
+
+  r.post("/provide-liquidity", validate({ body: provideLiquidityBody }), async (req, res, next) => {
+    try {
+      res.json(await runProvideLiquidityWeb(prisma, req.body));
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  r.post("/withdraw-liquidity", validate({ body: withdrawLiquidityBody }), async (req, res, next) => {
+    try {
+      res.json(await runWithdrawLiquidityWeb(prisma, req.body));
+    } catch (e) {
+      next(e);
+    }
+  });
 
   r.post("/place-prediction", validate({ body: placeBody }), async (req, res, next) => {
     const headerRid = req.headers["x-purchase-request-id"];

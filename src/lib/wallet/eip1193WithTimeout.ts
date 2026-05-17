@@ -5,7 +5,7 @@ const DEFAULT_MS = 12_000;
 export async function eip1193RequestWithTimeout<T>(
   provider: Eip1193Provider,
   method: string,
-  params: unknown[] | Record<string, unknown> | undefined,
+  params?: unknown[],
   timeoutMs = DEFAULT_MS,
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;

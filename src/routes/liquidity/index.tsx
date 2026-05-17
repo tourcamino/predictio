@@ -99,7 +99,8 @@ function LiquidityPage() {
         curatedMarketsQuery.data?.total ??
         expressCanonical?.diagnostics?.lpGraph?.LP_CONNECTED_MARKETS ??
         expressCanonical?.canonicalOpenSlots
-      : vaultStats?.vaultExposureDiagnostics?.lpGraph?.REGISTRY_OPEN_COUNT ??
+      : (vaultStats as { vaultExposureDiagnostics?: { lpGraph?: { REGISTRY_OPEN_COUNT?: number } } })
+          ?.vaultExposureDiagnostics?.lpGraph?.REGISTRY_OPEN_COUNT ??
         vaultStats?.marketsActive) ?? 0;
 
   const displayMarketAllocations = useMemo((): LiquidityAllocationRow[] => {
@@ -130,7 +131,10 @@ function LiquidityPage() {
       )
       .map((m) => ({
         marketId: m.id,
-        marketName: `${m.homeTeam} vs ${m.awayTeam}`,
+        marketName:
+          m.event.teams.length >= 2
+            ? `${m.event.teams[0]} vs ${m.event.teams[1]}`
+            : m.question,
         league: m.competition,
         sportEmoji: m.sportEmoji,
         allocation: m.paperLiquidityAllocation!,
