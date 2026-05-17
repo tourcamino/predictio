@@ -28,6 +28,7 @@ import { Users } from 'lucide-react';
 import { ProtocolSurfaceWayfinder } from '~/components/protocol/ProtocolSurfaceWayfinder';
 import { SettlementTimelineSection } from '~/components/protocol/SettlementTimelineSection';
 import { ProtocolSettlementHealthBar } from '~/components/protocol/ProtocolSettlementHealthBar';
+import { ProtocolAliveStrip } from '~/components/protocol/ProtocolAliveStrip';
 import { useCanonicalProtocolRefetch } from '~/hooks/useCanonicalProtocolRefetch';
 
 export const Route = createFileRoute('/trading/')({
@@ -202,6 +203,8 @@ function TradingPage() {
           Explore copy trading →
         </Link>
       </div>
+
+      <ProtocolAliveStrip />
 
       <SettlementOracleBanner positions={openOrders} marketById={marketById} />
 

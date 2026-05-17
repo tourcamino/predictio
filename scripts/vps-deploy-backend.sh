@@ -35,6 +35,10 @@ EXPECTED_SHORT="${EXPECTED_SHA:0:7}"
 
 echo "==>    working tree SHA=$EXPECTED_SHORT ($EXPECTED_SHA)"
 
+if [[ -f scripts/vps-run-settlement-tick.sh ]]; then
+  chmod +x scripts/vps-run-settlement-tick.sh
+fi
+
 export GIT_COMMIT_SHA="$EXPECTED_SHA"
 export GIT_BRANCH="$VPS_DEPLOY_BRANCH"
 export BUILD_TIME_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

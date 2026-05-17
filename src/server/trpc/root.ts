@@ -122,6 +122,7 @@ import { getMarketSettlementDiagnostic } from "./procedures/getMarketSettlementD
 import { getMarketProtocolTimeline } from "./procedures/getMarketProtocolTimeline";
 import { getSettlementProtocolHealth } from "./procedures/getSettlementProtocolHealth";
 import { getSettlementForensicsDashboard } from "./procedures/getSettlementForensicsDashboard";
+import { getProtocolPulseSnapshot } from "./procedures/getProtocolPulseSnapshot";
 
 export const appRouter = createTRPCRouter({
   getMarketDetail,
@@ -133,6 +134,7 @@ export const appRouter = createTRPCRouter({
   getMarketProtocolTimeline,
   getSettlementProtocolHealth,
   getSettlementForensicsDashboard,
+  getProtocolPulseSnapshot,
   placePrediction,
   closePosition,
   syncUserAccount,

@@ -79,3 +79,14 @@ Predictio is a **premium prediction trading protocol** — not a generic SaaS da
 | `/wallet/transactions` | Protocol ledger atmosphere + `ProtocolStatePanel` states |
 | `SocialTradingDashboard` / `AnalystCard` | Copy-trading desk density |
 | `ProtocolStatePanel` | Shared loading / error / empty / oracle neutral states |
+
+## PR9 terminal finalization
+
+| Component | Pattern |
+|-----------|---------|
+| `ProtocolAliveStrip` | Global queue + real fills/payouts 24h — protocol feels live |
+| `OracleLagStatusPanel` | Freshness timers, retry cadence, “funds safe” copy — no fake ETA |
+| `MarketPulseStrip` / `PositionMotionPanel` | Real spread, tape, MTM drift |
+| Account “Trading” tab | Redirect to `/trading` — no duplicate predictions UI |
+
+**Density target:** Polymarket/Kalshi information hierarchy + Bloomberg mono numerics — avoid flat SaaS cards on execution surfaces.

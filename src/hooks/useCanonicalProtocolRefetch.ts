@@ -3,8 +3,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "~/trpc/react";
 import { refetchCanonicalPositionReads } from "~/utils/refetchCanonicalPositionReads";
 
-/** Refetch canonical wallet reads on tab focus / reconnect (PR8). */
-export function useCanonicalProtocolRefetch(walletKey: string | undefined) {
+/** Refetch canonical wallet reads on tab focus / reconnect (PR8–PR9). */
+export function useCanonicalProtocolRefetch(
+  walletKey: string | undefined,
+  options?: { onReconnect?: boolean },
+) {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
 
@@ -21,9 +24,13 @@ export function useCanonicalProtocolRefetch(walletKey: string | undefined) {
 
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", onVisibility);
+    if (options?.onReconnect !== false) {
+      window.addEventListener("online", refresh);
+    }
     return () => {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", refresh);
     };
-  }, [walletKey, queryClient, trpc]);
+  }, [walletKey, queryClient, trpc, options?.onReconnect]);
 }

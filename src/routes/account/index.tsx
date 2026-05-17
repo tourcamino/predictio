@@ -230,7 +230,7 @@ function AccountPage() {
 
   const tabs = [
     { key: 'overview', label: 'Overview', icon: User },
-    { key: 'predictions', label: 'My Predictions', icon: FileText },
+    { key: 'predictions', label: 'Trading', icon: TrendingUp },
     { key: 'points', label: 'Points', icon: Hexagon },
     { key: 'wallet', label: 'Wallet & Balance', icon: Wallet },
     { key: 'history', label: 'Transaction History', icon: Calendar },

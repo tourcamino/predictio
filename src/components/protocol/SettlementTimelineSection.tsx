@@ -8,6 +8,7 @@ import { SettlementDiagnosticBanner } from "./SettlementDiagnosticBanner";
 import { OracleTrustLayer } from "./OracleTrustLayer";
 import { ProtocolWhyStillOpen } from "./ProtocolWhyStillOpen";
 import { MarketPulseStrip } from "./MarketPulseStrip";
+import { OracleLagStatusPanel } from "./OracleLagStatusPanel";
 import { deriveOracleActionContext } from "~/lib/protocol/deriveOracleActionContext";
 
 /** Fetches live oracle diagnostic and renders settlement timeline + banner. */
@@ -58,6 +59,13 @@ export function SettlementTimelineSection({
   return (
     <div className="space-y-4">
       <OracleTrustLayer marketId={marketId} />
+      <OracleLagStatusPanel
+        reasonCode={diagnosticQuery.data?.diagnostic?.reasonCode}
+        lastOracleSyncAt={diagnosticQuery.data?.checkedAt}
+        lastSettlementTickAt={healthQuery.data?.lastSettlementTickAt}
+        orderOpen={order?.status === "open"}
+        cronCadence={healthQuery.data?.cronCadence}
+      />
       <SettlementDiagnosticBanner marketId={marketId} />
       {order?.status === "open" ? <ProtocolWhyStillOpen ctx={actionCtx} /> : null}
       {market ? (

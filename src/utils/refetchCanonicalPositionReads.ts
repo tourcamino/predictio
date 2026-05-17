@@ -68,4 +68,14 @@ export function refetchCanonicalPositionReads(
       }
     },
   });
+
+  void queryClient.invalidateQueries({
+    predicate: (q) => {
+      try {
+        return JSON.stringify(q.queryKey).includes("getProtocolPulseSnapshot");
+      } catch {
+        return false;
+      }
+    },
+  });
 }
