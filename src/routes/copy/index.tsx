@@ -15,12 +15,22 @@ function CopyTradingPage() {
   const { isConnected, address } = useWalletStore();
 
   return (
-    <div className="min-h-screen bg-brand-bg">
-      <div className="pb-20 px-4">
+    <div className="relative min-h-screen overflow-hidden bg-brand-bg">
+      <div
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 50% at 50% 0%, rgba(0,255,135,0.14), transparent 60%)",
+        }}
+      />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:3rem_3rem]" />
+      <div className="relative z-10 pb-20 px-4">
         <div className="max-w-7xl mx-auto">
-          {/* Hero Section */}
-          <div className="text-center mb-16">
-            <h1 className="font-syne font-bold text-5xl md:text-6xl mb-6">
+          <div className="relative mb-16 text-center">
+            <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-brand-green/25 bg-brand-green/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-green">
+              Social trading terminal
+            </p>
+            <h1 className="font-syne font-bold text-5xl md:text-6xl mb-6 tracking-tight">
               Copy the Best. Earn Together.
             </h1>
             <p className="text-xl text-gray-400 max-w-3xl mx-auto mb-8">
@@ -88,7 +98,7 @@ function HowItWorksSection() {
   ];
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-xl p-8 md:p-12">
+    <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] md:p-12">
       <h2 className="font-syne font-bold text-3xl text-center mb-12">
         How It Works
       </h2>

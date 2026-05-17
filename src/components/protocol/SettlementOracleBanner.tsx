@@ -15,9 +15,13 @@ export function SettlementOracleBanner({
 
   return (
     <div
-      className="mb-6 p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 flex gap-3"
+      className="relative mb-6 flex gap-4 overflow-hidden rounded-2xl border border-amber-500/35 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent p-5 shadow-[0_0_48px_rgba(245,158,11,0.08)]"
       role="status"
     >
+      <div
+        className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-amber-400/80 to-amber-600/20"
+        aria-hidden
+      />
       <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
       <div className="min-w-0">
         <p className="font-semibold text-amber-100">

@@ -227,14 +227,25 @@ function Portfolio() {
   const summary = summaryQuery.data;
 
   return (
-    <div className="min-h-screen bg-brand-bg">
-      <div className="pb-20 px-4">
+    <div className="relative min-h-screen overflow-hidden bg-brand-bg">
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.35]"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 45% at 50% -15%, rgba(0,255,135,0.1), transparent 55%)",
+        }}
+      />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:3rem_3rem]" />
+      <div className="relative z-10 pb-20 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h1 className="font-syne font-bold text-4xl mb-2">Portfolio</h1>
+          <div className="mb-8 border-b border-white/10 pb-6">
+            <p className="mb-2 inline-flex rounded-full border border-brand-green/25 bg-brand-green/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-green">
+              Net worth & exposure
+            </p>
+            <h1 className="font-syne font-bold text-4xl tracking-tight mb-2">Portfolio</h1>
             <div className="flex items-center justify-between">
               <p className="text-gray-400">
-                Track your positions and performance
+                Institutional PnL · positions execute on Trading
               </p>
               {isConnected && (
               <ShareButton

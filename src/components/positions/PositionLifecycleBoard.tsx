@@ -76,7 +76,7 @@ function Stat({
 }
 
 
-function PositionCard({ row }: { row: Row }) {
+function PositionCard({ row, premium = false }: { row: Row; premium?: boolean }) {
   const { order, market, lifecycle } = row;
   const title =
     order.market?.event?.trim() ||
@@ -96,8 +96,18 @@ function PositionCard({ row }: { row: Row }) {
   const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0;
   const closesIn = formatClosesIn(lifecycle.closesAt);
 
+  const cardClass = premium
+    ? "group relative overflow-hidden rounded-2xl border border-white/[0.1] bg-gradient-to-br from-white/[0.06] to-white/[0.02] p-5 shadow-[0_16px_48px_rgba(0,0,0,0.35)] transition-all hover:border-brand-green/35 hover:shadow-[0_0_40px_rgba(0,255,135,0.06)]"
+    : "rounded-xl border border-white/10 bg-white/5 p-4 transition-colors hover:border-brand-green/25";
+
   return (
-    <div className="p-4 bg-white/5 border border-white/10 rounded-xl hover:border-brand-green/25 transition-colors">
+    <div className={cardClass}>
+      {premium && (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-green/40 to-transparent"
+          aria-hidden
+        />
+      )}
       <div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -249,9 +259,13 @@ function PositionCard({ row }: { row: Row }) {
 export function PositionLifecycleBoard({
   positions,
   marketById,
+  premium = false,
+  hideCanonicalHelp = false,
 }: {
   positions: UserOrderRow[];
   marketById: Record<string, Market | null | undefined>;
+  premium?: boolean;
+  hideCanonicalHelp?: boolean;
 }) {
   const rows: Row[] = positions.map((order) => {
     const market = marketById[order.marketId] ?? null;
@@ -287,19 +301,22 @@ export function PositionLifecycleBoard({
 
   return (
     <div className="space-y-8">
-      <div className="p-4 rounded-lg border border-brand-green/20 bg-brand-green/5 text-sm text-gray-300">
-        <p className="font-semibold text-brand-green mb-1">Canonical surfaces</p>
-        <p>
-          <strong className="text-white/90">Trading</strong> = all positions & settlement state.
-          <strong className="text-white/90"> Portfolio</strong> = PnL & net worth.
-          <strong className="text-white/90"> Wallet → Activity</strong> = immutable ledger.
-        </p>
-        <p className="text-xs text-gray-500 mt-2">Paper trading environment · football markets</p>
-      </div>
+      {!hideCanonicalHelp && (
+        <div className="rounded-xl border border-brand-green/20 bg-gradient-to-r from-brand-green/10 to-transparent p-4 text-sm text-gray-300">
+          <p className="mb-1 font-semibold text-brand-green">Protocol surfaces</p>
+          <p className="text-gray-400">
+            Trading = positions · Portfolio = PnL · Wallet = ledger
+          </p>
+        </div>
+      )}
 
       {nonEmptyBuckets.map((bucket) => (
-        <section key={bucket}>
-          <h3 className="font-syne font-bold text-lg mb-3 flex items-center gap-2">
+        <section key={bucket} className={premium ? "relative" : undefined}>
+          <h3
+            className={`mb-3 flex items-center gap-2 font-syne font-bold ${
+              premium ? "text-xl tracking-tight" : "text-lg"
+            }`}
+          >
             {bucket === "OPEN" && <TrendingUp className="w-5 h-5 text-brand-green" />}
             {bucket === "SETTLING" && (
               <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
@@ -311,7 +328,7 @@ export function PositionLifecycleBoard({
           </h3>
           <div className="space-y-3">
             {grouped[bucket].map((row) => (
-              <PositionCard key={row.order.id} row={row} />
+              <PositionCard key={row.order.id} row={row} premium={premium} />
             ))}
           </div>
         </section>

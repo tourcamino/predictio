@@ -56,11 +56,30 @@ export function PriceChart({ market }: PriceChartProps) {
 
   if (baseHistory.length === 0) {
     return (
-      <div className="bg-white/5 border border-white/10 rounded-lg p-8 text-center text-sm text-gray-400">
-        <p className="font-semibold text-gray-300 mb-1">Price history unavailable</p>
-        <p className="text-xs">
-          Awaiting sufficient protocol activity. Current YES: {(market.yesPrice * 100).toFixed(0)}¢
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-brand-bg p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
+        <div
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(0,255,135,0.12),transparent_70%)]"
+          aria-hidden
+        />
+        <p className="relative font-syne text-lg font-bold text-white">Probability tape pending</p>
+        <p className="relative mt-2 text-sm text-gray-400">
+          No synthetic history — awaiting real protocol prints.
         </p>
+        <div className="relative mt-6 flex justify-center gap-8 font-mono">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-gray-500">YES</p>
+            <p className="text-2xl font-bold text-brand-green">
+              {(market.yesPrice * 100).toFixed(0)}¢
+            </p>
+          </div>
+          <div className="w-px bg-white/10" aria-hidden />
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-gray-500">NO</p>
+            <p className="text-2xl font-bold text-red-400">
+              {(market.noPrice * 100).toFixed(0)}¢
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -90,10 +109,10 @@ export function PriceChart({ market }: PriceChartProps) {
 
   if (chartHistory.length < 2) {
     return (
-      <div className="bg-white/5 border border-white/10 rounded-lg p-8 text-center text-sm text-gray-400">
-        <p className="font-semibold text-gray-300 mb-1">Insufficient price history</p>
-        <p className="text-xs">
-          No synthetic chart — current YES {(market.yesPrice * 100).toFixed(0)}¢ · NO{" "}
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-amber-500/10 via-white/[0.03] to-brand-bg p-10 text-center">
+        <p className="font-syne text-lg font-bold text-white">Insufficient tape density</p>
+        <p className="mt-2 text-sm text-gray-400">
+          No synthetic chart — live YES {(market.yesPrice * 100).toFixed(0)}¢ · NO{" "}
           {(market.noPrice * 100).toFixed(0)}¢
         </p>
       </div>
@@ -168,7 +187,11 @@ export function PriceChart({ market }: PriceChartProps) {
   const hasRealHistory = baseHistory.length > 0 && filteredHistory.length > 0;
 
   return (
-    <div className="bg-brand-bg border border-white/10 rounded-lg p-6">
+    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.04] to-brand-bg p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-green/30 to-transparent"
+        aria-hidden
+      />
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-syne font-bold text-xl">Probability Chart</h2>
 
