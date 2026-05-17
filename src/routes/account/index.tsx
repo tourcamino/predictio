@@ -21,6 +21,7 @@ import type { LedgerHistoryFilter } from '~/lib/ledger/ledgerTransactionTypes';
 import { dbActivityAmountPrefix, dbActivityTypeLabel } from '~/lib/wallet/dbActivityDisplay';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
 import { usePointsSummary } from '~/hooks/usePointsSummary';
+import { PositionLifecycleBoard } from '~/components/positions/PositionLifecycleBoard';
 
 const ACCOUNT_TAB_KEYS = [
   'overview',
@@ -69,6 +70,7 @@ function AccountPage() {
   const positionsQuery = useUserPositions({
     status: 'all',
     enabled: !!walletKey && isConnected,
+    refetchInterval: activeTab === 'predictions' ? 20_000 : false,
   });
 
   const positionsEarly = positionsQuery.data?.positions ?? [];
@@ -85,7 +87,8 @@ function AccountPage() {
       isConnected &&
       (activeTab === 'overview' || activeTab === 'predictions') &&
       positionMarketIds.length > 0,
-    staleTime: 30_000,
+    staleTime: 15_000,
+    refetchInterval: activeTab === 'predictions' ? 20_000 : false,
   });
 
   const marketById = marketSummariesQuery.data ?? {};
@@ -394,128 +397,17 @@ function AccountPage() {
                 </div>
               )}
 
-              {/* Predictions List */}
-              {positionsQuery.data && positionsQuery.data.positions.length > 0 ? (
-                filteredAccountPredictions.length === 0 ? (
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-12 text-center">
-                    <p className="text-gray-400 mb-2">No predictions match this filter</p>
-                    <p className="text-sm text-gray-500">Try &quot;All&quot; or switch filter.</p>
-                  </div>
-                ) : (
-                <div className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-white/5 border-b border-white/10">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Event</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Outcome</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Amount</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Shares</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Avg Price</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Status</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">P&L</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Share</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/10">
-                        {filteredAccountPredictions.map((position) => {
-                          const market = marketById[position.marketId];
-                          if (!market) return null;
-
-                          const isOpen = position.status === 'open';
-                          const currentPrice = position.outcome.toUpperCase() === 'YES' ? market.yesPrice : market.noPrice;
-                          const shares = position.shares || 0;
-                          const avgPrice = position.avgPrice || 0;
-                          
-                          let pnl = 0;
-                          let pnlDisplay = '—';
-                          
-                          if (isOpen) {
-                            // Calculate unrealized P&L
-                            const value = shares * currentPrice;
-                            const cost = shares * avgPrice;
-                            pnl = value - cost;
-                            pnlDisplay = `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`;
-                          } else {
-                            // Use realized P&L
-                            pnl = position.pnl || 0;
-                            pnlDisplay = `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`;
-                          }
-
-                          const potentialWin = shares * 1.0; // Each winning share = $1
-                          const odds = avgPrice > 0 ? (1 / avgPrice) : 0;
-
-                          return (
-                            <tr key={position.id} className="hover:bg-white/5">
-                              <td className="px-6 py-4">
-                                <div className="font-semibold">
-                                  {position.market.event || `${market.teamA} vs ${market.teamB}`}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {market.sportEmoji} {market.league}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                  position.outcome.toUpperCase() === 'YES'
-                                    ? 'bg-brand-green/20 text-brand-green'
-                                    : 'bg-red-500/20 text-red-500'
-                                }`}>
-                                  {position.outcome.toUpperCase()}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 font-mono">${position.amount.toFixed(2)}</td>
-                              <td className="px-6 py-4 font-mono">{shares.toFixed(1)}</td>
-                              <td className="px-6 py-4 font-mono text-brand-cyan">
-                                ${avgPrice.toFixed(2)}
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                  isOpen
-                                    ? 'bg-brand-green/20 text-brand-green'
-                                    : 'bg-gray-500/20 text-gray-400'
-                                }`}>
-                                  {isOpen ? '🟢 OPEN' : '✓ RESOLVED'}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className={`font-mono font-semibold ${
-                                  pnl >= 0 ? 'text-brand-green' : 'text-red-500'
-                                }`}>
-                                  {pnlDisplay}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <ShareButton
-                                  text={generatePredictionShareText({
-                                    marketName: position.market.event || `${market.teamA} vs ${market.teamB}`,
-                                    teamA: market.teamA,
-                                    teamB: market.teamB,
-                                    outcome: position.outcome.toUpperCase(),
-                                    amount: position.amount,
-                                    odds: odds,
-                                    potentialWin: potentialWin,
-                                    sportEmoji: market.sportEmoji,
-                                    league: market.league,
-                                  })}
-                                  url={typeof window !== 'undefined' ? window.location.origin : ''}
-                                  variant="ghost"
-                                  size="sm"
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                )
+              {positionsQuery.data && filteredAccountPredictions.length > 0 ? (
+                <PositionLifecycleBoard
+                  positions={filteredAccountPredictions}
+                  marketById={marketById}
+                />
               ) : positionsQuery.data && positionsQuery.data.positions.length === 0 ? (
+                <PositionLifecycleBoard positions={[]} marketById={{}} />
+              ) : filteredAccountPredictions.length === 0 ? (
                 <div className="bg-white/5 border border-white/10 rounded-lg p-12 text-center">
-                  <FileText className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                  <p className="text-gray-400 mb-2">No predictions yet</p>
-                  <p className="text-sm text-gray-500">Start making predictions to see them here</p>
+                  <p className="text-gray-400 mb-2">No predictions match this filter</p>
+                  <p className="text-sm text-gray-500">Try &quot;All&quot; or switch filter.</p>
                 </div>
               ) : null}
             </div>

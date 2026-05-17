@@ -41,8 +41,8 @@ export function useAzuroResolutionPolling() {
       activeMarketIds,
     }),
     enabled: activeMarketIds.length > 0 && Boolean(walletKey) && isConnected,
-    refetchInterval: 300_000,
-    staleTime: 290_000,
+    refetchInterval: 60_000,
+    staleTime: 45_000,
   });
 
   useEffect(() => {

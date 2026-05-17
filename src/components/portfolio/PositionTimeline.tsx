@@ -1,5 +1,6 @@
 import { CheckCircle, XCircle, Circle, TrendingUp, TrendingDown } from 'lucide-react';
 import { formatCurrency } from '~/utils/marketUtils';
+import { parseApiDate, formatApiDateTime } from '~/utils/parseApiDate';
 
 interface PositionEvent {
   id: string;
@@ -19,7 +20,12 @@ interface PositionTimelineProps {
 }
 
 export function PositionTimeline({ events }: PositionTimelineProps) {
-  if (events.length === 0) {
+  const timelineEvents = events.map((e) => ({
+    ...e,
+    timestamp: parseApiDate(e.timestamp) ?? new Date(0),
+  }));
+
+  if (timelineEvents.length === 0) {
     return (
       <div className="bg-white/5 border border-white/10 rounded-lg p-6">
         <h2 className="font-syne font-bold text-xl mb-4">Position Timeline</h2>
@@ -35,7 +41,7 @@ export function PositionTimeline({ events }: PositionTimelineProps) {
       <h2 className="font-syne font-bold text-xl mb-4">Position Timeline</h2>
       
       <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-        {events.map((event, index) => {
+        {timelineEvents.map((event, index) => {
           const isOpened = event.type === 'opened';
           const isClosed = event.type === 'closed';
           const isWin = isClosed && (event.pnl || 0) > 0;
@@ -44,7 +50,7 @@ export function PositionTimeline({ events }: PositionTimelineProps) {
           return (
             <div key={`${event.id}-${index}`} className="relative pl-8">
               {/* Timeline connector */}
-              {index < events.length - 1 && (
+              {index < timelineEvents.length - 1 && (
                 <div className="absolute left-2 top-8 bottom-0 w-0.5 bg-white/10" />
               )}
 
@@ -72,7 +78,7 @@ export function PositionTimeline({ events }: PositionTimelineProps) {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs text-gray-400 font-mono">
-                        {event.timestamp.toLocaleString()}
+                        {formatApiDateTime(event.timestamp)}
                       </span>
                       <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
                         isOpened ? 'bg-brand-cyan/20 text-brand-cyan' :

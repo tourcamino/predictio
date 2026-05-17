@@ -66,6 +66,11 @@ sleep 12
 echo "==> [6/7] backend logs (tail)"
 dc logs backend --tail 80
 
+if command -v node >/dev/null 2>&1 && [[ -f src/server/scripts/runGlobalPaperSettlementTick.ts ]]; then
+  echo "==> [6b] global paper settlement tick (open orders)"
+  node --env-file=.env --import tsx src/server/scripts/runGlobalPaperSettlementTick.ts || echo "WARN: settlement tick failed (non-fatal)"
+fi
+
 if [[ "${SKIP_VERSION_CHECK:-}" == "1" ]]; then
   echo "==> [7/7] SKIP_VERSION_CHECK=1 — not calling public version URL"
   echo "OK: deploy finished (no remote SHA check). Expected SHA=$EXPECTED_SHORT"

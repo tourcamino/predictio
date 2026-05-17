@@ -35,7 +35,8 @@
     "env:validate": "node ./scripts/validate-env.mjs .env",
     "autonomous-copy-analysts:tick": "tsx ./src/server/scripts/runAutonomousCopyAnalystTick.ts",
     "db:setup": "node --env-file=.env --import tsx ./src/server/scripts/setup.ts",
-    "paper:reset-wallet": "node --env-file=.env --import tsx ./src/server/scripts/resetPaperTestWallet.ts"
+    "paper:reset-wallet": "node --env-file=.env --import tsx ./src/server/scripts/resetPaperTestWallet.ts",
+    "settlement:tick": "node --env-file=.env --import tsx ./src/server/scripts/runGlobalPaperSettlementTick.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",

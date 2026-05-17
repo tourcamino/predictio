@@ -1,5 +1,6 @@
 import { TrendingUp, TrendingDown, DollarSign, Download, Image, FileText } from 'lucide-react';
 import { formatCurrency } from '~/utils/marketUtils';
+import { parseApiDate } from '~/utils/parseApiDate';
 import { useState, useRef, useCallback } from 'react';
 import { Menu } from '@headlessui/react';
 
@@ -17,12 +18,17 @@ interface PnLHistoryChartProps {
 }
 
 export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
+  const chartData = data.map((d) => ({
+    ...d,
+    timestamp: parseApiDate(d.timestamp) ?? new Date(0),
+  }));
+
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const chartRef = useRef<HTMLDivElement>(null);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!chartRef.current || data.length === 0) return;
+    if (!chartRef.current || chartData.length === 0) return;
     
     const rect = chartRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -30,14 +36,14 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
     
     // Calculate which data point is closest to the mouse
     const chartWidth = rect.width;
-    const pointSpacing = chartWidth / Math.max(data.length - 1, 1);
+    const pointSpacing = chartWidth / Math.max(chartData.length - 1, 1);
     const index = Math.round(x / pointSpacing);
     
-    if (index >= 0 && index < data.length) {
+    if (index >= 0 && index < chartData.length) {
       setHoveredIndex(index);
       setMousePosition({ x, y });
     }
-  }, [data.length]);
+  }, [chartData.length]);
 
   const handleMouseLeave = useCallback(() => {
     setHoveredIndex(null);
@@ -65,7 +71,7 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
 
   const exportToCSV = useCallback(() => {
     const headers = ['Date', 'Total P&L', 'Realized P&L', 'Unrealized P&L', 'Portfolio Value', 'Total Invested'];
-    const rows = data.map(point => [
+    const rows = chartData.map(point => [
       point.timestamp.toISOString(),
       point.cumulativePnL.toFixed(2),
       point.realizedPnL.toFixed(2),
@@ -87,7 +93,7 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
     URL.revokeObjectURL(url);
   }, [data]);
 
-  if (data.length === 0) {
+  if (chartData.length === 0) {
     return (
       <div className="bg-white/5 border border-white/10 rounded-lg p-6">
         <h2 className="font-syne font-bold text-xl mb-4">P&L History</h2>
@@ -98,9 +104,9 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
     );
   }
 
-  const cumulativePnLValues = data.map(d => d.cumulativePnL);
-  const realizedPnLValues = data.map(d => d.realizedPnL);
-  const unrealizedPnLValues = data.map(d => d.unrealizedPnL);
+  const cumulativePnLValues = chartData.map(d => d.cumulativePnL);
+  const realizedPnLValues = chartData.map(d => d.realizedPnL);
+  const unrealizedPnLValues = chartData.map(d => d.unrealizedPnL);
 
   const allValues = [...cumulativePnLValues, ...realizedPnLValues, ...unrealizedPnLValues, 0];
   const minValue = Math.min(...allValues);
@@ -130,7 +136,7 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
   // Calculate zero line position
   const zeroY = 100 - ((0 - minValue) / range) * 100;
 
-  const latestData = data[data.length - 1]!;
+  const latestData = chartData[chartData.length - 1]!;
   const cumulativePnL = latestData.cumulativePnL;
   const realizedPnL = latestData.realizedPnL;
   const unrealizedPnL = latestData.unrealizedPnL;
@@ -138,8 +144,8 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
   const hoverPoint =
     hoveredIndex !== null &&
     hoveredIndex >= 0 &&
-    hoveredIndex < data.length
-      ? data[hoveredIndex]
+    hoveredIndex < chartData.length
+      ? chartData[hoveredIndex]
       : undefined;
 
   return (
@@ -298,7 +304,7 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
             <div
               className="absolute top-0 bottom-0 w-px bg-brand-green/50"
               style={{
-                left: `${(hoveredIndex / Math.max(data.length - 1, 1)) * 100}%`,
+                left: `${(hoveredIndex / Math.max(chartData.length - 1, 1)) * 100}%`,
               }}
             />
             
@@ -365,7 +371,7 @@ export function PnLHistoryChart({ data }: PnLHistoryChartProps) {
 
       {/* Time labels */}
       <div className="flex justify-between mt-2 text-xs text-gray-500 font-mono">
-        <span>{data[0]?.timestamp.toLocaleDateString()}</span>
+        <span>{chartData[0]?.timestamp.toLocaleDateString()}</span>
         <span>Now</span>
       </div>
     </div>

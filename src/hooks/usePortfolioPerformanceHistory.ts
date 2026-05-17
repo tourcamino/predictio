@@ -8,6 +8,7 @@ import {
 } from "~/lib/expressCriticalWalletApi";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "~/server/trpc/root";
+import { hydratePortfolioPerformance } from "~/utils/hydratePortfolioPerformance";
 
 export type PortfolioPerformanceTimeRange =
   | "7D"
@@ -49,18 +50,18 @@ export function usePortfolioPerformanceHistory(input: {
     staleTime: 30_000,
     queryFn: async (): Promise<PortfolioPerformanceData> => {
       const w = walletKey!;
-      if (useExpress) {
-        return (await expressGetPortfolioPerformanceHistory({
-          walletAddress: w,
-          timeRange: input.timeRange,
-        })) as PortfolioPerformanceData;
-      }
-      return trpcClient.getPortfolioPerformanceHistory.query({
-        walletAddress: w,
-        timeRange: input.timeRange,
-        startDate: input.startDate,
-        endDate: input.endDate,
-      });
+      const raw = useExpress
+        ? ((await expressGetPortfolioPerformanceHistory({
+            walletAddress: w,
+            timeRange: input.timeRange,
+          })) as PortfolioPerformanceData)
+        : await trpcClient.getPortfolioPerformanceHistory.query({
+            walletAddress: w,
+            timeRange: input.timeRange,
+            startDate: input.startDate,
+            endDate: input.endDate,
+          });
+      return hydratePortfolioPerformance(raw);
     },
   });
 }

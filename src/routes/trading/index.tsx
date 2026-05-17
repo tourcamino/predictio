@@ -36,6 +36,7 @@ function TradingPage() {
   const positionsQuery = useUserPositions({
     status: 'open',
     enabled: !!walletKey && isConnected,
+    refetchInterval: 20_000,
   });
 
   const orders = positionsQuery.data?.positions ?? [];
@@ -47,7 +48,8 @@ function TradingPage() {
   const marketSummariesQuery = useMarketSummaries({
     marketIds: positionMarketIds,
     enabled: !!walletKey && isConnected && positionMarketIds.length > 0,
-    staleTime: 30_000,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
   });
 
   const dbTradingPositions = useMemo(
@@ -147,7 +149,9 @@ function TradingPage() {
             <h1 className="font-syne font-bold text-4xl mb-2">Trading</h1>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-400">Manage your active positions</p>
+                <p className="text-gray-400">
+                  Live mark-to-market — prices refresh every ~15s while this page is open.
+                </p>
                 {!isConnected && (
                   <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-purple-500/20 border border-purple-500/30 rounded-lg">
                     <span className="text-xs text-purple-400 font-semibold">

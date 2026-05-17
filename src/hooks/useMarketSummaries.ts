@@ -26,6 +26,7 @@ export function useMarketSummaries(input: {
   marketIds: string[];
   enabled?: boolean;
   staleTime?: number;
+  refetchInterval?: number | false;
 }) {
   const useExpress = shouldUseExpressForWalletCritical();
   const trpcClient = useTRPCClient();
@@ -39,6 +40,7 @@ export function useMarketSummaries(input: {
     ] as const,
     enabled: (input.enabled ?? true) && ids.length > 0,
     staleTime: input.staleTime ?? 30_000,
+    refetchInterval: input.refetchInterval,
     queryFn: async (): Promise<MarketSummariesData> => {
       if (useExpress) {
         return fetchMarketSummariesViaRest(ids);

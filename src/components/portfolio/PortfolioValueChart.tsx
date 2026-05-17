@@ -1,5 +1,6 @@
 import { TrendingUp, TrendingDown, Download, Image, FileText } from 'lucide-react';
 import { formatCurrency } from '~/utils/marketUtils';
+import { parseApiDate } from '~/utils/parseApiDate';
 import { useState, useRef, useCallback } from 'react';
 import { Menu } from '@headlessui/react';
 import { DateRangePicker } from './DateRangePicker';
@@ -35,12 +36,17 @@ export function PortfolioValueChart({
   onTimeRangeChange,
   onCustomRangeChange,
 }: PortfolioValueChartProps) {
+  const chartData = data.map((d) => ({
+    ...d,
+    timestamp: parseApiDate(d.timestamp) ?? new Date(0),
+  }));
+
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const chartRef = useRef<HTMLDivElement>(null);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!chartRef.current || data.length === 0) return;
+    if (!chartRef.current || chartData.length === 0) return;
     
     const rect = chartRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -48,14 +54,14 @@ export function PortfolioValueChart({
     
     // Calculate which data point is closest to the mouse
     const chartWidth = rect.width;
-    const pointSpacing = chartWidth / Math.max(data.length - 1, 1);
+    const pointSpacing = chartWidth / Math.max(chartData.length - 1, 1);
     const index = Math.round(x / pointSpacing);
     
-    if (index >= 0 && index < data.length) {
+    if (index >= 0 && index < chartData.length) {
       setHoveredIndex(index);
       setMousePosition({ x, y });
     }
-  }, [data.length]);
+  }, [chartData.length]);
 
   const handleMouseLeave = useCallback(() => {
     setHoveredIndex(null);
@@ -83,7 +89,7 @@ export function PortfolioValueChart({
 
   const exportToCSV = useCallback(() => {
     const headers = ['Date', 'Portfolio Value', 'Cumulative P&L', 'Realized P&L', 'Unrealized P&L', 'Total Invested'];
-    const rows = data.map(point => [
+    const rows = chartData.map(point => [
       point.timestamp.toISOString(),
       point.portfolioValue.toFixed(2),
       point.cumulativePnL.toFixed(2),
@@ -103,9 +109,9 @@ export function PortfolioValueChart({
     link.href = url;
     link.click();
     URL.revokeObjectURL(url);
-  }, [data]);
+  }, [chartData]);
 
-  if (data.length === 0) {
+  if (chartData.length === 0) {
     return (
       <div className="bg-white/5 border border-white/10 rounded-lg p-6">
         <h2 className="font-syne font-bold text-xl mb-4">Portfolio Value</h2>
@@ -116,7 +122,7 @@ export function PortfolioValueChart({
     );
   }
 
-  const values = data.map(d => d.portfolioValue);
+  const values = chartData.map(d => d.portfolioValue);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const range = maxValue - minValue || 1;
@@ -157,8 +163,8 @@ export function PortfolioValueChart({
   const hoverPoint =
     hoveredIndex !== null &&
     hoveredIndex >= 0 &&
-    hoveredIndex < data.length
-      ? data[hoveredIndex]
+    hoveredIndex < chartData.length
+      ? chartData[hoveredIndex]
       : undefined;
 
   return (
@@ -310,7 +316,7 @@ export function PortfolioValueChart({
             <div
               className="absolute top-0 bottom-0 w-px bg-brand-green/50"
               style={{
-                left: `${(hoveredIndex / Math.max(data.length - 1, 1)) * 100}%`,
+                left: `${(hoveredIndex / Math.max(chartData.length - 1, 1)) * 100}%`,
               }}
             />
             
@@ -362,7 +368,7 @@ export function PortfolioValueChart({
 
       {/* Time labels */}
       <div className="flex justify-between mt-2 text-xs text-gray-500 font-mono">
-        <span>{data[0]?.timestamp.toLocaleDateString()}</span>
+        <span>{chartData[0]?.timestamp.toLocaleDateString()}</span>
         <span>Now</span>
       </div>
     </div>
