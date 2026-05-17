@@ -1,8 +1,8 @@
 import { useTradingStore, type Position } from '~/store/tradingStore';
 import { StatusDot } from './StatusDot';
-import { Sparkline } from './Sparkline';
 import { formatPnL, formatPctChange } from '~/lib/trading/calculations';
 import { deriveLivePositionFromQuote } from '~/lib/trading/deriveLivePositionFromQuote';
+import { ProbabilityDepthBar } from './ProbabilityDepthBar';
 import { ChevronRight, Share2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { ShareModal } from '../ShareModal';
@@ -23,80 +23,71 @@ export function PositionCard({ position, isSelected, onClick }: PositionCardProp
   const isResolved = position.status === 'resolved';
   const isCancelled = position.status === 'cancelled';
   const isRefunded = position.status === 'refunded';
-  const isTerminalStatic =
-    isResolved || isCancelled || isRefunded;
+  const isTerminalStatic = isResolved || isCancelled || isRefunded;
   const displayPnl = isTerminalStatic ? position.unrealizedPnl : live.unrealizedPnl;
   const displayPnlPct = isTerminalStatic ? position.unrealizedPnlPct : live.unrealizedPnlPct;
   const displayCurrentValue = isTerminalStatic ? position.currentValue : live.currentValue;
   const pnlFormatted = formatPnL(displayPnl);
   const pctFormatted = formatPctChange(displayPnlPct);
-
-  // Check if position is resolved or cancelled
   const isClaimable = isResolved && position.claimableAmount && position.claimableAmount > 0;
+  const isLiveOpen = !isTerminalStatic;
 
-  // Generate mock sparkline data based on current P&L
-  // In production, this would use real price history
-  const sparklineData = Array.from({ length: 20 }, (_, i) => {
-    const progress = i / 19;
-    const baseValue = position.entryPrice;
-    const endTick = live.lastPrice;
-    return baseValue + (endTick - baseValue) * progress + (Math.random() - 0.5) * 0.02;
-  });
-
-  const sparklineColor = displayPnl >= 0 ? '#00FF87' : '#EF4444';
+  const shellClass = isSelected
+    ? 'border-brand-green/50 bg-gradient-to-br from-brand-green/[0.12] to-white/[0.03] shadow-[0_0_32px_rgba(0,255,135,0.12)] ring-1 ring-brand-green/30'
+    : 'border-white/[0.1] bg-gradient-to-br from-white/[0.06] to-white/[0.02] hover:border-brand-green/35 hover:shadow-[0_0_24px_rgba(0,255,135,0.06)]';
 
   return (
     <>
-      <div
+      <button
+        type="button"
         onClick={onClick}
-        className={`w-full text-left bg-white/5 border rounded-lg p-4 transition-all hover:border-brand-green/50 cursor-pointer ${
-          isSelected
-            ? 'border-brand-green border-l-4 border-l-brand-green'
-            : isResolved
-            ? 'border-brand-green/30'
-            : isRefunded
-            ? 'border-cyan-500/30'
-            : isCancelled
-            ? 'border-yellow-500/30'
-            : 'border-white/10'
-        }`}
+        className={`group relative w-full overflow-hidden rounded-xl border p-4 text-left transition-all ${shellClass}`}
       >
-        {/* Header with share button */}
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1 min-w-0">
+        {isSelected && (
+          <div
+            className="pointer-events-none absolute inset-y-2 left-0 w-0.5 rounded-full bg-brand-green shadow-[0_0_12px_rgba(0,255,135,0.8)]"
+            aria-hidden
+          />
+        )}
+        {isLiveOpen && (
+          <div
+            className="pointer-events-none absolute right-3 top-3 h-1.5 w-1.5 rounded-full bg-brand-green/80 shadow-[0_0_8px_rgba(0,255,135,0.6)] animate-pulse"
+            aria-hidden
+          />
+        )}
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent group-hover:via-brand-green/30"
+          aria-hidden
+        />
+
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
             {isRefunded && (
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
-                <span className="text-xs font-semibold text-cyan-400 uppercase">Refunded</span>
-              </div>
+              <span className="mb-2 inline-block text-[10px] font-bold uppercase tracking-wide text-cyan-400">
+                Refunded
+              </span>
             )}
             {isResolved && (
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 bg-brand-green rounded-full"></div>
-                <span className="text-xs font-semibold text-brand-green uppercase">Resolved</span>
-              </div>
+              <span className="mb-2 inline-block text-[10px] font-bold uppercase tracking-wide text-brand-green">
+                Resolved
+              </span>
             )}
             {isCancelled && (
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <span className="text-xs font-semibold text-yellow-500 uppercase">Cancelled</span>
-              </div>
+              <span className="mb-2 inline-block text-[10px] font-bold uppercase tracking-wide text-yellow-500">
+                Cancelled
+              </span>
             )}
-            {!isResolved && !isCancelled && !isRefunded && (
-              <StatusDot status={position.status} className="mb-2" />
-            )}
-            <h3 className="font-semibold text-sm truncate">{position.marketName}</h3>
-            <p className="text-xs text-gray-400 truncate">{position.outcome}</p>
+            {isLiveOpen && <StatusDot status={position.status} className="mb-2" />}
+            <h3 className="truncate font-syne text-sm font-semibold tracking-tight">{position.marketName}</h3>
+            <p className="mt-0.5 truncate text-xs text-gray-500">{position.outcome}</p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-            <div
+          <div className="flex shrink-0 items-center gap-1">
+            <span
+              role="presentation"
               onClick={(e) => {
                 e.stopPropagation();
                 setIsShareModalOpen(true);
               }}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-              role="button"
-              tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
@@ -104,95 +95,62 @@ export function PositionCard({ position, isSelected, onClick }: PositionCardProp
                   setIsShareModalOpen(true);
                 }
               }}
+              tabIndex={0}
+              className="rounded-lg p-2 transition-colors hover:bg-white/10"
               title="Share position"
             >
-              <Share2 className="w-4 h-4 text-gray-400 hover:text-brand-green" />
-            </div>
-            <ChevronRight className="w-4 h-4 text-gray-500" />
+              <Share2 className="h-4 w-4 text-gray-500 hover:text-brand-green" />
+            </span>
+            <ChevronRight className="h-4 w-4 text-gray-600 group-hover:text-brand-green/80" />
           </div>
         </div>
 
-        {/* P&L Display */}
         {isRefunded ? (
-          <div className="mb-3">
-            <div className="text-xs text-gray-500 mb-1">Stake returned (void / draw / cancel)</div>
-            <div className="text-sm text-cyan-400">+$0.00 P&amp;L · principal refunded to wallet</div>
-          </div>
+          <p className="mb-3 text-xs text-cyan-400/90">Principal refunded · $0 P&amp;L</p>
         ) : isResolved && position.claimableAmount ? (
-          <div className="mb-3">
-            <div className="text-xs text-gray-500 mb-1">
-              Cost ${position.costBasis.toFixed(2)} → Resolved at $1.00
-            </div>
-            <div className="flex items-baseline justify-end gap-2">
-              <span className={`font-mono font-bold text-lg ${pnlFormatted.colorClass}`}>
-                {pnlFormatted.text}
-              </span>
-              <span className={`text-xs ${pctFormatted.colorClass}`}>
-                {pctFormatted.text}
-              </span>
-            </div>
+          <div className="mb-3 text-right">
+            <p className="text-[10px] uppercase tracking-wider text-gray-500">Resolved P&amp;L</p>
+            <p className={`font-mono text-lg font-bold ${pnlFormatted.colorClass}`}>{pnlFormatted.text}</p>
+            <p className={`text-xs ${pctFormatted.colorClass}`}>{pctFormatted.text}</p>
           </div>
         ) : isCancelled ? (
-          <div className="mb-3">
-            <div className="text-xs text-gray-500 mb-1">
-              Market cancelled
-            </div>
-            <div className="text-sm text-yellow-500">
-              Refund available: ${position.costBasis.toFixed(2)}
-            </div>
-          </div>
+          <p className="mb-3 text-sm text-yellow-500">Refund ${position.costBasis.toFixed(2)}</p>
         ) : (
           <div className="mb-3">
-            <div className="flex items-baseline justify-between mb-1">
-              <span className="text-xs text-gray-500">
-                ${position.costBasis.toFixed(2)}
-              </span>
-              <span className="text-xs text-gray-500">→</span>
-              <span className="font-mono font-semibold">
+            <div className="mb-2 flex items-baseline justify-between gap-2">
+              <span className="font-mono text-xs text-gray-500">${position.costBasis.toFixed(2)}</span>
+              <span className="font-mono text-sm font-semibold text-white">
                 ${displayCurrentValue.toFixed(2)}
               </span>
             </div>
-            <div className="flex items-baseline justify-end gap-2">
-              <span className={`font-mono font-bold ${pnlFormatted.colorClass}`}>
+            <div className="flex items-end justify-between gap-2">
+              <p className={`font-mono text-base font-bold ${pnlFormatted.colorClass}`}>
                 {pnlFormatted.text}
-              </span>
-              <span className={`text-xs ${pctFormatted.colorClass}`}>
-                {pctFormatted.text}
-              </span>
+              </p>
+              <p className={`text-xs font-mono ${pctFormatted.colorClass}`}>{pctFormatted.text}</p>
             </div>
           </div>
         )}
 
-        {/* Sparkline or Claim CTA */}
         {isClaimable ? (
-          <div className="px-3 py-2 bg-brand-green/20 border border-brand-green/30 rounded text-center">
-            <span className="text-sm font-semibold text-brand-green">
-              Claim ${position.claimableAmount?.toFixed(2)} →
-            </span>
+          <div className="rounded-lg border border-brand-green/30 bg-brand-green/15 py-2 text-center text-sm font-semibold text-brand-green">
+            Claim ${position.claimableAmount?.toFixed(2)} →
           </div>
         ) : isCancelled ? (
-          <div className="px-3 py-2 bg-yellow-500/20 border border-yellow-500/30 rounded text-center">
-            <span className="text-sm font-semibold text-yellow-500">
-              Claim Refund →
-            </span>
+          <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 py-2 text-center text-sm font-semibold text-yellow-500">
+            Claim refund →
           </div>
-        ) : isRefunded || isResolved ? (
-          <div className="text-xs text-gray-500 text-center py-1">Outcome finalized</div>
+        ) : isTerminalStatic ? (
+          <p className="text-center text-[10px] uppercase tracking-wider text-gray-600">Finalized</p>
         ) : (
-          <div className="flex items-center justify-between">
-            <Sparkline
-              data={sparklineData}
-              color={sparklineColor}
-              className="flex-1"
-              width={120}
-              height={20}
-            />
-            <span className="text-xs text-gray-500 ml-2">details →</span>
-          </div>
+          <ProbabilityDepthBar
+            entry={position.entryPrice}
+            current={live.lastPrice}
+            side={position.side}
+          />
         )}
-      </div>
+      </button>
 
-      {/* Share Modal */}
       <ShareModal
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}

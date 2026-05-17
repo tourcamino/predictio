@@ -1,5 +1,8 @@
 import { useState, useMemo } from 'react';
-import { Clock, TrendingUp, Activity } from 'lucide-react';
+import { Clock, TrendingUp, Activity, Radio } from 'lucide-react';
+import { ProbabilityDepthBar } from './ProbabilityDepthBar';
+import { ProtocolStatePanel } from '~/components/protocol/ProtocolStatePanel';
+import { priceMovementLabel } from '~/lib/market/marketProtocolStatus';
 import type { Position } from '~/store/tradingStore';
 import { usePositionRealtime } from '~/hooks/usePositionRealtime';
 import { useWallet } from '~/store/useWalletStore';
@@ -287,182 +290,82 @@ export function PositionDetail({ position }: PositionDetailProps) {
     setError('');
   };
 
-  // Generate mock price history for chart (memoized to avoid recalculating on every render)
-  const priceHistory = useMemo(() => {
-    const generatePriceHistory = () => {
-      const points = 50;
-      const history = [];
-      const now = Date.now();
-      const hourMs = 60 * 60 * 1000;
-      
-      for (let i = points - 1; i >= 0; i--) {
-        const timestamp = new Date(now - i * hourMs);
-        // Simulate price movement around current price
-        const variance = (Math.random() - 0.5) * 0.1;
-        const price = currentPrice * (1 + variance);
-        history.push({ timestamp, price: Math.max(0.01, Math.min(0.99, price)) });
-      }
-      
-      return history;
-    };
-    
-    return generatePriceHistory();
-  }, [Math.round(currentPrice * 100) / 100]); // Only regenerate when price changes by 1 cent
-  
-  // Calculate chart dimensions and scaling (memoized)
-  const chartData = useMemo(() => {
-    const prices = priceHistory.map(h => h.price);
-    const minPrice = Math.max(0, Math.min(...prices) - 0.05);
-    const maxPrice = Math.min(1, Math.max(...prices) + 0.05);
-    const priceRange = maxPrice - minPrice;
-    
-    // Generate SVG path
-    const generatePath = (data: number[]) => {
-      if (data.length === 0) return '';
-      const width = 100;
-      const height = 100;
-      const stepX = width / Math.max(data.length - 1, 1);
-      
-      return data
-        .map((value, index) => {
-          const x = index * stepX;
-          const y = height - ((value - minPrice) / priceRange) * height;
-          return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
-        })
-        .join(' ');
-    };
-    
-    const pricePath = generatePath(prices);
-    const entryY = 100 - ((position.entryPrice - minPrice) / priceRange) * 100;
-    
-    return { prices, minPrice, maxPrice, priceRange, pricePath, entryY };
-  }, [priceHistory, position.entryPrice]);
-  
-  const { minPrice, maxPrice, pricePath, entryY } = chartData;
+  const yesPct = Math.round(currentPrice * 100);
+  const noPct = Math.round((1 - currentPrice) * 100);
+  const movement = priceMovementLabel(position.entryPrice, currentPrice);
+  const panelShell =
+    'relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-[0_24px_60px_rgba(0,0,0,0.35)]';
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+    <div className="space-y-6 p-6">
+      <div className={`${panelShell} p-6`}>
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-green/35 to-transparent" aria-hidden />
         <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <h2 className="font-syne font-bold text-2xl mb-2">{position.marketName}</h2>
-            <div className="flex items-center gap-3 text-sm">
-              <span className="px-3 py-1 bg-brand-green/20 text-brand-green rounded-full font-semibold">
+          <div className="flex-1 min-w-0">
+            <p className="mb-2 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-green">
+              <Radio className="h-3 w-3 animate-pulse" /> Execution panel
+            </p>
+            <h2 className="font-syne font-bold text-2xl tracking-tight mb-2">{position.marketName}</h2>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="rounded-full border border-brand-green/30 bg-brand-green/15 px-3 py-1 font-mono text-xs font-bold text-brand-green">
                 {position.outcome}
               </span>
-              <span className="text-gray-400">•</span>
-              <div className="flex items-center gap-2 text-gray-400">
-                <Clock className="w-4 h-4" />
-                <span>
-                  {daysUntilEnd > 0 ? `${daysUntilEnd}d ` : ''}{hoursUntilEnd}h remaining
-                </span>
-              </div>
+              <span className="flex items-center gap-1.5 text-gray-500">
+                <Clock className="w-3.5 h-3.5" />
+                {daysUntilEnd > 0 ? `${daysUntilEnd}d ` : ''}{hoursUntilEnd}h left
+              </span>
+              <span className="text-xs text-gray-600">{movement.label}</span>
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-sm text-gray-400 mb-1">Unrealized P&L</div>
-            <div className={`text-2xl font-bold font-mono ${pnlFormatted.colorClass}`}>
-              {pnlFormatted.text}
-            </div>
-            <div className={`text-sm ${pctFormatted.colorClass}`}>
-              {pctFormatted.text}
-            </div>
+          <div className="text-right shrink-0 ml-4">
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Unrealized</p>
+            <p className={`text-2xl font-bold font-mono ${pnlFormatted.colorClass}`}>{pnlFormatted.text}</p>
+            <p className={`text-sm font-mono ${pctFormatted.colorClass}`}>{pctFormatted.text}</p>
           </div>
         </div>
-        
-        {/* Position Stats */}
-        <div className="grid grid-cols-4 gap-4 pt-4 border-t border-white/10">
-          <div>
-            <div className="text-xs text-gray-400 mb-1">Shares</div>
-            <div className="font-mono font-semibold">{position.shares.toLocaleString()}</div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-400 mb-1">Avg Entry</div>
-            <div className="font-mono font-semibold">${position.entryPrice.toFixed(2)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-400 mb-1">Current Price</div>
-            <div className="font-mono font-semibold text-brand-green">${currentPrice.toFixed(2)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-400 mb-1">Current Value</div>
-            <div className="font-mono font-semibold">${headerCurrentValue.toFixed(2)}</div>
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-white/10">
+          {[
+            ['Shares', position.shares.toLocaleString()],
+            ['Avg entry', '$' + position.entryPrice.toFixed(2)],
+            ['Mark', '$' + currentPrice.toFixed(2)],
+            ['Value', '$' + headerCurrentValue.toFixed(2)],
+          ].map(([k, v]) => (
+            <div key={k} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">{k}</p>
+              <p className="font-mono font-semibold text-white">{v}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Price Chart with Entry Line */}
-      <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+      <div className={`${panelShell} p-6`}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-syne font-bold text-xl">Price Chart</h3>
+          <h3 className="font-syne font-bold text-lg">Probability intelligence</h3>
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${wsStatus === 'connected' ? 'bg-brand-green' : 'bg-red-500'}`} />
-            <span className="text-xs text-gray-500 font-mono">
-              {wsStatus === 'connected' ? 'Live' : wsStatus === 'reconnecting' ? 'Reconnecting' : 'Offline'}
+            <div className={`h-2 w-2 rounded-full ${wsStatus === 'connected' ? 'bg-brand-green animate-pulse' : 'bg-red-500'}`} />
+            <span className="text-[10px] font-mono uppercase text-gray-500">
+              {wsStatus === 'connected' ? 'Live quote' : wsStatus === 'reconnecting' ? 'Reconnecting' : 'Offline'}
             </span>
           </div>
         </div>
-        
-        <div className="relative bg-brand-bg rounded-lg p-4" style={{ height: '300px' }}>
-          <svg
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            className="w-full h-full"
-          >
-            {/* Grid lines */}
-            {[0, 25, 50, 75, 100].map((y) => (
-              <line
-                key={y}
-                x1="0"
-                y1={y}
-                x2="100"
-                y2={y}
-                stroke="rgba(255,255,255,0.1)"
-                strokeWidth="0.2"
-              />
-            ))}
-            
-            {/* Entry line */}
-            <line
-              x1="0"
-              y1={entryY}
-              x2="100"
-              y2={entryY}
-              stroke="#FFB800"
-              strokeWidth="0.5"
-              strokeDasharray="2,2"
-            />
-            
-            {/* Price line */}
-            <path
-              d={pricePath}
-              fill="none"
-              stroke="#00FF87"
-              strokeWidth="2"
-            />
-          </svg>
-          
-          {/* Y-axis labels */}
-          <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-xs text-gray-500 font-mono pr-2">
-            <span>${maxPrice.toFixed(2)}</span>
-            <span>${((maxPrice + minPrice) / 2).toFixed(2)}</span>
-            <span>${minPrice.toFixed(2)}</span>
+        <div className="grid grid-cols-2 gap-6 mb-6">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">YES</p>
+            <p className="font-mono text-3xl font-bold text-brand-green">{yesPct}¢</p>
           </div>
-          
-          {/* Entry price label */}
-          <div
-            className="absolute left-full ml-2 text-xs text-yellow-500 font-mono flex items-center gap-1"
-            style={{ top: `${entryY}%`, transform: 'translateY(-50%)' }}
-          >
-            <span>Entry: ${position.entryPrice.toFixed(2)}</span>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">NO</p>
+            <p className="font-mono text-3xl font-bold text-red-400">{noPct}¢</p>
           </div>
         </div>
-        
-        <div className="flex justify-between mt-2 text-xs text-gray-500 font-mono">
-          <span>24h ago</span>
-          <span>Now</span>
-        </div>
+        <ProbabilityDepthBar entry={position.entryPrice} current={currentPrice} side={position.side} className="mb-6" />
+        <ProtocolStatePanel
+          variant="neutral"
+          compact
+          title="Probability tape pending"
+          message="No synthetic history — live mark-to-market from protocol quotes only."
+          icon={<Activity className="h-7 w-7 text-brand-cyan" />}
+        />
       </div>
 
       {/* Sell Controls */}
@@ -490,13 +393,12 @@ export function PositionDetail({ position }: PositionDetailProps) {
           noPrice: 1 - currentPrice,
         } as any} />
       ) : (
-        <div className="bg-white/5 border border-white/10 rounded-lg p-6">
-          <h3 className="font-syne font-bold text-xl mb-4">Order Book</h3>
-          <div className="text-center text-gray-400 py-8">
-            <Activity className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>Connecting to order book...</p>
-          </div>
-        </div>
+        <ProtocolStatePanel
+          variant="loading"
+          compact
+          title="Order book syncing"
+          message="Connecting to protocol depth feed for this market."
+        />
       )}
 
       {/* Recent Trades */}

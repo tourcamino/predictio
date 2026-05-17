@@ -75,17 +75,19 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="font-syne font-bold text-2xl mb-2">Social Trading</h2>
-          <p className="text-gray-400">
-            Traders are ranked with positive ROI first. Copying any trader can still lose money — check
-            history and risk before allocating.
+          <p className="mb-2 text-[10px] font-mono uppercase tracking-[0.2em] text-brand-green">
+            Copy-trading desk
+          </p>
+          <h2 className="font-syne font-bold text-2xl tracking-tight mb-2">Social Trading</h2>
+          <p className="max-w-2xl text-sm text-gray-400">
+            Institutional leaderboard — paper-tracked conviction. Copying carries loss risk; review
+            history before allocating.
           </p>
         </div>
 
-        {/* View Toggle */}
-        <div className="flex gap-2 bg-white/5 border border-white/10 rounded-lg p-1">
+        <div className="flex gap-2 rounded-xl border border-white/10 bg-black/30 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
           <button
             onClick={() => setActiveView('discover')}
             className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
@@ -202,12 +204,12 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
 
           {/* Stats Bar */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-              <div className="text-sm text-gray-400 mb-1">Total Traders</div>
+            <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent p-4">
+              <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-gray-500">Total Traders</div>
               <div className="font-mono font-bold text-2xl">{analysts.length}</div>
             </div>
-            <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-              <div className="text-sm text-gray-400 mb-1">Avg ROI</div>
+            <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent p-4">
+              <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-gray-500">Avg ROI</div>
               <div
                 className={`font-mono font-bold text-2xl truncate ${roiTextClass(
                   analysts.length > 0
@@ -224,8 +226,8 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
                   : formatRoiPct(0)}
               </div>
             </div>
-            <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-              <div className="text-sm text-gray-400 mb-1">Avg Win Rate</div>
+            <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent p-4">
+              <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-gray-500">Avg Win Rate</div>
               <div className="font-mono font-bold text-2xl text-brand-cyan truncate">
                 {analysts.length > 0
                   ? formatWinRatePct(
@@ -235,8 +237,8 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
                   : formatWinRatePct(0)}
               </div>
             </div>
-            <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-              <div className="text-sm text-gray-400 mb-1">You're Following</div>
+            <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent p-4">
+              <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-gray-500">You're Following</div>
               <div className="font-mono font-bold text-2xl">{followedAnalysts.length}</div>
             </div>
           </div>
@@ -256,7 +258,7 @@ export function SocialTradingDashboard({ userWallet }: SocialTradingDashboardPro
               ))}
             </div>
           ) : (
-            <div className="text-center py-20 bg-white/5 border border-white/10 rounded-lg">
+            <div className="text-center py-20 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent">
               <Target className="w-12 h-12 text-gray-500 mx-auto mb-4" />
               <p className="text-gray-400 text-lg mb-4">No traders found</p>
               <button

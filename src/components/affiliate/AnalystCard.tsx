@@ -114,12 +114,16 @@ export function AnalystCard({ analyst }: AnalystCardProps) {
 
   return (
     <div
-      className={`rounded-lg border p-6 transition-all hover:bg-white/10 ${
+      className={`group relative overflow-hidden rounded-2xl border p-6 shadow-[0_16px_48px_rgba(0,0,0,0.35)] transition-all ${
         isUnderwater
-          ? "border-red-500/25 bg-red-500/[0.04] hover:border-red-400/35"
-          : "border-white/10 bg-white/5 hover:border-brand-green/30"
+          ? "border-red-500/30 bg-gradient-to-br from-red-500/10 to-white/[0.02] hover:border-red-400/40"
+          : "border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.02] hover:border-brand-green/35 hover:shadow-[0_0_32px_rgba(0,255,135,0.06)]"
       }`}
     >
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent group-hover:via-brand-green/35"
+        aria-hidden
+      />
       {/* Header */}
       <div className="mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-1 items-start gap-3">

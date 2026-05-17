@@ -32,6 +32,7 @@ import { useUserLPPositions } from '~/hooks/useUserLPPositions';
 import { useMarketSummaries } from '~/hooks/useMarketSummaries';
 import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
 import { PortfolioExposureSummary } from '~/components/portfolio/PortfolioExposureSummary';
+import { ProtocolStatePanel } from '~/components/protocol/ProtocolStatePanel';
 
 export const Route = createFileRoute('/portfolio/')({
   component: Portfolio,

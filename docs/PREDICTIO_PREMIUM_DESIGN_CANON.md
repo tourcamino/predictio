@@ -67,3 +67,15 @@ Predictio is a **premium prediction trading protocol** — not a generic SaaS da
 ## Reference components
 
 `Hero.tsx` · `LiveMarketCard.tsx` · `TradingTerminalShell.tsx` · `MarketSection.tsx` · pre-PR1 trading split pattern
+
+## PR3 polish (terminal depth)
+
+| Component | Pattern |
+|-----------|---------|
+| `PositionsList` / `PositionCard` | Open rail, separators, `ProbabilityDepthBar` (real entry→mark, no sparkline RNG) |
+| `PositionDetail` | Execution panel shell; tape pending (no synthetic chart) |
+| `PortfolioExposureSummary` | Exposure desk glass tiles |
+| `MarketOracleStatusPanel` | Amber oracle rail aligned with `SettlementOracleBanner` |
+| `/wallet/transactions` | Protocol ledger atmosphere + `ProtocolStatePanel` states |
+| `SocialTradingDashboard` / `AnalystCard` | Copy-trading desk density |
+| `ProtocolStatePanel` | Shared loading / error / empty / oracle neutral states |

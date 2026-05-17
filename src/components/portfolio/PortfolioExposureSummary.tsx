@@ -6,6 +6,39 @@ import { derivePositionLifecycle } from "~/lib/position/derivePositionLifecycle"
 type Position =
   inferRouterOutputs<AppRouter>["getUserPositions"]["positions"][number];
 
+function ExposureTile({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  accent?: "green" | "red" | "neutral";
+}) {
+  const valueClass =
+    accent === "green"
+      ? "text-brand-green"
+      : accent === "red"
+        ? "text-red-400"
+        : "text-white";
+
+  return (
+    <div className="group relative overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.3)] transition-all hover:border-brand-green/25">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:via-brand-green/30"
+        aria-hidden
+      />
+      <p className="mb-2 text-[10px] font-mono uppercase tracking-[0.15em] text-gray-500">
+        {label}
+      </p>
+      <p className={`font-mono text-xl font-bold ${valueClass}`}>{value}</p>
+      {sub ? <p className="mt-1 text-[10px] text-gray-500">{sub}</p> : null}
+    </div>
+  );
+}
+
 export function PortfolioExposureSummary({
   openPositions,
   resolvedPositions,
@@ -40,51 +73,46 @@ export function PortfolioExposureSummary({
   const resolvedGains = resolvedPositions.reduce((s, p) => s + (p.pnl ?? 0), 0);
 
   return (
-    <div className="mb-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-      <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
-        <p className="text-xs text-gray-500 mb-1">Unrealized P&L</p>
-        <p
-          className={`font-mono font-bold ${unrealizedPnL >= 0 ? "text-brand-green" : "text-red-400"}`}
-        >
-          {unrealizedPnL >= 0 ? "+" : ""}${unrealizedPnL.toFixed(2)}
-        </p>
-        <p className="text-[10px] text-gray-500">{unrealizedPnLPct.toFixed(1)}%</p>
-      </div>
-      <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
-        <p className="text-xs text-gray-500 mb-1">Realized P&L</p>
-        <p
-          className={`font-mono font-bold ${realizedPnL >= 0 ? "text-brand-green" : "text-red-400"}`}
-        >
-          {realizedPnL >= 0 ? "+" : ""}${realizedPnL.toFixed(2)}
-        </p>
-      </div>
-      <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
-        <p className="text-xs text-gray-500 mb-1">Open risk (stake)</p>
-        <p className="font-mono font-bold">${openRisk.toFixed(2)}</p>
-      </div>
-      <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
-        <p className="text-xs text-gray-500 mb-1">Resolved gains</p>
-        <p
-          className={`font-mono font-bold ${resolvedGains >= 0 ? "text-brand-green" : "text-red-400"}`}
-        >
-          {resolvedGains >= 0 ? "+" : ""}${resolvedGains.toFixed(2)}
-        </p>
-      </div>
-      <div className="p-3 bg-white/5 border border-white/10 rounded-lg col-span-2 md:col-span-1">
-        <p className="text-xs text-gray-500 mb-1">By sport</p>
-        <p className="text-xs text-gray-300 font-mono truncate">
-          {[...exposureBySport.entries()]
-            .map(([k, v]) => `${k}: $${v.toFixed(0)}`)
-            .join(" · ") || "—"}
-        </p>
-      </div>
-      <div className="p-3 bg-white/5 border border-white/10 rounded-lg col-span-2 md:col-span-1">
-        <p className="text-xs text-gray-500 mb-1">By outcome</p>
-        <p className="text-xs text-gray-300 font-mono truncate">
-          {[...exposureByOutcome.entries()]
-            .map(([k, v]) => `${k}: $${v.toFixed(0)}`)
-            .join(" · ") || "—"}
-        </p>
+    <div className="mb-8">
+      <p className="mb-3 text-[10px] font-mono uppercase tracking-[0.2em] text-gray-500">
+        Exposure desk
+      </p>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <ExposureTile
+          label="Unrealized P&L"
+          value={`${unrealizedPnL >= 0 ? "+" : ""}$${unrealizedPnL.toFixed(2)}`}
+          sub={`${unrealizedPnLPct.toFixed(1)}%`}
+          accent={unrealizedPnL >= 0 ? "green" : "red"}
+        />
+        <ExposureTile
+          label="Realized P&L"
+          value={`${realizedPnL >= 0 ? "+" : ""}$${realizedPnL.toFixed(2)}`}
+          accent={realizedPnL >= 0 ? "green" : "red"}
+        />
+        <ExposureTile label="Open risk" value={`$${openRisk.toFixed(2)}`} sub="stake at risk" />
+        <ExposureTile
+          label="Resolved gains"
+          value={`${resolvedGains >= 0 ? "+" : ""}$${resolvedGains.toFixed(2)}`}
+          accent={resolvedGains >= 0 ? "green" : "red"}
+        />
+        <ExposureTile
+          label="By sport"
+          value={
+            [...exposureBySport.entries()]
+              .map(([k, v]) => `${k} $${v.toFixed(0)}`)
+              .join(" · ") || "—"
+          }
+          accent="neutral"
+        />
+        <ExposureTile
+          label="By outcome"
+          value={
+            [...exposureByOutcome.entries()]
+              .map(([k, v]) => `${k} $${v.toFixed(0)}`)
+              .join(" · ") || "—"
+          }
+          accent="neutral"
+        />
       </div>
     </div>
   );

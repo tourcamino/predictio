@@ -21,6 +21,7 @@ import {
   dbActivityLifecycleSemantic,
 } from '~/lib/wallet/dbActivityDisplay';
 import { shouldUseExpressForWalletCritical } from '~/lib/expressCriticalWalletApi';
+import { ProtocolStatePanel } from '~/components/protocol/ProtocolStatePanel';
 
 export const Route = createFileRoute('/wallet/transactions/')({
   component: WalletTransactionHistoryPage,
@@ -90,12 +91,23 @@ function WalletTransactionHistoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-brand-bg">
-      <div className="pb-20 px-4">
+    <div className="relative min-h-screen overflow-hidden bg-brand-bg">
+      <div
+        className="pointer-events-none absolute inset-0 opacity-30"
+        style={{
+          background:
+            'radial-gradient(ellipse 70% 45% at 50% -15%, rgba(0,255,135,0.08), transparent 55%)',
+        }}
+      />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:3rem_3rem]" />
+      <div className="relative z-10 pb-20 px-4">
         <div className="max-w-6xl mx-auto">
-          <div className="mb-8">
+          <div className="mb-8 border-b border-white/10 pb-6">
+            <p className="mb-2 inline-flex rounded-full border border-brand-cyan/25 bg-brand-cyan/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-cyan">
+              Protocol ledger
+            </p>
             <div className="flex items-center justify-between mb-2">
-              <h1 className="font-syne font-bold text-4xl">Activity ledger</h1>
+              <h1 className="font-syne font-bold text-4xl tracking-tight">Activity ledger</h1>
               <Link
                 to="/wallet"
                 className="text-sm text-brand-green hover:text-brand-green/80 transition-colors"
@@ -119,7 +131,7 @@ function WalletTransactionHistoryPage() {
             <GuestPageState onConnect={() => requireWallet()} />
           ) : (
             <>
-              <div className="mb-6 p-4 bg-white/5 border border-white/10 rounded-lg">
+              <div className="mb-6 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent p-4 shadow-[0_16px_48px_rgba(0,0,0,0.3)]">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-xs text-gray-400 mb-2">Type</label>
@@ -183,9 +195,9 @@ function WalletTransactionHistoryPage() {
               </div>
 
               {historyQuery.isLoading ? (
-                <div className="p-12 text-center text-gray-400">Loading…</div>
+                <ProtocolStatePanel variant="loading" title="Syncing ledger" message="Fetching immutable protocol activity for this wallet." />
               ) : historyQuery.isError ? (
-                <div className="p-12 text-center text-red-300 text-sm">Failed to load ledger.</div>
+                <ProtocolStatePanel variant="error" title="Ledger unavailable" message="Could not load activity. Retry shortly — balances are unchanged." />
               ) : filteredTransactions.length > 0 ? (
                 <div className="space-y-2">
                   {filteredTransactions.map((tx) => {
@@ -232,7 +244,7 @@ function WalletTransactionHistoryPage() {
                               : 'bg-gray-500/20 text-gray-400';
 
                     return (
-                      <div key={tx.id} className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
+                      <div key={tx.id} className="group relative overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-white/[0.02] shadow-[0_8px_32px_rgba(0,0,0,0.25)] transition-all hover:border-brand-green/25">
                         <button
                           type="button"
                           onClick={() => setExpandedTxId(isExpanded ? null : tx.id)}
@@ -355,11 +367,7 @@ function WalletTransactionHistoryPage() {
                   })}
                 </div>
               ) : (
-                <div className="p-12 bg-white/5 border border-white/10 rounded-lg text-center">
-                  <Filter className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                  <p className="text-gray-400 mb-2">No rows match</p>
-                  <p className="text-sm text-gray-500">Try another type or clear search</p>
-                </div>
+                <ProtocolStatePanel variant="empty" title="No ledger rows" message="Try another filter or clear search on this page." />
               )}
 
               {historyQuery.data && (historyQuery.data.hasMore || offset > 0) ? (
