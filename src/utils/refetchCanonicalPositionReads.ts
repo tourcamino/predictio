@@ -47,5 +47,25 @@ export function refetchCanonicalPositionReads(
         }
       },
     });
+    void queryClient.invalidateQueries({
+      predicate: (q) => {
+        try {
+          const s = JSON.stringify(q.queryKey);
+          return s.includes("getMarketProtocolTimeline") && s.includes(marketId);
+        } catch {
+          return false;
+        }
+      },
+    });
   }
+
+  void queryClient.invalidateQueries({
+    predicate: (q) => {
+      try {
+        return JSON.stringify(q.queryKey).includes("getSettlementProtocolHealth");
+      } catch {
+        return false;
+      }
+    },
+  });
 }

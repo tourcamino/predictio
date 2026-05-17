@@ -1,16 +1,26 @@
-# Predictio — Testnet Readiness Audit (PR7 update)
+# Predictio — Testnet Readiness Audit (PR8 update)
 
 ## Readiness scores
 
 | Tier | Score | Verdict |
 |------|-------|---------|
-| Internal alpha | 72 / 100 | Paper engine + UI diagnostics sufficient |
-| **Closed beta** | **74 / 100** | **Acceptable** with oracle-delay copy + ops forensics |
-| Public testnet | 58 / 100 | **NOT READY** — external oracle + E2E payout proof |
+| Internal alpha | 76 / 100 | Terminal UX + integrity refetch |
+| **Closed beta** | **78 / 100** | **Acceptable** — professional trading feel, oracle trust |
+| Public testnet | 60 / 100 | **NOT READY** — Azuro terminal + E2E payout proof |
 
-**Overall protocol score: 74 / 100** (up from 68 after PR6)
+**Overall protocol score: 78 / 100** (up from 74 after PR7)
 
 Closed beta with real wallets: **acceptable** when users see oracle trust layer and Prematch is explained as Azuro lag, not a bug.
+
+## PR8 deliverables
+
+| Area | Deliverable |
+|------|-------------|
+| Forensics | `docs/PR8_PROTOCOL_FORENSICS.md` |
+| Surface map | `ProtocolSurfaceWayfinder` (6 canonical surfaces) |
+| Trading feel | `MarketPulseStrip`, `PositionMotionPanel` (real data) |
+| Oracle UX | `ProtocolWhyStillOpen`, queue hints, focus refetch |
+| Integrity | `useCanonicalProtocolRefetch`, extended invalidation |
 
 ## PR7 deliverables
 

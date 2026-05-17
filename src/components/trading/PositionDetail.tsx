@@ -28,6 +28,7 @@ import {
 } from '~/utils/invalidateWalletNotifications';
 import { useMarketSummaries } from '~/hooks/useMarketSummaries';
 import { ProtocolLifecycleInsight } from '~/components/protocol/ProtocolLifecycleInsight';
+import { PositionMotionPanel } from '~/components/protocol/PositionMotionPanel';
 import { SettlementTimelineSection } from '~/components/protocol/SettlementTimelineSection';
 import { ProtocolActivityTimeline } from '~/components/protocol/ProtocolActivityTimeline';
 import { mapTradingPositionToOrderRow } from '~/lib/trading/mapTradingPositionToOrderRow';
@@ -310,6 +311,8 @@ export function PositionDetail({ position }: PositionDetailProps) {
   return (
     <div className="space-y-6 p-6">
       <ProtocolLifecycleInsight order={orderRow} market={marketRow} />
+
+      <PositionMotionPanel order={orderRow} market={marketRow} />
 
       <SettlementTimelineSection
         marketId={position.marketId}

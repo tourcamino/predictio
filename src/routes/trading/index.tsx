@@ -28,6 +28,7 @@ import { Users } from 'lucide-react';
 import { ProtocolSurfaceWayfinder } from '~/components/protocol/ProtocolSurfaceWayfinder';
 import { SettlementTimelineSection } from '~/components/protocol/SettlementTimelineSection';
 import { ProtocolSettlementHealthBar } from '~/components/protocol/ProtocolSettlementHealthBar';
+import { useCanonicalProtocolRefetch } from '~/hooks/useCanonicalProtocolRefetch';
 
 export const Route = createFileRoute('/trading/')({
   component: TradingPage,
@@ -39,6 +40,7 @@ function TradingPage() {
   const { balance: demoBalance, positions: demoPositions } = useDemoAccount();
   const walletKey = normalizeWalletForQuery(address);
   const navigate = useNavigate();
+  useCanonicalProtocolRefetch(walletKey);
 
   const selectedPositionId = useTradingStore((s) => s.selectedPositionId);
   const selectPosition = useTradingStore((s) => s.selectPosition);
@@ -269,18 +271,6 @@ function TradingPage() {
       )}
 
       <ProtocolSurfaceWayfinder current="/trading" />
-
-      <div className="mt-8 flex flex-wrap gap-4 border-t border-white/10 pt-8 text-sm">
-        <Link to="/wallet/transactions" className="font-semibold text-brand-green hover:text-brand-green/80">
-          Activity ledger →
-        </Link>
-        <Link to="/portfolio" className="text-gray-400 hover:text-white">
-          Portfolio & PnL →
-        </Link>
-        <Link to="/markets" className="text-gray-400 hover:text-white">
-          Markets →
-        </Link>
-      </div>
     </TradingTerminalShell>
   );
 }

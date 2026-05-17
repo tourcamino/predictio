@@ -34,6 +34,7 @@ import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPort
 import { PortfolioExposureSummary } from '~/components/portfolio/PortfolioExposureSummary';
 import { ProtocolStatePanel } from '~/components/protocol/ProtocolStatePanel';
 import { ProtocolSurfaceWayfinder } from '~/components/protocol/ProtocolSurfaceWayfinder';
+import { useCanonicalProtocolRefetch } from '~/hooks/useCanonicalProtocolRefetch';
 
 export const Route = createFileRoute('/portfolio/')({
   component: Portfolio,
@@ -48,6 +49,7 @@ function Portfolio() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const walletKey = normalizeWalletForQuery(address);
+  useCanonicalProtocolRefetch(walletKey);
   const [timeRange, setTimeRange] = useState<'7D' | '30D' | '90D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM'>('1M');
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>();
   const [customEndDate, setCustomEndDate] = useState<Date | undefined>();

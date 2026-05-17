@@ -6,6 +6,9 @@ import type { UserOrderRow } from "~/lib/position/derivePositionLifecycle";
 import { SettlementTimelinePanel } from "./SettlementTimelinePanel";
 import { SettlementDiagnosticBanner } from "./SettlementDiagnosticBanner";
 import { OracleTrustLayer } from "./OracleTrustLayer";
+import { ProtocolWhyStillOpen } from "./ProtocolWhyStillOpen";
+import { MarketPulseStrip } from "./MarketPulseStrip";
+import { deriveOracleActionContext } from "~/lib/protocol/deriveOracleActionContext";
 
 /** Fetches live oracle diagnostic and renders settlement timeline + banner. */
 export function SettlementTimelineSection({
@@ -27,6 +30,27 @@ export function SettlementTimelineSection({
     enabled: Boolean(marketId),
   });
 
+  const healthQuery = useQuery({
+    ...trpc.getSettlementProtocolHealth.queryOptions({ sampleLimit: 20 }),
+    staleTime: PROTOCOL_CACHE.settlementDiagnosticStaleMs,
+    enabled: Boolean(marketId) && order?.status === "open",
+  });
+
+  const actionCtx = deriveOracleActionContext({
+    diagnostic: diagnosticQuery.data?.diagnostic,
+    confidence: diagnosticQuery.data?.confidence,
+    oracleTrust: diagnosticQuery.data?.oracleTrust,
+    protocolHealth: healthQuery.data
+      ? {
+          openOrders: healthQuery.data.openOrders,
+          openMarkets: healthQuery.data.openMarkets,
+          unresolvedMarkets: healthQuery.data.unresolvedMarkets,
+          lastSettlementTickAt: healthQuery.data.lastSettlementTickAt,
+        }
+      : null,
+    orderOpen: order?.status === "open",
+  });
+
   const lastCheck = diagnosticQuery.data?.checkedAt
     ? new Date(diagnosticQuery.data.checkedAt)
     : null;
@@ -35,6 +59,15 @@ export function SettlementTimelineSection({
     <div className="space-y-4">
       <OracleTrustLayer marketId={marketId} />
       <SettlementDiagnosticBanner marketId={marketId} />
+      {order?.status === "open" ? <ProtocolWhyStillOpen ctx={actionCtx} /> : null}
+      {market ? (
+        <MarketPulseStrip
+          market={market}
+          marketId={marketId}
+          diagnostic={diagnosticQuery.data?.diagnostic}
+          oracleCheckedAt={diagnosticQuery.data?.checkedAt}
+        />
+      ) : null}
       <SettlementTimelinePanel
         market={market}
         order={order}

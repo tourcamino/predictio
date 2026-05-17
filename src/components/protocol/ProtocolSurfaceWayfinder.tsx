@@ -4,22 +4,32 @@ const surfaces = [
   {
     href: "/trading",
     title: "Trading",
-    desc: "Open positions, lifecycle, execution",
+    desc: "Lifecycle · execution · MTM · settlement",
   },
   {
     href: "/portfolio",
     title: "Portfolio",
-    desc: "PnL, exposure, performance",
+    desc: "Exposure · net worth · allocation",
   },
   {
     href: "/wallet/transactions",
     title: "Wallet",
-    desc: "Immutable ledger & cash flows",
+    desc: "Immutable ledger · deposits · rewards",
   },
   {
     href: "/markets",
     title: "Markets",
-    desc: "Discovery & new predictions",
+    desc: "Discovery · execution entry",
+  },
+  {
+    href: "/copy",
+    title: "Copy",
+    desc: "Social discovery · mirror flow",
+  },
+  {
+    href: "/liquidity",
+    title: "Liquidity",
+    desc: "LP protocol layer",
   },
 ] as const;
 
@@ -29,7 +39,7 @@ export function ProtocolSurfaceWayfinder({ current }: { current?: string }) {
       <p className="mb-3 text-[10px] font-mono uppercase tracking-[0.2em] text-gray-500">
         Protocol surfaces
       </p>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {surfaces.map((s) => (
           <Link
             key={s.href}
