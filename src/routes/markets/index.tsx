@@ -8,7 +8,6 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { fetchCuratedMarketsFromApi } from '~/utils/curatedMarketsApi';
-import { SportCategoriesRail } from '~/components/markets/SportCategoriesRail';
 import { FilterChips } from '~/components/markets/FilterChips';
 import { MarketSection } from '~/components/markets/MarketSection';
 import { MarketsGrid } from '~/components/markets/MarketsGrid';
