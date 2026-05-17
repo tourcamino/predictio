@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Run global paper settlement on the VPS host (cron + post-deploy).
+# Requires postgres published on 127.0.0.1:5432 and repo node_modules.
+set -euo pipefail
+
+ROOT="${VPS_REPO_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+cd "$ROOT"
+
+if [[ ! -f .env ]]; then
+  echo "ERROR: .env missing in $ROOT"
+  exit 1
+fi
+
+SETTLE_DB_URL="$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | tr -d '\r' | sed 's/^"//;s/"$//')"
+SETTLE_DB_URL="${SETTLE_DB_URL//@postgres:/@127.0.0.1:}"
+SETTLE_DB_URL="${SETTLE_DB_URL//@predictio-postgres-1:/@127.0.0.1:}"
+
+if [[ -z "$SETTLE_DB_URL" ]]; then
+  echo "ERROR: DATABASE_URL not set in .env"
+  exit 1
+fi
+
+export DATABASE_URL="$SETTLE_DB_URL"
+export NODE_TLS_REJECT_UNAUTHORIZED="${NODE_TLS_REJECT_UNAUTHORIZED:-0}"
+
+exec node --import tsx src/server/scripts/runGlobalPaperSettlementTick.ts
