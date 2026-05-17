@@ -101,7 +101,11 @@ Each `TraderPositionCard` surfaces:
 
 ## 8–11. Deploy / regressions / blockers
 
-*(Filled after commit + Vercel deploy in this PR)*
+| Item | Value |
+|------|--------|
+| **Commit SHA** | `54ecec6` |
+| **Vercel deploy ID** | `dpl_GStK9biXbAYZmJ46tdRQcBhuPsy1` (production, triggered on push) |
+| **Backend** | Not required (frontend-only) |
 
 ### Regressions avoided
 
