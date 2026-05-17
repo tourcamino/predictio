@@ -24,6 +24,8 @@ import { MarketClockPanel } from '~/components/protocol/MarketClockPanel';
 import { MarketActivityStrip } from '~/components/protocol/MarketActivityStrip';
 import { LiquidityProtocolExplainer } from '~/components/protocol/LiquidityProtocolExplainer';
 import { ProtocolSurfaceWayfinder } from '~/components/protocol/ProtocolSurfaceWayfinder';
+import { SettlementTimelineSection } from '~/components/protocol/SettlementTimelineSection';
+import { ProtocolActivityTimeline } from '~/components/protocol/ProtocolActivityTimeline';
 import { getMarketStatus } from '~/utils/marketLifecycle';
 import { getMarketDetailLoadIssue } from '~/utils/marketDetailErrors';
 import { fetchMarketDetailWithRestFallback } from '~/utils/fetchMarketDetailWithRestFallback';
@@ -233,6 +235,8 @@ function MarketDetailPage() {
               }
             />
             <LiquidityProtocolExplainer market={market} />
+
+            <SettlementTimelineSection marketId={marketId} market={market} />
 
             {/* Dispute/Void Banner */}
             {(market.status === 'under_review' || market.status === 'voided') && (
@@ -465,7 +469,8 @@ function MarketDetailPage() {
             </div>
           </div>
 
-          <div className="mt-8 lg:col-span-12">
+          <div className="mt-8 space-y-6 lg:col-span-12">
+            <ProtocolActivityTimeline marketId={marketId} />
             <ProtocolSurfaceWayfinder />
           </div>
 

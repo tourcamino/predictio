@@ -8,6 +8,7 @@ import {
 } from "~/lib/expressCriticalWalletApi";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "~/server/trpc/root";
+import { PROTOCOL_CACHE } from "~/lib/query/protocolCachePolicy";
 
 export type UserPositionsStatus = "all" | "open" | "closed" | "resolved";
 export type UserPositionsData = inferRouterOutputs<AppRouter>["getUserPositions"];
@@ -42,8 +43,10 @@ export function useUserPositions(options: {
       useExpress ? "express" : "trpc",
     ] as const,
     enabled,
-    staleTime: 15_000,
-    refetchInterval: options.refetchInterval,
+    staleTime: PROTOCOL_CACHE.positionsStaleMs,
+    refetchInterval: options.refetchInterval ?? PROTOCOL_CACHE.positionsRefetchIntervalMs,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     queryFn: async (): Promise<UserPositionsData> => {
       const w = walletKey!;
       if (useExpress) {

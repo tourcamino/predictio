@@ -15,96 +15,32 @@ interface Trade {
   timestamp: Date;
 }
 
-function generateWalletAddress(): string {
-  const chars = '0123456789abcdef';
-  let address = '0x';
-  for (let i = 0; i < 4; i++) {
-    address += chars[Math.floor(Math.random() * chars.length)];
-  }
-  address += '...';
-  for (let i = 0; i < 4; i++) {
-    address += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return address;
-}
-
-function generateMockTrade(market: Market): Trade {
-  const outcomes = [
-    { id: 'teamA', label: `${market.teamA} Win` },
-    ...(market.percentDraw ? [{ id: 'draw', label: 'Draw' }] : []),
-    { id: 'teamB', label: `${market.teamB} Win` },
-  ];
-  
-  const oi = Math.floor(Math.random() * outcomes.length);
-  const outcome = outcomes[oi];
-  const amount = Math.floor(Math.random() * 2000) + 50;
-
-  if (!outcome) {
-    return {
-      id: `${Date.now()}-${Math.random()}`,
-      wallet: generateWalletAddress(),
-      outcome: 'teamA',
-      outcomeLabel: `${market.teamA} Win`,
-      amount,
-      timestamp: new Date(),
-    };
-  }
-
-  return {
-    id: `${Date.now()}-${Math.random()}`,
-    wallet: generateWalletAddress(),
-    outcome: outcome.id,
-    outcomeLabel: outcome.label,
-    amount,
-    timestamp: new Date(),
-  };
-}
-
-function generateMockTrades(market: Market, count: number): Trade[] {
-  const trades: Trade[] = [];
-  const now = Date.now();
-  
-  for (let i = 0; i < count; i++) {
-    const trade = generateMockTrade(market);
-    trade.timestamp = new Date(now - i * 60000 * Math.random() * 10);
-    trades.push(trade);
-  }
-  
-  return trades.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-}
-
 export function RecentTradesFeed({ market }: RecentTradesFeedProps) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const { messages, connected } = useWebSocket('markets');
 
-  // Real trade stream only — no seeded mock trades (PR1 mock purge)
   useEffect(() => {
     setTrades([]);
-  }, [market]);
+  }, [market.id]);
 
-  // Track last processed message timestamp to avoid reprocessing
   const lastProcessedTimestamp = useRef<number>(0);
 
-  // Listen for WebSocket trade events
   useEffect(() => {
-    // Only process new messages that haven't been seen before
     const newMessages = messages.filter(
       (msg) => (msg.timestamp || 0) > lastProcessedTimestamp.current
     );
 
     if (newMessages.length === 0) return;
 
-    // Update the last processed timestamp
     const latestTimestamp = Math.max(
       ...newMessages.map((msg) => msg.timestamp || 0)
     );
     lastProcessedTimestamp.current = latestTimestamp;
 
-    // Process new trade messages
     newMessages.forEach((msg) => {
       if (msg.event === 'trade' && msg.data.marketId === market.id) {
         const newTrade: Trade = {
-          id: `${Date.now()}-${Math.random()}`,
+          id: `ws-${msg.data.timestamp}-${msg.data.wallet}`,
           wallet: msg.data.wallet,
           outcome: msg.data.outcome,
           outcomeLabel:
@@ -137,21 +73,23 @@ export function RecentTradesFeed({ market }: RecentTradesFeedProps) {
   };
 
   return (
-    <div className="bg-brand-bg border border-white/10 rounded-lg p-6">
+    <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-syne font-bold text-xl">Recent Predictions</h2>
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${connected ? 'bg-brand-green' : 'bg-red-500'}`} />
+          <span className={`w-2 h-2 rounded-full ${connected ? 'bg-brand-green' : 'bg-gray-500'}`} />
           <span className="text-xs text-gray-500 font-mono">
-            {connected ? 'Live' : 'Offline'}
+            {connected ? 'Live feed' : 'Awaiting protocol activity'}
           </span>
         </div>
       </div>
-      
+
       <div className="space-y-3 max-h-96 overflow-y-auto">
         {trades.length === 0 ? (
           <p className="text-sm text-gray-500 text-center py-6">
-            No recent trades yet. Activity will appear here when the live feed is connected.
+            {connected
+              ? 'No trades in this session yet — activity appears when the live feed publishes real fills.'
+              : 'Live feed offline. See Protocol activity below for Postgres ledger events.'}
           </p>
         ) : null}
         {trades.map((trade, index) => (

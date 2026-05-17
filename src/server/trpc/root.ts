@@ -118,6 +118,8 @@ import {
   unverifyAnalyst,
 } from "./procedures/admin/verifyAnalyst";
 import { runtimeReconciliationReport } from "./procedures/runtimeReconciliationReport";
+import { getMarketSettlementDiagnostic } from "./procedures/getMarketSettlementDiagnostic";
+import { getMarketProtocolTimeline } from "./procedures/getMarketProtocolTimeline";
 
 export const appRouter = createTRPCRouter({
   getMarketDetail,
@@ -125,6 +127,8 @@ export const appRouter = createTRPCRouter({
   getAzuroMarkets,
   checkAzuroResolutions,
   runtimeReconciliationReport,
+  getMarketSettlementDiagnostic,
+  getMarketProtocolTimeline,
   placePrediction,
   closePosition,
   syncUserAccount,

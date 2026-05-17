@@ -5,6 +5,7 @@ import { fetchMarketSnapshotFromRest } from "~/utils/fetchMarketDetailWithRestFa
 import type { Market } from "~/data/mockMarkets";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "~/server/trpc/root";
+import { PROTOCOL_CACHE } from "~/lib/query/protocolCachePolicy";
 
 export type MarketSummariesData =
   inferRouterOutputs<AppRouter>["getMarketSummaries"];
@@ -39,8 +40,9 @@ export function useMarketSummaries(input: {
       useExpress ? "express-rest" : "trpc",
     ] as const,
     enabled: (input.enabled ?? true) && ids.length > 0,
-    staleTime: input.staleTime ?? 30_000,
-    refetchInterval: input.refetchInterval,
+    staleTime: input.staleTime ?? PROTOCOL_CACHE.marketSummariesStaleMs,
+    refetchInterval: input.refetchInterval ?? PROTOCOL_CACHE.marketSummariesRefetchIntervalMs,
+    refetchOnWindowFocus: true,
     queryFn: async (): Promise<MarketSummariesData> => {
       if (useExpress) {
         return fetchMarketSummariesViaRest(ids);

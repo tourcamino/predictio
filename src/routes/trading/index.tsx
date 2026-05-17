@@ -26,6 +26,7 @@ import {
 } from '~/lib/position/derivePositionLifecycle';
 import { Users } from 'lucide-react';
 import { ProtocolSurfaceWayfinder } from '~/components/protocol/ProtocolSurfaceWayfinder';
+import { SettlementTimelineSection } from '~/components/protocol/SettlementTimelineSection';
 
 export const Route = createFileRoute('/trading/')({
   component: TradingPage,
@@ -200,6 +201,17 @@ function TradingPage() {
       </div>
 
       <SettlementOracleBanner positions={openOrders} marketById={marketById} />
+
+      {selectedPosition && (
+        <div className="mb-6 lg:hidden">
+          <SettlementTimelineSection
+            marketId={selectedPosition.marketId}
+            market={marketById[selectedPosition.marketId] ?? null}
+            order={openOrders.find((o) => o.id === selectedPosition.id) ?? undefined}
+            compact
+          />
+        </div>
+      )}
 
       <div className="hidden lg:grid lg:h-[calc(100vh-340px)] lg:grid-cols-[380px_1fr] lg:gap-6">
         <div className="overflow-hidden rounded-xl border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">

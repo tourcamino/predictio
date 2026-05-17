@@ -22,12 +22,14 @@ import toast from 'react-hot-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '~/trpc/react';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
-import { invalidateWalletPortfolioLpQueries } from '~/utils/invalidateWalletPortfolioLpQueries';
+import { refetchCanonicalPositionReads } from '~/utils/refetchCanonicalPositionReads';
 import {
   invalidateWalletNotifications,
 } from '~/utils/invalidateWalletNotifications';
 import { useMarketSummaries } from '~/hooks/useMarketSummaries';
 import { ProtocolLifecycleInsight } from '~/components/protocol/ProtocolLifecycleInsight';
+import { SettlementTimelineSection } from '~/components/protocol/SettlementTimelineSection';
+import { ProtocolActivityTimeline } from '~/components/protocol/ProtocolActivityTimeline';
 import { mapTradingPositionToOrderRow } from '~/lib/trading/mapTradingPositionToOrderRow';
 
 function positionDetailExecDevLog(phase: string, extra?: Record<string, unknown>) {
@@ -58,12 +60,9 @@ export function PositionDetail({ position }: PositionDetailProps) {
 
   const invalidatePaperQueries = () => {
     if (walletKey) {
-      invalidateWalletPortfolioLpQueries(queryClient, trpc, walletKey);
+      refetchCanonicalPositionReads(queryClient, trpc, walletKey, position.marketId);
       invalidateWalletNotifications(queryClient, trpc.getNotifications.queryKey, walletKey);
     }
-    void queryClient.invalidateQueries({
-      queryKey: trpc.getMarketDetail.queryKey({ marketId: position.marketId }),
-    });
   };
 
   const closePositionMutation = useMutation({
@@ -311,6 +310,14 @@ export function PositionDetail({ position }: PositionDetailProps) {
   return (
     <div className="space-y-6 p-6">
       <ProtocolLifecycleInsight order={orderRow} market={marketRow} />
+
+      <SettlementTimelineSection
+        marketId={position.marketId}
+        market={marketRow}
+        order={orderRow}
+      />
+
+      <ProtocolActivityTimeline marketId={position.marketId} compact />
 
       <div className={`${panelShell} p-6`}>
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-green/35 to-transparent" aria-hidden />

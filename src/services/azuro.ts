@@ -717,6 +717,39 @@ export type AzuroPaperResolutionPollItem =
       rawState?: string;
     };
 
+/** Single-game Azuro state for UI settlement diagnostics (read-only). */
+export async function fetchAzuroGameForSettlement(
+  marketId: string,
+): Promise<AzuroGame | null> {
+  if (!marketId.startsWith("azuro-")) return null;
+  const gameId = marketId.replace(/^azuro-/, "");
+  try {
+    const response = await azuroGraphqlFetch({
+      query: `
+        query SettlementGame($gameId: String!) {
+          games(where: { gameId: $gameId }) {
+            gameId
+            state
+            status
+            conditions {
+              conditionId
+              wonOutcomeIds
+              outcomes { outcomeId }
+            }
+          }
+        }
+      `,
+      variables: { gameId },
+    });
+    if (!response.ok) return null;
+    const raw = await readAzuroGraphqlJson(response);
+    const data = raw as { data?: { games?: AzuroGame[] } };
+    return data.data?.games?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Poll Azuro games for terminal / exceptional states affecting paper positions.
  * Idempotent callers should still dedupe by `marketId` before applying DB writes.
