@@ -68,7 +68,19 @@ dc logs backend --tail 80
 
 if command -v node >/dev/null 2>&1 && [[ -f src/server/scripts/runGlobalPaperSettlementTick.ts ]]; then
   echo "==> [6b] global paper settlement tick (open orders)"
-  node --env-file=.env --import tsx src/server/scripts/runGlobalPaperSettlementTick.ts || echo "WARN: settlement tick failed (non-fatal)"
+  # Host-run script: rewrite docker service hostname → localhost (postgres port is published on VPS).
+  SETTLE_DB_URL=""
+  if [[ -f .env ]]; then
+    SETTLE_DB_URL="$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | tr -d '\r' | sed 's/^"//;s/"$//')"
+    SETTLE_DB_URL="${SETTLE_DB_URL//@postgres:/@localhost:}"
+    SETTLE_DB_URL="${SETTLE_DB_URL//@predictio-postgres-1:/@localhost:}"
+  fi
+  if [[ -n "$SETTLE_DB_URL" ]]; then
+    DATABASE_URL="$SETTLE_DB_URL" node --import tsx src/server/scripts/runGlobalPaperSettlementTick.ts \
+      || echo "WARN: settlement tick failed (non-fatal)"
+  else
+    echo "WARN: DATABASE_URL missing — skip settlement tick"
+  fi
 fi
 
 if [[ "${SKIP_VERSION_CHECK:-}" == "1" ]]; then
