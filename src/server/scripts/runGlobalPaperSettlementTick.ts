@@ -23,9 +23,28 @@ async function main() {
     return;
   }
 
-  console.log(`[settlement-tick] polling ${marketIds.length} markets (${openOrders.length} open orders)`);
+  console.log(
+    JSON.stringify({
+      type: "settlement_tick_start",
+      polledMarkets: marketIds.length,
+      openOrders: openOrders.length,
+      at: new Date().toISOString(),
+    }),
+  );
   const resolved = await checkResolvedMarkets(marketIds);
-  console.log(`[settlement-tick] oracle returned ${resolved.length} terminal items`);
+  console.log(
+    JSON.stringify({
+      type: "settlement_tick_oracle_result",
+      terminalItems: resolved.length,
+      kinds: resolved.reduce(
+        (acc, r) => {
+          acc[r.kind] = (acc[r.kind] ?? 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      ),
+    }),
+  );
   if (resolved.length === 0 && marketIds.length > 0) {
     console.log(
       JSON.stringify({

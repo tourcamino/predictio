@@ -27,6 +27,7 @@ import {
 import { Users } from 'lucide-react';
 import { ProtocolSurfaceWayfinder } from '~/components/protocol/ProtocolSurfaceWayfinder';
 import { SettlementTimelineSection } from '~/components/protocol/SettlementTimelineSection';
+import { ProtocolSettlementHealthBar } from '~/components/protocol/ProtocolSettlementHealthBar';
 
 export const Route = createFileRoute('/trading/')({
   component: TradingPage,
@@ -201,6 +202,8 @@ function TradingPage() {
       </div>
 
       <SettlementOracleBanner positions={openOrders} marketById={marketById} />
+
+      <ProtocolSettlementHealthBar />
 
       {selectedPosition && (
         <div className="mb-6 lg:hidden">

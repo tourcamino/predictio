@@ -5,6 +5,10 @@ import {
   classifyAzuroGameForSettlement,
   logSettlementDiagnostic,
 } from "~/lib/settlement/settlementDiagnostics";
+import {
+  mapWonOutcomeToHomeAway,
+  pickMoneylineCondition,
+} from "~/lib/settlement/azuroConditionSelection";
 
 export {
   hoursUntilStartMarket,
@@ -431,8 +435,8 @@ export async function fetchAzuroGames(
       const homeTeam = ordered[0]?.name || 'Team A';
       const awayTeam = ordered[1]?.name || 'Team B';
       
-      // Get main match winner condition (usually the first one)
-      const mainCondition = game.conditions[0];
+      const moneylinePick = pickMoneylineCondition(game.conditions);
+      const mainCondition = moneylinePick?.condition ?? game.conditions[0];
       const { yesPrice, drawPrice, noPrice, drawOdds } = moneylineFromCondition(
         mainCondition?.outcomes ?? [],
       );
@@ -730,11 +734,10 @@ export async function fetchAzuroGameForSettlement(
           games(where: { gameId: $gameId }) {
             gameId
             state
-            status
             conditions {
               conditionId
               wonOutcomeIds
-              outcomes { outcomeId }
+              outcomes { outcomeId title currentOdds }
             }
           }
         }
@@ -794,11 +797,28 @@ export async function checkResolvedMarkets(
     });
 
     if (!response.ok) {
+      console.error(
+        JSON.stringify({
+          type: "settlement_azuro_graphql_error",
+          status: response.status,
+          statusText: response.statusText,
+          marketCount: azuroGameIds.length,
+        }),
+      );
       return [];
     }
 
     const raw = await readAzuroGraphqlJson(response);
-    const data = raw as { data?: { games?: AzuroGame[] } };
+    const data = raw as { data?: { games?: AzuroGame[] }; errors?: unknown };
+    if (data.errors) {
+      console.error(
+        JSON.stringify({
+          type: "settlement_azuro_graphql_error",
+          errors: data.errors,
+          marketCount: azuroGameIds.length,
+        }),
+      );
+    }
     const games: AzuroGame[] = data.data?.games || [];
     const gamesById = new Map(games.map((g) => [String(g.gameId), g]));
 
@@ -813,7 +833,8 @@ export async function checkResolvedMarkets(
 
     for (const game of games) {
       const marketId = `azuro-${game.gameId}`;
-      const main = game.conditions?.[0];
+      const pick = pickMoneylineCondition(game.conditions);
+      const main = pick?.condition;
       const rawState = (game.state ?? game.status ?? "").trim();
 
       const diagnostic = classifyAzuroGameForSettlement(marketId, game);
@@ -869,13 +890,12 @@ export async function checkResolvedMarkets(
         continue;
       }
 
-      const wonId = main.wonOutcomeIds?.[0];
-      if (!wonId) {
+      if (!main.wonOutcomeIds?.[0]) {
         continue;
       }
 
-      const outs = main.outcomes ?? [];
-      if (outs.length >= 3 && outs[1]?.outcomeId && wonId === outs[1].outcomeId) {
+      const mapped = mapWonOutcomeToHomeAway(main);
+      if (mapped === "draw") {
         out.push({
           marketId,
           conditionId: main.conditionId,
@@ -886,20 +906,23 @@ export async function checkResolvedMarkets(
         continue;
       }
 
-      if (outs.length >= 1 && outs[0]?.outcomeId) {
-        const result: "home" | "away" = wonId === outs[0].outcomeId ? "home" : "away";
+      if (mapped === "home" || mapped === "away") {
         logSettlementDiagnostic({
           ...classifyAzuroGameForSettlement(marketId, game),
           reasonCode: "SETTLEMENT_ELIGIBLE",
-          reasonDetail: `Binary settle → ${result}`,
+          reasonDetail: `Binary settle → ${mapped} (condition[${pick?.index}] ${pick?.reason})`,
           skipped: false,
         });
         out.push({
           marketId,
           conditionId: main.conditionId,
           kind: "BINARY",
-          result,
+          result: mapped,
         });
+      } else {
+        logSettlementDiagnostic(
+          classifyAzuroGameForSettlement(marketId, game),
+        );
       }
     }
 

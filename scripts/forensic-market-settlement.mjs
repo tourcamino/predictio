@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Per-market settlement forensics (DB + Azuro oracle + eligibility).
+ * PR6: fixed GraphQL (no invalid `status` field), moneyline condition pick.
  *
  * Usage:
  *   node scripts/forensic-market-settlement.mjs <marketId> [apiBase]
  *   node scripts/forensic-market-settlement.mjs --wallet <wallet> [apiBase]
- *   node scripts/forensic-market-settlement.mjs --search "Gnistan" [apiBase]
  */
 const args = process.argv.slice(2);
 const base = (process.env.PREDICTIO_API_BASE || "https://api.predictio.live").replace(
@@ -16,12 +16,11 @@ const AZURO =
   process.env.AZURO_DATA_FEED_URL ||
   "https://thegraph-1.onchainfeed.org/subgraphs/name/azuro-protocol/azuro-data-feed-polygon";
 
+const AZURO_QUERY = `query($ids:[String!]!){ games(where:{gameId_in:$ids}){ gameId state conditions{ conditionId state wonOutcomeIds outcomes{ outcomeId title currentOdds } } } }`;
+
 function parseArgs() {
   if (args[0] === "--wallet") {
     return { mode: "wallet", wallet: (args[1] || "").toLowerCase(), api: args[2] || base };
-  }
-  if (args[0] === "--search") {
-    return { mode: "search", q: args[1] || "", api: args[2] || base };
   }
   return { mode: "market", marketId: args[0] || "", api: args[1] || base };
 }
@@ -37,69 +36,101 @@ async function azuroGame(gameId) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      query: `query($id:String!){ games(where:{gameId:$id}){ gameId state status conditions{ conditionId state wonOutcomeIds outcomes{ outcomeId title } } } }`,
-      variables: { id: gameId },
+      query: AZURO_QUERY,
+      variables: { ids: [gameId] },
     }),
   });
   const json = await res.json();
+  if (json.errors?.length) console.error("Azuro:", json.errors);
   return json?.data?.games?.[0] ?? null;
 }
 
+function pickMoneyline(conditions) {
+  if (!conditions?.length) return null;
+  const three = conditions
+    .map((c, index) => ({ c, index }))
+    .filter(({ c }) => (c.outcomes?.length ?? 0) === 3);
+  if (!three.length) {
+    return conditions[0]?.conditionId
+      ? { condition: conditions[0], index: 0, reason: "fallback_0" }
+      : null;
+  }
+  for (const item of three) {
+    const odds = item.c.outcomes.map((o) => parseFloat(o.currentOdds || "0"));
+    if (odds.every((x) => x >= 1.01 && x <= 80)) {
+      return { condition: item.c, index: item.index, reason: "first_plausible_3way" };
+    }
+  }
+  return { condition: three[0].c, index: three[0].index, reason: "first_3way" };
+}
+
 function classify(marketId, game, dbMarket) {
-  const closesAt = dbMarket?.closesAt ?? null;
-  const rawState = (game?.state ?? game?.status ?? "").trim();
-  const main = game?.conditions?.[0];
-  const conditionId = main?.conditionId ?? null;
-  const hasWinner = Boolean(main?.wonOutcomeIds?.[0]);
+  const pick = pickMoneyline(game?.conditions);
+  const main = pick?.condition;
+  const rawState = (game?.state ?? "").trim();
+  const base = {
+    conditionCount: game?.conditions?.length ?? 0,
+    conditionIndex: pick?.index ?? null,
+    conditionSelectionReason: pick?.reason ?? null,
+    conditions0Id: game?.conditions?.[0]?.conditionId ?? null,
+    index0Mismatch: pick?.index != null && pick.index !== 0,
+  };
 
   if (!marketId.startsWith("azuro-")) {
-    return { reasonCode: "NON_AZURO_MARKET", blocker: "Not an Azuro market id" };
+    return { ...base, reasonCode: "NON_AZURO_MARKET", exactBlocker: "Not Azuro id" };
   }
   if (!game) {
-    return { reasonCode: "GAME_NOT_IN_SUBGRAPH", blocker: "Game missing from Azuro subgraph" };
+    return { ...base, reasonCode: "GAME_NOT_IN_SUBGRAPH", exactBlocker: "gameId_in empty" };
   }
-  if (!conditionId) {
+  if (!main?.conditionId) {
     return {
+      ...base,
       reasonCode: "CONDITION_MISSING",
-      blocker: `No conditions[0].conditionId (${game.conditions?.length ?? 0} conditions)`,
+      exactBlocker: `No moneyline condition (${base.conditionCount} conditions)`,
     };
   }
   if (/^Prematch$/i.test(rawState)) {
     return {
+      ...base,
       reasonCode: "ORACLE_PREMATCH",
-      blocker: "Azuro game.state still Prematch — settlement tick skips",
+      exactBlocker: `Oracle Prematch — settlement blocked (using condition[${pick.index}])`,
     };
   }
   if (rawState !== "Resolved" && rawState !== "Finished") {
     return {
+      ...base,
       reasonCode: "ORACLE_NOT_RESOLVED",
-      blocker: `Oracle state "${rawState || "unknown"}" not terminal`,
+      exactBlocker: `State "${rawState}" not terminal`,
     };
   }
-  if (!hasWinner) {
+  if (!main.wonOutcomeIds?.[0]) {
     return {
+      ...base,
       reasonCode: "WINNER_UNKNOWN",
-      blocker: "Terminal state but wonOutcomeIds empty",
+      exactBlocker: "No wonOutcomeIds on selected condition",
     };
   }
-  const wonId = main.wonOutcomeIds[0];
+  const won = main.wonOutcomeIds[0];
   const outs = main.outcomes ?? [];
-  if (outs.length >= 3 && outs[1]?.outcomeId && wonId === outs[1].outcomeId) {
+  if (outs.length >= 3 && outs[1]?.outcomeId === won) {
     return {
+      ...base,
       reasonCode: "DRAW_UNSUPPORTED",
-      blocker: "Draw won — refund path, not binary YES/NO",
+      exactBlocker: "Draw won",
       eligible: "refund",
     };
   }
   if ((dbMarket?.status ?? "").toLowerCase() === "resolved") {
     return {
+      ...base,
       reasonCode: "MARKET_ALREADY_SETTLED",
-      blocker: "DB market already resolved",
+      exactBlocker: "DB already resolved",
     };
   }
   return {
+    ...base,
     reasonCode: "SETTLEMENT_ELIGIBLE",
-    blocker: null,
+    exactBlocker: null,
     eligible: "binary_settle",
   };
 }
@@ -107,23 +138,17 @@ function classify(marketId, game, dbMarket) {
 async function diagnoseMarket(marketId, api) {
   const gameId = marketId.replace(/^azuro-/, "");
   let dbMarket = null;
-  let openOrders = [];
   try {
     const detail = await get(`/api/markets/${encodeURIComponent(marketId)}`, api);
     dbMarket = detail?.market ?? detail ?? null;
   } catch {
     /* optional */
   }
-  try {
-    const markets = await get("/api/markets", api);
-    const row = (markets.markets ?? []).find((m) => m.id === marketId);
-    if (row && !dbMarket) dbMarket = row;
-  } catch {
-    /* optional */
-  }
 
   const game = gameId ? await azuroGame(gameId) : null;
   const verdict = classify(marketId, game, dbMarket);
+  const pick = pickMoneyline(game?.conditions);
+  const main = pick?.condition;
 
   const report = {
     marketId,
@@ -132,28 +157,29 @@ async function diagnoseMarket(marketId, api) {
       (dbMarket ? `${dbMarket.teamA} vs ${dbMarket.teamB}` : null),
     db: {
       status: dbMarket?.status ?? null,
-      winner: dbMarket?.winner ?? dbMarket?.result ?? null,
       closesAt: dbMarket?.closesAt ?? null,
-      resolvedAt: dbMarket?.resolvedAt ?? dbMarket?.resolved_at ?? null,
+      resolvedAt: dbMarket?.resolvedAt ?? null,
     },
     azuro: {
       gameId,
       state: game?.state ?? null,
       conditionCount: game?.conditions?.length ?? 0,
-      condition0: game?.conditions?.[0]
+      selectedCondition: main
         ? {
-            conditionId: game.conditions[0].conditionId,
-            state: game.conditions[0].state,
-            wonOutcomeIds: game.conditions[0].wonOutcomeIds,
+            index: pick.index,
+            conditionId: main.conditionId,
+            wonOutcomeIds: main.wonOutcomeIds,
+            odds: main.outcomes?.map((o) => o.currentOdds),
           }
         : null,
+      conditions0: game?.conditions?.[0]?.conditionId ?? null,
     },
     settlement: {
       eligibility: verdict.eligible ?? "blocked",
       reasonCode: verdict.reasonCode,
-      exactBlocker: verdict.blocker,
+      exactBlocker: verdict.exactBlocker,
+      ...verdict,
     },
-    openOrders,
   };
 
   console.log(JSON.stringify(report, null, 2));
@@ -174,6 +200,7 @@ async function main() {
       api,
     );
     const ids = [...new Set((positions ?? []).map((p) => p.marketId))];
+    console.log(JSON.stringify({ wallet: opts.wallet, markets: ids.length }, null, 2));
     for (const id of ids) {
       await diagnoseMarket(id, api);
       console.log("");
@@ -181,31 +208,10 @@ async function main() {
     return;
   }
 
-  if (opts.mode === "search") {
-    const { markets } = await get("/api/markets", api);
-    const q = (opts.q || "").toLowerCase();
-    const hits = (markets ?? []).filter((m) => {
-      const t = `${m.event || ""} ${m.teamA || ""} ${m.teamB || ""}`.toLowerCase();
-      return t.includes(q);
-    });
-    if (hits.length === 0) {
-      console.error("No markets matched:", opts.q);
-      process.exit(1);
-    }
-    for (const m of hits.slice(0, 12)) {
-      await diagnoseMarket(m.id, api);
-      console.log("");
-    }
-    return;
-  }
-
   if (!opts.marketId) {
-    console.error(
-      "Usage: node scripts/forensic-market-settlement.mjs <marketId> | --wallet <w> | --search <text>",
-    );
+    console.error("Usage: <marketId> | --wallet <w>");
     process.exit(1);
   }
-
   await diagnoseMarket(opts.marketId, api);
 }
 

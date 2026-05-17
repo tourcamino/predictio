@@ -73,7 +73,13 @@ export function SettlementDiagnosticBanner({ marketId }: { marketId: string }) {
           </p>
           <p className="mt-1 text-xs text-gray-400">{copy}</p>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-gray-600">
-            {d.conditionId && <span>condition {d.conditionId.slice(0, 10)}…</span>}
+            {d.conditionId && <span>condition {d.conditionId.slice(0, 12)}…</span>}
+            {d.conditionIndex != null && (
+              <span>
+                idx {d.conditionIndex}/{d.conditionCount}
+                {d.conditionSelectionReason ? ` · ${d.conditionSelectionReason}` : ""}
+              </span>
+            )}
             {d.azuroGameId && <span>game {d.azuroGameId}</span>}
             {query.data?.checkedAt && (
               <span>checked {formatApiDateTime(new Date(query.data.checkedAt))}</span>

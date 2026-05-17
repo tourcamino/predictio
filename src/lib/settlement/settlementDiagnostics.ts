@@ -1,7 +1,14 @@
 /**
- * Structured settlement / oracle diagnostics (PR2).
+ * Structured settlement / oracle diagnostics (PR2 + PR6 condition selection).
  * Read-only classification — does not change settlement math or DB writes.
  */
+
+import {
+  mapWonOutcomeToHomeAway,
+  pickMoneylineCondition,
+  type AzuroConditionLike,
+  type MoneylineOddsHint,
+} from "~/lib/settlement/azuroConditionSelection";
 
 export type SettlementSkipReasonCode =
   | "SETTLEMENT_ELIGIBLE"
@@ -22,6 +29,9 @@ export type SettlementDiagnosticEntry = {
   marketId: string;
   azuroGameId: string | null;
   conditionId: string | null;
+  conditionIndex: number | null;
+  conditionCount: number;
+  conditionSelectionReason: string | null;
   closesAt: string | null;
   azuroGameState: string | null;
   hasWinner: boolean;
@@ -40,12 +50,6 @@ export function logSettlementDiagnostic(entry: SettlementDiagnosticEntry): void 
   );
 }
 
-type AzuroConditionLike = {
-  conditionId?: string;
-  wonOutcomeIds?: string[];
-  outcomes?: { outcomeId?: string }[];
-};
-
 type AzuroGameLike = {
   gameId?: string;
   state?: string;
@@ -53,12 +57,21 @@ type AzuroGameLike = {
   conditions?: AzuroConditionLike[];
 };
 
+function baseEntry(
+  partial: Omit<SettlementDiagnosticEntry, "observedAt">,
+): SettlementDiagnosticEntry {
+  return { ...partial, observedAt: new Date().toISOString() };
+}
+
 export function classifyAzuroGameForSettlement(
   marketId: string,
   game: AzuroGameLike | null | undefined,
-  meta?: { closesAt?: Date | string | null; dbStatus?: string | null },
+  meta?: {
+    closesAt?: Date | string | null;
+    dbStatus?: string | null;
+    oddsHint?: MoneylineOddsHint;
+  },
 ): SettlementDiagnosticEntry {
-  const observedAt = new Date().toISOString();
   const closesAt =
     meta?.closesAt != null
       ? meta.closesAt instanceof Date
@@ -66,191 +79,179 @@ export function classifyAzuroGameForSettlement(
         : String(meta.closesAt)
       : null;
 
+  const conditionCount = game?.conditions?.length ?? 0;
+
   if (!marketId.startsWith("azuro-")) {
-    return {
+    return baseEntry({
       marketId,
       azuroGameId: null,
       conditionId: null,
+      conditionIndex: null,
+      conditionCount: 0,
+      conditionSelectionReason: null,
       closesAt,
       azuroGameState: null,
       hasWinner: false,
       reasonCode: "NON_AZURO_MARKET",
       reasonDetail: "Market id is not azuro-prefixed",
       skipped: true,
-      observedAt,
-    };
+    });
   }
 
   const azuroGameId = marketId.replace(/^azuro-/, "");
 
   if (!game) {
-    return {
+    return baseEntry({
       marketId,
       azuroGameId,
       conditionId: null,
+      conditionIndex: null,
+      conditionCount: 0,
+      conditionSelectionReason: null,
       closesAt,
       azuroGameState: null,
       hasWinner: false,
       reasonCode: "GAME_NOT_IN_SUBGRAPH",
       reasonDetail: "Game not returned by Azuro GraphQL games(where: gameId_in)",
       skipped: true,
-      observedAt,
-    };
+    });
   }
 
-  const main = game.conditions?.[0];
+  const pick = pickMoneylineCondition(game.conditions, meta?.oddsHint);
+  const main = pick?.condition;
   const conditionId = main?.conditionId ?? null;
+  const conditionIndex = pick?.index ?? null;
+  const selectionReason = pick?.reason ?? null;
   const rawState = (game.state ?? game.status ?? "").trim();
   const hasWinner = Boolean(main?.wonOutcomeIds?.[0]);
 
   if (!conditionId) {
-    return {
+    return baseEntry({
       marketId,
       azuroGameId,
       conditionId: null,
+      conditionIndex,
+      conditionCount,
+      conditionSelectionReason: selectionReason,
       closesAt,
       azuroGameState: rawState || null,
       hasWinner: false,
       reasonCode: "CONDITION_MISSING",
-      reasonDetail: "conditions[0].conditionId missing — mapping may need another condition index",
+      reasonDetail: `No settlement condition (${conditionCount} raw conditions from subgraph)`,
       skipped: true,
-      observedAt,
-    };
+    });
   }
 
+  const diagCore = {
+    marketId,
+    azuroGameId,
+    conditionId,
+    conditionIndex,
+    conditionCount,
+    conditionSelectionReason: selectionReason,
+    closesAt,
+  };
+
   if (/^(Canceled|Cancelled|Voided|Void)$/i.test(rawState)) {
-    return {
-      marketId,
-      azuroGameId,
-      conditionId,
-      closesAt,
+    return baseEntry({
+      ...diagCore,
       azuroGameState: rawState,
       hasWinner: false,
       reasonCode: "VOID_OR_REFUND",
       reasonDetail: "Void/cancel state — refund path",
       skipped: false,
-      observedAt,
-    };
+    });
   }
 
   if (/postpon|suspend|abandon/i.test(rawState)) {
-    return {
-      marketId,
-      azuroGameId,
-      conditionId,
-      closesAt,
+    return baseEntry({
+      ...diagCore,
       azuroGameState: rawState,
       hasWinner: false,
       reasonCode: "DISPUTE_QUEUED",
       reasonDetail: `Exceptional state: ${rawState}`,
       skipped: false,
-      observedAt,
-    };
+    });
   }
 
   if (/^Prematch$/i.test(rawState)) {
-    return {
-      marketId,
-      azuroGameId,
-      conditionId,
-      closesAt,
+    const idxNote =
+      conditionIndex != null && conditionIndex !== 0
+        ? ` Using condition[${conditionIndex}] (${selectionReason}), not conditions[0].`
+        : "";
+    return baseEntry({
+      ...diagCore,
       azuroGameState: rawState,
       hasWinner: false,
       reasonCode: "ORACLE_PREMATCH",
       reasonDetail:
-        "Azuro still reports Prematch — settlement tick skips until Resolved/Finished",
+        `Azuro still reports Prematch — settlement tick skips until Resolved/Finished.${idxNote}`,
       skipped: true,
-      observedAt,
-    };
+    });
   }
 
   if (rawState !== "Resolved" && rawState !== "Finished") {
-    return {
-      marketId,
-      azuroGameId,
-      conditionId,
-      closesAt,
+    return baseEntry({
+      ...diagCore,
       azuroGameState: rawState || null,
       hasWinner,
       reasonCode: "ORACLE_NOT_RESOLVED",
       reasonDetail: `State "${rawState || "unknown"}" is not terminal`,
       skipped: true,
-      observedAt,
-    };
+    });
   }
 
   if (!hasWinner) {
-    return {
-      marketId,
-      azuroGameId,
-      conditionId,
-      closesAt,
+    return baseEntry({
+      ...diagCore,
       azuroGameState: rawState,
       hasWinner: false,
       reasonCode: "WINNER_UNKNOWN",
-      reasonDetail: "Resolved/Finished but wonOutcomeIds[0] empty",
+      reasonDetail: `Resolved/Finished but wonOutcomeIds empty on condition[${conditionIndex ?? "?"}]`,
       skipped: true,
-      observedAt,
-    };
+    });
   }
 
-  const outs = main?.outcomes ?? [];
-  const wonId = main!.wonOutcomeIds![0]!;
-  if (outs.length >= 3 && outs[1]?.outcomeId && wonId === outs[1].outcomeId) {
-    return {
-      marketId,
-      azuroGameId,
-      conditionId,
-      closesAt,
+  const mapped = mapWonOutcomeToHomeAway(main!);
+  if (mapped === "draw") {
+    return baseEntry({
+      ...diagCore,
       azuroGameState: rawState,
       hasWinner: true,
       reasonCode: "DRAW_UNSUPPORTED",
       reasonDetail: "Draw outcome won — paper refund path",
       skipped: false,
-      observedAt,
-    };
+    });
   }
 
-  if (outs.length < 1 || !outs[0]?.outcomeId) {
-    return {
-      marketId,
-      azuroGameId,
-      conditionId,
-      closesAt,
+  if (mapped === null) {
+    return baseEntry({
+      ...diagCore,
       azuroGameState: rawState,
       hasWinner: true,
       reasonCode: "INVALID_MAPPING",
-      reasonDetail: "Cannot map wonOutcomeId to home/away outcomes",
+      reasonDetail: "Cannot map wonOutcomeId to home/away on selected moneyline condition",
       skipped: true,
-      observedAt,
-    };
+    });
   }
 
   if ((meta?.dbStatus ?? "").toLowerCase() === "resolved") {
-    return {
-      marketId,
-      azuroGameId,
-      conditionId,
-      closesAt,
+    return baseEntry({
+      ...diagCore,
       azuroGameState: rawState,
       hasWinner: true,
       reasonCode: "MARKET_ALREADY_SETTLED",
       reasonDetail: "DB market already resolved",
       skipped: true,
-      observedAt,
-    };
+    });
   }
 
-  return {
-    marketId,
-    azuroGameId,
-    conditionId,
-    closesAt,
+  return baseEntry({
+    ...diagCore,
     azuroGameState: rawState,
     hasWinner: true,
     reasonCode: "SETTLEMENT_ELIGIBLE",
-    reasonDetail: "Binary settle eligible",
+    reasonDetail: `Binary settle eligible → ${mapped} (condition[${conditionIndex}] ${selectionReason})`,
     skipped: false,
-    observedAt,
-  };
+  });
 }
