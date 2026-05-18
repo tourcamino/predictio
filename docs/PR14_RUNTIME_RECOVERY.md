@@ -1,7 +1,8 @@
 # PR14 — Trading Readability + Markets Recovery
 
 **Date:** 2026-05-18  
-**Commit:** *(after push)*
+**Commit:** `fda97d9`  
+**Vercel:** `dpl_DqoFu6M4gYnKzKBRrZXZsYPxBCyW`
 
 ## Summary
 
@@ -16,7 +17,7 @@
 
 ## Deploy
 
-- Vercel: *(after deploy)*
-- VPS: only if Express sync-user extended *(openOrderCount on tRPC only in this PR)*
+- Vercel: `dpl_DqoFu6M4gYnKzKBRrZXZsYPxBCyW` (predictio.live)
+- VPS: not required (frontend + tRPC sync field only)
 
 ## Protocol health: **D+** (markets route restored; settlement still blocked)

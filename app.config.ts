@@ -123,24 +123,8 @@ export default createApp({
         }),
       ],
     },
-    {
-      type: "http",
-      name: "og-meta",
-      base: "/markets",
-      handler: "./src/server/og-meta-handler.ts",
-      target: "server",
-      plugins: () => [
-        config("allowedHosts", {
-          // @ts-ignore
-          server: {
-            allowedHosts: viteAllowedHostsFromBaseUrl(env.BASE_URL),
-          },
-        }),
-        tsConfigPaths({
-          projects: ["./tsconfig.json"],
-        }),
-      ],
-    },
+    // og-meta handler removed from base `/markets` — it intercepted the SPA catalog route
+    // and returned empty pass-through (HTTP 500). Crawler OG for market detail uses MetaTags + /api/og.
     {
       type: "http",
       name: "og-image",
