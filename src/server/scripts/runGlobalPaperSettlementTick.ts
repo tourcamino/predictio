@@ -7,6 +7,7 @@
  */
 import { db } from "~/server/db";
 import { checkResolvedMarkets, getAzuroGraphqlEndpoint } from "~/services/azuro";
+import type { MoneylineOddsHint } from "~/lib/settlement/azuroConditionSelection";
 import { runPaperBatchSettlement } from "~/lib/settlement/paperSettlementEngine";
 import { runPaperRefundSettlement } from "~/lib/settlement/paperRefundEngine";
 import { loadMarketUiById } from "~/server/utils/loadMarketUi";
@@ -30,7 +31,26 @@ async function main() {
     openOrders: openOrders.length,
     azuroEndpoint: getAzuroGraphqlEndpoint(),
   });
-  const resolved = await checkResolvedMarkets(marketIds);
+
+  const azuroMarketIds = marketIds.filter((id) => id.startsWith("azuro-"));
+  const gameIds = azuroMarketIds.map((id) => id.replace("azuro-", ""));
+  const curatedRows =
+    gameIds.length > 0
+      ? await db.curatedEvent.findMany({
+          where: { gameId: { in: gameIds } },
+          select: { gameId: true, homeOdds: true, drawOdds: true, awayOdds: true },
+        })
+      : [];
+  const oddsHintsByMarketId = new Map<string, MoneylineOddsHint>();
+  for (const row of curatedRows) {
+    oddsHintsByMarketId.set(`azuro-${row.gameId}`, {
+      homeDecimal: row.homeOdds ?? null,
+      drawDecimal: row.drawOdds ?? null,
+      awayDecimal: row.awayOdds ?? null,
+    });
+  }
+
+  const resolved = await checkResolvedMarkets(marketIds, oddsHintsByMarketId);
   console.log(
     JSON.stringify({
       type: "settlement_tick_oracle_result",

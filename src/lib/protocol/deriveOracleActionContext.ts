@@ -53,7 +53,7 @@ export function deriveOracleActionContext(input: {
   if (input.orderOpen && oraclePending) {
     whyStillOpen =
       input.oracleTrust?.userMessage ??
-      "The match has finished, but Azuro has not finalized the oracle result yet. Your position stays open until the oracle publishes a terminal state.";
+      "Full-time has passed, but Azuro's indexer still reports Prematch without wonOutcomeIds. This is an upstream oracle delay — Predictio cannot settle until Azuro publishes Resolved/Finished.";
   } else if (input.orderOpen && settlementBlocked) {
     whyStillOpen = d?.reasonDetail ?? "Settlement is blocked pending indexer or condition validation.";
   } else if (input.orderOpen && code === "SETTLEMENT_ELIGIBLE") {
@@ -65,9 +65,10 @@ export function deriveOracleActionContext(input: {
     expectedNextAction = "Automatic payout on next settlement cron (~5 min). No wallet action required.";
   } else if (oraclePending) {
     expectedNextAction =
-      "Wait for Azuro to publish Resolved/Finished with wonOutcomeIds. Predictio polls every ~5 minutes.";
+      "Azuro subgraph must transition to Resolved/Finished with wonOutcomeIds. Predictio polls every ~5 minutes — no manual claim needed once oracle updates.";
   } else if (settlementBlocked) {
-    expectedNextAction = "Protocol ops may retire the market if the game never appears on the indexer feed.";
+    expectedNextAction =
+      "Stale markets past kickoff are retired from the catalog. Positions remain until oracle resolves or ops voids the market.";
   } else if (code === "MARKET_ALREADY_SETTLED") {
     expectedNextAction = "Review portfolio P&L and wallet ledger for finalized payout.";
   }

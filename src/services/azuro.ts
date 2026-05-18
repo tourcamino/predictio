@@ -8,6 +8,7 @@ import {
 import {
   mapWonOutcomeToHomeAway,
   pickMoneylineCondition,
+  type MoneylineOddsHint,
 } from "~/lib/settlement/azuroConditionSelection";
 
 export {
@@ -764,6 +765,7 @@ export async function fetchAzuroGameForSettlement(
  */
 export async function checkResolvedMarkets(
   activeMarketIds: string[],
+  oddsHintsByMarketId?: Map<string, MoneylineOddsHint>,
 ): Promise<AzuroPaperResolutionPollItem[]> {
   try {
     const azuroGameIds = activeMarketIds
@@ -858,7 +860,8 @@ export async function checkResolvedMarkets(
 
     for (const game of games) {
       const marketId = `azuro-${game.gameId}`;
-      const pick = pickMoneylineCondition(game.conditions);
+      const oddsHint = oddsHintsByMarketId?.get(marketId);
+      const pick = pickMoneylineCondition(game.conditions, oddsHint);
       const main = pick?.condition;
       const rawState = (game.state ?? game.status ?? "").trim();
 

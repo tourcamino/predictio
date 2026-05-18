@@ -11,6 +11,8 @@ import {
 } from "../services/emergencyRelaxMode";
 import { syncProtocolRegistryToPrisma } from "../services/protocolRegistrySync";
 import { runRegistryHealthCheck } from "../services/registryHealthCheck";
+import { retireStaleMarketsAndCatalog } from "../services/staleMarketRetirement";
+import { computeMarketPriorityScore } from "../services/marketPriorityEngine";
 import {
   inferUpsertAction,
   logBulkDisableForensic,
@@ -140,7 +142,21 @@ async function runCuratedCatalogRefill(now: Date): Promise<number> {
       openActiveCount: openCount,
     });
 
-    const candidates = [...games].sort((a, b) => b.importanceScore - a.importanceScore);
+    const candidates = [...games].sort((a, b) => {
+      const scoreA = computeMarketPriorityScore({
+        marketId: String(a.gameId),
+        kickoffMs: a.startsAtUnix * 1000,
+        leagueName: a.leagueName,
+        volume24h: 0,
+      });
+      const scoreB = computeMarketPriorityScore({
+        marketId: String(b.gameId),
+        kickoffMs: b.startsAtUnix * 1000,
+        leagueName: b.leagueName,
+        volume24h: 0,
+      });
+      return scoreB - scoreA;
+    });
 
     for (const event of candidates) {
       if (openCount >= MAX_ACTIVE_CURATED) break;
@@ -268,6 +284,15 @@ export async function updateMarketStatuses() {
     }
 
     const refilled = await runCuratedCatalogRefill(now);
+
+    const retirement = await retireStaleMarketsAndCatalog(prisma, now);
+    if (
+      retirement.marketsClosed > 0 ||
+      retirement.curatedLocked > 0 ||
+      retirement.curatedDeactivated > 0
+    ) {
+      console.log(JSON.stringify({ tag: "stale_market_retirement", ...retirement }));
+    }
 
     const [openActive, locked, inactive] = await Promise.all([
       prisma.curatedEvent.count({ where: { isActive: true, status: "OPEN" } }),
