@@ -44,6 +44,10 @@ import {
   logUpsertEvent,
   readCuratedSnapshot,
 } from "../services/curatedEventLifecycleForensic";
+import {
+  maybeRunStaleRetirement,
+  sortCuratedByVitality,
+} from "../services/catalogVitality";
 
 const CACHE_KEY = "admin:azuro:football:14d:v2";
 /** Legacy editorial manual-select cap (admin UI only — not registry persistence). */
@@ -432,6 +436,7 @@ export function registerAdminCurationRoutes(
   /** Public catalog: protocol registry (DB) + optional editorial view cap. */
   app.get("/api/markets", publicLimiter, async (_req, res) => {
     try {
+      await maybeRunStaleRetirement(prisma);
       const nowMs = Date.now();
       const editorialOnly = isEditorialCatalogOnly();
       const registryMode = isProtocolRegistryMode();
@@ -486,41 +491,7 @@ export function registerAdminCurationRoutes(
       });
 
       const productRows = filterCuratedRowsForProductPhase(rows);
-
-      const sorted = [...productRows].sort((a, b) => {
-        const slotA = inferEditorialSlotForFixture({
-          leagueName: a.leagueName,
-          country: a.country,
-          homeTeam: a.homeTeam,
-          awayTeam: a.awayTeam,
-          importanceScore: a.importanceScore ?? 0,
-          sport: a.sport,
-          sportSlug: a.sportSlug,
-        });
-        const slotB = inferEditorialSlotForFixture({
-          leagueName: b.leagueName,
-          country: b.country,
-          homeTeam: b.homeTeam,
-          awayTeam: b.awayTeam,
-          importanceScore: b.importanceScore ?? 0,
-          sport: b.sport,
-          sportSlug: b.sportSlug,
-        });
-        return compareEditorialCatalogOrder(
-          {
-            editorialSlot: slotA.slot,
-            importanceScore: a.importanceScore ?? 0,
-            startsAtMs: a.startsAt.getTime(),
-          },
-          {
-            editorialSlot: slotB.slot,
-            importanceScore: b.importanceScore ?? 0,
-            startsAtMs: b.startsAt.getTime(),
-          },
-        );
-      });
-
-      const top = sorted.slice(0, apiCap);
+      const top = sortCuratedByVitality(productRows).slice(0, apiCap);
 
       let allocationByMarketId: Record<string, { allocation: number; percentage: number }> =
         {};

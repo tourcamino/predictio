@@ -30,6 +30,10 @@ import { requestContext } from "./middleware/requestContext";
 import { errorHandler, notFound } from "./middleware/errors";
 import { requestLogger } from "./middleware/requestLogger";
 import { getVersionEndpointBody } from "./lib/deployRuntimeMeta";
+import {
+  maybeRunStaleRetirement,
+  sortMarketsByVitality,
+} from "./services/catalogVitality";
 import { apiUsageTracker } from "./middleware/apiUsageTracker";
 import { realtimeBus, type TradingWsMessage } from "./services/realtimeBus";
 import {
@@ -756,25 +760,34 @@ app.get(
 // GET /api/v1/markets
 app.get("/api/v1/markets", async (req, res) => {
   try {
+    await maybeRunStaleRetirement(prisma);
     const {
       sport,
       region,
       status = "open",
-      sort = "volume",
+      sort = "vitality",
       limit = 20,
       offset = 0,
     } = req.query;
 
-    const where: any = {};
+    const where: Record<string, unknown> = {};
     if (sport && sport !== "all") where.sport = sport;
     if (status && status !== "all") where.status = status;
+    if (status === "open") {
+      where.closesAt = { gt: new Date() };
+    }
 
-    const markets = await prisma.market.findMany({
+    const raw = await prisma.market.findMany({
       where,
-      take: Number(limit),
+      take: Math.min(Number(limit) * 3, 120),
       skip: Number(offset),
       orderBy: sort === "volume" ? { volume: "desc" } : { closesAt: "asc" },
     });
+
+    const markets =
+      sort === "vitality" || sort === "closesAt"
+        ? sortMarketsByVitality(raw).slice(0, Number(limit))
+        : raw.slice(0, Number(limit));
 
     const total = await prisma.market.count({ where });
 
@@ -791,27 +804,14 @@ app.get("/api/v1/markets", async (req, res) => {
 // GET /api/v1/markets/hot
 app.get("/api/v1/markets/hot", async (req, res) => {
   try {
-    const markets = await prisma.market.findMany({
-      where: { status: "open" },
-      take: 20,
+    await maybeRunStaleRetirement(prisma);
+    const raw = await prisma.market.findMany({
+      where: { status: "open", closesAt: { gt: new Date() } },
+      take: 40,
       orderBy: { volume: "desc" },
     });
 
-    // Calculate score for each market
-    type MarketRow = (typeof markets)[number];
-    const scoredMarkets = (markets).map((market) => {
-      const timeToClose = (new Date(market.closesAt).getTime() - Date.now()) / 1000;
-      const volumeScore = (market.volume / 200000) * 50;
-      const timeScore = timeToClose < 3600 ? 50 : timeToClose < 21600 ? 30 : 10;
-      const score = volumeScore + timeScore;
-
-      return { ...market, score, timeToClose };
-    });
-
-    // Sort by score and take top 5
-    const topMarkets = scoredMarkets
-      .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
-      .slice(0, 5);
+    const topMarkets = sortMarketsByVitality(raw).slice(0, 5);
 
     res.json({ markets: topMarkets });
   } catch (error) {
@@ -1092,6 +1092,7 @@ app.listen(PORT, () => {
     }),
   );
   void (async () => {
+    await maybeRunStaleRetirement(prisma);
     logCuratedLifecycleInventory();
     await autoSeedEventsOnBoot();
     await backfillCuratedOddsOnBoot();
