@@ -770,7 +770,9 @@ app.get("/api/v1/markets", async (req, res) => {
       offset = 0,
     } = req.query;
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = {
+      id: { startsWith: "azuro-" },
+    };
     if (sport && sport !== "all") where.sport = sport;
     if (status && status !== "all") where.status = status;
     if (status === "open") {
@@ -806,7 +808,7 @@ app.get("/api/v1/markets/hot", async (req, res) => {
   try {
     await maybeRunStaleRetirement(prisma);
     const raw = await prisma.market.findMany({
-      where: { status: "open", closesAt: { gt: new Date() } },
+      where: { status: "open", closesAt: { gt: new Date() }, id: { startsWith: "azuro-" } },
       take: 40,
       orderBy: { volume: "desc" },
     });
