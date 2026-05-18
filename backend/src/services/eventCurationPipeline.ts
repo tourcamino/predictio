@@ -1,7 +1,9 @@
 import {
   extract1x2DecimalOddsFromRawGame,
   fetchAzuroGames,
+  fetchAzuroInventoryGames,
   rawGameIsFootball,
+  rawGameIsLive,
   type NormalizedCuratorGame,
   type RawAzuroGame,
 } from "./azuroCuratorGraphql";
@@ -1181,11 +1183,17 @@ function emergencyMinimalTradable(
   if (!gid) return { ok: false, reason: "no_game_id" };
   const k = kickoffSecFromRaw(g);
   if (k == null || !Number.isFinite(k)) return { ok: false, reason: "bad_kickoff" };
-  if (k <= nowSec) return { ok: false, reason: "kickoff_past" };
-  if (k >= windowEndSec) return { ok: false, reason: "outside_window" };
-  if (isStalePrematchGame(g, nowSec)) return { ok: false, reason: "stale_prematch" };
   const state = String(g.state ?? "").toLowerCase();
-  if (state !== "" && state !== "prematch" && state !== "open") {
+  const isLive = state === "live";
+  if (!isLive) {
+    if (k <= nowSec) return { ok: false, reason: "kickoff_past" };
+    if (k >= windowEndSec) return { ok: false, reason: "outside_window" };
+    if (isStalePrematchGame(g, nowSec)) return { ok: false, reason: "stale_prematch" };
+  } else {
+    const liveWindowSec = 4 * 3600;
+    if (k < nowSec - liveWindowSec) return { ok: false, reason: "live_window_expired" };
+  }
+  if (state !== "" && state !== "prematch" && state !== "open" && !isLive) {
     return { ok: false, reason: "not_open_state" };
   }
   const parts = g.participants;
@@ -1421,10 +1429,11 @@ async function buildRawFeedCatalogPayload(
   };
 }> {
   const windowEndSec = rawFeedWindowEndSec(wallSec);
-  const allGames = await fetchAzuroGames({
+  const inventory = await fetchAzuroInventoryGames({
     minStartsAtSec: nowSec,
     maxPages: rawFeedMaxPages(),
   });
+  const allGames = inventory.merged;
 
   let normalizedCount = 0;
   const rejection: Record<string, number> = {};
@@ -1532,7 +1541,7 @@ async function buildRawFeedCatalogPayload(
       awayImage: sorted[1]?.image ?? null,
       startsAt: new Date(kickoff * 1000).toISOString(),
       startsAtUnix: kickoff,
-      status: "OPEN",
+      status: String(g.state ?? "").toLowerCase() === "live" ? "LIVE" : "OPEN",
       isSelected: selectedGameIds.has(gid),
       importanceScore,
       autoPublish: true,

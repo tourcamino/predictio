@@ -1,5 +1,5 @@
 /**
- * Catalog vitality — filter stale/orphan markets, prioritize upcoming football (PR18).
+ * Catalog vitality — filter stale/orphan markets, prioritize upcoming + live football (PR18/PR19).
  */
 import type { PrismaClient } from "@prisma/client";
 import { computeMarketPriorityScore } from "./marketPriorityEngine";
@@ -7,6 +7,8 @@ import { retireStaleMarketsAndCatalog } from "./staleMarketRetirement";
 
 const TOP_LEAGUE_RE =
   /premier league|champions league|uefa|serie a|la liga|laliga|bundesliga|ligue 1|eredivisie|europa league/i;
+
+const LIVE_DISPLAY_MS = 4 * 3_600_000;
 
 let lastRetirementMs = 0;
 const RETIREMENT_THROTTLE_MS = 120_000;
@@ -29,11 +31,29 @@ export function isTradableKickoff(closesAt: Date, nowMs = Date.now()): boolean {
   return closesAt.getTime() > nowMs;
 }
 
-export function isUpcomingCuratedRow(
-  row: { startsAt: Date; lockedAt: Date },
+/** In-play window: kickoff passed but within live display horizon (PR19). */
+export function isLiveInPlayRow(
+  row: { startsAt: Date; status?: string },
   nowMs = Date.now(),
 ): boolean {
+  if (String(row.status ?? "").toUpperCase() === "LIVE") return true;
+  const kickoffMs = row.startsAt.getTime();
+  return kickoffMs <= nowMs && kickoffMs > nowMs - LIVE_DISPLAY_MS;
+}
+
+export function isUpcomingCuratedRow(
+  row: { startsAt: Date; lockedAt: Date; status?: string },
+  nowMs = Date.now(),
+): boolean {
+  if (isLiveInPlayRow(row, nowMs)) return true;
   return row.lockedAt.getTime() > nowMs && row.startsAt.getTime() > nowMs - 3_600_000;
+}
+
+export function isCatalogVisibleRow(
+  row: { startsAt: Date; lockedAt: Date; status?: string },
+  nowMs = Date.now(),
+): boolean {
+  return isUpcomingCuratedRow(row, nowMs);
 }
 
 export function marketPriorityFromRow(row: {
@@ -68,17 +88,28 @@ export type CuratedRowLike = {
   importanceScore: number;
   homeTeam: string;
   awayTeam: string;
+  status?: string;
 };
 
 export function priorityForCuratedRow(row: CuratedRowLike, nowMs = Date.now()): number {
+  const kickoffMs = row.startsAt.getTime();
+  const hoursUntil = (kickoffMs - nowMs) / 3_600_000;
   let score = computeMarketPriorityScore({
     marketId: `azuro-${row.gameId}`,
-    kickoffMs: row.startsAt.getTime(),
+    kickoffMs,
     leagueName: row.leagueName,
     isTradable: isUpcomingCuratedRow(row, nowMs),
+    isLive: isLiveInPlayRow(row, nowMs),
   });
   if (TOP_LEAGUE_RE.test(row.leagueName) || TOP_LEAGUE_RE.test(row.title)) {
     score *= 1.5;
+  }
+  if (isLiveInPlayRow(row, nowMs)) {
+    score *= 3;
+  } else if (hoursUntil > 720) {
+    score *= 0.2;
+  } else if (hoursUntil > 168) {
+    score *= 0.55;
   }
   score += Math.min(5, (row.importanceScore ?? 0) / 20);
   return score;
@@ -87,7 +118,7 @@ export function priorityForCuratedRow(row: CuratedRowLike, nowMs = Date.now()): 
 export function sortCuratedByVitality<T extends CuratedRowLike>(rows: T[]): T[] {
   const now = Date.now();
   return [...rows]
-    .filter((r) => isUpcomingCuratedRow(r, now))
+    .filter((r) => isCatalogVisibleRow(r, now))
     .sort((a, b) => priorityForCuratedRow(b, now) - priorityForCuratedRow(a, now));
 }
 

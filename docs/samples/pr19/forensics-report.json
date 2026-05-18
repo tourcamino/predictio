@@ -1,0 +1,422 @@
+{
+  "azuroEndpoint": "https://thegraph-1.onchainfeed.org/subgraphs/name/azuro-protocol/azuro-data-feed-polygon",
+  "apiEndpoint": "https://api.predictio.live",
+  "timestamp": "2026-05-18T21:16:06.547Z",
+  "rawAzuro": {
+    "allPrematch": {
+      "label": "all_prematch",
+      "total": 960,
+      "football": 495,
+      "next24h": 0,
+      "next72h": 0,
+      "beyond30d": 23,
+      "patternCounts": {
+        "premier": 47,
+        "ucl": 8,
+        "serieA": 26,
+        "laliga": 24,
+        "bundesliga": 14,
+        "worldCup": 49,
+        "other": 792
+      },
+      "topLeagues": [
+        [
+          "Liga Pro",
+          127
+        ],
+        [
+          "World Cup",
+          43
+        ],
+        [
+          "Premier League",
+          41
+        ],
+        [
+          "Liga 1",
+          21
+        ],
+        [
+          "TT Cup",
+          20
+        ],
+        [
+          "Super League",
+          16
+        ],
+        [
+          "Copa do Brasil",
+          16
+        ],
+        [
+          "UFC",
+          15
+        ],
+        [
+          "Professional Boxing",
+          15
+        ],
+        [
+          "LaLiga",
+          15
+        ],
+        [
+          "J2/J3 100 Year Vision League",
+          14
+        ],
+        [
+          "Primera Division",
+          13
+        ],
+        [
+          "MLB",
+          12
+        ],
+        [
+          "Rome",
+          12
+        ],
+        [
+          "Serie A",
+          12
+        ]
+      ],
+      "perDay": [
+        [
+          "2026-05-10",
+          645
+        ],
+        [
+          "2026-05-11",
+          81
+        ],
+        [
+          "2026-05-12",
+          41
+        ],
+        [
+          "2026-05-13",
+          27
+        ],
+        [
+          "2026-05-14",
+          24
+        ],
+        [
+          "2026-05-15",
+          27
+        ],
+        [
+          "2026-05-16",
+          64
+        ],
+        [
+          "2026-05-17",
+          8
+        ],
+        [
+          "2026-06-11",
+          1
+        ],
+        [
+          "2026-06-12",
+          2
+        ],
+        [
+          "2026-06-13",
+          3
+        ],
+        [
+          "2026-06-14",
+          5
+        ],
+        [
+          "2026-06-15",
+          4
+        ],
+        [
+          "2026-06-16",
+          3
+        ],
+        [
+          "2026-06-17",
+          3
+        ],
+        [
+          "2026-06-18",
+          4
+        ],
+        [
+          "2026-06-19",
+          2
+        ],
+        [
+          "2026-06-20",
+          3
+        ],
+        [
+          "2026-06-21",
+          4
+        ],
+        [
+          "2026-06-22",
+          3
+        ]
+      ],
+      "nearest72h": []
+    },
+    "withStartsAtGte": {
+      "label": "startsAt_gte_now",
+      "total": 43,
+      "football": 43,
+      "next24h": 0,
+      "next72h": 0,
+      "beyond30d": 23,
+      "patternCounts": {
+        "premier": 0,
+        "ucl": 0,
+        "serieA": 0,
+        "laliga": 0,
+        "bundesliga": 0,
+        "worldCup": 43,
+        "other": 0
+      },
+      "topLeagues": [
+        [
+          "World Cup",
+          43
+        ]
+      ],
+      "perDay": [
+        [
+          "2026-06-11",
+          1
+        ],
+        [
+          "2026-06-12",
+          2
+        ],
+        [
+          "2026-06-13",
+          3
+        ],
+        [
+          "2026-06-14",
+          5
+        ],
+        [
+          "2026-06-15",
+          4
+        ],
+        [
+          "2026-06-16",
+          3
+        ],
+        [
+          "2026-06-17",
+          3
+        ],
+        [
+          "2026-06-18",
+          4
+        ],
+        [
+          "2026-06-19",
+          2
+        ],
+        [
+          "2026-06-20",
+          3
+        ],
+        [
+          "2026-06-21",
+          4
+        ],
+        [
+          "2026-06-22",
+          3
+        ],
+        [
+          "2026-06-23",
+          4
+        ],
+        [
+          "2026-06-24",
+          2
+        ]
+      ],
+      "nearest72h": []
+    },
+    "live": {
+      "label": "live_state",
+      "total": 48,
+      "football": 17,
+      "next24h": 0,
+      "next72h": 0,
+      "beyond30d": 0,
+      "patternCounts": {
+        "premier": 0,
+        "ucl": 0,
+        "serieA": 2,
+        "laliga": 0,
+        "bundesliga": 0,
+        "worldCup": 0,
+        "other": 46
+      },
+      "topLeagues": [
+        [
+          "Liga Pro",
+          10
+        ],
+        [
+          "TT Cup",
+          7
+        ],
+        [
+          "MLS",
+          4
+        ],
+        [
+          "WNBA",
+          2
+        ],
+        [
+          "LUB",
+          1
+        ],
+        [
+          "Liga Profesional",
+          1
+        ],
+        [
+          "NBA",
+          1
+        ],
+        [
+          "AHL",
+          1
+        ],
+        [
+          "Liga Pro Serie A",
+          1
+        ],
+        [
+          "Brasileirao - Serie A",
+          1
+        ],
+        [
+          "Primera",
+          1
+        ],
+        [
+          "Premier Padel Asuncion",
+          1
+        ],
+        [
+          "Brasileirao - Serie B",
+          1
+        ],
+        [
+          "NBB",
+          1
+        ],
+        [
+          "Primera A",
+          1
+        ]
+      ],
+      "perDay": [
+        [
+          "2026-04-03",
+          1
+        ],
+        [
+          "2026-04-04",
+          9
+        ],
+        [
+          "2026-04-06",
+          1
+        ],
+        [
+          "2026-04-07",
+          2
+        ],
+        [
+          "2026-04-08",
+          2
+        ],
+        [
+          "2026-05-09",
+          21
+        ],
+        [
+          "2026-05-10",
+          12
+        ]
+      ],
+      "nearest72h": []
+    }
+  },
+  "pipelineSimulation": {
+    "passed": 43,
+    "reasons": {},
+    "samples": []
+  },
+  "productionApis": {
+    "version": {
+      "ok": true,
+      "service": "predictio-backend",
+      "environment": "production",
+      "gitCommitSha": "08a342426bbc0f8723119db3daf89e66e1881014",
+      "gitCommitShort": "08a3424",
+      "gitBranch": "master",
+      "buildTime": "2026-05-18T21:01:37Z",
+      "uptimeSec": 760,
+      "runtime": {
+        "marketStatusSchedulerMs": 60000,
+        "marketStatusSchedulerNote": "Curated lifecycle + auto-publish: one setInterval in jobs/marketStatusUpdater.ts, loaded once per Node process; Docker --force-recreate replaces the process (no orphan timers across deploys).",
+        "openRouterConfigured": true,
+        "azuroDataFeedConfigured": true
+      },
+      "timestamp": "2026-05-18T21:16:05.869Z"
+    },
+    "curated": {
+      "count": 43,
+      "leagues": [
+        "World Cup"
+      ],
+      "next72h": 0,
+      "nearest": [
+        {
+          "title": "Spain – Cape Verde",
+          "league": "World Cup",
+          "startsAt": "2026-06-15T16:00:00.000Z"
+        },
+        {
+          "title": "USA – Paraguay",
+          "league": "World Cup",
+          "startsAt": "2026-06-13T01:00:00.000Z"
+        },
+        {
+          "title": "Brazil – Morocco",
+          "league": "World Cup",
+          "startsAt": "2026-06-13T22:00:00.000Z"
+        },
+        {
+          "title": "Australia – Turkey",
+          "league": "World Cup",
+          "startsAt": "2026-06-14T04:00:00.000Z"
+        },
+        {
+          "title": "Netherlands – Japan",
+          "league": "World Cup",
+          "startsAt": "2026-06-14T20:00:00.000Z"
+        }
+      ]
+    },
+    "v1marketsCount": 2,
+    "v1hotCount": 0
+  },
+  "collapseVerdict": "STARTS_AT_GTE_OR_PAGINATION — games exist without gte filter but drop with startsAt_gte:now"
+}

@@ -45,6 +45,7 @@ import {
   readCuratedSnapshot,
 } from "../services/curatedEventLifecycleForensic";
 import {
+  isLiveInPlayRow,
   maybeRunStaleRetirement,
   sortCuratedByVitality,
 } from "../services/catalogVitality";
@@ -538,7 +539,11 @@ export function registerAdminCurationRoutes(
           country: r.country,
           startsAt: r.startsAt.toISOString(),
           lockedAt: lockedAt.toISOString(),
-          status: String(r.status || "OPEN"),
+          status:
+            r.selectedBy === "LIVE_AZURO" ||
+            isLiveInPlayRow({ startsAt: r.startsAt, status: r.status })
+              ? "LIVE"
+              : String(r.status || "OPEN"),
           result: r.result ?? null,
           timeToLock,
           importanceScore: r.importanceScore ?? 0,

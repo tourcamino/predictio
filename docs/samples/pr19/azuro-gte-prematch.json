@@ -1,0 +1,1206 @@
+[
+  {
+    "gameId": "1006000000000077352108",
+    "title": "Mexico – South Africa",
+    "startsAt": "1781204400",
+    "state": "Prematch",
+    "activeConditionsCount": 54,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Mexico",
+        "sortOrder": 0
+      },
+      {
+        "name": "South Africa",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083401550",
+    "title": "South Korea – Czechia",
+    "startsAt": "1781229600",
+    "state": "Prematch",
+    "activeConditionsCount": 51,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "South Korea",
+        "sortOrder": 0
+      },
+      {
+        "name": "Czechia",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083401590",
+    "title": "Canada – Bosnia & Herzegovina",
+    "startsAt": "1781290800",
+    "state": "Prematch",
+    "activeConditionsCount": 52,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Canada",
+        "sortOrder": 0
+      },
+      {
+        "name": "Bosnia & Herzegovina",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077352066",
+    "title": "USA – Paraguay",
+    "startsAt": "1781312400",
+    "state": "Prematch",
+    "activeConditionsCount": 52,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "USA",
+        "sortOrder": 0
+      },
+      {
+        "name": "Paraguay",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077352197",
+    "title": "Qatar – Switzerland",
+    "startsAt": "1781377200",
+    "state": "Prematch",
+    "activeConditionsCount": 55,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Qatar",
+        "sortOrder": 0
+      },
+      {
+        "name": "Switzerland",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077351978",
+    "title": "Brazil – Morocco",
+    "startsAt": "1781388000",
+    "state": "Prematch",
+    "activeConditionsCount": 54,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Brazil",
+        "sortOrder": 0
+      },
+      {
+        "name": "Morocco",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077352281",
+    "title": "Haiti – Scotland",
+    "startsAt": "1781398800",
+    "state": "Prematch",
+    "activeConditionsCount": 54,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Haiti",
+        "sortOrder": 0
+      },
+      {
+        "name": "Scotland",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083399377",
+    "title": "Australia – Turkey",
+    "startsAt": "1781409600",
+    "state": "Prematch",
+    "activeConditionsCount": 53,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Australia",
+        "sortOrder": 0
+      },
+      {
+        "name": "Turkey",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077352843",
+    "title": "Germany – Curacao",
+    "startsAt": "1781456400",
+    "state": "Prematch",
+    "activeConditionsCount": 51,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Germany",
+        "sortOrder": 0
+      },
+      {
+        "name": "Curacao",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077352559",
+    "title": "Netherlands – Japan",
+    "startsAt": "1781467200",
+    "state": "Prematch",
+    "activeConditionsCount": 53,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Netherlands",
+        "sortOrder": 0
+      },
+      {
+        "name": "Japan",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077352955",
+    "title": "Ivory Coast – Ecuador",
+    "startsAt": "1781478000",
+    "state": "Prematch",
+    "activeConditionsCount": 51,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Ivory Coast",
+        "sortOrder": 0
+      },
+      {
+        "name": "Ecuador",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083399281",
+    "title": "Sweden – Tunisia",
+    "startsAt": "1781488800",
+    "state": "Prematch",
+    "activeConditionsCount": 51,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Sweden",
+        "sortOrder": 0
+      },
+      {
+        "name": "Tunisia",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077353215",
+    "title": "Spain – Cape Verde",
+    "startsAt": "1781539200",
+    "state": "Prematch",
+    "activeConditionsCount": 54,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Spain",
+        "sortOrder": 0
+      },
+      {
+        "name": "Cape Verde",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077353021",
+    "title": "Belgium – Egypt",
+    "startsAt": "1781550000",
+    "state": "Prematch",
+    "activeConditionsCount": 53,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Belgium",
+        "sortOrder": 0
+      },
+      {
+        "name": "Egypt",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077353270",
+    "title": "Saudi Arabia – Uruguay",
+    "startsAt": "1781560800",
+    "state": "Prematch",
+    "activeConditionsCount": 53,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Saudi Arabia",
+        "sortOrder": 0
+      },
+      {
+        "name": "Uruguay",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077353166",
+    "title": "Iran – New Zealand",
+    "startsAt": "1781571600",
+    "state": "Prematch",
+    "activeConditionsCount": 53,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Iran",
+        "sortOrder": 0
+      },
+      {
+        "name": "New Zealand",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077353568",
+    "title": "France – Senegal",
+    "startsAt": "1781636400",
+    "state": "Prematch",
+    "activeConditionsCount": 53,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "France",
+        "sortOrder": 0
+      },
+      {
+        "name": "Senegal",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083417008",
+    "title": "Iraq – Norway",
+    "startsAt": "1781647200",
+    "state": "Prematch",
+    "activeConditionsCount": 55,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Iraq",
+        "sortOrder": 0
+      },
+      {
+        "name": "Norway",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077353282",
+    "title": "Argentina – Algeria",
+    "startsAt": "1781658000",
+    "state": "Prematch",
+    "activeConditionsCount": 54,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Argentina",
+        "sortOrder": 0
+      },
+      {
+        "name": "Algeria",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077353713",
+    "title": "England – Croatia",
+    "startsAt": "1781726400",
+    "state": "Prematch",
+    "activeConditionsCount": 53,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "England",
+        "sortOrder": 0
+      },
+      {
+        "name": "Croatia",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077353653",
+    "title": "Ghana – Panama",
+    "startsAt": "1781737200",
+    "state": "Prematch",
+    "activeConditionsCount": 52,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Ghana",
+        "sortOrder": 0
+      },
+      {
+        "name": "Panama",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077353749",
+    "title": "Uzbekistan – Colombia",
+    "startsAt": "1781748000",
+    "state": "Prematch",
+    "activeConditionsCount": 53,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Uzbekistan",
+        "sortOrder": 0
+      },
+      {
+        "name": "Colombia",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083961881",
+    "title": "Czechia – South Africa",
+    "startsAt": "1781798400",
+    "state": "Prematch",
+    "activeConditionsCount": 51,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Czechia",
+        "sortOrder": 0
+      },
+      {
+        "name": "South Africa",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083961960",
+    "title": "Switzerland – Bosnia & Herzegovina",
+    "startsAt": "1781809200",
+    "state": "Prematch",
+    "activeConditionsCount": 54,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Switzerland",
+        "sortOrder": 0
+      },
+      {
+        "name": "Bosnia & Herzegovina",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962284",
+    "title": "Canada – Qatar",
+    "startsAt": "1781820000",
+    "state": "Prematch",
+    "activeConditionsCount": 52,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Canada",
+        "sortOrder": 0
+      },
+      {
+        "name": "Qatar",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962285",
+    "title": "Mexico – South Korea",
+    "startsAt": "1781830800",
+    "state": "Prematch",
+    "activeConditionsCount": 52,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Mexico",
+        "sortOrder": 0
+      },
+      {
+        "name": "South Korea",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962306",
+    "title": "USA – Australia",
+    "startsAt": "1781895600",
+    "state": "Prematch",
+    "activeConditionsCount": 52,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "USA",
+        "sortOrder": 0
+      },
+      {
+        "name": "Australia",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962414",
+    "title": "Turkey – Paraguay",
+    "startsAt": "1781924400",
+    "state": "Prematch",
+    "activeConditionsCount": 52,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Turkey",
+        "sortOrder": 0
+      },
+      {
+        "name": "Paraguay",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962517",
+    "title": "Netherlands – Sweden",
+    "startsAt": "1781974800",
+    "state": "Prematch",
+    "activeConditionsCount": 54,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Netherlands",
+        "sortOrder": 0
+      },
+      {
+        "name": "Sweden",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962518",
+    "title": "Germany – Ivory Coast",
+    "startsAt": "1781985600",
+    "state": "Prematch",
+    "activeConditionsCount": 56,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Germany",
+        "sortOrder": 0
+      },
+      {
+        "name": "Ivory Coast",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962519",
+    "title": "Ecuador – Curacao",
+    "startsAt": "1782000000",
+    "state": "Prematch",
+    "activeConditionsCount": 55,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Ecuador",
+        "sortOrder": 0
+      },
+      {
+        "name": "Curacao",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962361",
+    "title": "Tunisia – Japan",
+    "startsAt": "1782014400",
+    "state": "Prematch",
+    "activeConditionsCount": 51,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Tunisia",
+        "sortOrder": 0
+      },
+      {
+        "name": "Japan",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962540",
+    "title": "Spain – Saudi Arabia",
+    "startsAt": "1782057600",
+    "state": "Prematch",
+    "activeConditionsCount": 54,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Spain",
+        "sortOrder": 0
+      },
+      {
+        "name": "Saudi Arabia",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962544",
+    "title": "Uruguay – Cape Verde",
+    "startsAt": "1782079200",
+    "state": "Prematch",
+    "activeConditionsCount": 53,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Uruguay",
+        "sortOrder": 0
+      },
+      {
+        "name": "Cape Verde",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962546",
+    "title": "New Zealand – Egypt",
+    "startsAt": "1782090000",
+    "state": "Prematch",
+    "activeConditionsCount": 51,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "New Zealand",
+        "sortOrder": 0
+      },
+      {
+        "name": "Egypt",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962573",
+    "title": "Argentina – Austria",
+    "startsAt": "1782147600",
+    "state": "Prematch",
+    "activeConditionsCount": 54,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Argentina",
+        "sortOrder": 0
+      },
+      {
+        "name": "Austria",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962695",
+    "title": "France – Iraq",
+    "startsAt": "1782162000",
+    "state": "Prematch",
+    "activeConditionsCount": 53,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "France",
+        "sortOrder": 0
+      },
+      {
+        "name": "Iraq",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083962793",
+    "title": "Norway – Senegal",
+    "startsAt": "1782172800",
+    "state": "Prematch",
+    "activeConditionsCount": 54,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Norway",
+        "sortOrder": 0
+      },
+      {
+        "name": "Senegal",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083963581",
+    "title": "Portugal – Uzbekistan",
+    "startsAt": "1782234000",
+    "state": "Prematch",
+    "activeConditionsCount": 56,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Portugal",
+        "sortOrder": 0
+      },
+      {
+        "name": "Uzbekistan",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083963625",
+    "title": "England – Ghana",
+    "startsAt": "1782244800",
+    "state": "Prematch",
+    "activeConditionsCount": 54,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "England",
+        "sortOrder": 0
+      },
+      {
+        "name": "Ghana",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083963650",
+    "title": "Panama – Croatia",
+    "startsAt": "1782255600",
+    "state": "Prematch",
+    "activeConditionsCount": 53,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Panama",
+        "sortOrder": 0
+      },
+      {
+        "name": "Croatia",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000083963671",
+    "title": "Colombia – DR Congo",
+    "startsAt": "1782266400",
+    "state": "Prematch",
+    "activeConditionsCount": 53,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Colombia",
+        "sortOrder": 0
+      },
+      {
+        "name": "DR Congo",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "gameId": "1006000000000077353773",
+    "title": "Scotland – Brazil",
+    "startsAt": "1782338400",
+    "state": "Prematch",
+    "activeConditionsCount": 56,
+    "sport": {
+      "name": "Football",
+      "slug": "football"
+    },
+    "league": {
+      "name": "World Cup",
+      "slug": "world-cup",
+      "country": {
+        "name": "International Tournaments"
+      }
+    },
+    "participants": [
+      {
+        "name": "Scotland",
+        "sortOrder": 0
+      },
+      {
+        "name": "Brazil",
+        "sortOrder": 1
+      }
+    ]
+  }
+]

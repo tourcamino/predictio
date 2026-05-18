@@ -17,6 +17,7 @@ export type MarketPriorityInput = {
   healthGrade?: "A" | "B" | "C" | "D" | "F";
   isTradable?: boolean;
   isOrphan?: boolean;
+  isLive?: boolean;
 };
 
 const TOP_LEAGUE_RE =
@@ -42,6 +43,11 @@ export function computeMarketPriorityScore(
   nowMs = Date.now(),
 ): number {
   if (input.isOrphan) return 0;
+  if (input.isLive) {
+    let liveScore = 50;
+    liveScore *= leagueBoost(input.leagueName);
+    return Math.round(liveScore * 100) / 100;
+  }
   if (input.isTradable === false) return 0.01;
 
   let score = 10;

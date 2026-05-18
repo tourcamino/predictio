@@ -292,6 +292,111 @@ export async function fetchAzuroGames(opts?: FetchAzuroGamesOptions): Promise<Ra
   });
 }
 
+/** Azuro indexer `Live` state — in-play fixtures missing from future Prematch pool (PR19). */
+export async function fetchAzuroLiveGames(opts?: {
+  maxPages?: number;
+  pageSize?: number;
+}): Promise<RawAzuroGame[]> {
+  if (!AZURO_FEED_URL) {
+    throw new Error("AZURO_DATA_FEED_URL is not set");
+  }
+
+  const PAGE = opts?.pageSize ?? 250;
+  const MAX_PAGES = opts?.maxPages ?? 3;
+  const merged: RawAzuroGame[] = [];
+  const seen = new Set<string>();
+
+  const query = `
+    query LiveGames($first: Int!, $skip: Int!) {
+      games(
+        first: $first
+        skip: $skip
+        where: { state: Live, activeConditionsCount_gt: 0 }
+        orderBy: startsAt
+        orderDirection: desc
+      ) {
+${GAMES_PAGE_FIELDS}
+      }
+    }
+  `;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const skip = page * PAGE;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12_000);
+    try {
+      const response = await fetch(AZURO_FEED_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, variables: { first: PAGE, skip } }),
+        signal: controller.signal,
+      });
+      const json = (await response.json()) as {
+        data?: { games?: RawAzuroGame[] };
+        errors?: unknown;
+      };
+      if (!response.ok || json.errors) break;
+      const batch = json.data?.games ?? [];
+      for (const g of batch) {
+        const id = String(g.gameId || g.id || "").trim();
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        merged.push(g);
+      }
+      if (batch.length < PAGE) break;
+    } catch {
+      break;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  console.log(
+    JSON.stringify({
+      tag: "azuro_indexer_fetch",
+      msg: "live_games_merged",
+      count: merged.length,
+    }),
+  );
+  return merged;
+}
+
+/**
+ * Prematch (future kickoff) + Live (in-play) for protocol inventory (PR19).
+ */
+export async function fetchAzuroInventoryGames(opts?: FetchAzuroGamesOptions): Promise<{
+  prematch: RawAzuroGame[];
+  live: RawAzuroGame[];
+  merged: RawAzuroGame[];
+}> {
+  const [prematch, liveRaw] = await Promise.all([
+    fetchAzuroGames(opts),
+    fetchAzuroLiveGames({ maxPages: opts?.maxPages ?? 3 }),
+  ]);
+  const live = liveRaw.filter((g) => rawGameIsFootball(g));
+  const seen = new Set<string>();
+  const merged: RawAzuroGame[] = [];
+  for (const g of [...live, ...prematch]) {
+    const id = String(g.gameId || g.id || "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    merged.push(g);
+  }
+  console.log(
+    JSON.stringify({
+      tag: "azuro_inventory_merge",
+      prematchCount: prematch.length,
+      liveFootballCount: live.length,
+      mergedCount: merged.length,
+    }),
+  );
+  return { prematch, live, merged };
+}
+
+export function rawGameIsLive(g: RawAzuroGame): boolean {
+  return String(g.state ?? "").toLowerCase() === "live";
+}
+
 function normalizeGame(raw: RawAzuroGame): NormalizedCuratorGame | null {
   const gameId = typeof raw.gameId === "string" ? raw.gameId.trim() : "";
   if (!gameId) return null;

@@ -229,6 +229,8 @@ export async function updateMarketStatuses() {
     const lockWhere = {
       status: "OPEN" as const,
       lockedAt: { lte: now },
+      // Keep in-play rows visible for catalog (PR19) — lock only after live window expires
+      startsAt: { lt: new Date(now.getTime() - 4 * 3_600_000) },
     };
 
     await logBulkDisableForensic(

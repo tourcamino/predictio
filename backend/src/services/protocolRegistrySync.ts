@@ -156,6 +156,10 @@ export async function syncProtocolRegistryToPrisma(
       const before = await readCuratedSnapshot(prisma, gameId);
       const afterStatus = "OPEN" as const;
       const afterIsActive = true;
+      const selectedBy =
+        String(event.status ?? "").toUpperCase() === "LIVE"
+          ? "LIVE_AZURO"
+          : REGISTRY_SELECTED_BY;
 
       await prisma.curatedEvent.upsert({
         where: { gameId },
@@ -170,9 +174,9 @@ export async function syncProtocolRegistryToPrisma(
           awayTeam: event.awayTeam,
           homeImage: event.homeImage ?? undefined,
           awayImage: event.awayImage ?? undefined,
-          status: "OPEN",
+          status: afterStatus,
           isActive: true,
-          selectedBy: REGISTRY_SELECTED_BY,
+          selectedBy,
           importanceScore: event.importanceScore ?? 0,
           autoPublish: event.autoPublish ?? true,
           homeOdds: event.homeOdds ?? null,
@@ -195,7 +199,7 @@ export async function syncProtocolRegistryToPrisma(
           resolvedAt: null,
           result: null,
           isActive: true,
-          selectedBy: REGISTRY_SELECTED_BY,
+          selectedBy,
           importanceScore: event.importanceScore ?? 0,
           autoPublish: event.autoPublish ?? true,
           homeOdds: event.homeOdds ?? null,
