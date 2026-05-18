@@ -22,6 +22,11 @@ import {
   logMarketLifecycleDev,
   reasonCannotOpenPaperPosition,
 } from "~/lib/market/marketLifecycleStateMachine";
+import {
+  executePaperAmmMarketBuy,
+  persistAmmOutcomesAfterFill,
+} from "~/server/services/paperAmmExecution";
+import type { PaperAmmSide } from "~/lib/amm/paperAmmEngine";
 
 function marketEventLabel(m: Market): string {
   return m.event ?? `${m.teamA} vs ${m.teamB}`;
@@ -146,32 +151,59 @@ export const placePrediction = baseProcedure
 
     await ensureMarketRowForPaperTrade(input.marketId, market);
 
+    const dbMarketRow = await db.market.findUnique({
+      where: { id: input.marketId },
+      select: { outcomes: true },
+    });
+
     const predictionId = `pred-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const balanceBefore = user.virtualBalance;
 
-    // Calculate shares and price
-    const currentPrice =
-      upperOutcome === "YES"
-        ? market.yesPrice
-        : upperOutcome === "DRAW" && market.percentDraw != null
-          ? market.percentDraw / 100
-          : market.noPrice;
+    const oracleYes = market.yesPrice;
+    const oracleNo = market.noPrice;
+    const oracleDraw =
+      market.percentDraw != null && market.percentDraw > 0
+        ? market.percentDraw / 100
+        : null;
 
-    if (
-      !Number.isFinite(currentPrice) ||
-      currentPrice <= 0 ||
-      currentPrice >= 1
-    ) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "Invalid market price — cannot execute trade.",
+    let effectivePrice: number;
+    let shares: number;
+
+    if (input.orderType === "MARKET") {
+      const ammFill = await executePaperAmmMarketBuy({
+        marketId: input.marketId,
+        side: upperOutcome as PaperAmmSide,
+        amountUsd: input.amount,
+        oracleYes,
+        oracleNo,
+        oracleDraw,
+        existingOutcomes: dbMarketRow?.outcomes ?? null,
       });
-    }
+      effectivePrice = ammFill.avgPrice;
+      shares = ammFill.shares;
+      await persistAmmOutcomesAfterFill(input.marketId, ammFill.newOutcomes);
+    } else {
+      const currentPrice =
+        upperOutcome === "YES"
+          ? market.yesPrice
+          : upperOutcome === "DRAW" && market.percentDraw != null
+            ? market.percentDraw / 100
+            : market.noPrice;
 
-    const effectivePrice =
-      input.orderType === "LIMIT" && input.limitPrice
-        ? input.limitPrice
-        : currentPrice;
+      if (
+        !Number.isFinite(currentPrice) ||
+        currentPrice <= 0 ||
+        currentPrice >= 1
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid market price — cannot execute trade.",
+        });
+      }
+
+      effectivePrice = input.limitPrice ?? currentPrice;
+      shares = input.amount / effectivePrice;
+    }
 
     if (
       !Number.isFinite(effectivePrice) ||
@@ -183,8 +215,6 @@ export const placePrediction = baseProcedure
         message: "Invalid execution price — cannot execute trade.",
       });
     }
-
-    const shares = input.amount / effectivePrice;
 
     if (!Number.isFinite(shares) || shares <= 0) {
       throw new TRPCError({
@@ -347,8 +377,27 @@ export const placePrediction = baseProcedure
                 continue;
               }
 
-              // Calculate copy trade details
-              const copyShares = copyAmount / effectivePrice;
+              // Calculate copy trade details via AMM (each fill moves the market)
+              let copyOutcomes = (
+                await db.market.findUnique({
+                  where: { id: input.marketId },
+                  select: { outcomes: true },
+                })
+              )?.outcomes;
+
+              const ammCopyFill = await executePaperAmmMarketBuy({
+                marketId: input.marketId,
+                side: upperOutcome as PaperAmmSide,
+                amountUsd: copyAmount,
+                oracleYes,
+                oracleNo,
+                oracleDraw,
+                existingOutcomes: copyOutcomes ?? null,
+              });
+              await persistAmmOutcomesAfterFill(input.marketId, ammCopyFill.newOutcomes);
+
+              const copyShares = ammCopyFill.shares;
+              const copyEffectivePrice = ammCopyFill.avgPrice;
               const copyFee = copyAmount * TAKER_FEE_RATE; // Copiers always pay taker fee
               const copyTotalCost = copyAmount + copyFee;
 
@@ -382,7 +431,7 @@ export const placePrediction = baseProcedure
                     outcome: input.outcome.toUpperCase(),
                     amount: copyAmount,
                     shares: copyShares,
-                    avgPrice: effectivePrice,
+                    avgPrice: copyEffectivePrice,
                     status: 'open',
                     orderType: 'MARKET', // Copy trades are always market orders
                     heldSince: new Date(),
@@ -409,7 +458,7 @@ export const placePrediction = baseProcedure
                       orderType: 'MARKET',
                       orderRole: 'TAKER',
                       shares: copyShares,
-                      avgPrice: effectivePrice,
+                      avgPrice: copyEffectivePrice,
                       copiedFrom: analyst.displayName,
                       copiedFromWallet: analyst.wallet,
                     },

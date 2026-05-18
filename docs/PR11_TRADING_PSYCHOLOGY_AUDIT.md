@@ -83,7 +83,11 @@
 
 ## 8–11. Deploy metadata
 
-*(Updated after commit + Vercel deploy)*
+| Item | Value |
+|------|--------|
+| **Commit SHA** | `8503afa` |
+| **Vercel deploy ID** | *(see production deploy for this SHA)* |
+| **Backend** | Not required |
 
 ### Regressions avoided
 

@@ -16,6 +16,11 @@ import {
   loadPaperMarketSnapshot,
   marketEventLabel,
 } from "./paperMarket";
+import {
+  executePaperAmmMarketBuy,
+  persistAmmOutcomesAfterFill,
+} from "../services/paperAmmExecution";
+import type { PaperAmmSide } from "../services/paperAmmEngine";
 
 function getOrderRole(orderType: "MARKET" | "LIMIT"): "MAKER" | "TAKER" {
   return orderType === "LIMIT" ? "MAKER" : "TAKER";
@@ -137,27 +142,55 @@ export async function runPlacePaperPredictionWeb(
 
   await ensurePaperMarketRow(prisma, input.marketId, market);
 
+  const dbMarketRow = await prisma.market.findUnique({
+    where: { id: input.marketId },
+    select: { outcomes: true },
+  });
+
   const predictionId = `pred-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
   const balanceBefore = user.virtualBalance;
 
-  const currentPrice =
-    upperOutcome === "YES"
-      ? market.yesPrice
-      : upperOutcome === "DRAW" && market.percentDraw != null
-        ? market.percentDraw / 100
-        : market.noPrice;
+  const oracleYes = market.yesPrice;
+  const oracleNo = market.noPrice;
+  const oracleDraw =
+    market.percentDraw != null && market.percentDraw > 0
+      ? market.percentDraw / 100
+      : null;
 
-  if (!Number.isFinite(currentPrice) || currentPrice <= 0 || currentPrice >= 1) {
-    throw new ApiError("Invalid market price — cannot execute trade.", {
-      status: 400,
-      code: "BAD_REQUEST",
+  let effectivePrice: number;
+  let shares: number;
+
+  if (orderType === "MARKET") {
+    const ammFill = await executePaperAmmMarketBuy(prisma, {
+      marketId: input.marketId,
+      side: upperOutcome as PaperAmmSide,
+      amountUsd: input.amount,
+      oracleYes,
+      oracleNo,
+      oracleDraw,
+      existingOutcomes: dbMarketRow?.outcomes ?? null,
     });
-  }
+    effectivePrice = ammFill.avgPrice;
+    shares = ammFill.shares;
+    await persistAmmOutcomesAfterFill(prisma, input.marketId, ammFill.newOutcomes);
+  } else {
+    const currentPrice =
+      upperOutcome === "YES"
+        ? market.yesPrice
+        : upperOutcome === "DRAW" && market.percentDraw != null
+          ? market.percentDraw / 100
+          : market.noPrice;
 
-  const effectivePrice =
-    orderType === "LIMIT" && input.limitPrice != null
-      ? input.limitPrice
-      : currentPrice;
+    if (!Number.isFinite(currentPrice) || currentPrice <= 0 || currentPrice >= 1) {
+      throw new ApiError("Invalid market price — cannot execute trade.", {
+        status: 400,
+        code: "BAD_REQUEST",
+      });
+    }
+
+    effectivePrice = input.limitPrice ?? currentPrice;
+    shares = input.amount / effectivePrice;
+  }
 
   if (!Number.isFinite(effectivePrice) || effectivePrice <= 0 || effectivePrice >= 1) {
     throw new ApiError("Invalid execution price — cannot execute trade.", {
@@ -166,7 +199,6 @@ export async function runPlacePaperPredictionWeb(
     });
   }
 
-  const shares = input.amount / effectivePrice;
   if (!Number.isFinite(shares) || shares <= 0) {
     throw new ApiError("Could not compute share size for this trade.", {
       status: 400,

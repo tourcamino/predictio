@@ -76,6 +76,7 @@ async function loadOpenCuratedSlots(): Promise<LiquidityAllocationSlot[]> {
       importanceScore: true,
       sport: true,
       sportSlug: true,
+      startsAt: true,
     },
   });
 
@@ -84,11 +85,26 @@ async function loadOpenCuratedSlots(): Promise<LiquidityAllocationSlot[]> {
   if (curated.length === 0) return [];
 
   const marketIds = curated.map((c) => curatedMarketIdFromGameId(c.gameId));
-  const markets = await db.market.findMany({
-    where: { id: { in: marketIds } },
-    select: { id: true, volume: true, event: true, league: true, sport: true },
-  });
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [markets, openInterestRows, recentOrders] = await Promise.all([
+    db.market.findMany({
+      where: { id: { in: marketIds } },
+      select: { id: true, volume: true, event: true, league: true, sport: true, predictions: true },
+    }),
+    db.order.groupBy({
+      by: ["marketId"],
+      where: { marketId: { in: marketIds }, status: "open" },
+      _sum: { amount: true },
+    }),
+    db.order.groupBy({
+      by: ["marketId"],
+      where: { marketId: { in: marketIds }, createdAt: { gte: since24h } },
+      _count: { _all: true },
+    }),
+  ]);
   const marketById = new Map(markets.map((m) => [m.id, m]));
+  const oiByMarket = new Map(openInterestRows.map((r) => [r.marketId, r._sum.amount ?? 0]));
+  const fillsByMarket = new Map(recentOrders.map((r) => [r.marketId, r._count._all]));
 
   return curated.map((c) => {
     const marketId = curatedMarketIdFromGameId(c.gameId);
@@ -101,6 +117,10 @@ async function loadOpenCuratedSlots(): Promise<LiquidityAllocationSlot[]> {
       sport: m?.sport ?? c.sportSlug ?? c.sport ?? "unknown",
       appealScore: c.importanceScore ?? 0,
       volume: m?.volume ?? 0,
+      startsAtMs: c.startsAt?.getTime(),
+      openInterestUsd: oiByMarket.get(marketId) ?? 0,
+      traderCount: m?.predictions ?? 0,
+      recentFillCount24h: fillsByMarket.get(marketId) ?? 0,
     };
   });
 }

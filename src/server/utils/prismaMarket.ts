@@ -1,6 +1,12 @@
 import type { Market as PrismaMarketRow } from "@prisma/client";
 import { type Market, SPORT_METADATA } from "~/data/mockMarkets";
 import { deriveMarketLifecycleFromDbRow } from "~/lib/market/marketLifecycleStateMachine";
+import {
+  isPaperAmmOutcomes,
+  pricesFromOutcomes,
+  DEFAULT_PAPER_POOL_USDC,
+} from "~/lib/amm/paperAmmEngine";
+import { gradeMarketHealth } from "~/lib/market/marketHealthGrade";
 
 export function normalizeYesNoUnitPrices(yesRaw: number, noRaw: number | undefined): {
   yesPrice: number;
@@ -33,22 +39,35 @@ export function normalizeYesNoUnitPrices(yesRaw: number, noRaw: number | undefin
 export function parseYesNoPrices(outcomes: unknown): {
   yesPrice: number;
   noPrice: number;
+  drawPrice: number | null;
 } {
-  if (outcomes == null) return { yesPrice: 0.5, noPrice: 0.5 };
+  if (isPaperAmmOutcomes(outcomes)) {
+    return {
+      yesPrice: outcomes.yes.price,
+      noPrice: outcomes.no.price,
+      drawPrice: outcomes.draw?.price ?? null,
+    };
+  }
+  if (outcomes == null) return { yesPrice: 0.5, noPrice: 0.5, drawPrice: null };
   if (Array.isArray(outcomes)) {
     const yesRaw = Number(outcomes[0]?.price ?? 0.5);
     const noRaw = outcomes[1]?.price != null ? Number(outcomes[1].price) : undefined;
-    return normalizeYesNoUnitPrices(yesRaw, noRaw);
+    const { yesPrice, noPrice } = normalizeYesNoUnitPrices(yesRaw, noRaw);
+    return { yesPrice, noPrice, drawPrice: null };
   }
   if (typeof outcomes === "object") {
     const o = outcomes as Record<string, unknown>;
     const y = o.yesPrice;
     const n = o.noPrice;
     if (typeof y === "number") {
-      return normalizeYesNoUnitPrices(y, typeof n === "number" ? n : undefined);
+      const { yesPrice, noPrice } = normalizeYesNoUnitPrices(
+        y,
+        typeof n === "number" ? n : undefined,
+      );
+      return { yesPrice, noPrice, drawPrice: null };
     }
   }
-  return { yesPrice: 0.5, noPrice: 0.5 };
+  return { yesPrice: 0.5, noPrice: 0.5, drawPrice: null };
 }
 
 export function parseTeamsFromEvent(event: string): {
@@ -98,7 +117,17 @@ export function mapDbStatusToUi(status: string, closesAt: Date): Market["status"
 }
 
 export function prismaMarketToUi(row: PrismaMarketRow): Market {
-  const { yesPrice, noPrice } = parseYesNoPrices(row.outcomes);
+  const legacyOracle = parseYesNoPrices(row.outcomes);
+  const priced = pricesFromOutcomes(
+    row.outcomes,
+    { yes: legacyOracle.yesPrice, no: legacyOracle.noPrice, draw: legacyOracle.drawPrice },
+    isPaperAmmOutcomes(row.outcomes)
+      ? row.outcomes.amm.poolLiquidityUsd
+      : DEFAULT_PAPER_POOL_USDC,
+  );
+  const yesPrice = priced.yesPrice;
+  const noPrice = priced.noPrice;
+  const drawFromOutcomes = priced.drawPrice;
   const { teamA, teamB } = parseTeamsFromEvent(row.event);
   const start_time = parseKickoff(row.outcomes, row.closesAt);
 
@@ -115,6 +144,32 @@ export function prismaMarketToUi(row: PrismaMarketRow): Market {
   }
 
   const lifecycleState = deriveMarketLifecycleFromDbRow(row);
+  const ammMeta = isPaperAmmOutcomes(row.outcomes) ? row.outcomes.amm : null;
+  const poolUsd = ammMeta?.poolLiquidityUsd ?? DEFAULT_PAPER_POOL_USDC;
+  const openInterestGuess = row.volume > 0 ? Math.min(row.volume, poolUsd) : 0;
+  const spotImb =
+    ammMeta != null
+      ? (() => {
+          const total = ammMeta.flowYesUsd + ammMeta.flowNoUsd + ammMeta.flowDrawUsd;
+          return total > 0
+            ? Math.round(((ammMeta.flowYesUsd - ammMeta.flowNoUsd) / total) * 10000) / 100
+            : 0;
+        })()
+      : 0;
+  const utilPct =
+    poolUsd > 0 ? Math.round((openInterestGuess / poolUsd) * 10000) / 100 : 0;
+  const health = gradeMarketHealth({
+    quoteFreshMs: ammMeta?.lastTradeAt
+      ? Date.now() - Date.parse(ammMeta.lastTradeAt)
+      : 45_000,
+    openInterestUsd: openInterestGuess,
+    poolLiquidityUsd: poolUsd,
+    recentFillCount24h: row.predictions > 0 ? Math.min(row.predictions, 20) : 0,
+    traderCount: row.predictions,
+    oracleState: row.status === "resolved" ? "terminal" : "prematch",
+    isTradable: row.status === "open",
+    spreadPct: 1.2,
+  });
 
   return {
     id: row.id,
@@ -140,9 +195,35 @@ export function prismaMarketToUi(row: PrismaMarketRow): Market {
     refundAmount: row.refundAmount ?? undefined,
     percentA: Math.round(yesPrice * 100),
     percentB: Math.round(noPrice * 100),
+    percentDraw: drawFromOutcomes != null ? Math.round(drawFromOutcomes * 100) : undefined,
     predictions: row.predictions,
     start_time,
     result,
     resolved_at: row.resolvedAt ?? undefined,
+    liquidity: {
+      totalPool: poolUsd,
+      yesSide: poolUsd * yesPrice,
+      noSide: poolUsd * noPrice,
+      volume24h: row.volume,
+      trades24h: row.predictions,
+      bidPrice: Math.max(0.01, yesPrice - 0.005),
+      askPrice: Math.min(0.99, yesPrice + 0.005),
+      spread: 0.01,
+      spreadPct: 1.2,
+      botActive: false,
+    },
+    paperAmm: ammMeta
+      ? {
+          poolLiquidityUsd: poolUsd,
+          utilizationPct: utilPct,
+          imbalancePct: spotImb,
+          spreadPct: 1.2,
+          flowYesUsd: ammMeta.flowYesUsd,
+          flowNoUsd: ammMeta.flowNoUsd,
+          healthGrade: health.grade,
+          healthLabel: health.label,
+          lastTradeAt: ammMeta.lastTradeAt ? new Date(ammMeta.lastTradeAt) : undefined,
+        }
+      : undefined,
   };
 }

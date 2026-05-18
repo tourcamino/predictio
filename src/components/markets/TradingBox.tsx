@@ -35,6 +35,12 @@ import { useUserPositions } from '~/hooks/useUserPositions';
 import { predictionBalanceFootnote } from '~/lib/economySurface';
 import { PAPER_ROUTING_IMPACT_POOL_USDC } from '~/lib/curatedMarketPresentation';
 import {
+  initAmmState,
+  previewBuyFill,
+  parseAmmStateFromOutcomes,
+  type PaperAmmSide,
+} from '~/lib/amm/paperAmmEngine';
+import {
   logPurchaseFlowClient,
   logPurchaseFlowClientError,
   newClientPurchaseRequestId,
@@ -243,27 +249,61 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
   const bidPrice = liquidity?.bidPrice || currentPrice - 0.01;
   const askPrice = liquidity?.askPrice || currentPrice + 0.01;
   const spread = askPrice - bidPrice;
-  const spreadPct = (spread / bidPrice) * 100;
   
   // Dynamic fee calculation based on order type
   const feeAmount = calculateOrderFee(orderType, buyAmount);
   const orderRole = getOrderRole(orderType);
   const dynamicFeePct = orderType === 'LIMIT' ? 0 : calcFee(currentPrice) * 100;
   
-  // Price impact calculation
   const poolSize =
-    (liquidity?.totalPool && liquidity.totalPool > 0
-      ? liquidity.totalPool
-      : null) ??
-    (typeof market.importanceScore === "number" && Number.isFinite(market.importanceScore)
-      ? PAPER_ROUTING_IMPACT_POOL_USDC
-      : PAPER_ROUTING_IMPACT_POOL_USDC);
-  const priceImpact = calcPriceImpact(buyAmount, poolSize);
+    market.paperAmm?.poolLiquidityUsd ??
+    (liquidity?.totalPool && liquidity.totalPool > 0 ? liquidity.totalPool : null) ??
+    PAPER_ROUTING_IMPACT_POOL_USDC;
+
+  const ammPreview = useMemo(() => {
+    if (buyAmount <= 0 || orderType !== 'MARKET') return null;
+    try {
+      const side: PaperAmmSide = selectedOutcome;
+      const oracleDraw =
+        market.percentDraw != null && market.percentDraw > 0
+          ? market.percentDraw / 100
+          : null;
+      const baseState =
+        parseAmmStateFromOutcomes(
+          null,
+          { yes: market.yesPrice, no: market.noPrice, draw: oracleDraw },
+          poolSize,
+        ) ??
+        initAmmState(market.yesPrice, market.noPrice, poolSize, oracleDraw);
+      if (market.paperAmm) {
+        baseState.flowYesUsd = market.paperAmm.flowYesUsd;
+        baseState.flowNoUsd = market.paperAmm.flowNoUsd;
+      }
+      const oi = (market.paperAmm?.utilizationPct ?? 0) * poolSize / 100;
+      return previewBuyFill(baseState, side, buyAmount, oi);
+    } catch {
+      return null;
+    }
+  }, [
+    buyAmount,
+    orderType,
+    selectedOutcome,
+    market.yesPrice,
+    market.noPrice,
+    market.percentDraw,
+    market.paperAmm,
+    poolSize,
+  ]);
+
+  const priceImpact = ammPreview?.priceImpact ?? calcPriceImpact(buyAmount, poolSize);
   const priceImpactPct = priceImpact * 100;
-  
-  // Total cost
+
+  const sharesReceived =
+    ammPreview?.shares ?? buyAmount / (currentPrice * (1 + priceImpact));
+  const spreadPct =
+    market.paperAmm?.spreadPct ?? (spread / bidPrice) * 100;
+
   const totalCost = buyAmount + feeAmount;
-  const sharesReceived = buyAmount / (currentPrice * (1 + priceImpact));
 
   // Sell calculations
   const proceedsFromSell = sellShares * currentPrice;

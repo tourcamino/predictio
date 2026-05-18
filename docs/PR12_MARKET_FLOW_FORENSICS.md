@@ -89,9 +89,9 @@
 
 | Item | Value |
 |------|--------|
-| **Commit** | *(after push)* |
-| **Vercel** | *(after deploy)* |
-| **Backend** | `getProtocolMarketBreadth` on existing Express/tRPC — VPS only if API routes need redeploy |
+| **Commit SHA** | `65b5cd2` |
+| **Vercel deploy ID** | `dpl_*` (production build triggered on push) |
+| **Backend** | Redeploy API host if tRPC is not bundled with Vercel (new `getProtocolMarketBreadth` procedure) |
 
 ### Regressions avoided
 

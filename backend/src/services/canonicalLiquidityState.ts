@@ -107,11 +107,34 @@ async function loadOpenCuratedSlots(
   const curated = [...curatedOpen].sort(compareFootballFirstLiquidity);
 
   const marketIds = curated.map((c) => curatedMarketIdFromGameId(c.gameId));
-  const markets = await prisma.market.findMany({
-    where: { id: { in: marketIds } },
-    select: { id: true, volume: true, event: true, league: true, sport: true, status: true },
-  });
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [markets, openInterestRows, recentOrders] = await Promise.all([
+    prisma.market.findMany({
+      where: { id: { in: marketIds } },
+      select: {
+        id: true,
+        volume: true,
+        event: true,
+        league: true,
+        sport: true,
+        status: true,
+        predictions: true,
+      },
+    }),
+    prisma.order.groupBy({
+      by: ["marketId"],
+      where: { marketId: { in: marketIds }, status: "open" },
+      _sum: { amount: true },
+    }),
+    prisma.order.groupBy({
+      by: ["marketId"],
+      where: { marketId: { in: marketIds }, createdAt: { gte: since24h } },
+      _count: { _all: true },
+    }),
+  ]);
   const marketById = new Map(markets.map((m) => [m.id, m]));
+  const oiByMarket = new Map(openInterestRows.map((r) => [r.marketId, r._sum.amount ?? 0]));
+  const fillsByMarket = new Map(recentOrders.map((r) => [r.marketId, r._count._all]));
 
   return curated.map((c) => {
     const marketId = curatedMarketIdFromGameId(c.gameId);
@@ -125,6 +148,9 @@ async function loadOpenCuratedSlots(
       appealScore: c.importanceScore ?? 0,
       volume: m?.volume ?? 0,
       startsAtMs: c.startsAt.getTime(),
+      openInterestUsd: oiByMarket.get(marketId) ?? 0,
+      traderCount: m?.predictions ?? 0,
+      recentFillCount24h: fillsByMarket.get(marketId) ?? 0,
     };
   });
 }

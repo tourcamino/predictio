@@ -12,6 +12,10 @@ export type LiquidityAllocationSlot = {
   sport: string;
   appealScore: number;
   volume: number;
+  startsAtMs?: number;
+  openInterestUsd?: number;
+  traderCount?: number;
+  recentFillCount24h?: number;
 };
 
 export type CanonicalMarketLiquidityRow = {
@@ -43,8 +47,15 @@ export function pickWeightSource(
 }
 
 function rawWeight(slot: LiquidityAllocationSlot, source: LiquidityWeightSource): number {
-  if (source === "real-market-volume") return Math.max(0, slot.volume);
-  return Math.max(0, slot.appealScore);
+  let base =
+    source === "real-market-volume" ? Math.max(0, slot.volume) : Math.max(0, slot.appealScore);
+  const oi = slot.openInterestUsd ?? 0;
+  if (oi > 0) base *= 1 + Math.min(1.5, oi / 500);
+  const fills = slot.recentFillCount24h ?? 0;
+  if (fills > 0) base *= 1 + Math.min(0.8, fills * 0.08);
+  const traders = slot.traderCount ?? 0;
+  if (traders > 3) base *= 1 + Math.min(0.4, (traders - 3) * 0.04);
+  return Math.max(0.01, base);
 }
 
 export function computeCanonicalMarketAllocations(

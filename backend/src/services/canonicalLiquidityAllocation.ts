@@ -17,6 +17,9 @@ export type LiquidityAllocationSlot = {
   appealScore: number;
   volume: number;
   startsAtMs?: number;
+  openInterestUsd?: number;
+  traderCount?: number;
+  recentFillCount24h?: number;
 };
 
 export type CanonicalMarketLiquidityRow = {
@@ -98,6 +101,14 @@ function rawWeight(
   base = applyFootballLiquidityWeightBoost(base, slot.sport);
   base *= leagueQualityBoost(slot.league, slot.sport);
   base *= kickoffProximityBoost(slot.startsAtMs, nowMs);
+
+  const oi = slot.openInterestUsd ?? 0;
+  if (oi > 0) base *= 1 + Math.min(1.5, oi / 500);
+  const fills = slot.recentFillCount24h ?? 0;
+  if (fills > 0) base *= 1 + Math.min(0.8, fills * 0.08);
+  const traders = slot.traderCount ?? 0;
+  if (traders > 3) base *= 1 + Math.min(0.4, (traders - 3) * 0.04);
+
   return Math.max(0.01, base);
 }
 

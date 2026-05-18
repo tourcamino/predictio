@@ -54,6 +54,18 @@ export interface Market {
     botActive: boolean;
     lastRebalance?: string;
   };
+  /** Paper AMM state surfaced for live repricing / health (PR15). */
+  paperAmm?: {
+    poolLiquidityUsd: number;
+    utilizationPct: number;
+    imbalancePct: number;
+    spreadPct: number;
+    flowYesUsd: number;
+    flowNoUsd: number;
+    healthGrade?: import("~/lib/market/marketHealthGrade").MarketHealthGrade;
+    healthLabel?: string;
+    lastTradeAt?: Date;
+  };
   // Legacy fields for backwards compatibility (will be removed)
   percentA?: number;
   percentB?: number;

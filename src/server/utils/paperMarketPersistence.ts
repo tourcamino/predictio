@@ -5,6 +5,8 @@ import type { SeedMarket } from "~/data/seedMarkets";
 import type { AzuroMarket } from "~/services/azuro";
 import { db } from "~/server/db";
 import { fetchAzuroGameDetail } from "~/services/azuro";
+import { mergeOracleIntoExistingOutcomes } from "~/lib/amm/paperAmmEngine";
+import { poolLiquidityByMarketId } from "~/server/services/paperAmmExecution";
 
 /** Min interval between Azuro GraphQL refreshes per market (ms). Override with AZURO_MARKET_REFRESH_MS. */
 const AZURO_REFRESH_MS = Math.max(
@@ -155,11 +157,36 @@ async function upsertAzuroMarketRow(marketId: string): Promise<void> {
   }
 
   try {
-    await db.market.upsert({
+    const existing = await db.market.findUnique({
       where: { id: marketId },
-      create: azuroDetailToMarketCreateInput(marketId, detail),
-      update: azuroDetailToMarketUpdateInput(detail),
+      select: { outcomes: true },
     });
+    const yesPrice = detail.outcomes[0]?.price ?? 0.5;
+    const noPrice = detail.outcomes[1]?.price ?? 0.5;
+    const poolUsd = await poolLiquidityByMarketId(marketId);
+
+    if (existing) {
+      const mergedOutcomes = mergeOracleIntoExistingOutcomes(
+        existing.outcomes,
+        yesPrice,
+        noPrice,
+        poolUsd,
+      );
+      await db.market.update({
+        where: { id: marketId },
+        data: {
+          ...azuroDetailToMarketUpdateInput(detail),
+          outcomes: mergedOutcomes as Prisma.InputJsonValue,
+        },
+      });
+    } else {
+      await db.market.create({
+        data: {
+          ...azuroDetailToMarketCreateInput(marketId, detail),
+          outcomes: mergeOracleIntoExistingOutcomes(null, yesPrice, noPrice, poolUsd) as Prisma.InputJsonValue,
+        },
+      });
+    }
     lastAzuroGraphqlFetchAt.set(marketId, Date.now());
   } catch (err) {
     console.error("[upsertAzuroMarketRow] upsert failed:", err);
@@ -194,11 +221,41 @@ export async function ensureMarketRowForPaperTrade(
   }
 
   try {
-    await db.market.upsert({
+    const existing = await db.market.findUnique({
       where: { id: marketId },
-      create: uiMarketToPrismaCreateData(marketId, market),
-      update: uiMarketToPrismaUpdateData(market),
+      select: { outcomes: true },
     });
+    const poolUsd = await poolLiquidityByMarketId(marketId);
+
+    if (existing) {
+      const mergedOutcomes = mergeOracleIntoExistingOutcomes(
+        existing.outcomes,
+        market.yesPrice,
+        market.noPrice,
+        poolUsd,
+        market.percentDraw != null ? market.percentDraw / 100 : null,
+      );
+      await db.market.update({
+        where: { id: marketId },
+        data: {
+          ...uiMarketToPrismaUpdateData(market),
+          outcomes: mergedOutcomes as Prisma.InputJsonValue,
+        },
+      });
+    } else {
+      await db.market.create({
+        data: {
+          ...uiMarketToPrismaCreateData(marketId, market),
+          outcomes: mergeOracleIntoExistingOutcomes(
+            null,
+            market.yesPrice,
+            market.noPrice,
+            poolUsd,
+            market.percentDraw != null ? market.percentDraw / 100 : null,
+          ) as Prisma.InputJsonValue,
+        },
+      });
+    }
   } catch (err) {
     console.error("[ensureMarketRowForPaperTrade] upsert failed:", err);
     throw new TRPCError({
