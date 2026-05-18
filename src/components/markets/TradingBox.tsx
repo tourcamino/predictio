@@ -50,6 +50,8 @@ interface TradingBoxProps {
   market: Market;
   /** Syncs buy-side selection when user picks a team in DecisionBlock */
   initialOutcome?: OutcomeType;
+  /** PR17: mobile-first fast execution — hide limit order, simplify chrome */
+  executionFirst?: boolean;
 }
 
 type TabType = 'buy' | 'sell';
@@ -120,7 +122,7 @@ function outcomeTeamLabel(
   return market.teamB;
 }
 
-export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
+export function TradingBox({ market, initialOutcome, executionFirst }: TradingBoxProps) {
   const trpc = useTRPC();
   const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
@@ -703,8 +705,12 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
       <div className="bg-brand-bg border border-brand-green/30 rounded-t-lg lg:rounded-lg p-4 sm:p-6 shadow-2xl lg:shadow-lg max-h-[85vh] lg:max-h-none overflow-y-auto">
         <div className="flex items-center justify-between mb-4 max-lg:mt-[1cm] lg:mt-0">
           <div>
-            <h2 className="font-syne font-bold text-xl">Place prediction</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Pre-testnet · paper USDC</p>
+            <h2 className="font-syne font-bold text-xl sm:text-2xl">
+              {executionFirst ? 'Trade now' : 'Place prediction'}
+            </h2>
+            {!executionFirst && (
+              <p className="text-xs text-gray-500 mt-0.5">Pre-testnet · paper USDC</p>
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {isDemoActive && <DemoBadge size="sm" />}
@@ -750,8 +756,8 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
         {/* BUY TAB */}
         {activeTab === 'buy' && (
           <div>
-            {/* Order Type Toggle */}
-            <div className="mb-4">
+            {/* Order Type Toggle — limit hidden on mobile when executionFirst */}
+            <div className={`mb-4 ${executionFirst ? 'hidden sm:block' : ''}`}>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Order type
               </label>
@@ -1077,7 +1083,7 @@ export function TradingBox({ market, initialOutcome }: TradingBoxProps) {
               )}
 
               {/* Fee Breakdown - Show how fees are distributed */}
-              {buyAmount > 0 && orderType === 'MARKET' && (
+              {buyAmount > 0 && orderType === 'MARKET' && !executionFirst && (
                 <div className="border-t border-white/10 pt-4">
                   <FeeBreakdownCard 
                     feeAmount={feeAmount} 
