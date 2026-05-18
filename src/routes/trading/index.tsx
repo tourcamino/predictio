@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useWallet } from '~/store/useWalletStore';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { EmptyTradingState } from '~/components/trading/EmptyTradingState';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMarketSummaries } from '~/hooks/useMarketSummaries';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import { useUserPositions } from '~/hooks/useUserPositions';
@@ -26,6 +26,7 @@ import {
   aggregateDeskStats,
 } from '~/components/trading/TraderPositionsBoard';
 import { buildTraderDeskRow } from '~/lib/trading/traderPositionDesk';
+import { sideAwareQuoteFromMarket } from '~/lib/trading/deriveLivePositionFromQuote';
 import { TradingOpsCollapsible } from '~/components/trading/TradingOpsCollapsible';
 import { GlobalProtocolMarketPulse } from '~/components/protocol/GlobalProtocolMarketPulse';
 import { ProtocolFlowFeed } from '~/components/protocol/ProtocolFlowFeed';
@@ -47,6 +48,8 @@ function TradingPage() {
   const selectPosition = useTradingStore((s) => s.selectPosition);
   const updateMarketPrice = useTradingStore((s) => s.updateMarketPrice);
   const marketPrices = useTradingStore((s) => s.marketPrices);
+  const [deskPanelOpen, setDeskPanelOpen] = useState(false);
+  const closeGuardUntilRef = useRef(0);
 
   const positionsQuery = useUserPositions({
     status: 'all',
@@ -132,32 +135,53 @@ function TradingPage() {
     if (!marketSummariesQuery.data) return;
     for (const [marketId, market] of Object.entries(marketSummariesQuery.data)) {
       if (!market) continue;
-      updateMarketPrice(marketId, {
-        marketId,
-        last: market.yesPrice,
-        change24h: 0,
-        changePct24h: 0,
-        volume24h: market.volume ?? 0,
-        timestamp: Date.now(),
-      });
+      const held = displayOpenPositions.find((p) => p.marketId === marketId);
+      const quote = held
+        ? sideAwareQuoteFromMarket(held, market)
+        : {
+            marketId,
+            last: market.yesPrice,
+            change24h: 0,
+            changePct24h: 0,
+            volume24h: market.volume ?? 0,
+            timestamp: Date.now(),
+          };
+      updateMarketPrice(marketId, quote);
     }
-  }, [marketSummariesQuery.data, updateMarketPrice]);
+  }, [marketSummariesQuery.data, updateMarketPrice, displayOpenPositions]);
 
   useEffect(() => {
-    if (!isConnected || !walletKey) return;
+    if (!isConnected || !walletKey || !deskPanelOpen) return;
     const ids = new Set(displayOpenPositions.map((p) => p.id));
     if (selectedPositionId && !ids.has(selectedPositionId)) {
-      selectPosition(displayOpenPositions[0]?.id ?? null);
+      setDeskPanelOpen(false);
+      selectPosition(null);
     }
-  }, [isConnected, walletKey, displayOpenPositions, selectedPositionId, selectPosition]);
+  }, [
+    isConnected,
+    walletKey,
+    displayOpenPositions,
+    selectedPositionId,
+    selectPosition,
+    deskPanelOpen,
+  ]);
 
   const selectedPosition = displayOpenPositions.find((p) => p.id === selectedPositionId);
 
+  const closeDeskPanel = useCallback(() => {
+    closeGuardUntilRef.current = Date.now() + 400;
+    setDeskPanelOpen(false);
+    selectPosition(null);
+  }, [selectPosition]);
+
   const openDetail = (id: string) => {
+    if (Date.now() < closeGuardUntilRef.current) return;
     selectPosition(id);
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
       navigate({ to: '/trading/position/$id', params: { id } });
+      return;
     }
+    setDeskPanelOpen(true);
   };
 
   const openSell = (id: string) => {
@@ -228,23 +252,39 @@ function TradingPage() {
         onSell={openSell}
       />
 
-      {selectedPosition ? (
-        <aside className="fixed inset-y-0 right-0 z-50 hidden w-full max-w-md border-l border-white/10 bg-brand-bg shadow-[-24px_0_80px_rgba(0,0,0,0.6)] lg:block">
-          <div className="flex h-14 items-center justify-between border-b border-white/10 px-4">
-            <p className="font-mono text-xs uppercase tracking-wider text-gray-500">Position desk</p>
-            <button
-              type="button"
-              onClick={() => selectPosition(null)}
-              className="rounded-lg p-2 text-gray-400 hover:bg-white/10 hover:text-white"
-              aria-label="Close panel"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="h-[calc(100vh-3.5rem)] overflow-y-auto scrollbar-hide">
-            <PositionDetail position={selectedPosition} />
-          </div>
-        </aside>
+      {deskPanelOpen && selectedPosition ? (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-40 hidden bg-black/55 lg:block"
+            onClick={closeDeskPanel}
+            aria-label="Close position panel"
+          />
+          <aside className="fixed inset-y-0 right-0 z-50 hidden w-full max-w-md border-l border-white/10 bg-brand-bg shadow-[-24px_0_80px_rgba(0,0,0,0.6)] lg:block">
+            <div className="flex h-14 items-center justify-between border-b border-white/10 px-4">
+              <p className="font-mono text-xs uppercase tracking-wider text-gray-500">Position desk</p>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  closeDeskPanel();
+                }}
+                className="rounded-lg p-2 text-gray-400 hover:bg-white/10 hover:text-white"
+                aria-label="Close panel"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="h-[calc(100vh-3.5rem)] overflow-y-auto scrollbar-hide">
+              <PositionDetail position={selectedPosition} />
+            </div>
+          </aside>
+        </>
       ) : null}
 
       <TradingOpsCollapsible

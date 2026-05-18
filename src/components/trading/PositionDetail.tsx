@@ -12,7 +12,10 @@ import { TradeConfirmationModal } from './TradeConfirmationModal';
 import { OrderBook } from '~/components/markets/OrderBook';
 import { RecentTradesFeed } from '~/components/markets/RecentTradesFeed';
 import { formatPnL, formatPctChange } from '~/lib/trading/calculations';
-import { deriveLivePositionFromQuote } from '~/lib/trading/deriveLivePositionFromQuote';
+import {
+  deriveLivePositionFromQuote,
+  sideAwareQuoteFromMarket,
+} from '~/lib/trading/deriveLivePositionFromQuote';
 import { isLiveMode } from '~/config/chain';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
 import { usePaperWalletBalance } from '~/hooks/usePaperWalletBalance';
@@ -117,10 +120,10 @@ export function PositionDetail({ position }: PositionDetailProps) {
   );
   const [protocolOpen, setProtocolOpen] = useState(false);
 
-  const live = useMemo(
-    () => deriveLivePositionFromQuote(position, marketPrice),
-    [position, marketPrice],
-  );
+  const live = useMemo(() => {
+    const quote = marketRow ? sideAwareQuoteFromMarket(position, marketRow) : marketPrice;
+    return deriveLivePositionFromQuote(position, quote);
+  }, [position, marketRow, marketPrice]);
   const terminal = position.status === 'resolved' || position.status === 'cancelled' || position.status === 'refunded';
   const currentPrice = live.lastPrice;
   const headerPnl = terminal ? position.unrealizedPnl : live.unrealizedPnl;

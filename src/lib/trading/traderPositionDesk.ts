@@ -5,7 +5,10 @@ import {
   isAwaitingOracleSettlement,
 } from "~/lib/position/derivePositionLifecycle";
 import type { Position } from "~/store/tradingStore";
-import { deriveLivePositionFromQuote } from "~/lib/trading/deriveLivePositionFromQuote";
+import {
+  deriveLivePositionFromQuote,
+  sideAwareQuoteFromMarket,
+} from "~/lib/trading/deriveLivePositionFromQuote";
 import type { MarketPrice } from "~/store/tradingStore";
 import { mapTradingPositionToOrderRow } from "~/lib/trading/mapTradingPositionToOrderRow";
 import {
@@ -108,7 +111,11 @@ export function buildTraderDeskRow(
   order: UserOrderRow | null,
   marketPrice?: MarketPrice,
 ): TraderDeskRow {
-  const live = deriveLivePositionFromQuote(position, marketPrice);
+  const quote =
+    market != null
+      ? sideAwareQuoteFromMarket(position, market)
+      : marketPrice;
+  const live = deriveLivePositionFromQuote(position, quote);
   const terminal =
     position.status === "resolved" ||
     position.status === "cancelled" ||

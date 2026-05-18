@@ -591,7 +591,8 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
     const homeTeam = ordered[0]?.name || 'Team A';
     const awayTeam = ordered[1]?.name || 'Team B';
     
-    const mainCondition = game.conditions[0];
+    const moneylinePick = pickMoneylineCondition(game.conditions);
+    const mainCondition = moneylinePick?.condition ?? game.conditions[0];
     const { yesPrice, drawPrice, noPrice, drawOdds } = moneylineFromCondition(
       mainCondition?.outcomes ?? [],
     );

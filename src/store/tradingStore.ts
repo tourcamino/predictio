@@ -154,9 +154,8 @@ export const useTradingStore = create<TradingStore>()(
     {
       name: 'predictio-trading',
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        selectedPositionId: state.selectedPositionId,
-      }),
+      /** Selection is session-only — persisting it trapped the desk panel open across reloads. */
+      partialize: () => ({}),
     },
   ),
 );
