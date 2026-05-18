@@ -11,8 +11,12 @@ import { useTRPC } from '~/trpc/react';
 import { useWallet, useWalletStore } from '~/store/useWalletStore';
 import {
   OnboardingModal,
-  isWelcomeOnboardingDismissedInStorage,
 } from '~/components/onboarding/OnboardingModal';
+import {
+  markWalletAsActiveTrader,
+  scheduleOnboardingResurface,
+  shouldShowWelcomeOnboarding,
+} from '~/lib/onboarding/onboardingGate';
 import { invalidateAllWalletScopedQueries } from '~/utils/invalidateAllWalletScopedQueries';
 import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import {
@@ -160,6 +164,8 @@ export function WalletSync() {
           isNewUser: boolean;
           virtualBalance: number;
           onboardingCompleted: boolean;
+          tradesCount?: number;
+          openOrderCount?: number;
         }) => {
           if (!isStillTargetWallet()) return;
 
@@ -203,9 +209,18 @@ export function WalletSync() {
             );
           }
 
+          if ((data.openOrderCount ?? 0) > 0 || (data.tradesCount ?? 0) > 0) {
+            markWalletAsActiveTrader(walletKey);
+          }
+
           if (
-            !data.onboardingCompleted &&
-            !isWelcomeOnboardingDismissedInStorage(walletKey)
+            shouldShowWelcomeOnboarding({
+              walletKey,
+              onboardingCompleted: data.onboardingCompleted,
+              isNewUser: data.isNewUser,
+              openOrderCount: data.openOrderCount,
+              tradesCount: data.tradesCount,
+            })
           ) {
             setShowOnboarding(true);
           }
@@ -302,6 +317,7 @@ export function WalletSync() {
 
   const handleOnboardingSkip = () => {
     setShowOnboarding(false);
+    if (walletKey) scheduleOnboardingResurface(walletKey);
   };
 
   return (

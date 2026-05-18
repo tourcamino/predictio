@@ -67,7 +67,7 @@ export function MarketCardCompact({ market, onClick, variant = 'card' }: MarketC
   const isHot = hasRealMarketSocialMetrics(market)
     ? market.volume24h > 50_000
     : importanceScore >= 120;
-  const isMoving = market.outcomes.some(o => Math.abs(o.price - 0.5) > 0.3); // Significant odds
+  const isMoving = (market.outcomes ?? []).some(o => Math.abs(o.price - 0.5) > 0.3);
   const isEndingSoon = isUrgent;
   
   const getStatusBadge = () => {
@@ -127,7 +127,7 @@ export function MarketCardCompact({ market, onClick, variant = 'card' }: MarketC
           
           {/* Right: Outcomes */}
           <div className="flex-shrink-0 space-y-2">
-            {market.outcomes.slice(0, 3).map((outcome) => (
+            {market.outcomes?.slice(0, 3).map((outcome) => (
               <div key={outcome.id} className="flex items-center gap-3">
                 <div className="text-right min-w-[80px]">
                   <div className="text-xs text-gray-400 mb-0.5">{outcome.label}</div>
@@ -205,7 +205,7 @@ export function MarketCardCompact({ market, onClick, variant = 'card' }: MarketC
 
         {/* Outcomes - Simplified */}
         <div className="space-y-2">
-          {market.outcomes.slice(0, 3).map((outcome) => (
+          {(market.outcomes ?? []).slice(0, 3).map((outcome) => (
             <div
               key={outcome.id}
               className="flex items-center justify-between p-2.5 bg-white/5 rounded-lg border border-white/10 hover:border-brand-green/50 transition-colors"

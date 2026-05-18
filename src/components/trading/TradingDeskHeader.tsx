@@ -27,7 +27,7 @@ export function TradingDeskHeader({
           <h1 className="font-syne text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Trading
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-base text-gray-400">
             Live probability terminal · real quotes · mark-to-market
           </p>
         </div>
@@ -103,9 +103,9 @@ function StatTile({
     <div
       className={`rounded-xl border bg-gradient-to-br from-white/[0.06] to-white/[0.02] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${border} ${className}`}
     >
-      <p className="text-[10px] font-mono uppercase tracking-wider text-gray-500">{label}</p>
+      <p className="text-xs font-mono uppercase tracking-wider text-gray-500">{label}</p>
       <p
-        className={`font-mono font-bold ${large ? "text-2xl sm:text-3xl" : "text-xl"} ${valueColor}`}
+        className={`font-mono font-bold ${large ? "text-3xl sm:text-4xl" : "text-2xl"} ${valueColor}`}
       >
         {value}
       </p>

@@ -29,7 +29,7 @@ function PhaseBadge({ row }: { row: TraderDeskRow }) {
   const pulse = matchPhase === "live" || psych.timingUrgent;
   return (
     <span
-      className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${styles[key] ?? styles.scheduled} ${pulse ? "animate-pulse" : ""}`}
+      className={`inline-flex rounded border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${styles[key] ?? styles.scheduled} ${pulse ? "animate-pulse" : ""}`}
     >
       {matchPhase === "closed" ? "FT" : matchPhaseLabel}
     </span>
@@ -44,7 +44,7 @@ function SideBadge({ side }: { side: "YES" | "NO" | "DRAW" }) {
         ? "text-red-400 border-red-500/35"
         : "text-brand-cyan border-brand-cyan/35";
   return (
-    <span className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold ${cls}`}>
+    <span className={`rounded border px-2 py-0.5 font-mono text-xs font-bold ${cls}`}>
       {side}
     </span>
   );
@@ -75,33 +75,33 @@ export function TraderPositionCard({
             : "border-white/10 bg-gradient-to-br from-white/[0.05] to-black/40 hover:border-white/20"
       }`}
     >
-      <button type="button" onClick={onSelect} className="w-full p-3 pb-2 text-left sm:p-4">
-        <div className="mb-2 flex items-start gap-2">
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex flex-wrap items-center gap-1.5">
+      <button type="button" onClick={onSelect} className="w-full p-4 pb-3 text-left sm:p-5">
+        <div className="mb-3 flex items-start gap-3">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               <PhaseBadge row={row} />
               <SideBadge side={position.side} />
-              <span className="font-mono text-[9px] text-gray-500">{psych.timingLabel}</span>
+              <span className="font-mono text-xs text-gray-500">{psych.timingLabel}</span>
               {psych.quoteAgeLabel ? (
-                <span className="font-mono text-[9px] text-gray-600">{psych.quoteAgeLabel}</span>
+                <span className="font-mono text-xs text-gray-600">{psych.quoteAgeLabel}</span>
               ) : null}
             </div>
-            <h3 className="truncate font-syne text-sm font-bold leading-tight text-white sm:text-base">
+            <h3 className="truncate font-syne text-lg font-bold leading-tight text-white sm:text-xl">
               {position.marketName}
             </h3>
-            <p className="truncate text-[11px] text-gray-500">{position.outcome}</p>
+            <p className="truncate text-sm text-gray-400">{position.outcome}</p>
           </div>
           <div className="shrink-0 text-right">
-            <p className={`font-mono text-xl font-bold leading-none sm:text-2xl ${pnlFmt.colorClass}`}>
+            <p className={`font-mono text-2xl font-bold leading-none sm:text-3xl ${pnlFmt.colorClass}`}>
               {pnlFmt.text}
             </p>
-            <p className={`font-mono text-xs ${pctFmt.colorClass}`}>{pctFmt.text}</p>
-            <p className="mt-0.5 font-mono text-[9px] text-gray-600">{psych.positionAgeLabel}</p>
+            <p className={`font-mono text-sm ${pctFmt.colorClass}`}>{pctFmt.text}</p>
+            <p className="mt-1 font-mono text-xs text-gray-600">{psych.positionAgeLabel}</p>
           </div>
         </div>
 
         <p
-          className={`mb-2 rounded border px-2 py-1 text-[10px] font-medium leading-snug ${CONVICTION_STYLES[psych.convictionState]}`}
+          className={`mb-3 rounded border px-3 py-1.5 text-xs font-medium leading-snug sm:text-sm ${CONVICTION_STYLES[psych.convictionState]}`}
         >
           {psych.convictionLabel}
           <span className="ml-1 font-mono font-normal opacity-80">· {psych.marketDriftLabel}</span>
@@ -114,7 +114,7 @@ export function TraderPositionCard({
           className="mb-2"
         />
 
-        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
           <Num label="Entry" v={`${row.entryProbPct}¢`} />
           <Num label="Now" v={`${row.currentProbPct}¢`} delta={row.probDeltaPct} />
           <Num label="Invested" v={`$${row.invested.toFixed(0)}`} />
@@ -144,19 +144,19 @@ export function TraderPositionCard({
               e.stopPropagation();
               onSell();
             }}
-            className="flex-1 rounded-lg border border-brand-green/45 bg-brand-green/15 py-2 text-xs font-bold text-brand-green hover:bg-brand-green/25 sm:text-sm"
+            className="flex-1 rounded-lg border border-brand-green/45 bg-brand-green/15 py-2.5 text-sm font-bold text-brand-green hover:bg-brand-green/25 sm:text-base"
           >
             Sell · {pnlFmt.text}
           </button>
         ) : (
-          <div className="flex flex-1 items-center justify-center rounded-lg border border-white/10 bg-black/30 py-2 text-[10px] text-gray-500">
+          <div className="flex flex-1 items-center justify-center rounded-lg border border-white/10 bg-black/30 py-2.5 text-xs text-gray-500 sm:text-sm">
             {psych.riskState === "settling" ? "Settlement in progress" : "Trading closed"}
           </div>
         )}
         <button
           type="button"
           onClick={onSelect}
-          className="flex items-center gap-0.5 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-300 hover:text-white sm:text-sm"
+          className="flex items-center gap-0.5 rounded-lg border border-white/10 px-3 py-2.5 text-sm font-semibold text-gray-300 hover:text-white"
         >
           Details
           <ChevronRight className="h-3.5 w-3.5" />
@@ -180,11 +180,11 @@ function Num({
   const c =
     accent === "green" ? "text-brand-green" : accent === "red" ? "text-red-400" : "text-white";
   return (
-    <div className="rounded border border-white/10 bg-black/35 px-1.5 py-1">
-      <p className="text-[8px] uppercase tracking-wider text-gray-600">{label}</p>
-      <p className={`font-mono text-[11px] font-semibold leading-tight ${c}`}>{v}</p>
+    <div className="rounded border border-white/10 bg-black/35 px-2 py-1.5">
+      <p className="text-[10px] uppercase tracking-wider text-gray-500">{label}</p>
+      <p className={`font-mono text-sm font-semibold leading-tight ${c}`}>{v}</p>
       {delta != null && delta !== 0 ? (
-        <p className="font-mono text-[8px] text-gray-500">
+        <p className="font-mono text-[10px] text-gray-500">
           {delta > 0 ? "+" : ""}
           {delta}¢
         </p>

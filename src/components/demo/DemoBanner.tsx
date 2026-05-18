@@ -2,26 +2,36 @@
 import { useState, useEffect } from 'react';
 import { useWallet } from '~/store/useWalletStore';
 import { useDemoAccount } from '~/hooks/useDemoAccount';
+import { normalizeWalletForQuery } from '~/utils/walletQuery';
 import {
   demoBannerPrimaryLine,
   demoBannerSecondaryHint,
 } from '~/lib/economySurface';
+import {
+  dismissDemoBanner,
+  isDemoBannerDismissed,
+  isWalletActiveTrader,
+} from '~/lib/onboarding/onboardingGate';
 
 export function DemoBanner() {
-  const { isConnected } = useWallet();
+  const { isConnected, address } = useWallet();
   const { isActive: isDemoActive } = useDemoAccount();
+  const walletKey = normalizeWalletForQuery(address);
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    const dismissed = sessionStorage.getItem('demo-banner-dismissed');
-    if (dismissed === 'true') {
+    if (isDemoBannerDismissed(walletKey)) {
+      setIsDismissed(true);
+      return;
+    }
+    if (walletKey && isWalletActiveTrader(walletKey)) {
       setIsDismissed(true);
     }
-  }, []);
+  }, [walletKey]);
 
   const handleDismiss = () => {
     setIsDismissed(true);
-    sessionStorage.setItem('demo-banner-dismissed', 'true');
+    dismissDemoBanner(walletKey);
     window.dispatchEvent(new Event('demo-banner-dismissed'));
   };
 

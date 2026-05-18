@@ -18,7 +18,8 @@ export type DiscoveryLane = {
 };
 
 function primaryYesPrice(m: SeedMarket): number {
-  const y = m.outcomes.find((o) => /yes|home|1\b/i.test(o.label)) ?? m.outcomes[0];
+  const outcomes = m.outcomes ?? [];
+  const y = outcomes.find((o) => /yes|home|1\b/i.test(o.label)) ?? outcomes[0];
   return y?.price ?? 0.5;
 }
 
@@ -28,7 +29,8 @@ function disagreementScore(m: SeedMarket): number {
 }
 
 function convictionSpread(m: SeedMarket): number {
-  if (m.outcomes.length < 2) return 0;
+  const outcomes = m.outcomes ?? [];
+  if (outcomes.length < 2) return 0;
   const prices = m.outcomes.map((o) => o.price).sort((a, b) => a - b);
   return (prices[prices.length - 1] ?? 0) - (prices[0] ?? 0);
 }

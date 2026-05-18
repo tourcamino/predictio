@@ -59,7 +59,7 @@ export function TraderPositionsBoard({
       <TraderMarketPulseBanner pulse={pulse} />
       {groups.map((group) => (
         <section key={group.section}>
-          <h2 className="mb-3 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
+          <h2 className="mb-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-gray-500">
             {group.label}
             <span className="ml-2 text-gray-600">({group.rows.length})</span>
           </h2>

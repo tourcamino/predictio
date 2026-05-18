@@ -229,6 +229,10 @@ export const syncUserAccount = baseProcedure
 
     await Promise.all([referralPromise, pointsPromise]);
 
+    const openOrderCount = await db.order.count({
+      where: { wallet: normalizedAddress, status: "open" },
+    });
+
     let virtualBalance = user.virtualBalance;
     if (!isNewUser && virtualBalance <= 0) {
       const repaired = await ensurePaperBalanceForWallet(normalizedAddress, "sync");
@@ -241,5 +245,6 @@ export const syncUserAccount = baseProcedure
       totalPnl: user.totalPnl,
       tradesCount: user.tradesCount,
       onboardingCompleted: user.onboardingCompleted,
+      openOrderCount,
     };
   });

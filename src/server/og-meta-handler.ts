@@ -7,6 +7,7 @@ import {
   logHandlerDiag,
   logHandlerFailure,
 } from "./lib/runtimeHandlerDiagnostics";
+import { passThroughToClientSpa } from "./spaPassThrough";
 
 const HTML_HEADERS = { "Content-Type": "text/html; charset=utf-8" } as const;
 
@@ -51,10 +52,10 @@ export default defineEventHandler(async (event) => {
       }
       logHandlerDiag(handler, "done", {
         ...reqCtx,
-        status: "pass-through",
+        status: "pass-through-spa",
         durationMs: Date.now() - started,
       });
-      return;
+      return passThroughToClientSpa();
     }
 
     const marketIdMatch = url.match(/\/markets\/([^/?]+)/);
@@ -71,10 +72,10 @@ export default defineEventHandler(async (event) => {
       }
       logHandlerDiag(handler, "done", {
         ...reqCtx,
-        status: "pass-through",
+        status: "pass-through-spa",
         durationMs: Date.now() - started,
       });
-      return;
+      return passThroughToClientSpa();
     }
 
     const marketId = marketIdMatch[1];
@@ -90,10 +91,10 @@ export default defineEventHandler(async (event) => {
       }
       logHandlerDiag(handler, "done", {
         ...reqCtx,
-        status: "pass-through",
+        status: "pass-through-spa",
         durationMs: Date.now() - started,
       });
-      return;
+      return passThroughToClientSpa();
     }
 
     const market = await fetchMarketMeta(marketId);
@@ -110,10 +111,10 @@ export default defineEventHandler(async (event) => {
       }
       logHandlerDiag(handler, "done", {
         ...reqCtx,
-        status: "pass-through",
+        status: "pass-through-spa",
         durationMs: Date.now() - started,
       });
-      return;
+      return passThroughToClientSpa();
     }
 
     const ogImageUrl = `${minioBaseUrl}/og-images/market-${marketId}.png`;
@@ -146,10 +147,10 @@ export default defineEventHandler(async (event) => {
 
     logHandlerDiag(handler, "done", {
       ...reqCtx,
-      status: "pass-through",
+      status: "pass-through-spa",
       durationMs: Date.now() - started,
     });
-    return;
+    return passThroughToClientSpa();
   } catch (err) {
     logHandlerFailure(handler, "handler", err, {
       durationMs: Date.now() - started,
