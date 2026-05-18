@@ -207,16 +207,25 @@ PR18 adds catalog honesty so users don't see week-old "open" markets.
 
 ## FASE 11 — Deploy record
 
-See commit message and deploy IDs appended after push/deploy run.
+| Item | Value |
+|------|-------|
+| **Commit SHA** | `8cf6d728366e4e7aecfe0633858b9b3ffece349f` (`8cf6d72`) |
+| **Vercel deploy** | `dpl_AUaZxJ8Cafv6dTf4Ern6MGYJVth2` → https://predictio.live |
+| **VPS backend** | Verified `8cf6d72` via `/api/v1/version` |
+| **Frontend SHA** | `8cf6d72` (parity **achieved**) |
+| **Boot retirement** | 12 markets closed, 23 far-future curated deactivated |
+| **Post-deploy catalog** | 20 open curated (World Cup), 2 open `Market` rows |
+| **Vitality script** | `openCurated: 20`, `openMarkets: 2`, `openOrders: 23` |
+| **Settlement tick (host)** | WARN — `db.curatedEvent` undefined on host tsx path (non-fatal) |
 
-### Manual VPS commands (if needed)
+### Post-deploy API samples
 
-```bash
-# On VPS after deploy
-npx tsx backend/scripts/run-protocol-vitality.ts
-scripts/vps-run-settlement-tick.sh
-curl -fsS https://api.predictio.live/api/v1/version
-curl -fsS 'https://api.predictio.live/api/v1/markets?sort=vitality&limit=10'
+```
+GET /api/v1/markets?sort=vitality&limit=5
+→ 1 azuro market (USA–Paraguay), stale FT rows removed
+
+GET /api/markets
+→ World Cup fixtures June 2026 (Azuro prematch pool — no PL tomorrow in feed)
 ```
 
 ---

@@ -106,7 +106,7 @@ export function sortMarketsByVitality<
   return [...markets]
     .filter((m) => {
       if (m.status !== "open") return false;
-      if (m.id.startsWith("cmo") && m.event === "WS Test") return false;
+      if (!m.id.startsWith("azuro-")) return false;
       return isTradableKickoff(m.closesAt, now);
     })
     .sort((a, b) => marketPriorityFromRow(b) - marketPriorityFromRow(a));
