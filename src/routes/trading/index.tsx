@@ -27,6 +27,8 @@ import {
 } from '~/components/trading/TraderPositionsBoard';
 import { buildTraderDeskRow } from '~/lib/trading/traderPositionDesk';
 import { TradingOpsCollapsible } from '~/components/trading/TradingOpsCollapsible';
+import { GlobalProtocolMarketPulse } from '~/components/protocol/GlobalProtocolMarketPulse';
+import { ProtocolFlowFeed } from '~/components/protocol/ProtocolFlowFeed';
 import { X } from 'lucide-react';
 
 export const Route = createFileRoute('/trading/')({
@@ -211,6 +213,11 @@ function TradingPage() {
         balanceLabel="Paper USDC"
         balanceValue={`$${formatPaperCashDisplay(currentBalance, isBalanceLoading)}`}
       />
+
+      <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_280px]">
+        <GlobalProtocolMarketPulse variant="compact" />
+        <ProtocolFlowFeed limit={5} />
+      </div>
 
       <TraderPositionsBoard
         positions={displayOpenPositions}

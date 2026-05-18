@@ -34,6 +34,10 @@ import { isCanonicalCuratedCatalog } from '~/lib/curatedMarketPresentation';
 import { groupMarketsByEditorialSlot } from '~/lib/editorialCatalogPresentation';
 import { marketMatchesSearch } from '~/lib/markets/filterMarketsSearch';
 import { expandSearchQuery, logSearchAliasExpansion } from '~/lib/markets/teamPlayerAliases';
+import { GlobalProtocolMarketPulse } from '~/components/protocol/GlobalProtocolMarketPulse';
+import { LiquidityClarityStrip } from '~/components/protocol/LiquidityClarityStrip';
+import { ProtocolFlowFeed } from '~/components/protocol/ProtocolFlowFeed';
+import { MarketDiscoveryTerminal } from '~/components/markets/MarketDiscoveryTerminal';
 
 const marketSearchSchema = z.object({
   sport: fallback(z.string(), isFootballFocusEnabled() ? 'football' : 'all').default(isFootballFocusEnabled() ? 'football' : 'all'),
@@ -762,6 +766,14 @@ function MarketsPage() {
             </div>
           )}
 
+          <div className="mb-6 space-y-3">
+            <GlobalProtocolMarketPulse />
+            <div className="grid gap-3 lg:grid-cols-2">
+              <LiquidityClarityStrip />
+              <ProtocolFlowFeed limit={6} />
+            </div>
+          </div>
+
           {/* Layout: Sidebar (25%) + Content (75%) or Full Width when collapsed */}
           <div className={`grid grid-cols-1 gap-6 ${
             isSidebarCollapsed ? 'lg:grid-cols-1' : 'lg:grid-cols-4'
@@ -792,6 +804,8 @@ function MarketsPage() {
             <div className={isSidebarCollapsed ? 'lg:col-span-1' : 'lg:col-span-3'}>
               {!hasActiveFilters ? (
                 <>
+                  <MarketDiscoveryTerminal markets={allMarkets} />
+
                   {/* Feed Structure — hidden for canonical curated catalog (API order in grid) */}
                   {!canonicalCuratedCatalog && spotlightMarkets.length > 0 && (
                     <MarketSection

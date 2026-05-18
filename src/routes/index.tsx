@@ -11,6 +11,8 @@ import { MetaTags } from "~/components/MetaTags";
 import { TrustSection } from "~/components/TrustSection";
 import { isFootballFocusEnabled, FOOTBALL_FOCUS_CONFIG } from '~/config/footballFocus';
 import { ComingSoonSports } from '~/components/ComingSoonSports';
+import { GlobalProtocolMarketPulse } from '~/components/protocol/GlobalProtocolMarketPulse';
+import { ProtocolFlowFeed } from '~/components/protocol/ProtocolFlowFeed';
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -45,6 +47,12 @@ function Home() {
       />
       <OGImagePreloader />
       <Hero />
+      <section className="border-b border-white/10 bg-black/40 px-4 py-6">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3">
+          <GlobalProtocolMarketPulse variant="compact" />
+          <ProtocolFlowFeed limit={6} />
+        </div>
+      </section>
       <LiveMarkets />
       <HowItWorks />
       <WhyPredictio />
