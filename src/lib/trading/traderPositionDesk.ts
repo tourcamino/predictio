@@ -8,6 +8,10 @@ import type { Position } from "~/store/tradingStore";
 import { deriveLivePositionFromQuote } from "~/lib/trading/deriveLivePositionFromQuote";
 import type { MarketPrice } from "~/store/tradingStore";
 import { mapTradingPositionToOrderRow } from "~/lib/trading/mapTradingPositionToOrderRow";
+import {
+  deriveTraderDeskPsychology,
+  type TraderDeskPsychology,
+} from "~/lib/trading/traderPositionPsychology";
 
 export type TraderMatchPhase =
   | "scheduled"
@@ -46,6 +50,7 @@ export type TraderDeskRow = {
   oracleMinimal: string | null;
   favorability: "favor" | "against" | "flat";
   canSell: boolean;
+  psychology: TraderDeskPsychology;
 };
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
@@ -150,7 +155,7 @@ export function buildTraderDeskRow(
         ? "FT · oracle"
         : null;
 
-  return {
+  const baseRow = {
     position,
     order,
     market,
@@ -174,6 +179,11 @@ export function buildTraderDeskRow(
       lifecycle.closeable &&
       phase !== "settled" &&
       phase !== "awaiting_oracle",
+  };
+
+  return {
+    ...baseRow,
+    psychology: deriveTraderDeskPsychology(baseRow, marketPrice),
   };
 }
 

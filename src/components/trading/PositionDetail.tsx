@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Clock, TrendingUp, Activity, Radio } from 'lucide-react';
+import { ChevronDown, Clock, Activity, Radio } from 'lucide-react';
 import { ProbabilityDepthBar } from './ProbabilityDepthBar';
 import { ProtocolStatePanel } from '~/components/protocol/ProtocolStatePanel';
 import { priceMovementLabel } from '~/lib/market/marketProtocolStatus';
@@ -32,6 +32,8 @@ import { PositionMotionPanel } from '~/components/protocol/PositionMotionPanel';
 import { SettlementTimelineSection } from '~/components/protocol/SettlementTimelineSection';
 import { ProtocolActivityTimeline } from '~/components/protocol/ProtocolActivityTimeline';
 import { mapTradingPositionToOrderRow } from '~/lib/trading/mapTradingPositionToOrderRow';
+import { buildTraderDeskRow } from '~/lib/trading/traderPositionDesk';
+import { TraderSellDecisionPanel } from './TraderSellDecisionPanel';
 
 function positionDetailExecDevLog(phase: string, extra?: Record<string, unknown>) {
   if (!import.meta.env.DEV || import.meta.env.VITE_POSITION_EXEC_DEBUG !== '1') return;
@@ -109,6 +111,11 @@ export function PositionDetail({ position }: PositionDetailProps) {
   });
   const marketRow = marketSummariesQuery.data?.[position.marketId] ?? null;
   const orderRow = useMemo(() => mapTradingPositionToOrderRow(position), [position]);
+  const deskRow = useMemo(
+    () => buildTraderDeskRow(position, marketRow, orderRow, marketPrice ?? undefined),
+    [position, marketRow, orderRow, marketPrice],
+  );
+  const [protocolOpen, setProtocolOpen] = useState(false);
 
   const live = useMemo(
     () => deriveLivePositionFromQuote(position, marketPrice),
@@ -309,20 +316,8 @@ export function PositionDetail({ position }: PositionDetailProps) {
     'relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-[0_24px_60px_rgba(0,0,0,0.35)]';
 
   return (
-    <div className="space-y-6 p-6">
-      <ProtocolLifecycleInsight order={orderRow} market={marketRow} />
-
-      <PositionMotionPanel order={orderRow} market={marketRow} />
-
-      <SettlementTimelineSection
-        marketId={position.marketId}
-        market={marketRow}
-        order={orderRow}
-      />
-
-      <ProtocolActivityTimeline marketId={position.marketId} compact />
-
-      <div className={`${panelShell} p-6`}>
+    <div className="space-y-4 p-4 sm:space-y-5 sm:p-6">
+      <div className={`${panelShell} p-4 sm:p-6`}>
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-green/35 to-transparent" aria-hidden />
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1 min-w-0">
@@ -338,7 +333,7 @@ export function PositionDetail({ position }: PositionDetailProps) {
                 <Clock className="w-3.5 h-3.5" />
                 {daysUntilEnd > 0 ? `${daysUntilEnd}d ` : ''}{hoursUntilEnd}h left
               </span>
-              <span className="text-xs text-gray-600">{movement.label}</span>
+              <span className="text-xs text-gray-600">{deskRow.psychology.convictionLabel}</span>
             </div>
           </div>
           <div className="text-right shrink-0 ml-4">
@@ -362,7 +357,9 @@ export function PositionDetail({ position }: PositionDetailProps) {
         </div>
       </div>
 
-      <div className={`${panelShell} p-6`}>
+      <TraderSellDecisionPanel psychology={deskRow.psychology} />
+
+      <div className={`${panelShell} p-4 sm:p-6`}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-syne font-bold text-lg">Probability intelligence</h3>
           <div className="flex items-center gap-2">
@@ -392,14 +389,33 @@ export function PositionDetail({ position }: PositionDetailProps) {
         />
       </div>
 
-      {/* Sell Controls */}
       <SellControls
         position={position}
         currentPrice={currentPrice}
         onSell={handleSellClick}
       />
 
-      {/* Add to Position Controls */}
+      <button
+        type="button"
+        onClick={() => setProtocolOpen((v) => !v)}
+        className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-left text-sm font-semibold text-gray-400 hover:border-white/20"
+      >
+        Protocol depth & settlement
+        <ChevronDown className={`h-4 w-4 transition-transform ${protocolOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {protocolOpen ? (
+        <div className="space-y-4">
+          <ProtocolLifecycleInsight order={orderRow} market={marketRow} />
+          <PositionMotionPanel order={orderRow} market={marketRow} />
+          <SettlementTimelineSection
+            marketId={position.marketId}
+            market={marketRow}
+            order={orderRow}
+          />
+          <ProtocolActivityTimeline marketId={position.marketId} compact />
+        </div>
+      ) : null}
+
       <AddToPositionControls
         position={position}
         currentPrice={currentPrice}

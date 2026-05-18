@@ -27,7 +27,9 @@ export function TradingDeskHeader({
           <h1 className="font-syne text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Trading
           </h1>
-          <p className="mt-1 text-sm text-gray-500">Your open positions · mark-to-market</p>
+          <p className="mt-1 text-sm text-gray-500">
+            Live probability terminal · real quotes · mark-to-market
+          </p>
         </div>
       </div>
 

@@ -9,6 +9,8 @@ import {
   groupTraderDeskRows,
 } from "~/lib/trading/traderPositionDesk";
 import { TraderPositionCard } from "./TraderPositionCard";
+import { TraderMarketPulseBanner } from "./TraderMarketPulseBanner";
+import { aggregateDeskPulse } from "~/lib/trading/traderPositionPsychology";
 
 export function TraderPositionsBoard({
   positions,
@@ -42,6 +44,7 @@ export function TraderPositionsBoard({
   );
 
   const groups = useMemo(() => groupTraderDeskRows(rows), [rows]);
+  const pulse = useMemo(() => aggregateDeskPulse(rows), [rows]);
 
   if (positions.length === 0) {
     return (
@@ -52,7 +55,8 @@ export function TraderPositionsBoard({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <TraderMarketPulseBanner pulse={pulse} />
       {groups.map((group) => (
         <section key={group.section}>
           <h2 className="mb-3 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
