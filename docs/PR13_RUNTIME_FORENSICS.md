@@ -149,10 +149,10 @@ No synthetic events, no backdated fixtures, no force-publish.
 
 ## FASE 10 — Deploy checklist
 
-- [ ] `git commit` + `push origin master`
-- [ ] Vercel production deploy
-- [ ] VPS `git pull` + `bash scripts/vps-deploy-backend.sh` (azuro.ts server-side)
-- [ ] Manual `scripts/vps-run-settlement-tick.sh` post-deploy
+- [x] `git commit` + `push origin master` → **`9e06c9b`**
+- [x] Vercel production deploy → **`dpl_2g3TZS1Wh93owMxiqt3auoPZXwNy`** (predictio.live)
+- [x] VPS `git pull` + `bash scripts/vps-deploy-backend.sh` → runtime **`9e06c9b`**
+- [x] Manual `scripts/vps-run-settlement-tick.sh` post-deploy → `terminalSettlements: 0` (oracle Prematch)
 
 ---
 
