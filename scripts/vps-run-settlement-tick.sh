@@ -28,7 +28,13 @@ if [[ -f prisma/schema.prisma ]]; then
   npx prisma generate --schema=prisma/schema.prisma
 fi
 
-# Azuro V3 data-feed (must override deprecated AZURO_GRAPHQL_URL in .env)
+# Azuro REST oracle (PR22) — settlement must not use stale data-feed subgraph
+export AZURO_USE_REST_ORACLE="${AZURO_USE_REST_ORACLE:-true}"
+export AZURO_USE_REST_FEED="${AZURO_USE_REST_FEED:-true}"
+export AZURO_ENVIRONMENT="${AZURO_ENVIRONMENT:-PolygonUSDT}"
+export AZURO_REST_API_BASE="${AZURO_REST_API_BASE:-https://api.onchainfeed.org/api/v1/public/market-manager}"
+
+# Legacy subgraph — fallback only when REST oracle disabled
 FEED="$(grep -E '^AZURO_DATA_FEED_URL=' .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r' | sed 's/^"//;s/"$//')"
 if [[ -n "$FEED" ]]; then
   export AZURO_DATA_FEED_URL="$FEED"

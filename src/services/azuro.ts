@@ -10,6 +10,11 @@ import {
   pickMoneylineCondition,
   type MoneylineOddsHint,
 } from "~/lib/settlement/azuroConditionSelection";
+import {
+  pollAzuroOracleSnapshots,
+  snapshotToAzuroGame,
+} from "~/lib/oracle/azuroOracleAdapter";
+import { isAzuroRestOracleEnabled } from "~/lib/oracle/azuroRestOracleProvider";
 
 export {
   hoursUntilStartMarket,
@@ -55,6 +60,12 @@ const DEFAULT_AZURO_DATA_FEED =
 const AZURO_FETCH_TIMEOUT_MS = 15_000;
 
 export function getAzuroGraphqlEndpoint(): string {
+  if (isAzuroRestOracleEnabled()) {
+    return (
+      process.env.AZURO_REST_API_BASE?.trim() ||
+      "https://api.onchainfeed.org/api/v1/public/market-manager"
+    );
+  }
   const dataFeed = env.AZURO_DATA_FEED_URL?.trim();
   if (dataFeed) return dataFeed;
   const legacy = env.AZURO_GRAPHQL_URL?.trim();
@@ -601,7 +612,7 @@ export async function fetchAzuroGameDetail(gameId: string): Promise<AzuroMarket 
 
     if (mainCondition?.wonOutcomeIds && mainCondition.wonOutcomeIds.length > 0) {
       const wonId = mainCondition.wonOutcomeIds[0];
-      const outs = mainCondition.outcomes;
+      const outs = mainCondition.outcomes ?? [];
       if (outs.length >= 3) {
         if (wonId === outs[0]?.outcomeId) result = "home";
         else if (wonId === outs[1]?.outcomeId) result = "draw";
@@ -734,26 +745,29 @@ export async function fetchAzuroGameForSettlement(
   if (!marketId.startsWith("azuro-")) return null;
   const gameId = marketId.replace(/^azuro-/, "");
   try {
-    const response = await azuroGraphqlFetch({
-      query: `
-        query SettlementGame($gameId: String!) {
-          games(where: { gameId: $gameId }) {
-            gameId
-            state
-            conditions {
-              conditionId
-              wonOutcomeIds
-              outcomes { outcomeId title currentOdds }
-            }
-          }
-        }
-      `,
-      variables: { gameId },
-    });
-    if (!response.ok) return null;
-    const raw = await readAzuroGraphqlJson(response);
-    const data = raw as { data?: { games?: AzuroGame[] } };
-    return data.data?.games?.[0] ?? null;
+    const { snapshots } = await pollAzuroOracleSnapshots([gameId]);
+    const snap = snapshots.find((s) => s.gameId === gameId);
+    if (!snap) return null;
+    const stub = snapshotToAzuroGame(snap);
+    return {
+      id: gameId,
+      gameId,
+      sport: { name: "Football" },
+      league: { name: "", country: { name: "" } },
+      participants: [],
+      startsAt: "0",
+      state: stub.state,
+      status: stub.status,
+      conditions: (stub.conditions ?? []).map((c) => ({
+        conditionId: c.conditionId ?? "",
+        state: c.state,
+        wonOutcomeIds: c.wonOutcomeIds,
+        outcomes: (c.outcomes ?? []).map((o) => ({
+          outcomeId: o.outcomeId ?? "",
+          currentOdds: o.currentOdds ?? undefined,
+        })),
+      })),
+    };
   } catch {
     return null;
   }
@@ -784,69 +798,26 @@ export async function checkResolvedMarkets(
       return [];
     }
 
-    const response = await azuroGraphqlFetch({
-      query: `
-          query CheckResolved($gameIds: [String!]!) {
-            games(where: { gameId_in: $gameIds }) {
-              gameId
-              state
-              conditions {
-                conditionId
-                wonOutcomeIds
-                outcomes {
-                  outcomeId
-                }
-              }
-            }
-          }
-        `,
-      variables: { gameIds: azuroGameIds },
-    });
-
-    if (!response.ok) {
-      console.error(
-        JSON.stringify({
-          type: "settlement_azuro_graphql_error",
-          status: response.status,
-          statusText: response.statusText,
-          marketCount: azuroGameIds.length,
-        }),
-      );
-      return [];
-    }
-
-    const raw = await readAzuroGraphqlJson(response);
-    const data = raw as { data?: { games?: AzuroGame[] }; errors?: unknown };
-    if (data.errors) {
-      console.error(
-        JSON.stringify({
-          type: "settlement_azuro_graphql_error",
-          errors: data.errors,
-          marketCount: azuroGameIds.length,
-          endpoint: getAzuroGraphqlEndpoint(),
-        }),
-      );
-      for (const gid of azuroGameIds) {
-        const marketId = `azuro-${gid}`;
-        logSettlementDiagnostic({
-          marketId,
-          azuroGameId: gid,
-          conditionId: null,
-          conditionIndex: null,
-          conditionCount: 0,
-          conditionSelectionReason: null,
-          closesAt: null,
-          azuroGameState: null,
-          hasWinner: false,
-          reasonCode: "GRAPHQL_ERROR",
-          reasonDetail: `Azuro GraphQL errors: ${JSON.stringify(data.errors).slice(0, 200)}`,
-          skipped: true,
-          observedAt: new Date().toISOString(),
-        });
-      }
-      return [];
-    }
-    const games: AzuroGame[] = data.data?.games || [];
+    const { snapshots, source } = await pollAzuroOracleSnapshots(azuroGameIds);
+    const games: AzuroGame[] = snapshots.map((snap) => ({
+      id: snap.gameId,
+      gameId: snap.gameId,
+      sport: { name: "Football" },
+      league: { name: "", country: { name: "" } },
+      participants: [],
+      startsAt: "0",
+      state: snap.gameState ?? undefined,
+      status: snap.gameState ?? undefined,
+      conditions: snap.conditions.map((c) => ({
+        conditionId: c.conditionId ?? "",
+        state: c.state,
+        wonOutcomeIds: c.wonOutcomeIds,
+        outcomes: (c.outcomes ?? []).map((o) => ({
+          outcomeId: o.outcomeId ?? "",
+          currentOdds: o.currentOdds ?? undefined,
+        })),
+      })),
+    }));
     const gamesById = new Map(games.map((g) => [String(g.gameId), g]));
 
     for (const gid of azuroGameIds) {
@@ -955,7 +926,9 @@ export async function checkResolvedMarkets(
     }
 
     if (out.length > 0) {
-      console.log(`[Azuro] Paper poll: ${out.length} market(s) need action`);
+      console.log(
+        `[Azuro] Paper poll (${source}): ${out.length} market(s) need action`,
+      );
     }
 
     return out;

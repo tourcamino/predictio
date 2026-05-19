@@ -197,3 +197,32 @@ export async function fetchAzuroRestGamesByState(
 
   return merged;
 }
+
+/** PR22 — Oracle terminal state via REST (games-by-ids, no environment param). */
+export async function fetchRestGamesByIds(
+  gameIds: string[],
+): Promise<Array<{ gameId: string; state: string; startsAt?: string }>> {
+  if (gameIds.length === 0) return [];
+  const CHUNK = 40;
+  const out: Array<{ gameId: string; state: string; startsAt?: string }> = [];
+  for (let i = 0; i < gameIds.length; i += CHUNK) {
+    const chunk = gameIds.slice(i, i + CHUNK);
+    const data = await restPost<{ games?: RestGame[] }>("/games-by-ids", { gameIds: chunk });
+    for (const g of data.games ?? []) {
+      if (g.gameId) out.push({ gameId: g.gameId, state: g.state, startsAt: g.startsAt });
+    }
+  }
+  return out;
+}
+
+export async function fetchRestOracleResolution(
+  gameId: string,
+): Promise<{ result: string; source: "azuro_rest" } | null> {
+  const rows = await fetchRestGamesByIds([gameId]);
+  const game = rows[0];
+  if (!game) return null;
+  if (game.state === "Finished" || game.state === "Resolved" || game.state === "Canceled") {
+    return { result: game.state, source: "azuro_rest" };
+  }
+  return null;
+}

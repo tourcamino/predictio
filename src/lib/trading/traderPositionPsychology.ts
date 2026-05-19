@@ -104,11 +104,11 @@ function deriveTimingLabel(
         urgent: false,
       };
     case "closed":
-      return { label: "Full time · oracle pending", urgent: true };
+      return { label: "FT · match ended", urgent: true };
     case "awaiting_oracle":
-      return { label: "Awaiting oracle resolution", urgent: true };
+      return { label: "FT · awaiting oracle", urgent: true };
     case "settled":
-      return { label: "Resolved", urgent: false };
+      return { label: "Resolved · paid", urgent: false };
     case "cancelled":
       return { label: "Cancelled", urgent: false };
     case "refunded":

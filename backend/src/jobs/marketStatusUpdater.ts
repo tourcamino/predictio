@@ -14,6 +14,10 @@ import { runRegistryHealthCheck } from "../services/registryHealthCheck";
 import { retireStaleMarketsAndCatalog } from "../services/staleMarketRetirement";
 import { computeMarketPriorityScore } from "../services/marketPriorityEngine";
 import {
+  fetchRestOracleResolution,
+  isAzuroRestFeedEnabled,
+} from "../services/azuroMarketManagerApi";
+import {
   inferUpsertAction,
   logBulkDisableForensic,
   logDisabledEvent,
@@ -27,6 +31,26 @@ const prisma = new PrismaClient();
 const MAX_ACTIVE_CURATED = 9;
 
 async function checkAzuroResolution(gameId: string) {
+  if (isAzuroRestFeedEnabled()) {
+    try {
+      const resolved = await fetchRestOracleResolution(gameId);
+      if (resolved) {
+        console.log(
+          JSON.stringify({
+            tag: "ORACLE_SOURCE",
+            ORACLE_SOURCE: "azuro_rest",
+            gameId,
+            state: resolved.result,
+          }),
+        );
+        return { result: resolved.result };
+      }
+      return null;
+    } catch (e) {
+      console.warn("[MarketUpdater] REST oracle check failed:", e instanceof Error ? e.message : e);
+    }
+  }
+
   try {
     const url = process.env.AZURO_DATA_FEED_URL;
     if (!url) return null;

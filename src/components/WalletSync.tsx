@@ -317,7 +317,8 @@ export function WalletSync() {
 
   const handleOnboardingSkip = () => {
     setShowOnboarding(false);
-    if (walletKey) scheduleOnboardingResurface(walletKey);
+    const key = normalizeWalletForQuery(address);
+    if (key) scheduleOnboardingResurface(key);
   };
 
   return (
