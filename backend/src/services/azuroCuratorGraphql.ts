@@ -1,5 +1,9 @@
 import { isRawFeedMode } from "./emergencyRelaxMode";
 import { logRawIndexerForensic } from "./rawFeedForensicTrace";
+import {
+  fetchAzuroRestGamesByState,
+  isAzuroRestFeedEnabled,
+} from "./azuroMarketManagerApi";
 
 const AZURO_FEED_URL = process.env.AZURO_DATA_FEED_URL;
 
@@ -369,6 +373,43 @@ export async function fetchAzuroInventoryGames(opts?: FetchAzuroGamesOptions): P
   live: RawAzuroGame[];
   merged: RawAzuroGame[];
 }> {
+  if (isAzuroRestFeedEnabled()) {
+    try {
+      const [prematchRaw, liveRaw] = await Promise.all([
+        fetchAzuroRestGamesByState("Prematch", { maxPages: opts?.maxPages ?? 15 }),
+        fetchAzuroRestGamesByState("Live", { maxPages: opts?.maxPages ?? 5 }),
+      ]);
+      const prematch = prematchRaw as RawAzuroGame[];
+      const live = liveRaw.filter((g) => rawGameIsFootball(g as RawAzuroGame)) as RawAzuroGame[];
+      const seen = new Set<string>();
+      const merged: RawAzuroGame[] = [];
+      for (const g of [...live, ...prematch]) {
+        const id = String(g.gameId || g.id || "").trim();
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        merged.push(g);
+      }
+      console.log(
+        JSON.stringify({
+          tag: "azuro_inventory_merge",
+          source: "rest_market_manager",
+          prematchCount: prematch.length,
+          liveFootballCount: live.length,
+          mergedCount: merged.length,
+        }),
+      );
+      if (isRawFeedMode()) {
+        logRawIndexerForensic(merged);
+      }
+      return { prematch, live, merged };
+    } catch (e) {
+      console.warn(
+        "[Azuro] REST market-manager fetch failed — falling back to deprecated subgraph:",
+        e instanceof Error ? e.message : e,
+      );
+    }
+  }
+
   const [prematch, liveRaw] = await Promise.all([
     fetchAzuroGames(opts),
     fetchAzuroLiveGames({ maxPages: opts?.maxPages ?? 3 }),

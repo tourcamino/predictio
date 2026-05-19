@@ -38,6 +38,9 @@ services:
       - CORS_ORIGIN=https://predictio.live
       - PREDICTIO_RAW_FEED_MODE=true
       - PREDICTIO_EDITORIAL_CATALOG_ONLY=false
+      - AZURO_USE_REST_FEED=true
+      - AZURO_ENVIRONMENT=PolygonUSDT
+      - AZURO_REST_API_BASE=https://api.onchainfeed.org/api/v1/public/market-manager
     depends_on:
       postgres:
         condition: service_healthy
