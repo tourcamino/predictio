@@ -96,6 +96,7 @@ function LiquidityPage() {
   const displayMarketsActive =
     (useExpressApi
       ? expressCanonical?.diagnostics?.lpGraph?.REGISTRY_OPEN_COUNT ??
+        curatedMarketsQuery.data?.catalogTotal ??
         curatedMarketsQuery.data?.total ??
         expressCanonical?.diagnostics?.lpGraph?.LP_CONNECTED_MARKETS ??
         expressCanonical?.canonicalOpenSlots

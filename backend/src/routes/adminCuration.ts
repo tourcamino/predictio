@@ -14,6 +14,12 @@ import {
   getTemporalBandForUnix,
   isAutoPublish,
 } from "../services/eventCurationPipeline";
+import {
+  buildCanonicalDiscoveryInventory,
+  logDiscoveryInventoryMetrics,
+} from "../services/canonicalDiscoveryInventory";
+import { getInventoryPipelinePayload } from "../services/inventoryPipelineCache";
+import { isFootballSportSlug } from "../services/canonicalSportTaxonomy";
 import { collectCatalogDepthDiagnostics } from "../services/catalogDepthDiagnostics";
 import { resolveCanonicalLiquidityState } from "../services/canonicalLiquidityState";
 import { notifyCatalogLiquidityChanged } from "../services/catalogLiquidityRebalance";
@@ -443,6 +449,101 @@ export function registerAdminCurationRoutes(
     }
   });
 
+  /** PR24 — Fast canonical discovery inventory (cached pipeline, ~50 quality football fixtures). */
+  app.get("/api/markets/discovery", publicLimiter, async (req, res) => {
+    try {
+      const nowMs = Date.now();
+      const mode = String(req.query.mode ?? "discovery").toLowerCase();
+      const registryMode = isProtocolRegistryMode();
+      const { games, diagnostics, buildMs } = await getInventoryPipelinePayload();
+
+      let selectionGames = games;
+      let discoveryMeta: ReturnType<typeof buildCanonicalDiscoveryInventory> | null = null;
+
+      if (mode === "catalog") {
+        selectionGames = sortPipelineGamesByVitality(
+          games.filter(
+            (g) =>
+              (isFootballSportSlug(g.sportSlug) || isFootballSportSlug(g.sport)) &&
+              g.startsAtUnix * 1000 > nowMs - 3 * 3_600_000,
+          ),
+        ).slice(0, Math.min(protocolRegistryApiCap(), 250));
+      } else {
+        discoveryMeta = buildCanonicalDiscoveryInventory(games, nowMs);
+        selectionGames = discoveryMeta.games;
+        logDiscoveryInventoryMetrics(discoveryMeta, {
+          endpoint: "/api/markets/discovery",
+          mode: "discovery",
+          cacheBuildMs: buildMs,
+        });
+      }
+
+      let allocationByMarketId: Record<string, { allocation: number; percentage: number }> = {};
+      try {
+        const liquidity = await resolveCanonicalLiquidityState(prisma);
+        for (const row of liquidity.liquidityPerMarket) {
+          allocationByMarketId[row.marketId] = {
+            allocation: row.allocation,
+            percentage: row.percentage,
+          };
+        }
+      } catch {
+        /* non-fatal */
+      }
+
+      const markets = mapCurationGamesToPublicMarkets(selectionGames, {
+        nowMs,
+        allocationByMarketId,
+      });
+
+      const footballPipeline = games.filter(
+        (g) => isFootballSportSlug(g.sportSlug) || isFootballSportSlug(g.sport),
+      );
+      const inventoryBuckets =
+        discoveryMeta?.bucketCounts ??
+        computeInventoryBucketCounts(
+          markets.map((m) => ({
+            kickoffMs: new Date(m.startsAt).getTime(),
+            leagueName: m.leagueName,
+            status: m.status,
+            isLive: m.status === "LIVE",
+          })),
+          nowMs,
+        );
+
+      logInventoryBucketCounts(inventoryBuckets, {
+        endpoint: "/api/markets/discovery",
+        mode,
+        FOOTBALL_COUNT: footballPipeline.length,
+        PIPELINE_COUNT: games.length,
+        API_COUNT: markets.length,
+        RENDERED_COUNT: markets.length,
+        cacheBuildMs: buildMs,
+      });
+
+      res.json({
+        markets,
+        total: markets.length,
+        catalogTotal: games.length,
+        footballCount: footballPipeline.length,
+        pipelineGameCount: games.length,
+        inventoryBuckets,
+        apiSource: "pipeline",
+        surface: mode === "catalog" ? "catalog" : "discovery",
+        rawFeedMode: registryMode,
+        protocolRegistryMode: registryMode,
+        filteredOut: discoveryMeta?.filteredOut ?? null,
+        RAW_FEED_COUNT: diagnostics.totalFromAzuro,
+      });
+    } catch (e) {
+      console.warn(
+        "[adminCuration] GET /api/markets/discovery — error:",
+        e instanceof Error ? e.message : e,
+      );
+      return res.json({ markets: [], total: 0, catalogTotal: 0, source: "error" });
+    }
+  });
+
   /** Public catalog: protocol registry (DB) + optional editorial view cap. */
   app.get("/api/markets", publicLimiter, async (_req, res) => {
     try {
@@ -451,7 +552,7 @@ export function registerAdminCurationRoutes(
       const editorialOnly = isEditorialCatalogOnly();
       const registryMode = isProtocolRegistryMode();
 
-      const { games, diagnostics } = await buildEuropeanCurationGamesPayload(new Set());
+      const { games, diagnostics } = await getInventoryPipelinePayload();
       const inv = diagnostics.emergencyInventory as Record<string, unknown> | undefined;
 
       let dbWritten = 0;

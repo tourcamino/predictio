@@ -84,6 +84,9 @@ export function LiveMarkets() {
     return [];
   }, [marketsQuery.isPending, marketsQuery.data]);
 
+  const catalogTotal =
+    marketsQuery.data?.catalogTotal ?? marketsQuery.data?.total ?? baseSeeds.length;
+
   const filteredAzuroPool = useMemo(
     () => sortAzuroPool(filterAzuroPool(baseSeeds, selectedCategory, dateFilter), sortBy),
     [baseSeeds, selectedCategory, dateFilter, sortBy],
@@ -141,7 +144,7 @@ export function LiveMarkets() {
   // Calculate stats
   const totalVolume = allMarketsLive.reduce((sum, m) => sum + m.volume, 0);
   const totalPredictions = allMarketsLive.reduce((sum, m) => sum + (m.predictions ?? 0), 0);
-  const activeMarkets = allMarketsLive.length;
+  const activeMarkets = catalogTotal > 0 ? catalogTotal : allMarketsLive.length;
 
   const formatVolume = (volume: number) => {
     if (volume >= 1000000) {

@@ -258,8 +258,8 @@ function MarketsPage() {
   
   // Founder-curated list from Express `GET /api/markets` (same DB as admin curation)
   const marketsQuery = useQuery({
-    queryKey: ["curatedMarkets", "markets-page"],
-    queryFn: fetchCuratedMarketsFromApi,
+    queryKey: ["curatedMarkets", "markets-page", "catalog"],
+    queryFn: () => fetchCuratedMarketsFromApi({ mode: "catalog" }),
     refetchInterval: 120_000,
     staleTime: 50000,
     retry: 2,
@@ -267,6 +267,7 @@ function MarketsPage() {
   });
   
   const allMarkets = marketsQuery.data?.markets || [];
+  const catalogTotal = marketsQuery.data?.catalogTotal ?? marketsQuery.data?.total ?? allMarkets.length;
   const rawFeedCatalog = marketsQuery.data?.rawFeedMode === true;
   const canonicalCuratedCatalog = isCanonicalCuratedCatalog(allMarkets);
 
