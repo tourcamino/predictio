@@ -14,6 +14,35 @@ import { loadMarketUiById } from "~/server/utils/loadMarketUi";
 import { logSettlementMetric } from "~/lib/settlement/settlementObservability";
 import type { PaperRefundReason } from "~/lib/settlement/disputeRefundContract";
 
+type CuratedOddsRow = {
+  gameId: string;
+  homeOdds: number | null;
+  drawOdds: number | null;
+  awayOdds: number | null;
+};
+
+async function fetchCuratedOddsHints(gameIds: string[]): Promise<CuratedOddsRow[]> {
+  if (gameIds.length === 0) return [];
+  const delegate = db as unknown as {
+    curatedEvent?: {
+      findMany: (args: {
+        where: { gameId: { in: string[] } };
+        select: { gameId: true; homeOdds: true; drawOdds: true; awayOdds: true };
+      }) => Promise<CuratedOddsRow[]>;
+    };
+  };
+  if (!delegate.curatedEvent?.findMany) {
+    console.warn(
+      "[settlement-tick] db.curatedEvent unavailable — continuing without odds hints (regenerate root Prisma client on VPS host)",
+    );
+    return [];
+  }
+  return delegate.curatedEvent.findMany({
+    where: { gameId: { in: gameIds } },
+    select: { gameId: true, homeOdds: true, drawOdds: true, awayOdds: true },
+  });
+}
+
 async function main() {
   const tickStarted = Date.now();
   const openOrders = await db.order.findMany({
@@ -35,13 +64,7 @@ async function main() {
 
   const azuroMarketIds = marketIds.filter((id) => id.startsWith("azuro-"));
   const gameIds = azuroMarketIds.map((id) => id.replace("azuro-", ""));
-  const curatedRows =
-    gameIds.length > 0
-      ? await db.curatedEvent.findMany({
-          where: { gameId: { in: gameIds } },
-          select: { gameId: true, homeOdds: true, drawOdds: true, awayOdds: true },
-        })
-      : [];
+  const curatedRows = await fetchCuratedOddsHints(gameIds);
   const oddsHintsByMarketId = new Map<string, MoneylineOddsHint>();
   for (const row of curatedRows) {
     oddsHintsByMarketId.set(`azuro-${row.gameId}`, {
