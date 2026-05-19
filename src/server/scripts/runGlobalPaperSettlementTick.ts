@@ -34,13 +34,20 @@ async function main() {
 
   const azuroMarketIds = marketIds.filter((id) => id.startsWith("azuro-"));
   const gameIds = azuroMarketIds.map((id) => id.replace("azuro-", ""));
+  const curatedDelegate = (db as { curatedEvent?: { findMany: typeof db.order.findMany } })
+    .curatedEvent;
   const curatedRows =
-    gameIds.length > 0
-      ? await db.curatedEvent.findMany({
+    gameIds.length > 0 && curatedDelegate
+      ? await curatedDelegate.findMany({
           where: { gameId: { in: gameIds } },
           select: { gameId: true, homeOdds: true, drawOdds: true, awayOdds: true },
         })
       : [];
+  if (gameIds.length > 0 && !curatedDelegate) {
+    console.warn(
+      "[settlement-tick] db.curatedEvent unavailable — continuing without odds hints (regenerate root Prisma client on VPS host)",
+    );
+  }
   const oddsHintsByMarketId = new Map<string, MoneylineOddsHint>();
   for (const row of curatedRows) {
     oddsHintsByMarketId.set(`azuro-${row.gameId}`, {
