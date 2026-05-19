@@ -23,6 +23,11 @@ fi
 export DATABASE_URL="$SETTLE_DB_URL"
 export NODE_TLS_REJECT_UNAUTHORIZED="${NODE_TLS_REJECT_UNAUTHORIZED:-0}"
 
+# Host Prisma client must match root schema (CuratedEvent, Order, etc.)
+if [[ -f prisma/schema.prisma ]]; then
+  npx prisma generate --schema=prisma/schema.prisma
+fi
+
 # Azuro V3 data-feed (must override deprecated AZURO_GRAPHQL_URL in .env)
 FEED="$(grep -E '^AZURO_DATA_FEED_URL=' .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r' | sed 's/^"//;s/"$//')"
 if [[ -n "$FEED" ]]; then

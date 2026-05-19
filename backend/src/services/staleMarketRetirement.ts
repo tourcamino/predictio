@@ -3,6 +3,7 @@
  * Does NOT force settlement — closes untradable rows so UI reflects reality.
  */
 import type { PrismaClient } from "@prisma/client";
+import { isRawFeedCatalogActive } from "./emergencyRelaxMode";
 
 const PAST_KICKOFF_CLOSE_MS = 6 * 60 * 60 * 1000;
 const STALE_OPEN_CURATED_MS = 24 * 60 * 60 * 1000;
@@ -54,14 +55,16 @@ export async function retireStaleMarketsAndCatalog(
   });
 
   const farFutureCutoff = new Date(nowMs + FAR_FUTURE_MS);
-  const deactivatedFar = await prisma.curatedEvent.updateMany({
-    where: {
-      isActive: true,
-      status: "OPEN",
-      startsAt: { gt: farFutureCutoff },
-    },
-    data: { isActive: false },
-  });
+  const deactivatedFar = isRawFeedCatalogActive()
+    ? { count: 0 }
+    : await prisma.curatedEvent.updateMany({
+        where: {
+          isActive: true,
+          status: "OPEN",
+          startsAt: { gt: farFutureCutoff },
+        },
+        data: { isActive: false },
+      });
 
   return {
     marketsClosed: closedMarkets.count,

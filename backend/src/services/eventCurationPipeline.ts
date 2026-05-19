@@ -3,7 +3,6 @@ import {
   fetchAzuroGames,
   fetchAzuroInventoryGames,
   rawGameIsFootball,
-  rawGameIsLive,
   type NormalizedCuratorGame,
   type RawAzuroGame,
 } from "./azuroCuratorGraphql";
@@ -36,6 +35,7 @@ import {
   isEmergencyInventoryMode,
   isEmergencyRelaxMode,
   isEditorialCatalogOnly,
+  isRawFeedCatalogActive,
   isRawFeedMode,
   rawFeedMaxPages,
   rawFeedPipelineMaxGames,
@@ -1430,7 +1430,7 @@ async function buildRawFeedCatalogPayload(
 }> {
   const windowEndSec = rawFeedWindowEndSec(wallSec);
   const inventory = await fetchAzuroInventoryGames({
-    minStartsAtSec: nowSec,
+    minStartsAtSec: isRawFeedCatalogActive() ? undefined : nowSec,
     maxPages: rawFeedMaxPages(),
   });
   const allGames = inventory.merged;

@@ -230,9 +230,18 @@ No redesign in PR19.
 
 ## 12. Deploy record
 
-*(Filled after commit/deploy)*
+| Item | Value |
+|------|-------|
+| **Commit SHA** | `7bd67f0e0e2f370a3691a6dc6ed560a174f6fd7c` |
+| **Vercel** | `dpl_BgmgBWUSRtdT8puTHzVR6he2ZquD` |
+| **VPS backend** | `7bd67f0` verified |
+| **Post-deploy ingest** | 60 merged (43 prematch + 17 live football), **17 live rejected** `live_window_expired` (Azuro Live rows with kickoff 8+ days ago) |
 
 ---
+
+## Post-deploy note (live ingest)
+
+Azuro `state: Live` football rows are **also stale** (kickoff May 9–10, audit date May 18). The 4h live window correctly rejects them. **Near-term inventory cannot be recovered from Azuro alone** — requires external fixture API (PR20+).
 
 ## Remaining blockers
 

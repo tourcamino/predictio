@@ -36,6 +36,8 @@ services:
       - API_USAGE_RETENTION_DAYS=${API_USAGE_RETENTION_DAYS:-30}
       - API_USAGE_ENABLED=${API_USAGE_ENABLED:-1}
       - CORS_ORIGIN=https://predictio.live
+      - PREDICTIO_RAW_FEED_MODE=true
+      - PREDICTIO_EDITORIAL_CATALOG_ONLY=false
     depends_on:
       postgres:
         condition: service_healthy

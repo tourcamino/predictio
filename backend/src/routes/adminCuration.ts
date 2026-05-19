@@ -29,8 +29,13 @@ import {
   homepageMinMarkets,
   isEditorialCatalogOnly,
   isProtocolRegistryMode,
+  isRawFeedCatalogActive,
   protocolRegistryApiCap,
 } from "../services/emergencyRelaxMode";
+import {
+  mapCurationGamesToPublicMarkets,
+  sortPipelineGamesByVitality,
+} from "../services/rawFeedCatalogApi";
 import { syncProtocolRegistryToPrisma } from "../services/protocolRegistrySync";
 import { recordRegistryHealthMetrics } from "../services/registryHealthSnapshot";
 import {
@@ -492,7 +497,6 @@ export function registerAdminCurationRoutes(
       });
 
       const productRows = filterCuratedRowsForProductPhase(rows);
-      const top = sortCuratedByVitality(productRows).slice(0, apiCap);
 
       let allocationByMarketId: Record<string, { allocation: number; percentage: number }> =
         {};
@@ -511,55 +515,68 @@ export function registerAdminCurationRoutes(
         );
       }
 
-      const nowSec = Math.floor(nowMs / 1000);
-      const markets = top.map((r) => {
-        const lockedAt = r.lockedAt instanceof Date ? r.lockedAt : r.startsAt;
-        const timeToLock = Math.floor((lockedAt.getTime() - nowMs) / 1000);
-        const kickSec = Math.floor(r.startsAt.getTime() / 1000);
-        const marketId = `azuro-${r.gameId}`;
-        const paperLiq = allocationByMarketId[marketId];
-        const editorial = inferEditorialSlotForFixture({
-          leagueName: r.leagueName,
-          country: r.country,
-          homeTeam: r.homeTeam,
-          awayTeam: r.awayTeam,
-          importanceScore: r.importanceScore ?? 0,
-          sport: r.sport,
-          sportSlug: r.sportSlug,
+      let markets: ReturnType<typeof mapCurationGamesToPublicMarkets>;
+      let apiSource: "pipeline" | "db";
+
+      if (isRawFeedCatalogActive() && games.length > 0) {
+        apiSource = "pipeline";
+        markets = mapCurationGamesToPublicMarkets(
+          sortPipelineGamesByVitality(games).slice(0, apiCap),
+          { nowMs, allocationByMarketId },
+        );
+      } else {
+        apiSource = "db";
+        const top = sortCuratedByVitality(productRows).slice(0, apiCap);
+        const nowSec = Math.floor(nowMs / 1000);
+        markets = top.map((r) => {
+          const lockedAt = r.lockedAt instanceof Date ? r.lockedAt : r.startsAt;
+          const timeToLock = Math.floor((lockedAt.getTime() - nowMs) / 1000);
+          const kickSec = Math.floor(r.startsAt.getTime() / 1000);
+          const marketId = `azuro-${r.gameId}`;
+          const paperLiq = allocationByMarketId[marketId];
+          const editorial = inferEditorialSlotForFixture({
+            leagueName: r.leagueName,
+            country: r.country,
+            homeTeam: r.homeTeam,
+            awayTeam: r.awayTeam,
+            importanceScore: r.importanceScore ?? 0,
+            sport: r.sport,
+            sportSlug: r.sportSlug,
+          });
+          return {
+            id: marketId,
+            gameId: r.gameId,
+            title: r.title,
+            homeTeam: r.homeTeam,
+            awayTeam: r.awayTeam,
+            homeImage: r.homeImage ?? null,
+            awayImage: r.awayImage ?? null,
+            leagueName: r.leagueName,
+            country: r.country,
+            startsAt: r.startsAt.toISOString(),
+            lockedAt: lockedAt.toISOString(),
+            status:
+              r.selectedBy === "LIVE_AZURO" ||
+              isLiveInPlayRow({ startsAt: r.startsAt, status: r.status })
+                ? "LIVE"
+                : String(r.status || "OPEN"),
+            result: r.result ?? null,
+            timeToLock,
+            importanceScore: r.importanceScore ?? 0,
+            autoPublish: r.autoPublish ?? false,
+            sport: r.sportSlug ?? r.sport ?? "football",
+            sportSlug: r.sportSlug ?? r.sport ?? "football",
+            temporalBand: getTemporalBandForUnix(nowSec, kickSec),
+            editorialSlot: editorial.slot,
+            selectionReason: editorial.selectionReason,
+            homeOdds: r.homeOdds ?? null,
+            drawOdds: r.drawOdds ?? null,
+            awayOdds: r.awayOdds ?? null,
+            paperLiquidityAllocation: paperLiq?.allocation ?? null,
+            paperLiquiditySharePct: paperLiq?.percentage ?? null,
+          };
         });
-        return {
-          id: marketId,
-          gameId: r.gameId,
-          title: r.title,
-          homeTeam: r.homeTeam,
-          awayTeam: r.awayTeam,
-          homeImage: r.homeImage ?? null,
-          awayImage: r.awayImage ?? null,
-          leagueName: r.leagueName,
-          country: r.country,
-          startsAt: r.startsAt.toISOString(),
-          lockedAt: lockedAt.toISOString(),
-          status:
-            r.selectedBy === "LIVE_AZURO" ||
-            isLiveInPlayRow({ startsAt: r.startsAt, status: r.status })
-              ? "LIVE"
-              : String(r.status || "OPEN"),
-          result: r.result ?? null,
-          timeToLock,
-          importanceScore: r.importanceScore ?? 0,
-          autoPublish: r.autoPublish ?? false,
-          sport: r.sportSlug ?? r.sport ?? "football",
-          sportSlug: r.sportSlug ?? r.sport ?? "football",
-          temporalBand: getTemporalBandForUnix(nowSec, kickSec),
-          editorialSlot: editorial.slot,
-          selectionReason: editorial.selectionReason,
-          homeOdds: r.homeOdds ?? null,
-          drawOdds: r.drawOdds ?? null,
-          awayOdds: r.awayOdds ?? null,
-          paperLiquidityAllocation: paperLiq?.allocation ?? null,
-          paperLiquiditySharePct: paperLiq?.percentage ?? null,
-        };
-      });
+      }
 
       const sportBreakdown = productRows.reduce<Record<string, number>>((acc, r) => {
         const key = (r.sportSlug ?? r.sport ?? "unknown").toLowerCase();
@@ -577,6 +594,8 @@ export function registerAdminCurationRoutes(
           OPEN_REGISTRY_COUNT: rows.length,
           PRODUCT_CATALOG_OPEN_COUNT: productRows.length,
           API_RESPONSE_COUNT: markets.length,
+          API_SOURCE: apiSource,
+          PIPELINE_GAME_COUNT: games.length,
           PRODUCT_SPORT_BREAKDOWN: sportBreakdown,
           DEACTIVATED_PRIOR_OPEN: deactivated,
           HOMEPAGE_MIN_MARKETS: homepageMinMarkets(),
@@ -584,7 +603,7 @@ export function registerAdminCurationRoutes(
       );
 
       logHomeApiForensic({
-        path: registryMode ? "protocol-registry-db" : "editorial-db",
+        path: apiSource === "pipeline" ? "protocol-registry-db" : "editorial-db",
         rawFeedCount: diagnostics.totalFromAzuro,
         dbOpenCount: rows.length,
         apiResponseCount: markets.length,
@@ -608,7 +627,9 @@ export function registerAdminCurationRoutes(
 
       res.json({
         markets,
-        total: markets.length,
+        total: games.length > 0 && isRawFeedCatalogActive() ? games.length : markets.length,
+        pipelineGameCount: games.length,
+        apiSource,
         liquidityMode: registryMode ? "protocol-registry" : "editorial-catalog",
         protocolRegistryMode: registryMode,
         rawFeedMode: registryMode,

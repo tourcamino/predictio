@@ -22,6 +22,11 @@ export function isProtocolRegistryMode(): boolean {
   return !isEditorialCatalogOnly();
 }
 
+/** Protocol registry + explicit raw feed — persist-all, rank-later (PR20). */
+export function isRawFeedCatalogActive(): boolean {
+  return isProtocolRegistryMode() || isRawFeedMode();
+}
+
 export function isEmergencyRelaxMode(): boolean {
   const v = String(process.env.PREDICTIO_EMERGENCY_RELAX ?? "")
     .trim()
