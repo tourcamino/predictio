@@ -222,6 +222,8 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
       total: number;
       rawFeedMode?: boolean;
       protocolRegistryMode?: boolean;
+      inventoryBuckets?: Record<string, number>;
+      footballCount?: number;
     };
     const mapped = filterValidAzuroMarketsForView(
       (data.markets ?? []).map(curatedApiRowToAzuroMarket),
@@ -253,6 +255,8 @@ export async function fetchCuratedMarketsFromApi(): Promise<{
           HOMEPAGE_PREVIEW_COUNT: preview.length,
           FOOTBALL_HOMEPAGE_COUNT: footballCount,
           HOMEPAGE_MIN: HOMEPAGE_MIN_MARKETS,
+          INVENTORY_BUCKETS: data.inventoryBuckets ?? null,
+          FOOTBALL_COUNT: data.footballCount ?? footballCount,
         }),
       );
       return {

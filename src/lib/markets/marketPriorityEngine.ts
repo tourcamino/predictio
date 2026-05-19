@@ -1,8 +1,6 @@
 /**
- * Real-data market priority scoring for catalog ranking (PR16).
- * No fake trending — only kickoff, league, activity, oracle, liquidity signals.
+ * PR23B — Real-data market priority scoring (frontend mirror).
  */
-
 export type MarketPriorityInput = {
   marketId: string;
   kickoffMs: number;
@@ -17,10 +15,60 @@ export type MarketPriorityInput = {
   healthGrade?: "A" | "B" | "C" | "D" | "F";
   isTradable?: boolean;
   isOrphan?: boolean;
+  isLive?: boolean;
+  primaryOutcomePrice?: number;
 };
 
+export type EuropeanLeagueTier = "anchor" | "top" | "mid" | "low";
+
+const ANCHOR_LEAGUE_RE =
+  /premier league|champions league|uefa champions|europa league|uefa europa|world cup|euro 20|european championship|nations league|copa america|euro\b/i;
+
 const TOP_LEAGUE_RE =
-  /premier league|champions league|uefa|serie a|la liga|laliga|bundesliga|ligue 1|eredivisie|europa league/i;
+  /serie a|la liga|laliga|bundesliga|ligue 1|eredivisie|primeira liga|liga portugal|scottish premiership/i;
+
+const MID_LEAGUE_RE =
+  /championship|segunda|serie b|2\. bundesliga|ligue 2|super lig|jupiler|pro league|austrian bundesliga|super league|allsvenskan|veikkausliiga/i;
+
+const LOW_LEAGUE_RE =
+  /serie c|terza|fourth division|friendly|reserve|u19|u21|youth|amateur/i;
+
+const MAJOR_TOURNAMENT_RE =
+  /world cup|euro 20|european championship|champions league|uefa champions|europa league|nations league|copa america|premier league|confederations/i;
+
+export function europeanLeagueTier(leagueName?: string): EuropeanLeagueTier {
+  const n = (leagueName ?? "").trim();
+  if (!n) return "low";
+  if (ANCHOR_LEAGUE_RE.test(n)) return "anchor";
+  if (TOP_LEAGUE_RE.test(n)) return "top";
+  if (MID_LEAGUE_RE.test(n)) return "mid";
+  if (LOW_LEAGUE_RE.test(n)) return "low";
+  return "mid";
+}
+
+export function europeanLeagueImportance(leagueName?: string): number {
+  switch (europeanLeagueTier(leagueName)) {
+    case "anchor":
+      return 2.2;
+    case "top":
+      return 1.75;
+    case "mid":
+      return 1.2;
+    case "low":
+      return 0.85;
+  }
+}
+
+export function isMajorTournamentLeague(leagueName?: string): boolean {
+  return MAJOR_TOURNAMENT_RE.test(leagueName ?? "");
+}
+
+export function disagreementBoost(primaryOutcomePrice?: number): number {
+  if (primaryOutcomePrice == null || !Number.isFinite(primaryOutcomePrice)) return 0;
+  const distFromHalf = Math.abs(primaryOutcomePrice - 0.5);
+  if (distFromHalf >= 0.35) return 0;
+  return (0.35 - distFromHalf) * 4;
+}
 
 export function kickoffProximityBoost(kickoffMs: number, nowMs = Date.now()): number {
   const hours = (kickoffMs - nowMs) / 3_600_000;
@@ -33,8 +81,7 @@ export function kickoffProximityBoost(kickoffMs: number, nowMs = Date.now()): nu
 }
 
 export function leagueBoost(leagueName?: string): number {
-  if (!leagueName) return 1;
-  return TOP_LEAGUE_RE.test(leagueName) ? 1.6 : 1;
+  return europeanLeagueImportance(leagueName);
 }
 
 export function computeMarketPriorityScore(
@@ -42,6 +89,11 @@ export function computeMarketPriorityScore(
   nowMs = Date.now(),
 ): number {
   if (input.isOrphan) return 0;
+  if (input.isLive) {
+    let liveScore = 50;
+    liveScore *= leagueBoost(input.leagueName);
+    return Math.round(liveScore * 100) / 100;
+  }
   if (input.isTradable === false) return 0.01;
 
   let score = 10;
@@ -59,6 +111,8 @@ export function computeMarketPriorityScore(
 
   const traders = input.traderCount ?? 0;
   score += Math.min(3, traders * 0.15);
+
+  score += disagreementBoost(input.primaryOutcomePrice);
 
   const util = input.utilizationPct ?? 0;
   if (util > 0.05 && util < 0.9) score += 1.5;

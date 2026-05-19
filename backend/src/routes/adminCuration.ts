@@ -36,6 +36,10 @@ import {
   mapCurationGamesToPublicMarkets,
   sortPipelineGamesByVitality,
 } from "../services/rawFeedCatalogApi";
+import {
+  computeInventoryBucketCounts,
+  logInventoryBucketCounts,
+} from "../services/inventoryBuckets";
 import { syncProtocolRegistryToPrisma } from "../services/protocolRegistrySync";
 import { recordRegistryHealthMetrics } from "../services/registryHealthSnapshot";
 import {
@@ -625,6 +629,24 @@ export function registerAdminCurationRoutes(
         apiResponseCount: markets.length,
       });
 
+      const footballMarkets = markets.filter(
+        (m) => m.sportSlug === "football" || m.sport === "football",
+      );
+      const inventoryBuckets = computeInventoryBucketCounts(
+        footballMarkets.map((m) => ({
+          kickoffMs: new Date(m.startsAt).getTime(),
+          leagueName: m.leagueName,
+          status: m.status,
+          isLive: m.status === "LIVE",
+        })),
+        nowMs,
+      );
+      logInventoryBucketCounts(inventoryBuckets, {
+        FOOTBALL_COUNT: footballMarkets.length,
+        API_COUNT: markets.length,
+        RENDERED_COUNT: markets.length,
+      });
+
       res.json({
         markets,
         total: games.length > 0 && isRawFeedCatalogActive() ? games.length : markets.length,
@@ -636,6 +658,8 @@ export function registerAdminCurationRoutes(
         homepageMinMarkets: homepageMinMarkets(),
         productCatalogOpenCount: productRows.length,
         registryOpenCount: rows.length,
+        inventoryBuckets,
+        footballCount: footballMarkets.length,
       });
     } catch (e) {
       // Never 500 for public catalog — mapping/sort edge cases or unexpected errors → empty list.

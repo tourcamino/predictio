@@ -51,6 +51,11 @@ import {
   isInterestFirstCatalogMode,
   isLegacyEuropeanTierHardGate,
 } from "./globalInterestScore";
+import { computeMarketPriorityScore } from "./marketPriorityEngine";
+import {
+  computeInventoryBucketCounts,
+  logInventoryBucketCounts,
+} from "./inventoryBuckets";
 
 export { isItalianPriorityFixture, isUnionBerlinFixture };
 
@@ -1462,9 +1467,22 @@ async function buildRawFeedCatalogPayload(
     merged.push({ raw: g, importanceScore: 0 });
   }
 
-  merged.sort(
-    (a, b) => parseInt(String(a.raw.startsAt), 10) - parseInt(String(b.raw.startsAt), 10),
-  );
+  merged.sort((a, b) => {
+    const kickA = parseInt(String(a.raw.startsAt), 10);
+    const kickB = parseInt(String(b.raw.startsAt), 10);
+    const leagueA = a.raw.league?.name ?? "";
+    const leagueB = b.raw.league?.name ?? "";
+    const scoreA = computeMarketPriorityScore(
+      { marketId: String(a.raw.gameId ?? ""), kickoffMs: kickA * 1000, leagueName: leagueA },
+      nowSec * 1000,
+    );
+    const scoreB = computeMarketPriorityScore(
+      { marketId: String(b.raw.gameId ?? ""), kickoffMs: kickB * 1000, leagueName: leagueB },
+      nowSec * 1000,
+    );
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    return kickA - kickB;
+  });
 
   const maxOut = rawFeedPipelineMaxGames();
   const picked = merged.slice(0, maxOut);
@@ -1556,6 +1574,24 @@ async function buildRawFeedCatalogPayload(
 
   brutal.RENDERED_COUNT = games.length;
   brutal.API_COUNT = games.length;
+
+  const footballPicked = games.filter((g) => g.sportSlug === "football" || g.sport === "football");
+  const bucketCounts = computeInventoryBucketCounts(
+    footballPicked.map((g) => ({
+      kickoffMs: g.startsAtUnix * 1000,
+      leagueName: g.leagueName,
+      status: g.status,
+      isLive: g.status === "LIVE",
+    })),
+    nowSec * 1000,
+  );
+  logInventoryBucketCounts(bucketCounts, {
+    FOOTBALL_COUNT: footballPicked.length,
+    RAW_FEED_COUNT: allGames.length,
+    API_COUNT: games.length,
+    RENDERED_COUNT: games.length,
+  });
+
   console.log(JSON.stringify(brutal));
   console.log(
     JSON.stringify({

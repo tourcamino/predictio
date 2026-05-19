@@ -7,6 +7,7 @@ import { isFootballFocusEnabled } from '~/config/footballFocus';
 import { seedMarketToLiveMarket } from '~/utils/seedMarketToLiveMarket';
 import { fetchCuratedMarketsFromApi } from '~/utils/curatedMarketsApi';
 import { buildFootballFirstHomepageView } from '~/lib/footballFirstView';
+import { buildContinuousHomepageLayers } from '~/lib/inventory/homepageLayers';
 import type { AzuroMarket } from '~/services/azuro';
 import type { Market } from '~/data/mockMarkets';
 
@@ -41,8 +42,9 @@ function filterAzuroPool(
 
 function sortAzuroPool(
   pool: AzuroMarket[],
-  sortBy: 'volume' | 'trending' | 'ending-soon',
+  sortBy: 'volume' | 'trending' | 'ending-soon' | 'vitality',
 ): AzuroMarket[] {
+  if (sortBy === 'vitality') return pool;
   const sorted = [...pool];
   if (sortBy === 'trending') {
     sorted.sort(
@@ -63,7 +65,7 @@ export function LiveMarkets() {
   const [selectedCategory, setSelectedCategory] = useState<string>(
     isFootballFocusEnabled() ? 'football' : 'all'
   );
-  const [sortBy, setSortBy] = useState<'volume' | 'trending' | 'ending-soon'>('trending');
+  const [sortBy, setSortBy] = useState<'volume' | 'trending' | 'ending-soon' | 'vitality'>('vitality');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | '24h' | 'week'>('all');
   const marketsQuery = useQuery({
     queryKey: ["curatedMarkets", "home"],
@@ -86,6 +88,20 @@ export function LiveMarkets() {
     () => sortAzuroPool(filterAzuroPool(baseSeeds, selectedCategory, dateFilter), sortBy),
     [baseSeeds, selectedCategory, dateFilter, sortBy],
   );
+
+  const useLayeredView =
+    dateFilter === 'all' &&
+    sortBy === 'vitality' &&
+    (selectedCategory === 'all' || selectedCategory === 'football');
+
+  const homepageLayers = useMemo(() => {
+    if (!useLayeredView || baseSeeds.length === 0) return [];
+    const pool =
+      selectedCategory === 'football'
+        ? baseSeeds.filter((m) => m.sport === 'football' || m.sport === 'soccer')
+        : baseSeeds;
+    return buildContinuousHomepageLayers(pool, { perLayer: 4 });
+  }, [useLayeredView, baseSeeds, selectedCategory]);
 
   const displayedAzuro = useMemo(() => {
     const pool =
@@ -175,7 +191,7 @@ export function LiveMarkets() {
           
           <p className="text-lg text-gray-400 max-w-2xl mx-auto mb-8">
             {isFootballFocusEnabled() 
-              ? 'Odds move in real time as the match unfolds. Trade on Champions League, Serie A, and top European competitions.'
+              ? 'Live, swing, and long conviction football — continuous prediction market inventory across every major competition.'
               : 'Real-time odds on every major sporting event. Trade your predictions and earn from your sports knowledge.'
             }
           </p>
@@ -225,6 +241,17 @@ export function LiveMarkets() {
             <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
               {/* Sort/Popularity Filter */}
               <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-1">
+                <button
+                  onClick={() => setSortBy('vitality')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    sortBy === 'vitality'
+                      ? 'bg-brand-green text-brand-bg shadow-lg'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>Featured</span>
+                </button>
                 <button
                   onClick={() => setSortBy('trending')}
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-all ${
@@ -323,12 +350,12 @@ export function LiveMarkets() {
           </div>
 
           {/* Active Filters Indicator */}
-          {(sortBy !== 'trending' || dateFilter !== 'all' || selectedCategory !== (isFootballFocusEnabled() ? 'football' : 'all')) && (
+          {(sortBy !== 'vitality' || dateFilter !== 'all' || selectedCategory !== (isFootballFocusEnabled() ? 'football' : 'all')) && (
             <div className="flex items-center justify-center gap-2 mb-6">
               <span className="text-sm text-gray-400">Showing {displayedMarkets.length} filtered markets</span>
               <button
                 onClick={() => {
-                  setSortBy('trending');
+                  setSortBy('vitality');
                   setDateFilter('all');
                   setSelectedCategory(isFootballFocusEnabled() ? 'football' : 'all');
                 }}
@@ -340,7 +367,43 @@ export function LiveMarkets() {
           )}
         </div>
 
-        {/* Markets Grid ÔÇö Azuro-backed (aligned with /markets); skeleton on first load */}
+        {/* Layered continuous inventory (default) or filtered grid */}
+        {useLayeredView && homepageLayers.length > 0 ? (
+          <div className="space-y-10 mb-12">
+            {homepageLayers.map((layer) => (
+              <section key={layer.id}>
+                <div className="mb-4 flex items-end justify-between gap-2">
+                  <div>
+                    <h3 className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-brand-cyan">
+                      {layer.label}
+                    </h3>
+                    <p className="text-sm text-gray-500">{layer.description}</p>
+                  </div>
+                  <span className="font-mono text-[10px] text-gray-600">
+                    {layer.markets.length} markets
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {layer.markets.map((seed, index) => {
+                    const market = seedMarketToLiveMarket(seed);
+                    return (
+                      <div
+                        key={market.id}
+                        className="animate-fade-in"
+                        style={{ animationDelay: `${index * 40}ms` }}
+                      >
+                        <LiveMarketCard
+                          market={market}
+                          onClick={() => handleMarketClick(market.id)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {marketsQuery.isPending && !marketsQuery.data
             ? Array.from({ length: HOME_MARKET_CARD_COUNT }).map((_, index) => (
@@ -359,6 +422,7 @@ export function LiveMarkets() {
                 </div>
               ))}
         </div>
+        )}
 
         {/* CTA */}
         <div className="text-center">
